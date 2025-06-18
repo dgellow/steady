@@ -1,0 +1,94 @@
+openapi: 3.0.0
+info:
+  title: Recursive Schema Test API
+  version: 1.0.0
+  description: Test API to demonstrate Steady's handling of recursive schemas
+servers:
+  - url: http://localhost:3000
+paths:
+  /tree:
+    get:
+      summary: Get a tree structure
+      description: Returns a recursive tree structure
+      responses:
+        "200":
+          description: A tree node with recursive children
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeNode"
+
+  /person:
+    get:
+      summary: Get a person with relationships
+      description: Returns a person with recursive relationships
+      responses:
+        "200":
+          description: A person with spouse and friends
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+
+  /simple:
+    get:
+      summary: Get a simple non-recursive response
+      description: Returns a simple user object
+      parameters:
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: User ID to fetch
+        - name: include
+          in: query
+          schema:
+            type: string
+          description: Fields to include
+      responses:
+        "200":
+          description: A simple user
+          content:
+            application/json:
+              example:
+                id: 42
+                name: "John Doe"
+                email: "john@example.com"
+
+components:
+  schemas:
+    TreeNode:
+      type: object
+      required:
+        - value
+      properties:
+        value:
+          type: string
+          example: "Node value"
+        children:
+          type: array
+          description: Child nodes (recursive)
+          items:
+            $ref: "#/components/schemas/TreeNode"
+
+    Person:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: "Alice Smith"
+        age:
+          type: integer
+          minimum: 0
+          maximum: 150
+        spouse:
+          $ref: "#/components/schemas/Person"
+          description: Spouse (recursive reference)
+        friends:
+          type: array
+          description: List of friends (recursive)
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/Person"
