@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --allow-sys
 
-import { LogLevel, ValidationResult } from "./types.ts";
-import { RequestLogger } from "./logger.ts";
+import { LogLevel } from "./types.ts";
+import { RequestLogger, ValidationResult } from "./logger.ts";
 
 // Simple ANSI codes for essential formatting only
 const RESET = "\x1b[0m";

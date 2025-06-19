@@ -6,6 +6,7 @@ import type {
   ResponseObject,
   SchemaObject,
 } from "@steady/parser";
+import type { LogLevel } from "@steady/shared";
 
 export interface ResolvedOperation {
   method: string;
@@ -46,8 +47,6 @@ export interface GenerationContext {
   spec: OpenAPISpec;
 }
 
-export type LogLevel = "summary" | "details" | "full";
-
 export interface ServerConfig {
   port: number;
   host: string;
@@ -65,12 +64,6 @@ export interface ValidationError {
   message: string;
   expected?: unknown;
   actual?: unknown;
-}
-
-export interface ValidationResult {
-  valid: boolean;
-  errors: ValidationError[];
-  warnings: ValidationError[];
 }
 
 // Re-export types that are used in multiple places

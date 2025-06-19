@@ -1,4 +1,5 @@
-import { ValidationError, ValidationResult } from "./types.ts";
+import { ValidationError } from "./types.ts";
+import type { ValidationResult } from "@steady/shared";
 import type {
   OpenAPISpec,
   OperationObject,

@@ -4,8 +4,8 @@ import React, { useEffect, useState } from "npm:react";
 import { Box, render, Text, useApp, useInput, useStdout } from "npm:ink";
 // import fullscreen from "npm:fullscreen-ink"; // Not used currently
 import process from "node:process";
-import { LogLevel, ValidationResult } from "./types.ts";
-import { RequestLogger } from "./logger.ts";
+import { LogLevel } from "./types.ts";
+import { RequestLogger, ValidationResult } from "./logger.ts";
 
 // Debug logging to file
 const debugLog = (message: string) => {

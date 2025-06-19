@@ -1,4 +1,16 @@
-import { LogLevel, ValidationResult } from "./types.ts";
+import { LogLevel } from "./types.ts";
+
+// ValidationResult is from main app - logger shouldn't depend on it
+// Instead, we'll use a generic interface
+export interface ValidationResult {
+  valid: boolean;
+  errors: Array<
+    { path: string; message: string; expected?: unknown; actual?: unknown }
+  >;
+  warnings: Array<
+    { path: string; message: string; expected?: unknown; actual?: unknown }
+  >;
+}
 
 // ANSI color codes
 const RESET = "\x1b[0m";

@@ -7,11 +7,11 @@ import type {
 import { MatchError, missingExampleError } from "./errors.ts";
 import { generateFromMediaType } from "./generator.ts";
 import { buildReferenceGraph } from "./resolver.ts";
-import { RequestLogger } from "./logger.ts";
 import {
   InkSimpleLogger,
+  RequestLogger,
   startInkSimpleLogger,
-} from "./ink-simple-logger-v2.tsx";
+} from "@steady/shared";
 import { RequestValidator } from "./validator.ts";
 
 // ANSI colors for startup message
