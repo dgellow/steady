@@ -9,7 +9,7 @@ import { MatchError, missingExampleError } from "./errors.ts";
 import { generateFromMediaType } from "./generator.ts";
 import { buildReferenceGraph } from "./resolver.ts";
 import { RequestLogger } from "./logger.ts";
-import { SimpleLogger } from "./simple-logger.ts";
+import { InkSimpleLogger, startInkSimpleLogger } from "./ink-simple-logger-v2.tsx";
 import { RequestValidator } from "./validator.ts";
 
 // ANSI colors for startup message
@@ -33,7 +33,7 @@ export class MockServer {
 
     // Use interactive logger if requested
     if (config.interactive) {
-      this.logger = new SimpleLogger(config.logLevel, config.logBodies);
+      this.logger = new InkSimpleLogger(config.logLevel, config.logBodies);
     } else {
       this.logger = new RequestLogger(config.logLevel, config.logBodies);
     }
@@ -43,8 +43,8 @@ export class MockServer {
 
   async start() {
     // Start interactive logger if enabled
-    if (this.config.interactive && this.logger instanceof SimpleLogger) {
-      this.logger.start();
+    if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
+      startInkSimpleLogger(this.logger);
     }
 
     Deno.serve({
@@ -68,7 +68,7 @@ export class MockServer {
 
   stop() {
     this.abortController.abort();
-    if (this.config.interactive && this.logger instanceof SimpleLogger) {
+    if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
       this.logger.stop();
     }
   }

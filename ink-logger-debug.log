@@ -1,0 +1,186 @@
+[2025-06-19T09:31:59.873Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:32:14.476Z] Added entry 0: GET /simple
+[2025-06-19T09:32:14.481Z] Render: termHeight=27, contentHeight=22, viewport=0-1, entries=1, filtered=1
+[2025-06-19T09:32:14.500Z] Added entry 1: GET /simple
+[2025-06-19T09:32:14.502Z] Render: termHeight=27, contentHeight=22, viewport=0-2, entries=2, filtered=2
+[2025-06-19T09:32:14.557Z] Added entry 2: GET /tree
+[2025-06-19T09:32:14.559Z] Render: termHeight=27, contentHeight=22, viewport=0-3, entries=3, filtered=3
+[2025-06-19T09:32:35.079Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:32:45.187Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:32:56.065Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:33:05.163Z] Added entry 0: GET /simple
+[2025-06-19T09:33:05.167Z] Render: termHeight=27, contentHeight=22, viewport=0-1, entries=1, filtered=1
+[2025-06-19T09:33:05.168Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:33:05.191Z] Added entry 1: GET /tree
+[2025-06-19T09:33:05.195Z] Render: termHeight=27, contentHeight=22, viewport=0-2, entries=2, filtered=2
+[2025-06-19T09:33:05.195Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:33:05.211Z] Added entry 2: GET /person
+[2025-06-19T09:33:05.212Z] Render: termHeight=27, contentHeight=22, viewport=0-3, entries=3, filtered=3
+[2025-06-19T09:33:05.212Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:33:52.929Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:34:05.545Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:34:17.168Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:34:28.385Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:35:07.071Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:35:38.277Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:35:58.848Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:36:08.036Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:40:25.340Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:40:35.473Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:40:40.361Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:41:29.416Z] Render: termHeight=26, contentHeight=19, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:41:45.850Z] Render: termHeight=26, contentHeight=19, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:46:29.213Z] Render: termHeight=26, contentHeight=19, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:46:29.246Z] Render: termHeight=26, contentHeight=19, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:46:29.597Z] Render: termHeight=26, contentHeight=19, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:46:29.627Z] Render: termHeight=26, contentHeight=19, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:46:33.260Z] Render: termHeight=26, contentHeight=18, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:46:48.557Z] Render: termHeight=26, contentHeight=18, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:47:09.116Z] Render: termHeight=26, contentHeight=20, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:47:23.169Z] Render: termHeight=26, contentHeight=20, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:47:33.869Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:47:47.605Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:47:58.196Z] Render: termHeight=27, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:48:26.133Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:48:35.639Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:49:07.100Z] Render: termHeight=26, contentHeight=21, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:50:09.530Z] Added entry 0: GET /simple
+[2025-06-19T09:50:09.535Z] Render: termHeight=26, contentHeight=21, viewport=0-1, entries=1, filtered=1
+[2025-06-19T09:50:09.535Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.554Z] Added entry 1: GET /simple
+[2025-06-19T09:50:09.555Z] Render: termHeight=26, contentHeight=21, viewport=0-2, entries=2, filtered=2
+[2025-06-19T09:50:09.555Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.610Z] Added entry 2: GET /tree
+[2025-06-19T09:50:09.611Z] Render: termHeight=26, contentHeight=21, viewport=0-3, entries=3, filtered=3
+[2025-06-19T09:50:09.611Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.626Z] Added entry 3: GET /person
+[2025-06-19T09:50:09.627Z] Render: termHeight=26, contentHeight=21, viewport=0-4, entries=4, filtered=4
+[2025-06-19T09:50:09.627Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.631Z] Added entry 4: GET /simple
+[2025-06-19T09:50:09.632Z] Render: termHeight=26, contentHeight=21, viewport=0-5, entries=5, filtered=5
+[2025-06-19T09:50:09.632Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.637Z] Added entry 5: GET /simple
+[2025-06-19T09:50:09.639Z] Render: termHeight=26, contentHeight=21, viewport=0-6, entries=6, filtered=6
+[2025-06-19T09:50:09.639Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.643Z] Added entry 6: GET /simple
+[2025-06-19T09:50:09.644Z] Render: termHeight=26, contentHeight=21, viewport=0-7, entries=7, filtered=7
+[2025-06-19T09:50:09.644Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.649Z] Added entry 7: GET /simple
+[2025-06-19T09:50:09.651Z] Render: termHeight=26, contentHeight=21, viewport=0-8, entries=8, filtered=8
+[2025-06-19T09:50:09.651Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.658Z] Added entry 8: GET /tree
+[2025-06-19T09:50:09.659Z] Render: termHeight=26, contentHeight=21, viewport=0-9, entries=9, filtered=9
+[2025-06-19T09:50:09.659Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.679Z] Added entry 9: GET /person
+[2025-06-19T09:50:09.680Z] Render: termHeight=26, contentHeight=21, viewport=0-10, entries=10, filtered=10
+[2025-06-19T09:50:09.680Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.688Z] Added entry 10: GET /simple
+[2025-06-19T09:50:09.688Z] Render: termHeight=26, contentHeight=21, viewport=0-11, entries=11, filtered=11
+[2025-06-19T09:50:09.689Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.698Z] Added entry 11: GET /
+[2025-06-19T09:50:09.699Z] Render: termHeight=26, contentHeight=21, viewport=0-12, entries=12, filtered=12
+[2025-06-19T09:50:09.699Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.720Z] Added entry 12: GET /simple/
+[2025-06-19T09:50:09.722Z] Render: termHeight=26, contentHeight=21, viewport=0-13, entries=13, filtered=13
+[2025-06-19T09:50:09.722Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.730Z] Added entry 13: GET /simple//extra
+[2025-06-19T09:50:09.731Z] Render: termHeight=26, contentHeight=21, viewport=0-14, entries=14, filtered=14
+[2025-06-19T09:50:09.731Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.737Z] Added entry 14: GET /api/v1/users/123/profile
+[2025-06-19T09:50:09.740Z] Render: termHeight=26, contentHeight=21, viewport=0-15, entries=15, filtered=15
+[2025-06-19T09:50:09.740Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.762Z] Added entry 15: GET /file.json
+[2025-06-19T09:50:09.763Z] Render: termHeight=26, contentHeight=21, viewport=0-16, entries=16, filtered=16
+[2025-06-19T09:50:09.763Z] First visible: hex=0 method=GET path=/simple
+[2025-06-19T09:50:09.773Z] Added entry 16: GET /some-path_with_mixed-naming
+[2025-06-19T09:50:09.773Z] Render: termHeight=26, contentHeight=21, viewport=0-17, entries=17, filtered=17
+[2025-06-19T09:50:09.774Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.790Z] Added entry 17: POST /simple
+[2025-06-19T09:50:09.791Z] Render: termHeight=26, contentHeight=21, viewport=0-18, entries=18, filtered=18
+[2025-06-19T09:50:09.791Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.807Z] Added entry 18: PUT /person
+[2025-06-19T09:50:09.809Z] Render: termHeight=26, contentHeight=21, viewport=0-19, entries=19, filtered=19
+[2025-06-19T09:50:09.809Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.818Z] Added entry 19: DELETE /tree
+[2025-06-19T09:50:09.819Z] Render: termHeight=26, contentHeight=21, viewport=0-20, entries=20, filtered=20
+[2025-06-19T09:50:09.819Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.829Z] Added entry 20: PATCH /simple
+[2025-06-19T09:50:09.830Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=21, filtered=21
+[2025-06-19T09:50:09.830Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.843Z] Added entry 21: OPTIONS /person
+[2025-06-19T09:50:09.844Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=22, filtered=22
+[2025-06-19T09:50:09.844Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.853Z] Added entry 22: HEAD /tree
+[2025-06-19T09:50:09.854Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=23, filtered=23
+[2025-06-19T09:50:09.854Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.868Z] Added entry 23: GET /simple
+[2025-06-19T09:50:09.870Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=24, filtered=24
+[2025-06-19T09:50:09.870Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.894Z] Added entry 24: GET /person
+[2025-06-19T09:50:09.896Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=25, filtered=25
+[2025-06-19T09:50:09.896Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.905Z] Added entry 25: GET /tree
+[2025-06-19T09:50:09.906Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=26, filtered=26
+[2025-06-19T09:50:09.906Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.915Z] Added entry 26: GET /simple
+[2025-06-19T09:50:09.915Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=27, filtered=27
+[2025-06-19T09:50:09.915Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.929Z] Added entry 27: GET /person
+[2025-06-19T09:50:09.934Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=28, filtered=28
+[2025-06-19T09:50:09.934Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.942Z] Added entry 28: POST /users
+[2025-06-19T09:50:09.943Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=29, filtered=29
+[2025-06-19T09:50:09.943Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.953Z] Added entry 29: POST /users
+[2025-06-19T09:50:09.954Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=30, filtered=30
+[2025-06-19T09:50:09.954Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.981Z] Added entry 30: POST /bulk
+[2025-06-19T09:50:09.983Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=31, filtered=31
+[2025-06-19T09:50:09.983Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:09.996Z] Added entry 31: POST /data
+[2025-06-19T09:50:09.997Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=32, filtered=32
+[2025-06-19T09:50:09.997Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.016Z] Added entry 32: POST /users
+[2025-06-19T09:50:10.018Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=33, filtered=33
+[2025-06-19T09:50:10.018Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.027Z] Added entry 33: POST /simple
+[2025-06-19T09:50:10.028Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=34, filtered=34
+[2025-06-19T09:50:10.028Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.038Z] Added entry 34: GET /simple
+[2025-06-19T09:50:10.039Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=35, filtered=35
+[2025-06-19T09:50:10.039Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.059Z] Added entry 35: GET /tree
+[2025-06-19T09:50:10.060Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=36, filtered=36
+[2025-06-19T09:50:10.060Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.073Z] Added entry 36: GET /person
+[2025-06-19T09:50:10.074Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=37, filtered=37
+[2025-06-19T09:50:10.074Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.087Z] Added entry 37: GET /simple
+[2025-06-19T09:50:10.088Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=38, filtered=38
+[2025-06-19T09:50:10.089Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.122Z] Added entry 38: GET /tree
+[2025-06-19T09:50:10.123Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=39, filtered=39
+[2025-06-19T09:50:10.123Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.136Z] Added entry 39: GET /simple
+[2025-06-19T09:50:10.136Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=40, filtered=40
+[2025-06-19T09:50:10.137Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.144Z] Added entry 40: GET /not-found-again
+[2025-06-19T09:50:10.145Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=41, filtered=41
+[2025-06-19T09:50:10.145Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:10.161Z] Added entry 41: GET /person
+[2025-06-19T09:50:10.161Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=42, filtered=42
+[2025-06-19T09:50:10.162Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:27.610Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=42, filtered=42
+[2025-06-19T09:50:27.611Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:30.297Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=42, filtered=30
+[2025-06-19T09:50:30.297Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:31.036Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=42, filtered=42
+[2025-06-19T09:50:31.036Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:31.262Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=42, filtered=42
+[2025-06-19T09:50:31.262Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:32.275Z] Render: termHeight=26, contentHeight=21, viewport=0-21, entries=42, filtered=42
+[2025-06-19T09:50:32.275Z] First visible: hex=00 method=GET path=/simple
+[2025-06-19T09:50:36.559Z] Render: termHeight=26, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T09:50:50.851Z] Render: termHeight=26, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T10:03:31.021Z] Render: termHeight=26, contentHeight=22, viewport=0-0, entries=0, filtered=0
+[2025-06-19T10:04:01.332Z] Render: termHeight=26, contentHeight=23, viewport=0-0, entries=0, filtered=0

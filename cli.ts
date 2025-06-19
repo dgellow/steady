@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-net
+#!/usr/bin/env -S deno run --allow-read --allow-net --allow-env
 
 import { parseSpec } from "./parser.ts";
 import { MockServer } from "./server.ts";
