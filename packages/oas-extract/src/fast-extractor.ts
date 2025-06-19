@@ -60,7 +60,6 @@ export class FastExtractor {
 
     // Step 2: Semantic deduplication (optional)
     let deduplicatedContexts = contexts;
-    let auditTrail: any[] = [];
 
     if (this.options.enableDeduplication) {
       if (this.options.verbose) {
@@ -70,7 +69,6 @@ export class FastExtractor {
         contexts,
       );
       deduplicatedContexts = deduplicationResult.mergedContexts;
-      auditTrail = deduplicationResult.auditTrail;
 
       const reduction = contexts.length - deduplicatedContexts.length;
       if (this.options.verbose) {
@@ -127,15 +125,19 @@ export class FastExtractor {
     }
 
     const responses: LLMResponse[] = [];
-    const concurrency = 2; // Process 2 batches at a time for free tier
+    const concurrency = this.options.concurrency || 1;
+
+    if (this.options.verbose) {
+      console.log(`Using concurrency: ${concurrency}`);
+    }
 
     // Process in chunks to avoid rate limiting
     for (let i = 0; i < batches.length; i += concurrency) {
       const chunk = batches.slice(i, i + concurrency);
-      const chunkPromises = chunk.map(async (batch, index) => {
+      const chunkPromises = chunk.map(async (batch) => {
         try {
-          // Add delay to respect rate limits (free tier: 15 RPM)
-          await new Promise((resolve) => setTimeout(resolve, index * 2000));
+          // Add delay to respect rate limits and ensure quality responses
+          await new Promise((resolve) => setTimeout(resolve, 5000)); // 5s between requests
           return await this.llmClient.generateNames(batch);
         } catch (error) {
           console.error(`Batch ${batch.id} failed:`, error);

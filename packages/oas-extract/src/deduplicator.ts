@@ -143,9 +143,9 @@ export class SemanticDeduplicator {
         }
       }
 
-      // Rate limiting delay
+      // Respectful delay for semantic analysis quality
       if (i + batchSize < groups.length) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 8000)); // 8s between deduplication batches
       }
     }
 

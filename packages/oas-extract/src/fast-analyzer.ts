@@ -1,4 +1,4 @@
-import type { SchemaContext, SchemaObject } from "./types.ts";
+import type { SchemaContext } from "./types.ts";
 
 interface PathWalker {
   path: string[];
@@ -200,7 +200,6 @@ export class FastAnalyzer {
   private fastExtractResource(path: string): string {
     // Fast resource extraction without regex
     let start = 0;
-    let end = path.length;
     const parts: string[] = [];
 
     for (let i = 0; i <= path.length; i++) {

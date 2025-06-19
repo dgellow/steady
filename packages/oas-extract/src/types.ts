@@ -244,6 +244,7 @@ export interface ExtractionOptions {
   verbose?: boolean;
   dryRun?: boolean;
   enableDeduplication?: boolean;
+  concurrency?: number;
 }
 
 export interface ExtractionResult {

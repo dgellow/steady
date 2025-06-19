@@ -134,12 +134,12 @@ export class SchemaNamer {
     let clean = name.replace(/[^a-zA-Z0-9]/g, "");
 
     // Ensure it starts with a letter
-    if (clean && clean.length > 0 && !clean[0].match(/[a-zA-Z]/)) {
+    if (clean && clean.length > 0 && clean[0] && !clean[0].match(/[a-zA-Z]/)) {
       clean = "Schema" + clean;
     }
 
     // Ensure PascalCase
-    if (clean && clean.length > 0 && clean[0] === clean[0].toLowerCase()) {
+    if (clean && clean.length > 0 && clean[0] && clean[0] === clean[0].toLowerCase()) {
       clean = clean[0].toUpperCase() + clean.slice(1);
     }
 
@@ -152,7 +152,7 @@ export class SchemaNamer {
       .filter(Boolean)
       .map((word) =>
         word.length > 0
-          ? word[0].toUpperCase() + word.slice(1).toLowerCase()
+          ? word[0]?.toUpperCase() + word.slice(1).toLowerCase()
           : ""
       )
       .join("");

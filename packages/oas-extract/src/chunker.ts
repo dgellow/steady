@@ -54,7 +54,7 @@ export class SchemaChunker {
     }
 
     // Sort schemas within each group to keep related schemas together
-    for (const [resource, schemas] of groups.entries()) {
+    for (const [, schemas] of groups.entries()) {
       schemas.sort((a, b) => {
         // Sort by path, then method, then location depth
         if (a.path !== b.path) return a.path.localeCompare(b.path);

@@ -127,7 +127,7 @@ export class SpecTransformer {
   }
 
   generateReport(
-    spec: OpenAPISpec,
+    _spec: OpenAPISpec,
     extractedSchemas: ExtractedSchema[],
   ): string {
     const report: string[] = [];

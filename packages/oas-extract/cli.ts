@@ -31,6 +31,7 @@ Options:
   --no-nested              Don't extract nested objects
   --no-array-items         Don't extract array item schemas
   --enable-deduplication   Enable semantic deduplication (experimental)
+  --concurrency <n>        Number of batches to process in parallel (default: 1)
 
 Examples:
   # Basic extraction
@@ -80,7 +81,7 @@ async function main() {
       "no-array-items",
       "enable-deduplication",
     ],
-    string: ["output", "report"],
+    string: ["output", "report", "concurrency"],
     alias: {
       h: "help",
       v: "version",
@@ -89,6 +90,7 @@ async function main() {
     default: {
       "min-properties": 2,
       "min-complexity": 3,
+      "concurrency": 1,
     },
   });
 
@@ -142,6 +144,7 @@ async function main() {
       verbose: args.verbose,
       dryRun: args["dry-run"],
       enableDeduplication: args["enable-deduplication"],
+      concurrency: parseInt(args["concurrency"] as string),
     });
 
     // Extract schemas
