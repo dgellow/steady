@@ -189,8 +189,11 @@ async function main() {
 
   // Add a small delay between requests to make them easier to follow
   for (let i = 0; i < requests.length; i++) {
-    await runRequest(requests[i], i);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const request = requests[i];
+    if (request) {
+      await runRequest(request, i);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
 
   console.log("✅ Test requests completed!");

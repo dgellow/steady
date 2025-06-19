@@ -378,7 +378,10 @@ async function main() {
   const startTime = performance.now();
 
   for (let i = 0; i < requests.length; i++) {
-    await runRequest(requests[i], i);
+    const request = requests[i];
+    if (request) {
+      await runRequest(request, i);
+    }
   }
 
   const totalTime = Math.round(performance.now() - startTime);
