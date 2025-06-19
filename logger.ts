@@ -7,7 +7,6 @@ const DIM = "\x1b[2m";
 const RED = "\x1b[31m";
 const GREEN = "\x1b[32m";
 const YELLOW = "\x1b[33m";
-const BLUE = "\x1b[34m";
 const GRAY = "\x1b[90m";
 
 export class RequestLogger {
@@ -24,36 +23,38 @@ export class RequestLogger {
   ): void {
     const url = new URL(req.url);
     const timestamp = new Date().toLocaleTimeString();
-    
+
     // Build the main log line
-    const methodColored = `${BLUE}${method.toUpperCase()}${RESET}`;
     const queryString = url.search ? `${DIM}${url.search}${RESET}` : "";
     const fullPath = `${path}${queryString}`;
-    
+
     // Log based on level
     if (this.logLevel === "summary") {
       // Don't log yet in summary mode - we'll do it all at once in logResponse
       // Store the log line for later
-      (this as any)._pendingLogLine = `${GRAY}[${timestamp}]${RESET} ${methodColored} ${fullPath}`;
+      (this as any)._pendingLogLine =
+        `${GRAY}[${timestamp}]${RESET} ${method.toUpperCase()} ${fullPath}`;
     } else {
       // Details or full mode
-      console.log(`${GRAY}[${timestamp}]${RESET} ${methodColored} ${fullPath}`);
-      
+      console.log(`${GRAY}[${timestamp}]${RESET} ${method.toUpperCase()} ${fullPath}`);
+
       if (this.logLevel === "details" || this.logLevel === "full") {
         // Log headers (filtering sensitive ones)
         const headers = this.formatHeaders(req.headers);
         if (headers.length > 0) {
           console.log(`├─ Headers: ${headers}`);
         }
-        
+
         // Log body if present and enabled
-        if ((this.logBodies || this.logLevel === "full") && req.method !== "GET") {
+        if (
+          (this.logBodies || this.logLevel === "full") && req.method !== "GET"
+        ) {
           const bodyPreview = this.formatBody(req);
           console.log(`└─ Body: ${bodyPreview}`);
         } else if (req.method !== "GET") {
           console.log(`└─ Body: (not shown, use --log-bodies)`);
         }
-        
+
         // Log validation errors if any
         if (validation && !validation.valid) {
           console.log(`└─ ${RED}❌ Validation failed:${RESET}`);
@@ -74,18 +75,19 @@ export class RequestLogger {
   ): void {
     const status = this.formatStatus(statusCode);
     const timingStr = `${GRAY}(${timing}ms)${RESET}`;
-    
+
     if (this.logLevel === "summary") {
       // Get the pending log line from logRequest
       const pendingLine = (this as any)._pendingLogLine || "";
       let line = `${pendingLine} → ${status} ${timingStr}`;
-      
+
       // Add validation indicator
       if (validation) {
         if (!validation.valid && validation.errors.length > 0) {
           const firstError = validation.errors[0];
           if (firstError) {
-            line += `\n           ${YELLOW}⚠️  ${firstError.path}: ${firstError.message}${RESET}`;
+            line +=
+              `\n           ${YELLOW}⚠️  ${firstError.path}: ${firstError.message}${RESET}`;
             // Show count if there are more errors
             if (validation.errors.length > 1) {
               line += ` ${DIM}(+${validation.errors.length - 1} more)${RESET}`;
@@ -96,12 +98,14 @@ export class RequestLogger {
           if (firstWarning) {
             line += `\n           ${DIM}⚠️  ${firstWarning.message}${RESET}`;
             if (validation.warnings.length > 1) {
-              line += ` ${DIM}(+${validation.warnings.length - 1} more)${RESET}`;
+              line += ` ${DIM}(+${
+                validation.warnings.length - 1
+              } more)${RESET}`;
             }
           }
         }
       }
-      
+
       console.log(line);
       // Clear the pending line
       delete (this as any)._pendingLogLine;
@@ -118,18 +122,18 @@ export class RequestLogger {
       if (headers.length > 0) {
         console.log(`├─ Headers: ${headers}`);
       }
-      
+
       // Log response body
       if (body && (this.logBodies || this.logLevel === "full")) {
         const bodyStr = this.formatResponseBody(body);
         console.log(`└─ Body: ${bodyStr}`);
       }
-      
+
       console.log(""); // Empty line for readability
     }
   }
 
-  private formatStatus(code: number): string {
+  protected formatStatus(code: number): string {
     if (code >= 200 && code < 300) {
       return `${GREEN}${code} ${this.getStatusText(code)}${RESET}`;
     } else if (code >= 400 && code < 500) {
@@ -140,7 +144,7 @@ export class RequestLogger {
     return `${code} ${this.getStatusText(code)}`;
   }
 
-  private getStatusText(code: number): string {
+  protected getStatusText(code: number): string {
     const statuses: Record<number, string> = {
       200: "OK",
       201: "Created",
@@ -155,10 +159,10 @@ export class RequestLogger {
     return statuses[code] || "";
   }
 
-  private formatHeaders(headers: Headers): string {
+  protected formatHeaders(headers: Headers): string {
     const filtered: string[] = [];
     const sensitive = ["authorization", "cookie", "x-api-key"];
-    
+
     headers.forEach((value, key) => {
       if (sensitive.includes(key.toLowerCase())) {
         filtered.push(`${key}: ${DIM}(hidden)${RESET}`);
@@ -169,11 +173,13 @@ export class RequestLogger {
         filtered.push(`${key}: ${value}`);
       }
     });
-    
+
     if (headers.forEach.length > filtered.length && this.logLevel !== "full") {
-      filtered.push(`${DIM}...and ${headers.forEach.length - filtered.length} more${RESET}`);
+      filtered.push(
+        `${DIM}...and ${headers.forEach.length - filtered.length} more${RESET}`,
+      );
     }
-    
+
     return filtered.join(", ");
   }
 
@@ -187,16 +193,18 @@ export class RequestLogger {
     if (typeof body === "object" && body !== null) {
       const json = JSON.stringify(body, null, 2);
       const lines = json.split("\n");
-      
+
       if (this.logLevel === "details" && lines.length > 10) {
         // Truncate large bodies in details mode
         const preview = lines.slice(0, 10).join("\n");
-        return `\n${preview}\n${DIM}... ${lines.length - 10} more lines${RESET}`;
+        return `\n${preview}\n${DIM}... ${
+          lines.length - 10
+        } more lines${RESET}`;
       }
-      
+
       return "\n" + json;
     }
-    
+
     return String(body);
   }
 }
