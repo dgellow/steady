@@ -1,5 +1,5 @@
 {
-  "workspace": ["./packages/parser", "./packages/shared"],
+  "workspace": ["./packages/parser", "./packages/shared", "./packages/oas-extract"],
   "imports": {
     "@steady/parser": "./packages/parser/mod.ts",
     "@steady/shared": "./packages/shared/mod.ts"
@@ -11,7 +11,12 @@
     "fmt": "deno fmt",
     "lint": "deno lint",
     "check-boundaries": "deno run --allow-read scripts/check-boundaries.ts",
-    "test-all": "deno fmt && deno check cli.ts && deno lint --quiet && deno task check-boundaries"
+    "test-all": "deno fmt && deno check cli.ts && deno lint --quiet && deno task check-boundaries",
+    "extract": "deno run --allow-read --allow-write --allow-net --allow-env packages/oas-extract/cli.ts extract"
+  },
+  "imports": {
+    "@std/dotenv": "jsr:@std/dotenv@^0.218.0",
+    "@std/cli": "jsr:@std/cli@^0.218.0"
   },
   "compilerOptions": {
     "noFallthroughCasesInSwitch": true,
