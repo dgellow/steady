@@ -1,0 +1,22 @@
+{
+  "name": "@steady/oas-extract",
+  "version": "0.1.0",
+  "exports": "./mod.ts",
+  "tasks": {
+    "dev": "deno run --watch --allow-read --allow-net --allow-env cli.ts",
+    "test": "deno test --allow-read --allow-env",
+    "check": "deno check **/*.ts",
+    "fmt": "deno fmt",
+    "lint": "deno lint"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "strictNullChecks": true
+  }
+}
