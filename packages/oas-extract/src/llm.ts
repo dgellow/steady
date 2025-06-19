@@ -51,12 +51,18 @@ export class GeminiClient {
             const baseDelay = Math.min(Math.pow(2, attempt) * 3000, 120000); // 3s, 6s, 12s, 24s, 48s, 96s, max 2min
             const jitter = Math.random() * 3000; // Add up to 3s jitter
             const delay = baseDelay + jitter;
-            
-            console.log(`⏳ Rate limited (429), waiting ${(delay/1000).toFixed(1)}s for quality results... (attempt ${attempt + 1}/${maxRetries + 1})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+
+            console.log(
+              `⏳ Rate limited (429), waiting ${
+                (delay / 1000).toFixed(1)
+              }s for quality results... (attempt ${attempt + 1}/${
+                maxRetries + 1
+              })`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
             continue;
           }
-          
+
           throw new Error(
             `Gemini API error: ${response.status} ${response.statusText}`,
           );
@@ -73,13 +79,20 @@ export class GeminiClient {
         return JSON.parse(text);
       } catch (error) {
         if (attempt === maxRetries) {
-          console.error("Structured LLM request failed after all retries:", error);
+          console.error(
+            "Structured LLM request failed after all retries:",
+            error,
+          );
           throw error;
         }
         // For non-429 errors, only retry if it's a network issue
-        if (error instanceof TypeError && error.message.includes('fetch')) {
-          console.log(`Network error, retrying... (attempt ${attempt + 1}/${maxRetries + 1})`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        if (error instanceof TypeError && error.message.includes("fetch")) {
+          console.log(
+            `Network error, retrying... (attempt ${attempt + 1}/${
+              maxRetries + 1
+            })`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
           continue;
         }
         throw error;
@@ -119,54 +132,64 @@ export class GeminiClient {
             const baseDelay = Math.min(Math.pow(2, attempt) * 3000, 120000); // 3s, 6s, 12s, 24s, 48s, 96s, max 2min
             const jitter = Math.random() * 3000; // Add up to 3s jitter
             const delay = baseDelay + jitter;
-            
-            console.log(`⏳ Rate limited (429), waiting ${(delay/1000).toFixed(1)}s for quality results... (attempt ${attempt + 1}/${maxRetries + 1})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+
+            console.log(
+              `⏳ Rate limited (429), waiting ${
+                (delay / 1000).toFixed(1)
+              }s for quality results... (attempt ${attempt + 1}/${
+                maxRetries + 1
+              })`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
             continue;
           }
-          
+
           throw new Error(
             `Gemini API error: ${response.status} ${response.statusText}`,
           );
         }
 
-      const data = await response.json();
-      const text = data.candidates[0]?.content?.parts[0]?.text;
+        const data = await response.json();
+        const text = data.candidates[0]?.content?.parts[0]?.text;
 
-      if (!text) {
-        throw new Error("No response from Gemini");
-      }
+        if (!text) {
+          throw new Error("No response from Gemini");
+        }
 
-      // Parse JSON from response
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : text;
+        // Parse JSON from response
+        const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
+        const jsonStr = jsonMatch ? jsonMatch[1] : text;
 
-      try {
-        const suggestions = JSON.parse(jsonStr);
-        return {
-          batchId: batch.id,
-          suggestions,
-        };
-      } catch (e) {
-        console.error("Failed to parse LLM response:", text);
-        throw new Error("Invalid JSON response from LLM");
-      }
-    } catch (error) {
-      if (attempt === maxRetries) {
-        console.error("LLM request failed after all retries:", error);
+        try {
+          const suggestions = JSON.parse(jsonStr);
+          return {
+            batchId: batch.id,
+            suggestions,
+          };
+        } catch (e) {
+          console.error("Failed to parse LLM response:", text);
+          throw new Error("Invalid JSON response from LLM");
+        }
+      } catch (error) {
+        if (attempt === maxRetries) {
+          console.error("LLM request failed after all retries:", error);
+          throw error;
+        }
+        // For non-429 errors, only retry if it's a network issue
+        if (error instanceof TypeError && error.message.includes("fetch")) {
+          console.log(
+            `Network error, retrying... (attempt ${attempt + 1}/${
+              maxRetries + 1
+            })`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
         throw error;
       }
-      // For non-429 errors, only retry if it's a network issue
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.log(`Network error, retrying... (attempt ${attempt + 1}/${maxRetries + 1})`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        continue;
-      }
-      throw error;
     }
+    throw new Error("Max retries exceeded");
   }
-  throw new Error("Max retries exceeded");
-}
 
   private buildPrompt(batch: LLMBatch): string {
     const domainContext = batch.domainHints.length > 0

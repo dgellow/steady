@@ -139,7 +139,10 @@ export class SchemaNamer {
     }
 
     // Ensure PascalCase
-    if (clean && clean.length > 0 && clean[0] && clean[0] === clean[0].toLowerCase()) {
+    if (
+      clean && clean.length > 0 && clean[0] &&
+      clean[0] === clean[0].toLowerCase()
+    ) {
       clean = clean[0].toUpperCase() + clean.slice(1);
     }
 
