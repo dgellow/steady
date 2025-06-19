@@ -1,10 +1,10 @@
 import {
+  OpenAPISpec,
   OperationObject,
   ParameterObject,
   SchemaObject,
-  ValidationResult,
   ValidationError,
-  OpenAPISpec,
+  ValidationResult,
 } from "./types.ts";
 
 export class RequestValidator {
@@ -24,7 +24,7 @@ export class RequestValidator {
 
     // Validate query parameters
     if (operation.parameters) {
-      const queryParams = operation.parameters.filter(p => p.in === "query");
+      const queryParams = operation.parameters.filter((p) => p.in === "query");
       const queryValidation = this.validateQueryParams(
         url.searchParams,
         queryParams,
@@ -42,14 +42,18 @@ export class RequestValidator {
 
     // Validate headers
     if (operation.parameters) {
-      const headerParams = operation.parameters.filter(p => p.in === "header");
+      const headerParams = operation.parameters.filter((p) =>
+        p.in === "header"
+      );
       const headerValidation = this.validateHeaders(req.headers, headerParams);
       errors.push(...headerValidation.errors);
       warnings.push(...headerValidation.warnings);
     }
 
     // Validate request body
-    if (operation.requestBody && req.method !== "GET" && req.method !== "HEAD") {
+    if (
+      operation.requestBody && req.method !== "GET" && req.method !== "HEAD"
+    ) {
       // For MVP, skip body validation
       // In full implementation, we'd parse and validate the body here
     }
@@ -71,7 +75,7 @@ export class RequestValidator {
     // Check required parameters
     for (const spec of paramSpecs) {
       const value = params.get(spec.name);
-      
+
       if (spec.required && value === null) {
         errors.push({
           path: `query.${spec.name}`,
@@ -97,7 +101,7 @@ export class RequestValidator {
     }
 
     // Check for unknown parameters
-    const knownParams = new Set(paramSpecs.map(p => p.name));
+    const knownParams = new Set(paramSpecs.map((p) => p.name));
     for (const [key] of params) {
       if (!knownParams.has(key)) {
         const warning: ValidationError = {
@@ -124,7 +128,7 @@ export class RequestValidator {
 
     for (const spec of headerSpecs) {
       const value = headers.get(spec.name);
-      
+
       if (spec.required && value === null) {
         errors.push({
           path: `header.${spec.name}`,
@@ -235,7 +239,8 @@ export class RequestValidator {
       case "date-time":
         return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value);
       case "uuid":
-        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+          .test(value);
       default:
         // Unknown format, assume valid
         return true;
