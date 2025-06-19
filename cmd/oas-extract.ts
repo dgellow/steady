@@ -1,9 +1,9 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env
 
 import { parseArgs } from "@std/cli/parse_args";
-import { FastExtractor } from "./src/fast-extractor.ts";
-import { SpecTransformer } from "./src/transformer.ts";
-import type { OpenAPISpec } from "./src/types.ts";
+import { FastExtractor } from "../packages/oas-extract/src/fast-extractor.ts";
+import { SpecTransformer } from "../packages/oas-extract/src/transformer.ts";
+import type { OpenAPISpec } from "../packages/oas-extract/src/types.ts";
 
 const VERSION = "0.1.0";
 

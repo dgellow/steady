@@ -1,8 +1,14 @@
-import type { SchemaContext } from "./types.ts";
+import type {
+  OpenAPISpec,
+  Operation,
+  PathItem,
+  SchemaContext,
+  SchemaObject,
+} from "./types.ts";
 
 interface PathWalker {
   path: string[];
-  value: any;
+  value: unknown;
 }
 
 export class FastAnalyzer {
@@ -15,20 +21,23 @@ export class FastAnalyzer {
     this.minProperties = minProperties;
   }
 
-  analyze(spec: any): SchemaContext[] {
+  analyze(spec: OpenAPISpec): SchemaContext[] {
     this.contexts = [];
 
     // Fast path iteration - avoid Object.entries overhead
     const paths = spec.paths;
     for (const path in paths) {
-      if (!paths.hasOwnProperty(path)) continue;
-      this.analyzePath(path, paths[path]);
+      if (!Object.prototype.hasOwnProperty.call(paths, path)) continue;
+      const pathItem = paths[path];
+      if (pathItem) {
+        this.analyzePath(path, pathItem);
+      }
     }
 
     return this.contexts;
   }
 
-  private analyzePath(path: string, pathItem: any): void {
+  private analyzePath(path: string, pathItem: PathItem): void {
     const resourceName = this.fastExtractResource(path);
 
     // Direct method access - faster than array iteration
@@ -61,7 +70,7 @@ export class FastAnalyzer {
   private analyzeOperation(
     path: string,
     method: string,
-    operation: any,
+    operation: Operation,
     resourceName: string,
   ): void {
     const baseContext = {
@@ -72,10 +81,13 @@ export class FastAnalyzer {
     };
 
     // Fast request body check
-    if (operation.requestBody?.content) {
+    if (
+      operation.requestBody && !this.isReferenceObject(operation.requestBody) &&
+      operation.requestBody.content
+    ) {
       for (const contentType in operation.requestBody.content) {
         const schema = operation.requestBody.content[contentType]?.schema;
-        if (schema && !schema.$ref) {
+        if (schema && !this.isReferenceObject(schema)) {
           this.processSchema(schema, {
             ...baseContext,
             location: `requestBody.content["${contentType}"].schema`,
@@ -88,10 +100,10 @@ export class FastAnalyzer {
     if (operation.responses) {
       for (const statusCode in operation.responses) {
         const response = operation.responses[statusCode];
-        if (response?.content && !response.$ref) {
+        if (response && !this.isReferenceObject(response) && response.content) {
           for (const contentType in response.content) {
             const schema = response.content[contentType]?.schema;
-            if (schema && !schema.$ref) {
+            if (schema && !this.isReferenceObject(schema)) {
               this.processSchema(schema, {
                 ...baseContext,
                 statusCode,
@@ -106,7 +118,7 @@ export class FastAnalyzer {
   }
 
   private processSchema(
-    schema: any,
+    schema: unknown,
     context: Omit<SchemaContext, "schema">,
   ): void {
     // Use a non-recursive stack-based approach for better performance
@@ -119,7 +131,9 @@ export class FastAnalyzer {
       const { path, value } = stack.pop()!;
 
       // Skip non-objects and references
-      if (!value || typeof value !== "object" || value.$ref) continue;
+      if (
+        !value || typeof value !== "object" || this.isReferenceObject(value)
+      ) continue;
 
       // Build location
       const location = path.length > 0
@@ -137,40 +151,47 @@ export class FastAnalyzer {
       }
 
       // Add nested schemas to stack (reverse order for depth-first)
-      if (value.type === "object" && value.properties) {
-        for (const propName in value.properties) {
-          if (value.properties.hasOwnProperty(propName)) {
-            stack.push({
-              path: [...path, "properties", propName],
-              value: value.properties[propName],
-            });
+      if (this.isSchemaObject(value)) {
+        if (value.type === "object" && value.properties) {
+          for (const propName in value.properties) {
+            if (
+              Object.prototype.hasOwnProperty.call(value.properties, propName)
+            ) {
+              stack.push({
+                path: [...path, "properties", propName],
+                value: value.properties[propName],
+              });
+            }
           }
+        }
+
+        if (value.type === "array" && value.items) {
+          stack.push({
+            path: [...path, "items"],
+            value: value.items,
+          });
         }
       }
 
-      if (value.type === "array" && value.items) {
-        stack.push({
-          path: [...path, "items"],
-          value: value.items,
-        });
-      }
-
       // Handle allOf, oneOf, anyOf
-      const combiners = ["allOf", "oneOf", "anyOf"];
-      for (const combiner of combiners) {
-        if (Array.isArray(value[combiner])) {
-          for (let i = 0; i < value[combiner].length; i++) {
-            stack.push({
-              path: [...path, combiner, i.toString()],
-              value: value[combiner][i],
-            });
+      if (this.isSchemaObject(value)) {
+        const combiners = ["allOf", "oneOf", "anyOf"] as const;
+        for (const combiner of combiners) {
+          const combinerValue = value[combiner];
+          if (Array.isArray(combinerValue)) {
+            for (let i = 0; i < combinerValue.length; i++) {
+              stack.push({
+                path: [...path, combiner, i.toString()],
+                value: combinerValue[i],
+              });
+            }
           }
         }
       }
     }
   }
 
-  private shouldExtract(schema: any): boolean {
+  private shouldExtract(schema: SchemaObject): boolean {
     // Quick rejection for primitives
     if (schema.type && schema.type !== "object" && schema.type !== "array") {
       return false;
@@ -219,5 +240,14 @@ export class FastAnalyzer {
     }
 
     return parts.join("/") || "root";
+  }
+
+  private isSchemaObject(value: unknown): value is SchemaObject {
+    return typeof value === "object" && value !== null &&
+      !this.isReferenceObject(value);
+  }
+
+  private isReferenceObject(value: unknown): value is { $ref: string } {
+    return typeof value === "object" && value !== null && "$ref" in value;
   }
 }

@@ -1,4 +1,4 @@
-import type { LLMBatch, SchemaContext } from "./types.ts";
+import type { LLMBatch, SchemaContext, SchemaObject } from "./types.ts";
 
 export class SchemaChunker {
   private maxSchemasPerBatch: number;
@@ -119,7 +119,7 @@ export class SchemaChunker {
     return Math.ceil(charCount / 4);
   }
 
-  private getSchemaCharCount(schema: any): number {
+  private getSchemaCharCount(schema: SchemaObject): number {
     if (schema.type === "object" && schema.properties) {
       // Count property names
       return Object.keys(schema.properties).join(", ").length + 20;

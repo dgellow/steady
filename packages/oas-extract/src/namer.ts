@@ -1,4 +1,9 @@
-import type { ExtractedSchema, LLMResponse, SchemaContext } from "./types.ts";
+import type {
+  ExtractedSchema,
+  LLMBatch,
+  LLMResponse,
+  SchemaContext,
+} from "./types.ts";
 
 export class SchemaNamer {
   private usedNames = new Set<string>();
@@ -7,7 +12,7 @@ export class SchemaNamer {
   applyLLMSuggestions(
     contexts: SchemaContext[],
     llmResponses: LLMResponse[],
-    batches?: any[],
+    batches?: LLMBatch[],
   ): ExtractedSchema[] {
     const extracted: ExtractedSchema[] = [];
 

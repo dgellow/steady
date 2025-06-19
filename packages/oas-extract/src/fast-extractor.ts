@@ -5,7 +5,9 @@ import { SchemaNamer } from "./namer.ts";
 import { SpecTransformer } from "./transformer.ts";
 import { SemanticDeduplicator } from "./deduplicator.ts";
 import type {
+  ExtractedSchema,
   ExtractionOptions,
+  ExtractionReport,
   ExtractionResult,
   LLMBatch,
   LLMResponse,
@@ -176,7 +178,9 @@ export class FastExtractor {
     };
   }
 
-  private generateReport(extractedSchemas: any[]): any {
+  private generateReport(
+    extractedSchemas: ExtractedSchema[],
+  ): ExtractionReport {
     const byResource: Record<string, number> = {};
     const byLocation = {
       requestBodies: 0,

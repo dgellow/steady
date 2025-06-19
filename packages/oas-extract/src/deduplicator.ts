@@ -1,4 +1,5 @@
 import type { SchemaContext, SchemaObject } from "./types.ts";
+import type { GeminiClient } from "./llm.ts";
 
 export interface SchemaGroup {
   id: string;
@@ -21,9 +22,9 @@ export interface DeduplicationBatch {
 }
 
 export class SemanticDeduplicator {
-  private llmClient: any;
+  private llmClient: GeminiClient;
 
-  constructor(llmClient: any) {
+  constructor(llmClient: GeminiClient) {
     this.llmClient = llmClient;
   }
 
@@ -203,7 +204,18 @@ export class SemanticDeduplicator {
     };
 
     const response = await this.llmClient.makeStructuredRequest(requestBody);
-    return response.analyses;
+
+    // Parse the structured response
+    if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
+      try {
+        const parsed = JSON.parse(response.candidates[0].content.parts[0].text);
+        return parsed.analyses || [];
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
   }
 
   private buildAnalysisPrompt(groups: SchemaGroup[]): string {

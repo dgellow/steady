@@ -35,7 +35,7 @@ export class SpecTransformer {
 
     // Navigate to the location and replace
     const pathParts = this.parseLocation(context);
-    let current: any = spec;
+    let current: unknown = spec;
 
     // Navigate to the parent of the schema
     for (let i = 0; i < pathParts.length - 1; i++) {
@@ -46,7 +46,7 @@ export class SpecTransformer {
         console.warn(`Path not found: ${pathParts.slice(0, i + 1).join(".")}`);
         return;
       }
-      current = (current as any)[part];
+      current = (current as Record<string, unknown>)[part];
     }
 
     // Replace the schema with a reference
@@ -54,7 +54,7 @@ export class SpecTransformer {
     if (
       lastPart && current && typeof current === "object" && lastPart in current
     ) {
-      (current as any)[lastPart] = ref;
+      (current as Record<string, unknown>)[lastPart] = ref;
     }
   }
 

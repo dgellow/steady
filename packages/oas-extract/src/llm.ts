@@ -1,5 +1,28 @@
 import { load } from "@std/dotenv";
-import type { LLMBatch, LLMResponse } from "./types.ts";
+import type { LLMBatch, LLMResponse, SchemaObject } from "./types.ts";
+
+interface GeminiRequest {
+  contents: Array<{
+    parts: Array<{
+      text: string;
+    }>;
+  }>;
+  generationConfig?: {
+    temperature?: number;
+    responseMimeType?: string;
+    responseSchema?: Record<string, unknown>;
+  };
+}
+
+interface GeminiResponse {
+  candidates: Array<{
+    content: {
+      parts: Array<{
+        text: string;
+      }>;
+    };
+  }>;
+}
 
 export class GeminiClient {
   private apiKey: string;
@@ -34,7 +57,10 @@ export class GeminiClient {
     }
   }
 
-  async makeStructuredRequest(requestBody: any, maxRetries = 8): Promise<any> {
+  async makeStructuredRequest(
+    requestBody: GeminiRequest,
+    maxRetries = 8,
+  ): Promise<GeminiResponse> {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await fetch(`${this.baseUrl}?key=${this.apiKey}`, {
@@ -166,7 +192,7 @@ export class GeminiClient {
             batchId: batch.id,
             suggestions,
           };
-        } catch (e) {
+        } catch (_e) {
           console.error("Failed to parse LLM response:", text);
           throw new Error("Invalid JSON response from LLM");
         }
@@ -243,14 +269,17 @@ Return a JSON object mapping schema numbers to naming suggestions:
 Only return the JSON object, nothing else.`;
   }
 
-  private getSchemaPreview(schema: any): string {
+  private getSchemaPreview(schema: SchemaObject): string {
     if (schema.type === "object" && schema.properties) {
       const props = Object.keys(schema.properties).slice(0, 5).join(", ");
       const more = Object.keys(schema.properties).length > 5 ? "..." : "";
       return `object { ${props}${more} }`;
     }
 
-    if (schema.type === "array" && schema.items) {
+    if (
+      schema.type === "array" && schema.items &&
+      !this.isReferenceObject(schema.items)
+    ) {
       return `array of ${this.getSchemaPreview(schema.items)}`;
     }
 
@@ -264,5 +293,9 @@ Only return the JSON object, nothing else.`;
     }
 
     return "unknown";
+  }
+
+  private isReferenceObject(value: unknown): value is { $ref: string } {
+    return typeof value === "object" && value !== null && "$ref" in value;
   }
 }
