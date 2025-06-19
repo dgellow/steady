@@ -16,7 +16,7 @@ const ANSI = {
   // Cursor visibility
   HIDE_CURSOR: "\x1b[?25l",
   SHOW_CURSOR: "\x1b[?25h",
-  
+
   // Mouse tracking
   ENABLE_MOUSE: "\x1b[?1000h\x1b[?1002h\x1b[?1015h\x1b[?1006h", // Enable SGR mouse mode
   DISABLE_MOUSE: "\x1b[?1000l\x1b[?1002l\x1b[?1015l\x1b[?1006l",
@@ -89,7 +89,10 @@ export class InteractiveLogger extends RequestLogger {
     this.running = true;
 
     // Clear screen, hide cursor, and enable mouse
-    await this.write(ANSI.CLEAR_SCREEN + ANSI.CURSOR_HOME + ANSI.HIDE_CURSOR + ANSI.ENABLE_MOUSE);
+    await this.write(
+      ANSI.CLEAR_SCREEN + ANSI.CURSOR_HOME + ANSI.HIDE_CURSOR +
+        ANSI.ENABLE_MOUSE,
+    );
 
     // Handle SIGINT (Ctrl+C)
     Deno.addSignalListener("SIGINT", () => {
@@ -113,7 +116,8 @@ export class InteractiveLogger extends RequestLogger {
     // Show cursor, disable mouse, and clear screen
     Deno.stdout.writeSync(
       new TextEncoder().encode(
-        ANSI.SHOW_CURSOR + ANSI.DISABLE_MOUSE + ANSI.CLEAR_SCREEN + ANSI.CURSOR_HOME,
+        ANSI.SHOW_CURSOR + ANSI.DISABLE_MOUSE + ANSI.CLEAR_SCREEN +
+          ANSI.CURSOR_HOME,
       ),
     );
     // Exit the process
@@ -247,7 +251,7 @@ export class InteractiveLogger extends RequestLogger {
         this.filterText += input;
       }
     }
-    
+
     // Render after any state change
     await this.render();
   }
@@ -278,7 +282,9 @@ export class InteractiveLogger extends RequestLogger {
     if (!entry) return;
 
     // Simple toggle between collapsed and expanded
-    entry.expansionState = entry.expansionState === "collapsed" ? "basic" : "collapsed";
+    entry.expansionState = entry.expansionState === "collapsed"
+      ? "basic"
+      : "collapsed";
   }
 
   private collapseCurrentEntry(): void {
@@ -374,7 +380,7 @@ export class InteractiveLogger extends RequestLogger {
   private async renderLoop(): Promise<void> {
     // Initial render
     await this.render();
-    
+
     // Don't constantly re-render, let processInput trigger renders
     while (this.running) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -480,14 +486,19 @@ export class InteractiveLogger extends RequestLogger {
         const prefix = i === entry.validation!.errors.length - 1 ? "└─" : "├─";
         lines.push(`${indent}${prefix} ${error.path}: ${error.message}`);
         if (error.expected && error.actual !== undefined) {
-          lines.push(`${indent}   Expected: ${error.expected}, Got: ${error.actual}`);
+          lines.push(
+            `${indent}   Expected: ${error.expected}, Got: ${error.actual}`,
+          );
         }
       });
       lines.push("");
     }
 
     // Path parameters if present
-    if (entry.request.pathParams && Object.keys(entry.request.pathParams).length > 0) {
+    if (
+      entry.request.pathParams &&
+      Object.keys(entry.request.pathParams).length > 0
+    ) {
       lines.push(`${indent}Path Parameters:`);
       const pathParamEntries = Object.entries(entry.request.pathParams);
       pathParamEntries.forEach(([key, value], i) => {
@@ -556,7 +567,7 @@ export class InteractiveLogger extends RequestLogger {
   protected override formatStatus(code: number): string {
     const text = this.getStatusText(code);
     if (code >= 200 && code < 300) {
-      return `${code} ${text}`;  // No color for success
+      return `${code} ${text}`; // No color for success
     } else if (code >= 400 && code < 500) {
       return `${ANSI.YELLOW}${code} ${text}${ANSI.RESET}`;
     } else if (code >= 500) {
@@ -597,22 +608,26 @@ export class InteractiveLogger extends RequestLogger {
 
   private formatJsonBody(body: unknown, indent: string): string[] {
     const lines: string[] = [];
-    
+
     if (typeof body === "object" && body !== null) {
       const json = JSON.stringify(body, null, 2);
       const jsonLines = json.split("\n");
-      
+
       // In basic expansion, truncate large bodies
       if (jsonLines.length > 20) {
-        lines.push(...jsonLines.slice(0, 20).map(line => indent + line));
-        lines.push(`${indent}${ANSI.DIM}... ${jsonLines.length - 20} more lines${ANSI.RESET}`);
+        lines.push(...jsonLines.slice(0, 20).map((line) => indent + line));
+        lines.push(
+          `${indent}${ANSI.DIM}... ${
+            jsonLines.length - 20
+          } more lines${ANSI.RESET}`,
+        );
       } else {
-        lines.push(...jsonLines.map(line => indent + line));
+        lines.push(...jsonLines.map((line) => indent + line));
       }
     } else {
       lines.push(indent + String(body));
     }
-    
+
     return lines;
   }
 

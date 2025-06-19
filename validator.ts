@@ -1,11 +1,10 @@
-import {
+import { ValidationError, ValidationResult } from "./types.ts";
+import type {
   OpenAPISpec,
   OperationObject,
   ParameterObject,
   SchemaObject,
-  ValidationError,
-  ValidationResult,
-} from "./types.ts";
+} from "@steady/parser";
 
 export class RequestValidator {
   constructor(
@@ -150,8 +149,21 @@ export class RequestValidator {
     const errors: ValidationError[] = [];
     const warnings: ValidationError[] = [];
 
+    // Handle OpenAPI 3.1 type arrays
+    const types = Array.isArray(schema.type)
+      ? schema.type
+      : schema.type
+      ? [schema.type]
+      : [];
+
+    // Handle null values for OpenAPI 3.1
+    if (value === "null" && types.includes("null")) {
+      return { valid: true, errors, warnings };
+    }
+
     // Type validation
-    switch (schema.type) {
+    const baseType = types.find((t) => t !== "null") || "string";
+    switch (baseType) {
       case "integer":
         if (!/^-?\d+$/.test(value)) {
           errors.push({

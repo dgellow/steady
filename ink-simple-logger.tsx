@@ -1,12 +1,13 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --allow-sys --allow-net
 
-import React, { useState, useEffect } from "npm:react";
-import { render, Box, Text, useInput, useApp } from "npm:ink";
+import React, { useEffect, useState } from "npm:react";
+import { render, Text, useApp, useInput } from "npm:ink";
+import process from "node:process";
 import { LogLevel, ValidationResult } from "./types.ts";
 import { RequestLogger } from "./logger.ts";
 
 // Debug logging - disabled for now
-const debugLog = (message: string) => {
+const debugLog = (_message: string) => {
   // Disabled to avoid permission issues
 };
 
@@ -38,7 +39,7 @@ export class InkSimpleLogger extends RequestLogger {
   private currentRequestId?: string;
   private pendingRequest?: Partial<StoredRequest>;
   private onUpdate?: () => void;
-  private app?: any;
+  private app?: { unmount: () => void; waitUntilExit: () => Promise<void> };
 
   constructor(logLevel: LogLevel = "summary", logBodies = false) {
     super(logLevel, logBodies);
@@ -48,7 +49,7 @@ export class InkSimpleLogger extends RequestLogger {
     this.onUpdate = callback;
   }
 
-  setApp(app: any) {
+  setApp(app: { unmount: () => void; waitUntilExit: () => Promise<void> }) {
     this.app = app;
   }
 
@@ -99,8 +100,10 @@ export class InkSimpleLogger extends RequestLogger {
     };
 
     this.entries.push(entry);
-    debugLog(`Added entry ${this.entries.length - 1}: ${entry.method} ${entry.path}`);
-    
+    debugLog(
+      `Added entry ${this.entries.length - 1}: ${entry.method} ${entry.path}`,
+    );
+
     if (this.entries.length > 1000) {
       this.entries.shift();
     }
@@ -136,18 +139,20 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
   const [viewportTop, setViewportTop] = useState(0);
 
   // Terminal height - get from Ink's stdout
-  const [terminalHeight, setTerminalHeight] = useState(process.stdout.rows || 24);
-  
+  const [terminalHeight, setTerminalHeight] = useState(
+    process.stdout.rows || 24,
+  );
+
   useEffect(() => {
     const updateSize = () => {
       setTerminalHeight(process.stdout.rows || 24);
     };
-    process.stdout.on('resize', updateSize);
+    process.stdout.on("resize", updateSize);
     return () => {
-      process.stdout.off('resize', updateSize);
+      process.stdout.off("resize", updateSize);
     };
   }, []);
-  
+
   const contentHeight = Math.max(1, terminalHeight - 5); // 3 header lines + 2 footer lines
 
   useEffect(() => {
@@ -169,7 +174,8 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
 
     if (filterText) {
       filtered = filtered.filter((entry) => {
-        const searchStr = `${entry.method} ${entry.path} ${entry.statusCode}`.toLowerCase();
+        const searchStr = `${entry.method} ${entry.path} ${entry.statusCode}`
+          .toLowerCase();
         return searchStr.includes(filterText.toLowerCase());
       });
     }
@@ -202,7 +208,7 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
   };
 
   const formatHexId = (index: number): string => {
-    return index.toString(16).padStart(getHexDigits(), '0');
+    return index.toString(16).padStart(getHexDigits(), "0");
   };
 
   // Update viewport when selection changes
@@ -229,7 +235,9 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       } else if (key.return) {
         if (filtered.length > 0 && selectedIndex < filtered.length) {
           const selectedEntry = filtered[selectedIndex];
-          const originalIndex = entries.findIndex(e => e.id === selectedEntry.id);
+          const originalIndex = entries.findIndex((e) =>
+            e.id === selectedEntry.id
+          );
           if (originalIndex >= 0) {
             setJumpMode(false);
             setJumpText("");
@@ -237,10 +245,10 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
           }
         }
       } else if (key.backspace || key.delete) {
-        setJumpText(prev => prev.slice(0, -1));
+        setJumpText((prev) => prev.slice(0, -1));
         setSelectedIndex(0);
       } else if (input && input.length === 1) {
-        setJumpText(prev => prev + input.toLowerCase());
+        setJumpText((prev) => prev + input.toLowerCase());
         setSelectedIndex(0);
       }
       return;
@@ -253,9 +261,9 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       } else if (key.return) {
         setFilterMode(false);
       } else if (key.backspace || key.delete) {
-        setFilterText(prev => prev.slice(0, -1));
+        setFilterText((prev) => prev.slice(0, -1));
       } else if (input && input.length === 1) {
-        setFilterText(prev => prev + input);
+        setFilterText((prev) => prev + input);
       }
       return;
     }
@@ -288,7 +296,9 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
     } else if (input === "t") {
       setShowTimestamps(!showTimestamps);
     } else if (key.ctrl && input === "f") {
-      setSelectedIndex(Math.min(filtered.length - 1, selectedIndex + contentHeight));
+      setSelectedIndex(
+        Math.min(filtered.length - 1, selectedIndex + contentHeight),
+      );
     } else if (key.ctrl && input === "b") {
       setSelectedIndex(Math.max(0, selectedIndex - contentHeight));
     }
@@ -298,15 +308,22 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
   const lines: string[] = [];
 
   // Debug log render info
-  debugLog(`Render: entries=${entries.length}, filtered=${filtered.length}, viewport=${viewportTop}-${viewportTop + contentHeight}, termHeight=${terminalHeight}, contentHeight=${contentHeight}`);
+  debugLog(
+    `Render: entries=${entries.length}, filtered=${filtered.length}, viewport=${viewportTop}-${
+      viewportTop + contentHeight
+    }, termHeight=${terminalHeight}, contentHeight=${contentHeight}`,
+  );
 
   // Header
   let headerLine = "Steady Interactive Logger";
   if (filterText) {
-    headerLine += ` ${DIM}(showing ${filtered.length} of ${entries.length} entries)${RESET}`;
+    headerLine +=
+      ` ${DIM}(showing ${filtered.length} of ${entries.length} entries)${RESET}`;
   }
   // Debug: show viewport info and entry count
-  headerLine += ` ${DIM}[vp: ${viewportTop}-${viewportTop + contentHeight}, entries: ${filtered.length}]${RESET}`;
+  headerLine += ` ${DIM}[vp: ${viewportTop}-${
+    viewportTop + contentHeight
+  }, entries: ${filtered.length}]${RESET}`;
   lines.push(headerLine);
 
   // Scroll indicator
@@ -319,25 +336,34 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
   lines.push(""); // Separator
 
   // Visible entries
-  const visibleEntries = filtered.slice(viewportTop, viewportTop + contentHeight);
-  
+  const visibleEntries = filtered.slice(
+    viewportTop,
+    viewportTop + contentHeight,
+  );
+
   // Debug: log visible entries info
   if (visibleEntries.length > 0) {
-    debugLog(`Visible entries: ${visibleEntries.length}, first hex: ${formatHexId(entries.findIndex(e => e.id === visibleEntries[0].id))}`);
+    debugLog(
+      `Visible entries: ${visibleEntries.length}, first hex: ${
+        formatHexId(entries.findIndex((e) => e.id === visibleEntries[0].id))
+      }`,
+    );
   }
-  
+
   visibleEntries.forEach((entry, viewIndex) => {
     const actualIndex = viewportTop + viewIndex;
-    const originalIndex = entries.findIndex(e => e.id === entry.id);
+    const originalIndex = entries.findIndex((e) => e.id === entry.id);
     const isSelected = actualIndex === selectedIndex;
     const isExpanded = expandedId === entry.id;
     const hexId = formatHexId(originalIndex);
 
     // Main line
     let line = isSelected ? "> " : "  ";
-    
+
     if (showTimestamps) {
-      const timestamp = entry.timestamp.toLocaleTimeString("en-GB", { hour12: false });
+      const timestamp = entry.timestamp.toLocaleTimeString("en-GB", {
+        hour12: false,
+      });
       line += `[${timestamp}] `;
     }
 
@@ -347,7 +373,11 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
     }
 
     // Status
-    const statusColor = entry.statusCode >= 500 ? RED : entry.statusCode >= 400 ? YELLOW : "";
+    const statusColor = entry.statusCode >= 500
+      ? RED
+      : entry.statusCode >= 400
+      ? YELLOW
+      : "";
     line += `  ${statusColor}${entry.statusCode} ${entry.statusText}${RESET}`;
     line += `  ${DIM}${entry.timing}ms${RESET}`;
 
@@ -357,9 +387,12 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
     if (!isExpanded && entry.validation && !entry.validation.valid) {
       const firstError = entry.validation.errors[0];
       if (firstError) {
-        let errorLine = `    ${LIGHT_PINK}${firstError.path}: ${firstError.message}${RESET}`;
+        let errorLine =
+          `    ${LIGHT_PINK}${firstError.path}: ${firstError.message}${RESET}`;
         if (entry.validation.errors.length > 1) {
-          errorLine += ` ${DIM}(+${entry.validation.errors.length - 1} more)${RESET}`;
+          errorLine += ` ${DIM}(+${
+            entry.validation.errors.length - 1
+          } more)${RESET}`;
         }
         lines.push(errorLine);
       }
@@ -370,7 +403,7 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       lines.push("    Request:");
       lines.push(`      Method: ${entry.method}`);
       lines.push(`      Path: ${entry.path}`);
-      
+
       if (entry.query) {
         lines.push(`      Query: ${entry.query}`);
       }
@@ -378,7 +411,7 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       if (entry.validation && !entry.validation.valid) {
         lines.push("");
         lines.push(`    ${RED}Validation Errors:${RESET}`);
-        entry.validation.errors.slice(0, 3).forEach(error => {
+        entry.validation.errors.slice(0, 3).forEach((error) => {
           lines.push(`      ${error.path}: ${error.message}`);
         });
       }
@@ -388,8 +421,8 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
   });
 
   // Debug: Add line count before padding
-  const linesBeforePadding = lines.length;
-  
+  const _linesBeforePadding = lines.length;
+
   // Pad to maintain layout
   const targetLines = terminalHeight - 2;
   while (lines.length < targetLines) {
@@ -397,33 +430,46 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
   }
 
   // Bottom scroll indicator
-  if (filtered.length > contentHeight && viewportTop + contentHeight < filtered.length) {
-    lines.push(`${DIM}↓ ${filtered.length - viewportTop - contentHeight} more entries below${RESET}`);
+  if (
+    filtered.length > contentHeight &&
+    viewportTop + contentHeight < filtered.length
+  ) {
+    lines.push(
+      `${DIM}↓ ${
+        filtered.length - viewportTop - contentHeight
+      } more entries below${RESET}`,
+    );
   } else {
     lines.push("");
   }
 
   // Status line
   if (jumpMode) {
-    lines.push(`Jump: ${jumpText}_ (${filtered.length} match${filtered.length !== 1 ? 'es' : ''})`);
+    lines.push(
+      `Jump: ${jumpText}_ (${filtered.length} match${
+        filtered.length !== 1 ? "es" : ""
+      })`,
+    );
   } else if (filterMode) {
     lines.push(`Filter: ${filterText}_`);
   } else {
-    const filterIndicator = filterText 
-      ? `${LIGHT_PINK}/:filter("${filterText}")${RESET}` 
+    const filterIndicator = filterText
+      ? `${LIGHT_PINK}/:filter("${filterText}")${RESET}`
       : `/:filter`;
-    lines.push(`${DIM}j/k:nav space/b:page g:jump ${filterIndicator} t:time q:quit${RESET}`);
+    lines.push(
+      `${DIM}j/k:nav space/b:page g:jump ${filterIndicator} t:time q:quit${RESET}`,
+    );
   }
 
-  return <Text>{lines.join('\n')}</Text>;
+  return <Text>{lines.join("\n")}</Text>;
 };
 
 export function startInkSimpleLogger(logger: InkSimpleLogger): void {
   const app = render(<App logger={logger} />, {
-    exitOnCtrlC: false  // We'll handle exit ourselves
+    exitOnCtrlC: false, // We'll handle exit ourselves
   });
   logger.setApp(app);
-  
+
   // Handle graceful exit
   app.waitUntilExit().then(() => {
     Deno.exit(0);

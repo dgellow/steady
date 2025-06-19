@@ -96,7 +96,8 @@ const requests: TestRequest[] = [
   },
   {
     name: "Very long query string",
-    path: "/simple?param1=value1&param2=value2&param3=value3&param4=value4&param5=value5&param6=value6&param7=value7&param8=value8&param9=value9&param10=value10",
+    path:
+      "/simple?param1=value1&param2=value2&param3=value3&param4=value4&param5=value5&param6=value6&param7=value7&param8=value8&param9=value9&param10=value10",
   },
   {
     name: "POST with complex nested body",
@@ -142,37 +143,37 @@ const requests: TestRequest[] = [
 
 async function runRequest(req: TestRequest, index: number): Promise<void> {
   console.log(`${index + 1}. ${req.name}`);
-  
+
   const options: RequestInit = {
     method: req.method || "GET",
     headers: req.headers,
   };
-  
+
   if (req.body) {
     options.body = JSON.stringify(req.body);
   }
-  
+
   try {
     const start = performance.now();
     const response = await fetch(`${BASE_URL}${req.path}`, options);
     const elapsed = Math.round(performance.now() - start);
-    
+
     let body: unknown;
     const contentType = response.headers.get("content-type");
-    
+
     if (contentType?.includes("application/json")) {
       body = await response.json();
     } else {
       body = await response.text();
     }
-    
+
     // For spec endpoint, truncate the output
     if (req.path === "/_x-steady/spec" && typeof body === "object") {
       console.log(JSON.stringify(body, null, 2).substring(0, 200) + "...");
     } else {
       console.log(JSON.stringify(body, null, 2));
     }
-    
+
     console.log(`⏱️  ${elapsed}ms\n`);
   } catch (error) {
     console.error(`❌ Error: ${error}\n`);
@@ -181,15 +182,17 @@ async function runRequest(req: TestRequest, index: number): Promise<void> {
 
 async function main() {
   console.log("🧪 Running test requests for Steady...");
-  console.log("Make sure Steady is running with: steady -i test-recursive.yaml");
+  console.log(
+    "Make sure Steady is running with: steady -i test-recursive.yaml",
+  );
   console.log("");
-  
+
   // Add a small delay between requests to make them easier to follow
   for (let i = 0; i < requests.length; i++) {
     await runRequest(requests[i], i);
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  
+
   console.log("✅ Test requests completed!");
   console.log("Check the interactive logger to explore request details");
 }

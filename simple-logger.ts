@@ -56,7 +56,9 @@ export class SimpleLogger extends RequestLogger {
     this.updateTerminalSize();
 
     // Clear screen, hide cursor, and enable mouse wheel tracking
-    await this.write(CLEAR_SCREEN + CURSOR_HOME + HIDE_CURSOR + "\x1b[?1000h\x1b[?1006h");
+    await this.write(
+      CLEAR_SCREEN + CURSOR_HOME + HIDE_CURSOR + "\x1b[?1000h\x1b[?1006h",
+    );
 
     // Initial render
     await this.render();
@@ -82,7 +84,11 @@ export class SimpleLogger extends RequestLogger {
   stop(): void {
     this.running = false;
     // Show cursor, disable mouse tracking, and clear screen
-    Deno.stdout.writeSync(new TextEncoder().encode(SHOW_CURSOR + "\x1b[?1000l\x1b[?1006l" + CLEAR_SCREEN + CURSOR_HOME));
+    Deno.stdout.writeSync(
+      new TextEncoder().encode(
+        SHOW_CURSOR + "\x1b[?1000l\x1b[?1006l" + CLEAR_SCREEN + CURSOR_HOME,
+      ),
+    );
     Deno.exit(0);
   }
 
@@ -160,7 +166,7 @@ export class SimpleLogger extends RequestLogger {
 
   private formatHexId(index: number): string {
     const digits = this.getHexDigits();
-    return index.toString(16).padStart(digits, '0');
+    return index.toString(16).padStart(digits, "0");
   }
 
   private async handleInput(): Promise<void> {
@@ -185,11 +191,12 @@ export class SimpleLogger extends RequestLogger {
   private async processInput(input: string): Promise<void> {
     // Handle mouse wheel events (SGR format: ESC[<button;x;y;M/m)
     if (input.startsWith("\x1b[<")) {
+      // deno-lint-ignore no-control-regex
       const mouseMatch = input.match(/\x1b\[<(\d+);(\d+);(\d+)([Mm])/);
       if (mouseMatch && mouseMatch[1] && mouseMatch[4]) {
         const button = parseInt(mouseMatch[1]);
         const press = mouseMatch[4] === "M";
-        
+
         if (press) {
           if (button === 64) { // Wheel up
             this.navigateUp();
@@ -219,7 +226,9 @@ export class SimpleLogger extends RequestLogger {
           // Find the original index of the selected filtered entry
           const selectedEntry = filtered[this.selectedIndex];
           if (selectedEntry) {
-            const originalIndex = this.entries.findIndex(entry => entry.id === selectedEntry.id);
+            const originalIndex = this.entries.findIndex((entry) =>
+              entry.id === selectedEntry.id
+            );
             if (originalIndex >= 0) {
               this.jumpMode = false;
               this.jumpText = "";
@@ -270,7 +279,7 @@ export class SimpleLogger extends RequestLogger {
       this.jumpToEnd();
     } else if (input === "\x01") { // Ctrl+A - go to first
       this.jumpToStart();
-    } else if (input === "\x05") { // Ctrl+E - go to last  
+    } else if (input === "\x05") { // Ctrl+E - go to last
       this.jumpToEnd();
     } else if (input === "\r") { // Enter
       this.toggleExpansion();
@@ -317,33 +326,38 @@ export class SimpleLogger extends RequestLogger {
     this.updateViewport();
   }
 
-
   private updateViewport(): void {
     const contentHeight = this.terminalHeight - 5; // 3 header lines + 2 footer lines
-    
+
     // Ensure selected item is visible
     if (this.selectedIndex < this.viewportTop) {
       this.viewportTop = this.selectedIndex;
     } else if (this.selectedIndex >= this.viewportTop + contentHeight) {
       this.viewportTop = this.selectedIndex - contentHeight + 1;
     }
-    
+
     // Keep viewport in bounds
     const filtered = this.getFilteredEntries();
-    this.viewportTop = Math.max(0, Math.min(this.viewportTop, Math.max(0, filtered.length - contentHeight)));
+    this.viewportTop = Math.max(
+      0,
+      Math.min(this.viewportTop, Math.max(0, filtered.length - contentHeight)),
+    );
   }
 
   private pageDown(): void {
     const contentHeight = this.terminalHeight - 6;
     const filtered = this.getFilteredEntries();
-    
-    this.selectedIndex = Math.min(filtered.length - 1, this.selectedIndex + contentHeight);
+
+    this.selectedIndex = Math.min(
+      filtered.length - 1,
+      this.selectedIndex + contentHeight,
+    );
     this.updateViewport();
   }
 
   private pageUp(): void {
     const contentHeight = this.terminalHeight - 6;
-    
+
     this.selectedIndex = Math.max(0, this.selectedIndex - contentHeight);
     this.updateViewport();
   }
@@ -362,7 +376,8 @@ export class SimpleLogger extends RequestLogger {
     // Apply regular filter first
     if (this.filterText) {
       filtered = filtered.filter((entry) => {
-        const searchStr = `${entry.method} ${entry.path} ${entry.statusCode}`.toLowerCase();
+        const searchStr = `${entry.method} ${entry.path} ${entry.statusCode}`
+          .toLowerCase();
 
         // Support special filters like "status:400"
         if (this.filterText.includes(":")) {
@@ -385,23 +400,29 @@ export class SimpleLogger extends RequestLogger {
 
     // Apply jump mode filter
     if (this.jumpMode && this.jumpText) {
-      const jumpEntries = this.entries.map((entry, index) => ({ entry, originalIndex: index }));
-      
+      const jumpEntries = this.entries.map((entry, index) => ({
+        entry,
+        originalIndex: index,
+      }));
+
       if (this.jumpText.startsWith("#")) {
         // Hex ID jump - find entry with matching hex ID
         const hexId = this.jumpText.slice(1); // Remove # prefix
         const targetIndex = parseInt(hexId, 16);
-        const matchingEntry = jumpEntries.find(item => item.originalIndex === targetIndex);
+        const matchingEntry = jumpEntries.find((item) =>
+          item.originalIndex === targetIndex
+        );
         return matchingEntry ? [matchingEntry.entry] : [];
       } else {
         // General search - filter by method and path
         const searchText = this.jumpText.toLowerCase();
         return jumpEntries
-          .filter(item => {
-            const searchStr = `${item.entry.method} ${item.entry.path}`.toLowerCase();
+          .filter((item) => {
+            const searchStr = `${item.entry.method} ${item.entry.path}`
+              .toLowerCase();
             return searchStr.includes(searchText);
           })
-          .map(item => item.entry);
+          .map((item) => item.entry);
       }
     }
 
@@ -414,27 +435,34 @@ export class SimpleLogger extends RequestLogger {
     const contentHeight = this.terminalHeight - 6; // More space for fixed UI elements
 
     const totalEntries = filtered.length;
-    const viewportEnd = Math.min(this.viewportTop + contentHeight, totalEntries);
+    const viewportEnd = Math.min(
+      this.viewportTop + contentHeight,
+      totalEntries,
+    );
 
     // Fixed header (line 1)
     let headerLine = "Steady Interactive Logger";
     if (this.filterText) {
-      headerLine += ` ${DIM}(showing ${totalEntries} of ${this.entries.length} entries)${RESET}`;
+      headerLine +=
+        ` ${DIM}(showing ${totalEntries} of ${this.entries.length} entries)${RESET}`;
     }
     lines.push(headerLine);
-    
+
     // Fixed top scroll indicator (line 2)
     if (totalEntries > contentHeight && this.viewportTop > 0) {
       lines.push(`${DIM}↑ ${this.viewportTop} more entries above${RESET}`);
     } else {
       lines.push(""); // Empty line to maintain fixed layout
     }
-    
+
     // Empty separator line (line 3)
     lines.push("");
 
     // Render visible log entries
-    const visibleEntries = filtered.slice(this.viewportTop, this.viewportTop + contentHeight);
+    const visibleEntries = filtered.slice(
+      this.viewportTop,
+      this.viewportTop + contentHeight,
+    );
     visibleEntries.forEach((entry, viewIndex) => {
       const actualIndex = this.viewportTop + viewIndex;
       const isSelected = actualIndex === this.selectedIndex;
@@ -444,15 +472,17 @@ export class SimpleLogger extends RequestLogger {
       const hexId = this.formatHexId(actualIndex);
       const statusColor = this.getStatusColor(entry.statusCode);
       const queryString = entry.query ? `${DIM}${entry.query}${RESET}` : "";
-      
+
       let line = "";
-      
+
       // Optional timestamp
       if (this.showTimestamps) {
-        const timestamp = entry.timestamp.toLocaleTimeString("en-GB", { hour12: false });
+        const timestamp = entry.timestamp.toLocaleTimeString("en-GB", {
+          hour12: false,
+        });
         line += `[${timestamp}] `;
       }
-      
+
       line += `${hexId}  ${entry.method.padEnd(6)} ${entry.path}${queryString}`;
       line += `  ${statusColor}${entry.statusCode} ${entry.statusText}${RESET}`;
       line += `  ${DIM}${entry.timing}ms${RESET}`;
@@ -470,9 +500,12 @@ export class SimpleLogger extends RequestLogger {
       if (!isExpanded && entry.validation && !entry.validation.valid) {
         const firstError = entry.validation.errors[0];
         if (firstError) {
-          let errorLine = `    ${LIGHT_PINK}${firstError.path}: ${firstError.message}${RESET}`;
+          let errorLine =
+            `    ${LIGHT_PINK}${firstError.path}: ${firstError.message}${RESET}`;
           if (entry.validation.errors.length > 1) {
-            errorLine += ` ${DIM}(+${entry.validation.errors.length - 1} more)${RESET}`;
+            errorLine += ` ${DIM}(+${
+              entry.validation.errors.length - 1
+            } more)${RESET}`;
           }
           lines.push(errorLine);
         }
@@ -483,7 +516,7 @@ export class SimpleLogger extends RequestLogger {
         lines.push("    Request:");
         lines.push(`      Method: ${entry.method}`);
         lines.push(`      Path: ${entry.path}`);
-        
+
         if (entry.query) {
           lines.push(`      Query: ${entry.query}`);
         }
@@ -492,21 +525,23 @@ export class SimpleLogger extends RequestLogger {
         const headers = this.formatHeadersList(entry.headers);
         if (headers.length > 0) {
           lines.push("      Headers:");
-          headers.slice(0, 3).forEach(h => lines.push(`        ${h}`)); // Limit for viewport
+          headers.slice(0, 3).forEach((h) => lines.push(`        ${h}`)); // Limit for viewport
         }
 
         // Request body (truncated for viewport)
         if (entry.body) {
           lines.push("      Body:");
           const bodyStr = JSON.stringify(entry.body, null, 2);
-          bodyStr.split("\n").slice(0, 5).forEach(line => lines.push(`        ${line}`));
+          bodyStr.split("\n").slice(0, 5).forEach((line) =>
+            lines.push(`        ${line}`)
+          );
         }
 
         // Validation errors
         if (entry.validation && !entry.validation.valid) {
           lines.push("");
           lines.push(`    ${RED}Validation Errors:${RESET}`);
-          entry.validation.errors.slice(0, 3).forEach(error => {
+          entry.validation.errors.slice(0, 3).forEach((error) => {
             lines.push(`      ${error.path}: ${error.message}`);
           });
         }
@@ -514,12 +549,16 @@ export class SimpleLogger extends RequestLogger {
         // Response (compact)
         lines.push("");
         lines.push("    Response:");
-        lines.push(`      Status: ${statusColor}${entry.statusCode} ${entry.statusText}${RESET}`);
-        
+        lines.push(
+          `      Status: ${statusColor}${entry.statusCode} ${entry.statusText}${RESET}`,
+        );
+
         if (entry.responseBody) {
           lines.push("      Body:");
           const bodyStr = JSON.stringify(entry.responseBody, null, 2);
-          bodyStr.split("\n").slice(0, 5).forEach(line => lines.push(`        ${line}`));
+          bodyStr.split("\n").slice(0, 5).forEach((line) =>
+            lines.push(`        ${line}`)
+          );
         }
 
         lines.push("");
@@ -532,14 +571,16 @@ export class SimpleLogger extends RequestLogger {
     const targetContentLines = this.terminalHeight - 5;
     const currentContentLines = lines.length - 3; // Subtract the 3 header lines
     const paddingNeeded = targetContentLines - currentContentLines;
-    
+
     for (let i = 0; i < paddingNeeded; i++) {
       lines.push("");
     }
 
     // Fixed bottom scroll indicator (second to last line)
     if (totalEntries > contentHeight && viewportEnd < totalEntries) {
-      lines.push(`${DIM}↓ ${totalEntries - viewportEnd} more entries below${RESET}`);
+      lines.push(
+        `${DIM}↓ ${totalEntries - viewportEnd} more entries below${RESET}`,
+      );
     } else {
       lines.push(""); // Empty line to maintain fixed layout
     }
@@ -547,15 +588,21 @@ export class SimpleLogger extends RequestLogger {
     // Fixed status line (last line)
     if (this.jumpMode) {
       const jumpResults = this.getFilteredEntries().length;
-      lines.push(`Jump: ${this.jumpText}_ (${jumpResults} match${jumpResults !== 1 ? 'es' : ''})`);
+      lines.push(
+        `Jump: ${this.jumpText}_ (${jumpResults} match${
+          jumpResults !== 1 ? "es" : ""
+        })`,
+      );
     } else if (this.filterMode) {
       lines.push(`Filter: ${this.filterText}_`);
     } else {
       // Show active filter in status line
-      const filterIndicator = this.filterText 
-        ? `${LIGHT_PINK}/:filter("${this.filterText}")${RESET}` 
+      const filterIndicator = this.filterText
+        ? `${LIGHT_PINK}/:filter("${this.filterText}")${RESET}`
         : `/:filter`;
-      lines.push(`${DIM}j/k:nav space/b:page g:jump ${filterIndicator} t:time q:quit${RESET}`);
+      lines.push(
+        `${DIM}j/k:nav space/b:page g:jump ${filterIndicator} t:time q:quit${RESET}`,
+      );
     }
 
     // Clear and render

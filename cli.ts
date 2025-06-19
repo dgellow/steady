@@ -1,9 +1,7 @@
 #!/usr/bin/env -S deno run --allow-read --allow-net --allow-env
 
-import { parseSpec } from "./parser.ts";
-import { MockServer } from "./server.ts";
+import { parseSpec, SteadyError } from "@steady/parser";
 import { LogLevel, ServerConfig } from "./types.ts";
-import { SteadyError } from "./errors.ts";
 
 // ANSI colors
 const BOLD = "\x1b[1m";
@@ -39,6 +37,12 @@ async function main() {
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
     printHelp();
     Deno.exit(0);
+  }
+
+  // Check for validate command
+  if (args[0] === "validate") {
+    await validateCommand(args.slice(1));
+    return;
   }
 
   // Parse flags
@@ -113,7 +117,9 @@ async function startServer(
     mode: "strict" | "relaxed";
     interactive: boolean;
   },
-): Promise<MockServer> {
+): Promise<{ start: () => void; stop: () => void }> {
+  // Lazy import to avoid loading server code for validate command
+  const { MockServer } = await import("./server.ts");
   // Parse the OpenAPI spec
   const spec = await parseSpec(specPath);
 
@@ -154,7 +160,7 @@ async function startWithWatch(
     interactive: boolean;
   },
 ) {
-  let server: MockServer | null = null;
+  let server: { start: () => void; stop: () => void } | null = null;
 
   // Initial start
   try {
@@ -207,14 +213,65 @@ async function startWithWatch(
   }
 }
 
+async function validateCommand(args: string[]) {
+  const GREEN = "\x1b[32m";
+
+  if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
+    console.log(`
+${BOLD}steady validate${RESET} - Check if spec will work with Steady
+
+Usage: steady validate <openapi-spec>
+
+Checks if an OpenAPI 3.0 or 3.1 specification file can be loaded by the mock server.
+This is not a linter - it only verifies the spec is parseable and has required fields.
+
+Examples:
+  steady validate api.yaml
+  steady validate openapi.json
+`);
+    Deno.exit(0);
+  }
+
+  const specPath = args[0];
+
+  if (!specPath) {
+    console.error(`${RED}${BOLD}ERROR:${RESET} No spec file provided`);
+    console.error(`\nUsage: steady validate <spec-file>`);
+    Deno.exit(1);
+  }
+
+  try {
+    // Parse the spec - this will throw if invalid
+    await parseSpec(specPath);
+
+    // If we get here, spec is valid
+    console.log(`${GREEN}✓${RESET} All good`);
+  } catch (error) {
+    if (error instanceof SteadyError) {
+      console.error(error.format());
+    } else {
+      console.error(
+        `${RED}${BOLD}ERROR:${RESET} ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    Deno.exit(1);
+  }
+}
+
 function printHelp() {
   console.log(`
 ${BOLD}Steady - The Reliable OpenAPI 3 Mock Server${RESET}
 
-Usage: steady [options] <openapi-spec>
+Usage: steady [command] [options] <openapi-spec>
+
+Commands:
+  validate <spec>          Validate an OpenAPI specification
+  <spec>                   Start mock server (default command)
 
 Arguments:
-  <openapi-spec>    Path to OpenAPI 3 specification file (YAML or JSON)
+  <openapi-spec>    Path to OpenAPI 3.0/3.1 specification file (YAML or JSON)
 
 Options:
   -r, --auto-reload        Auto-reload on spec file changes
@@ -228,6 +285,7 @@ Options:
 
 Examples:
   steady api.yaml                          # Start with default settings
+  steady validate api.yaml                 # Validate specification
   steady --log-level=details api.yaml      # Show detailed logs
   steady --log-bodies api.yaml             # Show bodies in summary mode
   steady --relaxed api.yaml                # Allow validation warnings

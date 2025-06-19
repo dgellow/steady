@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --allow-sys --allow-run
 
-import React, { useState, useEffect } from "npm:react";
-import { render, Box, Text, useInput, useApp, useFocus } from "npm:ink";
+import React, { useEffect, useState } from "npm:react";
+import { Box, render, Text, useApp, useFocus, useInput } from "npm:ink";
 import { ValidationResult } from "./types.ts";
 import { RequestLogger } from "./logger.ts";
 
@@ -31,13 +31,13 @@ export class InkLogger extends RequestLogger {
   private currentRequestId?: string;
   private pendingRequest?: Partial<StoredRequest>;
   private onNewRequest?: (request: StoredRequest) => void;
-  private app?: any; // Store the Ink app instance
+  private app?: { unmount: () => void }; // Store the Ink app instance
 
   setOnNewRequest(callback: (request: StoredRequest) => void) {
     this.onNewRequest = callback;
   }
 
-  setApp(app: any) {
+  setApp(app: { unmount: () => void }) {
     this.app = app;
   }
 
@@ -57,7 +57,7 @@ export class InkLogger extends RequestLogger {
     const url = new URL(req.url);
     const id = crypto.randomUUID();
     this.currentRequestId = id;
-    
+
     this.pendingRequest = {
       id,
       timestamp: new Date(),
@@ -75,7 +75,7 @@ export class InkLogger extends RequestLogger {
     validation?: ValidationResult,
   ): void {
     if (!this.pendingRequest || !this.currentRequestId) return;
-    
+
     const entry: StoredRequest = {
       ...this.pendingRequest as StoredRequest,
       statusCode,
@@ -83,17 +83,17 @@ export class InkLogger extends RequestLogger {
       timing,
       validation: validation || this.pendingRequest.validation,
     };
-    
+
     requestStore.push(entry);
     if (requestStore.length > 1000) {
       requestStore.shift();
     }
-    
+
     // Notify the UI
     if (this.onNewRequest) {
       this.onNewRequest(entry);
     }
-    
+
     this.pendingRequest = undefined;
     this.currentRequestId = undefined;
   }
@@ -115,7 +115,9 @@ interface LogEntryProps {
   onClick: () => void;
 }
 
-const LogEntry = ({ entry, isSelected, isExpanded, onClick }: LogEntryProps) => {
+const LogEntry = (
+  { entry, isSelected, isExpanded, onClick }: LogEntryProps,
+) => {
   useFocus({ autoFocus: isSelected });
 
   const timestamp = entry.timestamp.toLocaleTimeString();
@@ -125,31 +127,35 @@ const LogEntry = ({ entry, isSelected, isExpanded, onClick }: LogEntryProps) => 
     <Box flexDirection="column" onClick={onClick}>
       <Box>
         <Text inverse={isSelected}>
-          <Text dimColor>[{timestamp}]</Text>{" "}
-          {entry.method} {entry.path}
+          <Text dimColor>[{timestamp}]</Text> {entry.method} {entry.path}
           <Text dimColor>{entry.query}</Text>
           {" → "}
-          <Text color={entry.statusCode >= 400 ? (entry.statusCode >= 500 ? "red" : "yellow") : undefined}>
+          <Text
+            color={entry.statusCode >= 400
+              ? (entry.statusCode >= 500 ? "red" : "yellow")
+              : undefined}
+          >
             {entry.statusCode} {entry.statusText}
-          </Text>
-          {" "}
+          </Text>{" "}
           <Text dimColor>({entry.timing}ms)</Text>
           {isExpanded ? " ▼" : isSelected ? " ▶" : ""}
         </Text>
       </Box>
-      
+
       {/* Validation summary when collapsed */}
-      {!isExpanded && hasValidationErrors && entry.validation && entry.validation.errors[0] && (
+      {!isExpanded && hasValidationErrors && entry.validation &&
+        entry.validation.errors[0] && (
         <Box paddingLeft={11}>
           <Text color="yellow">
-            ⚠️  {entry.validation.errors[0].path}: {entry.validation.errors[0].message}
+            ⚠️ {entry.validation.errors[0].path}:{" "}
+            {entry.validation.errors[0].message}
             {entry.validation.errors.length > 1 && (
-              <Text dimColor> (+{entry.validation.errors.length - 1} more)</Text>
+              <Text dimColor>(+{entry.validation.errors.length - 1} more)</Text>
             )}
           </Text>
         </Box>
       )}
-      
+
       {/* Expanded details */}
       {isExpanded && (
         <Box flexDirection="column" paddingLeft={11} marginTop={1}>
@@ -157,67 +163,96 @@ const LogEntry = ({ entry, isSelected, isExpanded, onClick }: LogEntryProps) => 
           {hasValidationErrors && entry.validation && (
             <>
               <Text color="red">Validation Errors:</Text>
-              {entry.validation.errors.map((error: any, i: number) => (
+              {entry.validation.errors.map((error, i) => (
                 <Box key={i} paddingLeft={2}>
-                  <Text>{i === entry.validation!.errors.length - 1 ? "└─" : "├─"} {error.path}: {error.message}</Text>
+                  <Text>
+                    {i === entry.validation!.errors.length - 1 ? "└─" : "├─"}
+                    {" "}
+                    {error.path}: {error.message}
+                  </Text>
                   {error.expected && (
                     <Box paddingLeft={3}>
-                      <Text dimColor>Expected: {String(error.expected)}, Got: {String(error.actual)}</Text>
+                      <Text dimColor>
+                        Expected: {String(error.expected)}, Got:{" "}
+                        {String(error.actual)}
+                      </Text>
                     </Box>
                   )}
                 </Box>
               ))}
-              <Text> </Text>
+              <Text></Text>
             </>
           )}
-          
+
           {/* Query parameters */}
           {entry.query && (
             <>
               <Text>Query Parameters:</Text>
-              {Array.from(new URLSearchParams(entry.query)).map(([key, value], i, arr) => (
+              {Array.from(new URLSearchParams(entry.query)).map((
+                [key, value],
+                i,
+                arr,
+              ) => (
                 <Box key={key} paddingLeft={2}>
-                  <Text>{i === arr.length - 1 ? "└─" : "├─"} {key}: {value}</Text>
+                  <Text>
+                    {i === arr.length - 1 ? "└─" : "├─"} {key}: {value}
+                  </Text>
                 </Box>
               ))}
-              <Text> </Text>
+              <Text></Text>
             </>
           )}
-          
+
           {/* Request headers */}
           {entry.headers && (
             <>
               <Text>Request Headers:</Text>
               {(() => {
                 const headers = Array.from(entry.headers.entries())
-                  .filter(([key]: [string, string]) => !["authorization", "cookie", "x-api-key"].includes(key.toLowerCase()));
-                return headers.map(([key, value]: [string, string], i: number) => (
+                  .filter(([key]: [string, string]) =>
+                    !["authorization", "cookie", "x-api-key"].includes(
+                      key.toLowerCase(),
+                    )
+                  );
+                return headers.map((
+                  [key, value]: [string, string],
+                  i: number,
+                ) => (
                   <Box key={key} paddingLeft={2}>
-                    <Text>{i === headers.length - 1 ? "└─" : "├─"} {key}: {value}</Text>
+                    <Text>
+                      {i === headers.length - 1 ? "└─" : "├─"} {key}: {value}
+                    </Text>
                   </Box>
                 ));
               })()}
-              <Text> </Text>
+              <Text></Text>
             </>
           )}
-          
+
           {/* Request body */}
           {entry.body && (
             <>
               <Text>Request Body:</Text>
               <Box paddingLeft={2}>
-                <Text>{JSON.stringify(entry.body, null, 2).substring(0, 500)}</Text>
+                <Text>
+                  {JSON.stringify(entry.body, null, 2).substring(0, 500)}
+                </Text>
               </Box>
-              <Text> </Text>
+              <Text></Text>
             </>
           )}
-          
+
           {/* Response body */}
           {entry.responseBody && (
             <>
               <Text>Response Body:</Text>
               <Box paddingLeft={2}>
-                <Text>{JSON.stringify(entry.responseBody, null, 2).substring(0, 500)}</Text>
+                <Text>
+                  {JSON.stringify(entry.responseBody, null, 2).substring(
+                    0,
+                    500,
+                  )}
+                </Text>
               </Box>
             </>
           )}
@@ -243,25 +278,29 @@ const App = ({ logger }: AppProps) => {
   // Enable mouse tracking on mount, disable on unmount
   useEffect(() => {
     const encoder = new TextEncoder();
-    
+
     // Enable mouse tracking (SGR extended mode for better support)
-    Deno.stdout.writeSync(encoder.encode('\x1b[?1000h\x1b[?1002h\x1b[?1015h\x1b[?1006h'));
-    
+    Deno.stdout.writeSync(
+      encoder.encode("\x1b[?1000h\x1b[?1002h\x1b[?1015h\x1b[?1006h"),
+    );
+
     // Cleanup function to disable mouse tracking
     const cleanup = () => {
-      Deno.stdout.writeSync(encoder.encode('\x1b[?1000l\x1b[?1002l\x1b[?1015l\x1b[?1006l'));
+      Deno.stdout.writeSync(
+        encoder.encode("\x1b[?1000l\x1b[?1002l\x1b[?1015l\x1b[?1006l"),
+      );
     };
-    
+
     // Handle unexpected process exits
     const handleExit = () => cleanup();
-    Deno.addSignalListener('SIGINT', handleExit);
-    Deno.addSignalListener('SIGTERM', handleExit);
-    
+    Deno.addSignalListener("SIGINT", handleExit);
+    Deno.addSignalListener("SIGTERM", handleExit);
+
     return () => {
       cleanup();
       try {
-        Deno.removeSignalListener('SIGINT', handleExit);
-        Deno.removeSignalListener('SIGTERM', handleExit);
+        Deno.removeSignalListener("SIGINT", handleExit);
+        Deno.removeSignalListener("SIGTERM", handleExit);
       } catch {
         // Ignore errors during cleanup
       }
@@ -272,7 +311,7 @@ const App = ({ logger }: AppProps) => {
   useEffect(() => {
     // Load existing requests
     setRequests([...requestStore]);
-    
+
     // Listen for new ones
     logger.setOnNewRequest((request: StoredRequest) => {
       setRequests((prev: StoredRequest[]) => [...prev, request].slice(-100)); // Keep last 100
@@ -282,7 +321,7 @@ const App = ({ logger }: AppProps) => {
   // Filter requests
   const filteredRequests = requests.filter((req: StoredRequest) => {
     if (!filter) return true;
-    
+
     // Special filters
     if (filter.includes(":")) {
       const [type, value] = filter.split(":", 2);
@@ -295,9 +334,10 @@ const App = ({ logger }: AppProps) => {
           break;
       }
     }
-    
+
     // General text search
-    const searchStr = `${req.method} ${req.path} ${req.statusCode}`.toLowerCase();
+    const searchStr = `${req.method} ${req.path} ${req.statusCode}`
+      .toLowerCase();
     return searchStr.includes(filter.toLowerCase());
   });
 
@@ -325,7 +365,9 @@ const App = ({ logger }: AppProps) => {
     if (key.upArrow || input === "k") {
       setSelectedIndex(Math.max(0, selectedIndex - 1));
     } else if (key.downArrow || input === "j") {
-      setSelectedIndex(Math.min(filteredRequests.length - 1, selectedIndex + 1));
+      setSelectedIndex(
+        Math.min(filteredRequests.length - 1, selectedIndex + 1),
+      );
     } else if (key.return || input === " ") {
       const entry = filteredRequests[selectedIndex];
       if (entry) {
@@ -361,9 +403,7 @@ const App = ({ logger }: AppProps) => {
       {/* Header */}
       <Box marginBottom={1}>
         <Text bold color="blue">🚀 Steady Interactive Mode</Text>
-        {filter && (
-          <Text dimColor> - Filter: {filter}</Text>
-        )}
+        {filter && <Text dimColor>- Filter: {filter}</Text>}
       </Box>
 
       {/* Request list */}
@@ -396,15 +436,17 @@ const App = ({ logger }: AppProps) => {
 
       {/* Status bar */}
       <Box marginTop={1}>
-        {filterMode ? (
-          <Text>
-            <Text color="yellow">Filter: {filter}_</Text>
-          </Text>
-        ) : (
-          <Text dimColor>
-            [↑↓] Navigate  [Enter/Click] Expand  [/] Filter  [c] Clear  [q] Quit
-          </Text>
-        )}
+        {filterMode
+          ? (
+            <Text>
+              <Text color="yellow">Filter: {filter}_</Text>
+            </Text>
+          )
+          : (
+            <Text dimColor>
+              [↑↓] Navigate [Enter/Click] Expand [/] Filter [c] Clear [q] Quit
+            </Text>
+          )}
       </Box>
     </Box>
   );
@@ -413,9 +455,9 @@ const App = ({ logger }: AppProps) => {
 // Export function to start the UI
 export function startInkLogger(logger: InkLogger): void {
   const app = render(<App logger={logger} />, {
-    exitOnCtrlC: true  // Properly handle Ctrl+C
+    exitOnCtrlC: true, // Properly handle Ctrl+C
   });
-  
+
   // Store the app instance in the logger for cleanup
   logger.setApp(app);
 }

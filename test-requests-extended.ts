@@ -33,7 +33,7 @@ const requests: TestRequest[] = [
     name: "Person with recursion",
     path: "/person",
   },
-  
+
   // Query parameter variations
   {
     name: "Single invalid query param",
@@ -63,7 +63,7 @@ const requests: TestRequest[] = [
     name: "Empty query param values",
     path: "/simple?empty=&another=&third=value",
   },
-  
+
   // Path variations
   {
     name: "Root path",
@@ -89,7 +89,7 @@ const requests: TestRequest[] = [
     name: "Path with dashes and underscores",
     path: "/some-path_with_mixed-naming",
   },
-  
+
   // Method variations
   {
     name: "POST to GET-only endpoint",
@@ -131,7 +131,7 @@ const requests: TestRequest[] = [
     method: "HEAD",
     path: "/tree",
   },
-  
+
   // Header variations
   {
     name: "Basic auth header",
@@ -144,7 +144,8 @@ const requests: TestRequest[] = [
     name: "Bearer token with JWT",
     path: "/person",
     headers: {
-      "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+      "Authorization":
+        "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
     },
   },
   {
@@ -179,7 +180,7 @@ const requests: TestRequest[] = [
       "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
     },
   },
-  
+
   // Body variations
   {
     name: "POST with simple body",
@@ -231,7 +232,9 @@ const requests: TestRequest[] = [
       items: Array.from({ length: 50 }, (_, i) => ({
         id: i + 1,
         name: `Item ${i + 1}`,
-        description: `This is a longer description for item ${i + 1} to make the body larger`,
+        description: `This is a longer description for item ${
+          i + 1
+        } to make the body larger`,
         metadata: {
           created: new Date().toISOString(),
           tags: [`tag${i}`, `category${i % 5}`, "common"],
@@ -239,7 +242,7 @@ const requests: TestRequest[] = [
       })),
     },
   },
-  
+
   // Special endpoints
   {
     name: "Health check",
@@ -249,7 +252,7 @@ const requests: TestRequest[] = [
     name: "OpenAPI spec",
     path: "/_x-steady/spec",
   },
-  
+
   // Error scenarios
   {
     name: "Invalid JSON body",
@@ -265,7 +268,7 @@ const requests: TestRequest[] = [
     headers: { "Content-Type": "text/plain" },
     body: "Plain text body",
   },
-  
+
   // Rapid fire requests
   {
     name: "Rapid request 1",
@@ -292,7 +295,7 @@ const requests: TestRequest[] = [
     path: "/tree?quick=yes",
     delay: 10,
   },
-  
+
   // Mixed success and failure
   {
     name: "Success after failures",
@@ -309,14 +312,16 @@ const requests: TestRequest[] = [
 ];
 
 async function runRequest(req: TestRequest, index: number): Promise<void> {
-  const prefix = `[${(index + 1).toString().padStart(2, '0')}/${requests.length}]`;
+  const prefix = `[${
+    (index + 1).toString().padStart(2, "0")
+  }/${requests.length}]`;
   console.log(`${prefix} ${req.name}`);
-  
+
   const options: RequestInit = {
     method: req.method || "GET",
     headers: req.headers,
   };
-  
+
   if (req.body) {
     if (typeof req.body === "string") {
       options.body = req.body;
@@ -324,25 +329,25 @@ async function runRequest(req: TestRequest, index: number): Promise<void> {
       options.body = JSON.stringify(req.body);
     }
   }
-  
+
   try {
     const start = performance.now();
     const response = await fetch(`${BASE_URL}${req.path}`, options);
     const elapsed = Math.round(performance.now() - start);
-    
+
     // For HEAD requests, no body
     if (req.method === "HEAD") {
       console.log(`Status: ${response.status} ${response.statusText}`);
     } else {
       let body: unknown;
       const contentType = response.headers.get("content-type");
-      
+
       if (contentType?.includes("application/json")) {
         body = await response.json();
       } else {
         body = await response.text();
       }
-      
+
       // Truncate large responses
       let output = JSON.stringify(body, null, 2);
       if (output.length > 300) {
@@ -350,39 +355,45 @@ async function runRequest(req: TestRequest, index: number): Promise<void> {
       }
       console.log(output);
     }
-    
+
     console.log(`⏱️  ${elapsed}ms\n`);
   } catch (error) {
     console.error(`❌ Error: ${error}\n`);
   }
-  
+
   // Add delay if specified
   if (req.delay) {
-    await new Promise(resolve => setTimeout(resolve, req.delay));
+    await new Promise((resolve) => setTimeout(resolve, req.delay));
   }
 }
 
 async function main() {
   console.log("🧪 Running extended test requests for Steady...");
   console.log(`📊 Total requests to run: ${requests.length}`);
-  console.log("Make sure Steady is running with: steady -i test-recursive.yaml");
+  console.log(
+    "Make sure Steady is running with: steady -i test-recursive.yaml",
+  );
   console.log("");
-  
+
   const startTime = performance.now();
-  
+
   for (let i = 0; i < requests.length; i++) {
     await runRequest(requests[i], i);
   }
-  
+
   const totalTime = Math.round(performance.now() - startTime);
-  
+
   console.log("✅ Test requests completed!");
   console.log(`⏱️  Total time: ${totalTime}ms`);
   console.log("\n📊 Summary:");
   console.log(`- Total requests: ${requests.length}`);
-  console.log(`- Average time per request: ${Math.round(totalTime / requests.length)}ms`);
+  console.log(
+    `- Average time per request: ${Math.round(totalTime / requests.length)}ms`,
+  );
   console.log("\nCheck the interactive logger to explore request details!");
-  console.log("Try filtering with: /status:400, /status:404, /method:POST, etc.");
+  console.log(
+    "Try filtering with: /status:400, /status:404, /method:POST, etc.",
+  );
 }
 
 if (import.meta.main) {

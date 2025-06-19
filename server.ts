@@ -1,15 +1,17 @@
-import {
+import { ReferenceGraph, ServerConfig } from "./types.ts";
+import type {
   OpenAPISpec,
   OperationObject,
   PathItemObject,
-  ReferenceGraph,
-  ServerConfig,
-} from "./types.ts";
+} from "@steady/parser";
 import { MatchError, missingExampleError } from "./errors.ts";
 import { generateFromMediaType } from "./generator.ts";
 import { buildReferenceGraph } from "./resolver.ts";
 import { RequestLogger } from "./logger.ts";
-import { InkSimpleLogger, startInkSimpleLogger } from "./ink-simple-logger-v2.tsx";
+import {
+  InkSimpleLogger,
+  startInkSimpleLogger,
+} from "./ink-simple-logger-v2.tsx";
 import { RequestValidator } from "./validator.ts";
 
 // ANSI colors for startup message
@@ -41,7 +43,7 @@ export class MockServer {
     this.validator = new RequestValidator(spec, config.mode);
   }
 
-  async start() {
+  start() {
     // Start interactive logger if enabled
     if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
       startInkSimpleLogger(this.logger);
@@ -55,7 +57,7 @@ export class MockServer {
         this.printStartupMessage();
       },
     }, (req) => this.handleRequest(req));
-    
+
     // Handle graceful shutdown
     if (!this.config.interactive) {
       Deno.addSignalListener("SIGINT", () => {
@@ -133,7 +135,7 @@ export class MockServer {
     return methods;
   }
 
-  private async handleRequest(req: Request): Promise<Response> {
+  private handleRequest(req: Request): Response {
     const startTime = performance.now();
     const url = new URL(req.url);
     const method = req.method.toLowerCase();
@@ -332,7 +334,7 @@ export class MockServer {
 
         try {
           body = generateFromMediaType(mediaType, this.spec, this.refGraph);
-        } catch (error) {
+        } catch (_error) {
           // If generation fails, throw a helpful error
           throw missingExampleError(path, method, statusCode);
         }

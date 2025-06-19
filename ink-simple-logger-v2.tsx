@@ -1,8 +1,9 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --allow-sys --allow-net
 
-import React, { useState, useEffect } from "npm:react";
-import { render, Box, Text, useInput, useApp, useStdout, Static } from "npm:ink";
-import fullscreen from "npm:fullscreen-ink";
+import React, { useEffect, useState } from "npm:react";
+import { Box, render, Text, useApp, useInput, useStdout } from "npm:ink";
+// import fullscreen from "npm:fullscreen-ink"; // Not used currently
+import process from "node:process";
 import { LogLevel, ValidationResult } from "./types.ts";
 import { RequestLogger } from "./logger.ts";
 
@@ -11,8 +12,10 @@ const debugLog = (message: string) => {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] ${message}\n`;
   try {
-    Deno.writeTextFileSync("ink-logger-debug.log", logMessage, { append: true });
-  } catch (e) {
+    Deno.writeTextFileSync("ink-logger-debug.log", logMessage, {
+      append: true,
+    });
+  } catch (_e) {
     // Ignore errors
   }
 };
@@ -45,7 +48,7 @@ export class InkSimpleLogger extends RequestLogger {
   private currentRequestId?: string;
   private pendingRequest?: Partial<StoredRequest>;
   private onUpdate?: () => void;
-  private app?: any;
+  private app?: { unmount: () => void; waitUntilExit: () => Promise<void> };
 
   constructor(logLevel: LogLevel = "summary", logBodies = false) {
     super(logLevel, logBodies);
@@ -55,7 +58,7 @@ export class InkSimpleLogger extends RequestLogger {
     this.onUpdate = callback;
   }
 
-  setApp(app: any) {
+  setApp(app: { unmount: () => void; waitUntilExit: () => Promise<void> }) {
     this.app = app;
   }
 
@@ -106,8 +109,10 @@ export class InkSimpleLogger extends RequestLogger {
     };
 
     this.entries.push(entry);
-    debugLog(`Added entry ${this.entries.length - 1}: ${entry.method} ${entry.path}`);
-    
+    debugLog(
+      `Added entry ${this.entries.length - 1}: ${entry.method} ${entry.path}`,
+    );
+
     if (this.entries.length > 1000) {
       this.entries.shift();
     }
@@ -157,7 +162,8 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
 
     if (filterText) {
       filtered = filtered.filter((entry) => {
-        const searchStr = `${entry.method} ${entry.path} ${entry.statusCode}`.toLowerCase();
+        const searchStr = `${entry.method} ${entry.path} ${entry.statusCode}`
+          .toLowerCase();
         return searchStr.includes(filterText.toLowerCase());
       });
     }
@@ -166,7 +172,8 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       if (jumpText.startsWith("#")) {
         const hexId = jumpText.slice(1);
         const targetIndex = parseInt(hexId, 16);
-        return targetIndex < entries.length ? [entries[targetIndex]] : [];
+        const entry = entries[targetIndex];
+        return entry ? [entry] : [];
       } else {
         const searchText = jumpText.toLowerCase();
         return entries.filter((entry) => {
@@ -190,7 +197,7 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
   };
 
   const formatHexId = (index: number): string => {
-    return index.toString(16).padStart(getHexDigits(), '0');
+    return index.toString(16).padStart(getHexDigits(), "0");
   };
 
   // Calculate viewport first to determine if we need scroll indicator
@@ -199,23 +206,33 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
   if (selectedIndex >= baseContentHeight) {
     viewportStart = selectedIndex - baseContentHeight + 1;
   }
-  
+
   // Now calculate actual header height based on whether we're scrolled
   const headerHeight = viewportStart > 0 ? 2 : 1; // Dynamic based on scroll indicator
   const footerHeight = 2; // Status + bottom scroll
-  const contentHeight = Math.max(1, terminalHeight - headerHeight - footerHeight);
-  
+  const contentHeight = Math.max(
+    1,
+    terminalHeight - headerHeight - footerHeight,
+  );
+
   // Recalculate viewport with correct content height if needed
   if (selectedIndex >= contentHeight) {
     viewportStart = selectedIndex - contentHeight + 1;
   }
   const viewportEnd = Math.min(filtered.length, viewportStart + contentHeight);
   const visibleEntries = filtered.slice(viewportStart, viewportEnd);
-  
-  debugLog(`Render: termHeight=${terminalHeight}, contentHeight=${contentHeight}, viewport=${viewportStart}-${viewportEnd}, entries=${entries.length}, filtered=${filtered.length}`);
-  if (visibleEntries.length > 0) {
-    const firstHex = formatHexId(entries.findIndex(e => e.id === visibleEntries[0].id));
-    debugLog(`First visible: hex=${firstHex} method=${visibleEntries[0].method} path=${visibleEntries[0].path}`);
+
+  debugLog(
+    `Render: termHeight=${terminalHeight}, contentHeight=${contentHeight}, viewport=${viewportStart}-${viewportEnd}, entries=${entries.length}, filtered=${filtered.length}`,
+  );
+  if (visibleEntries.length > 0 && visibleEntries[0]) {
+    const firstEntry = visibleEntries[0];
+    const firstHex = formatHexId(
+      entries.findIndex((e) => e.id === firstEntry.id),
+    );
+    debugLog(
+      `First visible: hex=${firstHex} method=${firstEntry.method} path=${firstEntry.path}`,
+    );
   }
 
   // Handle input
@@ -233,7 +250,9 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       } else if (key.return) {
         if (filtered.length > 0 && selectedIndex < filtered.length) {
           const selectedEntry = filtered[selectedIndex];
-          const originalIndex = entries.findIndex(e => e.id === selectedEntry.id);
+          const originalIndex = entries.findIndex((e) =>
+            selectedEntry && e.id === selectedEntry.id
+          );
           if (originalIndex >= 0) {
             setJumpMode(false);
             setJumpText("");
@@ -241,10 +260,10 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
           }
         }
       } else if (key.backspace || key.delete) {
-        setJumpText(prev => prev.slice(0, -1));
+        setJumpText((prev: string) => prev.slice(0, -1));
         setSelectedIndex(0);
       } else if (input && input.length === 1) {
-        setJumpText(prev => prev + input.toLowerCase());
+        setJumpText((prev: string) => prev + input.toLowerCase());
         setSelectedIndex(0);
       }
       return;
@@ -257,9 +276,9 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       } else if (key.return) {
         setFilterMode(false);
       } else if (key.backspace || key.delete) {
-        setFilterText(prev => prev.slice(0, -1));
+        setFilterText((prev: string) => prev.slice(0, -1));
       } else if (input && input.length === 1) {
-        setFilterText(prev => prev + input);
+        setFilterText((prev: string) => prev + input);
       }
       return;
     }
@@ -301,7 +320,8 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       <Box flexDirection="column" height={headerHeight}>
         <Text>
           Steady Interactive Logger
-          {filterText && ` ${DIM}(showing ${filtered.length} of ${entries.length} entries)${RESET}`}
+          {filterText &&
+            ` ${DIM}(showing ${filtered.length} of ${entries.length} entries)${RESET}`}
         </Text>
         {viewportStart > 0 && (
           <Text>{`${DIM}↑ ${viewportStart} more entries above${RESET}`}</Text>
@@ -312,17 +332,21 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       <Box flexDirection="column" flexGrow={1}>
         {visibleEntries.map((entry, idx) => {
           const actualIndex = viewportStart + idx;
-          const originalIndex = entries.findIndex(e => e.id === entry.id);
+          const originalIndex = entries.findIndex((e) =>
+            e.id === entry.id
+          );
           const isSelected = actualIndex === selectedIndex;
           const isExpanded = expandedId === entry.id;
           const hexId = formatHexId(originalIndex);
 
           const lines: string[] = [];
-          
+
           // Main line
           let line = isSelected ? "> " : "  ";
           if (showTimestamps) {
-            const timestamp = entry.timestamp.toLocaleTimeString("en-GB", { hour12: false });
+            const timestamp = entry.timestamp.toLocaleTimeString("en-GB", {
+              hour12: false,
+            });
             line += `[${timestamp}] `;
           }
           line += `${hexId}  ${entry.method.padEnd(6)} ${entry.path}`;
@@ -330,19 +354,27 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
             line += `${DIM}${entry.query}${RESET}`;
           }
 
-          const statusColor = entry.statusCode >= 500 ? RED : entry.statusCode >= 400 ? YELLOW : "";
-          line += `  ${statusColor}${entry.statusCode} ${entry.statusText}${RESET}`;
+          const statusColor = entry.statusCode >= 500
+            ? RED
+            : entry.statusCode >= 400
+            ? YELLOW
+            : "";
+          line +=
+            `  ${statusColor}${entry.statusCode} ${entry.statusText}${RESET}`;
           line += `  ${DIM}${entry.timing}ms${RESET}`;
-          
+
           lines.push(line);
 
           // Validation error
           if (!isExpanded && entry.validation && !entry.validation.valid) {
             const firstError = entry.validation.errors[0];
             if (firstError) {
-              let errorLine = `    ${LIGHT_PINK}${firstError.path}: ${firstError.message}${RESET}`;
+              let errorLine =
+                `    ${LIGHT_PINK}${firstError.path}: ${firstError.message}${RESET}`;
               if (entry.validation.errors.length > 1) {
-                errorLine += ` ${DIM}(+${entry.validation.errors.length - 1} more)${RESET}`;
+                errorLine += ` ${DIM}(+${
+                  entry.validation.errors.length - 1
+                } more)${RESET}`;
               }
               lines.push(errorLine);
             }
@@ -350,7 +382,11 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
 
           return (
             <Box key={entry.id} flexDirection="column">
-              {lines.map((l, i) => <Text key={i}>{l}</Text>)}
+              {lines.map((l, i) => (
+                <React.Fragment key={i}>
+                  <Text>{l}</Text>
+                </React.Fragment>
+              ))}
             </Box>
           );
         })}
@@ -359,12 +395,22 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
       {/* Footer */}
       <Box flexDirection="column" height={footerHeight}>
         <Text>
-          {viewportEnd < filtered.length ? `${DIM}↓ ${filtered.length - viewportEnd} more entries below${RESET}` : ""}
+          {viewportEnd < filtered.length
+            ? `${DIM}↓ ${
+              filtered.length - viewportEnd
+            } more entries below${RESET}`
+            : ""}
         </Text>
         <Text>
-          {jumpMode ? `Jump: ${jumpText}_ (${filtered.length} matches)` :
-           filterMode ? `Filter: ${filterText}_` :
-           `${DIM}j/k:nav space:expand g:jump ${filterText ? `${LIGHT_PINK}/:filter("${filterText}")${RESET}` : '/:filter'} t:time q:quit${RESET}`}
+          {jumpMode
+            ? `Jump: ${jumpText}_ (${filtered.length} matches)`
+            : filterMode
+            ? `Filter: ${filterText}_`
+            : `${DIM}j/k:nav space:expand g:jump ${
+              filterText
+                ? `${LIGHT_PINK}/:filter("${filterText}")${RESET}`
+                : "/:filter"
+            } t:time q:quit${RESET}`}
         </Text>
       </Box>
     </Box>
@@ -373,28 +419,27 @@ const App = ({ logger }: { logger: InkSimpleLogger }) => {
 
 export function startInkSimpleLogger(logger: InkSimpleLogger): void {
   // Switch to alternate screen buffer (preserves terminal history)
-  process.stdout.write('\x1b[?1049h'); // Save cursor and switch to alternate screen
-  process.stdout.write('\x1b[2J');     // Clear the alternate screen
-  process.stdout.write('\x1b[H');      // Move cursor to home
-  
+  process.stdout.write("\x1b[?1049h"); // Save cursor and switch to alternate screen
+  process.stdout.write("\x1b[2J"); // Clear the alternate screen
+  process.stdout.write("\x1b[H"); // Move cursor to home
+
   const app = render(<App logger={logger} />, {
     exitOnCtrlC: false,
-    fullscreen: true
   });
   logger.setApp(app);
-  
+
   app.waitUntilExit().then(() => {
     // Restore original screen buffer
-    process.stdout.write('\x1b[?1049l'); // Restore cursor and switch back to main screen
+    process.stdout.write("\x1b[?1049l"); // Restore cursor and switch back to main screen
     Deno.exit(0);
   });
-  
+
   // Also handle unexpected exits
   const cleanup = () => {
-    process.stdout.write('\x1b[?1049l');
+    process.stdout.write("\x1b[?1049l");
   };
-  
-  process.on('exit', cleanup);
-  process.on('SIGINT', cleanup);
-  process.on('SIGTERM', cleanup);
+
+  process.on("exit", cleanup);
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
 }

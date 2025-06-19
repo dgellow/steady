@@ -1,10 +1,9 @@
-import {
-  GenerationContext,
+import { GenerationContext, ReferenceGraph } from "./types.ts";
+import type {
   MediaTypeObject,
   OpenAPISpec,
-  ReferenceGraph,
   SchemaObject,
-} from "./types.ts";
+} from "@steady/parser";
 import { GenerationError } from "./errors.ts";
 import { containsCycle, resolveRef } from "./resolver.ts";
 
@@ -80,7 +79,7 @@ export function generateFromSchema(
     try {
       const resolved = resolveRef(schema.$ref, context.spec);
       return generateFromSchema(resolved, newContext, refGraph);
-    } catch (error) {
+    } catch (_error) {
       // If resolution fails, return error marker
       return { "$error": `Failed to resolve ${schema.$ref}` };
     }

@@ -1,5 +1,5 @@
 import { parse as parseYAML } from "https://deno.land/std@0.208.0/yaml/parse.ts";
-import { OpenAPISpec } from "./types.ts";
+import { OpenAPISpec } from "./openapi.ts";
 import { ParseError, ValidationError } from "./errors.ts";
 
 export async function parseSpec(path: string): Promise<OpenAPISpec> {
@@ -78,7 +78,7 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
           "}",
         ]
         : [
-          "openapi: 3.0.0",
+          "openapi: 3.1.0",
           "info:",
           "  title: My API",
           "  version: 1.0.0",
@@ -102,7 +102,7 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
 
   // Basic OpenAPI validation
   const errors: ValidationError[] = [];
-  const anySpec = spec as any;
+  const anySpec = spec as Record<string, unknown>;
 
   // Check openapi version
   if (!("openapi" in spec) || typeof anySpec.openapi !== "string") {
@@ -115,7 +115,7 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
         expected: "string (e.g., '3.0.0')",
         actual: anySpec.openapi,
         suggestion: "Add the OpenAPI version to your spec",
-        examples: ["openapi: 3.0.0"],
+        examples: ["openapi: 3.0.0", "openapi: 3.1.0"],
       }),
     );
   } else if (!anySpec.openapi.startsWith("3.")) {
@@ -128,7 +128,7 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
           `Steady only supports OpenAPI 3.x, but found ${anySpec.openapi}`,
         expected: "3.x.x",
         actual: anySpec.openapi,
-        suggestion: "Update your spec to use OpenAPI 3.0.0 or later",
+        suggestion: "Update your spec to use OpenAPI 3.0.0 or 3.1.0",
       }),
     );
   }
@@ -153,7 +153,8 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
       }),
     );
   } else {
-    if (!anySpec.info.title || typeof anySpec.info.title !== "string") {
+    const info = anySpec.info as Record<string, unknown>;
+    if (!info.title || typeof info.title !== "string") {
       errors.push(
         new ValidationError("Missing API title", {
           specFile: path,
@@ -166,7 +167,7 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
       );
     }
 
-    if (!anySpec.info.version || typeof anySpec.info.version !== "string") {
+    if (!info.version || typeof info.version !== "string") {
       errors.push(
         new ValidationError("Missing API version", {
           specFile: path,

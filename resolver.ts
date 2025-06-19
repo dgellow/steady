@@ -1,9 +1,5 @@
-import {
-  OpenAPISpec,
-  ReferenceGraph,
-  ResolvedSchema,
-  SchemaObject,
-} from "./types.ts";
+import { ReferenceGraph, ResolvedSchema } from "./types.ts";
+import type { OpenAPISpec, SchemaObject } from "@steady/parser";
 import { circularReferenceError, ReferenceError } from "./errors.ts";
 
 // Build a graph of all references in the spec
@@ -125,7 +121,7 @@ export function resolveRef(
 
   // Split the path
   const parts = ref.substring(2).split("/");
-  let current: any = spec;
+  let current: unknown = spec;
 
   // Navigate to the referenced schema
   for (let i = 0; i < parts.length; i++) {
@@ -146,19 +142,20 @@ export function resolveRef(
         ],
       });
     }
-    current = current[part];
+    current = (current as Record<string, unknown>)[part];
   }
 
   // If the resolved schema has a $ref, resolve it recursively
-  if (current.$ref) {
+  const resolvedCurrent = current as Record<string, unknown>;
+  if (resolvedCurrent.$ref && typeof resolvedCurrent.$ref === "string") {
     const newVisited = new Set(visitedRefs);
     newVisited.add(ref);
-    return resolveRef(current.$ref, spec, newVisited);
+    return resolveRef(resolvedCurrent.$ref, spec, newVisited);
   }
 
   // Return resolved schema
   return {
-    ...current,
+    ...(resolvedCurrent as SchemaObject),
     resolvedFrom: ref,
   };
 }

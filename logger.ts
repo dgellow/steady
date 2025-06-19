@@ -9,6 +9,10 @@ const GREEN = "\x1b[32m";
 const YELLOW = "\x1b[33m";
 const GRAY = "\x1b[90m";
 
+interface RequestLoggerWithPending extends RequestLogger {
+  _pendingLogLine?: string;
+}
+
 export class RequestLogger {
   constructor(
     private logLevel: LogLevel,
@@ -32,11 +36,13 @@ export class RequestLogger {
     if (this.logLevel === "summary") {
       // Don't log yet in summary mode - we'll do it all at once in logResponse
       // Store the log line for later
-      (this as any)._pendingLogLine =
+      (this as RequestLoggerWithPending)._pendingLogLine =
         `${GRAY}[${timestamp}]${RESET} ${method.toUpperCase()} ${fullPath}`;
     } else {
       // Details or full mode
-      console.log(`${GRAY}[${timestamp}]${RESET} ${method.toUpperCase()} ${fullPath}`);
+      console.log(
+        `${GRAY}[${timestamp}]${RESET} ${method.toUpperCase()} ${fullPath}`,
+      );
 
       if (this.logLevel === "details" || this.logLevel === "full") {
         // Log headers (filtering sensitive ones)
@@ -78,7 +84,8 @@ export class RequestLogger {
 
     if (this.logLevel === "summary") {
       // Get the pending log line from logRequest
-      const pendingLine = (this as any)._pendingLogLine || "";
+      const pendingLine = (this as RequestLoggerWithPending)._pendingLogLine ||
+        "";
       let line = `${pendingLine} → ${status} ${timingStr}`;
 
       // Add validation indicator
@@ -108,7 +115,7 @@ export class RequestLogger {
 
       console.log(line);
       // Clear the pending line
-      delete (this as any)._pendingLogLine;
+      delete (this as RequestLoggerWithPending)._pendingLogLine;
     } else {
       // In details mode, response is on its own line
       console.log(`→ ${status} ${timingStr}`);

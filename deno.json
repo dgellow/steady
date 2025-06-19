@@ -1,4 +1,8 @@
 {
+  "workspace": ["./packages/parser"],
+  "imports": {
+    "@steady/parser": "./packages/parser/mod.ts"
+  },
   "tasks": {
     "dev": "deno run --watch --allow-read --allow-net --allow-env --allow-write cli.ts --auto-reload",
     "start": "deno run --allow-read --allow-net --allow-env --allow-write cli.ts",
@@ -19,5 +23,15 @@
     "strictFunctionTypes": true,
     "strictNullChecks": true,
     "strictPropertyInitialization": true
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "include": [
+        "ban-ts-comment",
+        "no-explicit-any"
+      ]
+    },
+    "exclude": ["oas-tools/**"]
   }
 }
