@@ -1,0 +1,69 @@
+{
+  "user": {
+    "id": 12345,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "profile": {
+      "age": 30,
+      "address": {
+        "street": "123 Main St",
+        "city": "Anytown",
+        "state": "CA",
+        "zip": "12345",
+        "coordinates": {
+          "lat": 37.7749,
+          "lng": -122.4194
+        }
+      },
+      "preferences": {
+        "theme": "dark",
+        "notifications": {
+          "email": true,
+          "push": false,
+          "sms": true,
+          "frequency": "daily"
+        },
+        "privacy": {
+          "showProfile": true,
+          "showEmail": false,
+          "allowMessages": true
+        }
+      }
+    }
+  },
+  "items": [
+    {
+      "id": 1,
+      "name": "Widget",
+      "price": 19.99,
+      "quantity": 3,
+      "metadata": {
+        "sku": "WDG-001",
+        "category": "tools",
+        "tags": ["new", "featured", "sale"]
+      }
+    },
+    {
+      "id": 2,
+      "name": "Gadget",
+      "price": 39.99,
+      "quantity": 1,
+      "metadata": {
+        "sku": "GDG-002",
+        "category": "electronics",
+        "tags": ["premium", "wireless"]
+      }
+    }
+  ],
+  "shipping": {
+    "method": "express",
+    "address": {
+      "same_as_billing": false,
+      "street": "456 Oak Ave",
+      "city": "Other City",
+      "state": "NY",
+      "zip": "54321"
+    },
+    "instructions": "Leave at door"
+  }
+}

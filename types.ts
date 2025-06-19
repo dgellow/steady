@@ -208,6 +208,7 @@ export interface ServerConfig {
   logLevel: LogLevel;
   logBodies?: boolean;
   showValidation?: boolean;
+  interactive?: boolean;
 }
 
 export interface ErrorContext {

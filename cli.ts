@@ -1,8 +1,8 @@
-#!/usr/bin/env -S deno run --allow-read --allow-net
+#!/usr/bin/env -S deno run --allow-read --allow-net --allow-env
 
 import { parseSpec } from "./parser.ts";
 import { MockServer } from "./server.ts";
-import { ServerConfig, LogLevel } from "./types.ts";
+import { LogLevel, ServerConfig } from "./types.ts";
 import { SteadyError } from "./errors.ts";
 
 // ANSI colors
@@ -11,7 +11,11 @@ const RED = "\x1b[31m";
 const RESET = "\x1b[0m";
 
 // Helper to extract flag values
-function extractFlag(args: string[], flag: string, defaultValue: string): string {
+function extractFlag(
+  args: string[],
+  flag: string,
+  defaultValue: string,
+): string {
   const index = args.indexOf(flag);
   if (index !== -1 && index + 1 < args.length) {
     const value = args[index + 1];
@@ -21,7 +25,7 @@ function extractFlag(args: string[], flag: string, defaultValue: string): string
   }
   // Also check for --flag=value syntax
   const prefix = `${flag}=`;
-  const found = args.find(arg => arg.startsWith(prefix));
+  const found = args.find((arg) => arg.startsWith(prefix));
   if (found) {
     return found.substring(prefix.length);
   }
@@ -39,18 +43,22 @@ async function main() {
 
   // Parse flags
   const autoReload = args.includes("--auto-reload") || args.includes("-r");
-  const logLevel = extractFlag(args, "--log-level", "summary") as "summary" | "details" | "full";
+  const logLevel = extractFlag(args, "--log-level", "summary") as
+    | "summary"
+    | "details"
+    | "full";
   const logBodies = args.includes("--log-bodies");
   const noLog = args.includes("--no-log");
   const strictMode = args.includes("--strict");
   const relaxedMode = args.includes("--relaxed");
-  
+  const interactive = args.includes("--interactive") || args.includes("-i");
+
   // Filter out all flags to get the spec path
-  const filteredArgs = args.filter(arg => 
-    !arg.startsWith("--") && 
+  const filteredArgs = args.filter((arg) =>
+    !arg.startsWith("--") &&
     !arg.startsWith("-") &&
-    arg !== "summary" && 
-    arg !== "details" && 
+    arg !== "summary" &&
+    arg !== "details" &&
     arg !== "full"
   );
 
@@ -70,11 +78,14 @@ async function main() {
     logBodies,
     noLog,
     mode,
+    interactive,
   };
 
   try {
     if (autoReload) {
-      console.log(`🔄 ${BOLD}Auto-reload enabled${RESET} - restarting on changes to ${specPath}\n`);
+      console.log(
+        `🔄 ${BOLD}Auto-reload enabled${RESET} - restarting on changes to ${specPath}\n`,
+      );
       await startWithWatch(specPath, options);
     } else {
       await startServer(specPath, options);
@@ -94,13 +105,14 @@ async function main() {
 }
 
 async function startServer(
-  specPath: string, 
+  specPath: string,
   options: {
     logLevel: LogLevel;
     logBodies: boolean;
     noLog: boolean;
     mode: "strict" | "relaxed";
-  }
+    interactive: boolean;
+  },
 ): Promise<MockServer> {
   // Parse the OpenAPI spec
   const spec = await parseSpec(specPath);
@@ -123,6 +135,7 @@ async function startServer(
     logLevel: options.noLog ? "summary" : options.logLevel,
     logBodies: options.logBodies,
     showValidation: true,
+    interactive: options.interactive,
   };
 
   // Create and start server
@@ -138,10 +151,11 @@ async function startWithWatch(
     logBodies: boolean;
     noLog: boolean;
     mode: "strict" | "relaxed";
-  }
+    interactive: boolean;
+  },
 ) {
   let server: MockServer | null = null;
-  
+
   // Initial start
   try {
     server = await startServer(specPath, options);
@@ -149,7 +163,11 @@ async function startWithWatch(
     if (error instanceof SteadyError) {
       console.error(error.format());
     } else {
-      console.error(`${RED}${BOLD}ERROR:${RESET} ${error instanceof Error ? error.message : String(error)}`);
+      console.error(
+        `${RED}${BOLD}ERROR:${RESET} ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 
@@ -157,24 +175,32 @@ async function startWithWatch(
   const watcher = Deno.watchFs(specPath);
   for await (const event of watcher) {
     if (event.kind === "modify") {
-      console.log(`\n🔄 ${BOLD}Detected change${RESET} - restarting server...\n`);
-      
+      console.log(
+        `\n🔄 ${BOLD}Detected change${RESET} - restarting server...\n`,
+      );
+
       // Stop existing server
       if (server) {
         server.stop();
         // Give it a moment to clean up
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      
+
       // Restart
       try {
         server = await startServer(specPath, options);
       } catch (error) {
         if (error instanceof SteadyError) {
           console.error(error.format());
-          console.error(`\n⚠️  ${BOLD}Server not restarted${RESET} - fix the error and save again\n`);
+          console.error(
+            `\n⚠️  ${BOLD}Server not restarted${RESET} - fix the error and save again\n`,
+          );
         } else {
-          console.error(`${RED}${BOLD}ERROR:${RESET} ${error instanceof Error ? error.message : String(error)}`);
+          console.error(
+            `${RED}${BOLD}ERROR:${RESET} ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
         }
       }
     }
@@ -192,6 +218,7 @@ Arguments:
 
 Options:
   -r, --auto-reload        Auto-reload on spec file changes
+  -i, --interactive        Interactive mode with expandable logs
   --log-level <level>      Set logging detail: summary|details|full (default: summary)
   --log-bodies             Show request/response bodies in summary mode
   --no-log                 Disable request logging
@@ -205,6 +232,7 @@ Examples:
   steady --log-bodies api.yaml             # Show bodies in summary mode
   steady --relaxed api.yaml                # Allow validation warnings
   steady -r api.yaml                       # Auto-reload on file changes
+  steady -i api.yaml                       # Interactive mode with expandable logs
 
 Steady provides rock-solid API mocking with excellent error messages.
 `);

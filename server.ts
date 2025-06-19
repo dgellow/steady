@@ -9,6 +9,7 @@ import { MatchError, missingExampleError } from "./errors.ts";
 import { generateFromMediaType } from "./generator.ts";
 import { buildReferenceGraph } from "./resolver.ts";
 import { RequestLogger } from "./logger.ts";
+import { InkSimpleLogger, startInkSimpleLogger } from "./ink-simple-logger-v2.tsx";
 import { RequestValidator } from "./validator.ts";
 
 // ANSI colors for startup message
@@ -29,11 +30,23 @@ export class MockServer {
     // Build reference graph upfront
     this.refGraph = buildReferenceGraph(spec);
     this.abortController = new AbortController();
-    this.logger = new RequestLogger(config.logLevel, config.logBodies);
+
+    // Use interactive logger if requested
+    if (config.interactive) {
+      this.logger = new InkSimpleLogger(config.logLevel, config.logBodies);
+    } else {
+      this.logger = new RequestLogger(config.logLevel, config.logBodies);
+    }
+
     this.validator = new RequestValidator(spec, config.mode);
   }
 
   async start() {
+    // Start interactive logger if enabled
+    if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
+      startInkSimpleLogger(this.logger);
+    }
+
     Deno.serve({
       port: this.config.port,
       hostname: this.config.host,
@@ -42,13 +55,30 @@ export class MockServer {
         this.printStartupMessage();
       },
     }, (req) => this.handleRequest(req));
+    
+    // Handle graceful shutdown
+    if (!this.config.interactive) {
+      Deno.addSignalListener("SIGINT", () => {
+        console.log("\n\nShutting down gracefully...");
+        this.stop();
+        Deno.exit(0);
+      });
+    }
   }
 
   stop() {
     this.abortController.abort();
+    if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
+      this.logger.stop();
+    }
   }
 
   private printStartupMessage() {
+    // In interactive mode, don't print to console (it will be cleared)
+    if (this.config.interactive) {
+      return;
+    }
+
     console.log(`\n🚀 ${BOLD}Steady Mock Server v1.0.0${RESET}`);
     console.log(
       `📄 Loaded spec: ${this.spec.info.title} v${this.spec.info.version}`,
@@ -56,13 +86,22 @@ export class MockServer {
     console.log(
       `🔗 Server running at http://${this.config.host}:${this.config.port}`,
     );
-    
+
     // Show configuration
     console.log(`\n${BOLD}Configuration:${RESET}`);
-    console.log(`  Mode: ${this.config.mode === "strict" ? "🔒 strict" : "🌊 relaxed"}`);
-    console.log(`  Logging: ${this.config.verbose ? `📊 ${this.config.logLevel}` : "🔇 disabled"}`);
+    console.log(
+      `  Mode: ${this.config.mode === "strict" ? "🔒 strict" : "🌊 relaxed"}`,
+    );
+    console.log(
+      `  Logging: ${
+        this.config.verbose ? `📊 ${this.config.logLevel}` : "🔇 disabled"
+      }`,
+    );
     if (this.config.logBodies) {
       console.log(`  Bodies: 👁️  shown`);
+    }
+    if (this.config.interactive) {
+      console.log(`  Interactive: 🎮 enabled`);
     }
 
     // List available endpoints
@@ -112,18 +151,18 @@ export class MockServer {
     // Find matching path and operation
     try {
       const { operation, statusCode } = this.findOperation(path, method);
-      
+
       // Validate request
       const validation = this.validator.validateRequest(req, operation, path);
-      
+
       // Log request (with validation if in details mode)
       this.logger.logRequest(req, path, method, validation);
-      
+
       // If validation failed in strict mode, return error
       if (!validation.valid && this.config.mode === "strict") {
         const timing = Math.round(performance.now() - startTime);
         this.logger.logResponse(400, timing, validation);
-        
+
         return new Response(
           JSON.stringify({
             error: "Validation failed",
@@ -135,7 +174,7 @@ export class MockServer {
           },
         );
       }
-      
+
       const response = this.generateResponse(
         operation,
         statusCode,
@@ -150,7 +189,7 @@ export class MockServer {
       return response;
     } catch (error) {
       const timing = Math.round(performance.now() - startTime);
-      
+
       if (error instanceof MatchError) {
         // Log the request first (no validation for 404s)
         this.logger.logRequest(req, path, method);

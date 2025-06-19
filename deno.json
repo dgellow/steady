@@ -1,7 +1,7 @@
 {
   "tasks": {
-    "dev": "deno run --watch --allow-read --allow-net cli.ts --auto-reload",
-    "start": "deno run --allow-read --allow-net cli.ts",
+    "dev": "deno run --watch --allow-read --allow-net --allow-env --allow-write cli.ts --auto-reload",
+    "start": "deno run --allow-read --allow-net --allow-env --allow-write cli.ts",
     "check": "deno check **/*.ts",
     "fmt": "deno fmt",
     "lint": "deno lint"
