@@ -2,7 +2,7 @@
 
 import { parseSpec, SteadyError } from "@steady/parser";
 import { LogLevel } from "@steady/shared";
-import { ServerConfig } from "./src/types.ts";
+import { ServerConfig } from "../src/types.ts";
 
 // ANSI colors
 const BOLD = "\x1b[1m";
@@ -120,7 +120,7 @@ async function startServer(
   },
 ): Promise<{ start: () => void; stop: () => void }> {
   // Lazy import to avoid loading server code for validate command
-  const { MockServer } = await import("./src/server.ts");
+  const { MockServer } = await import("../src/server.ts");
   // Parse the OpenAPI spec
   const spec = await parseSpec(specPath);
 

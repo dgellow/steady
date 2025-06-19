@@ -5,13 +5,13 @@
     "@steady/shared": "./packages/shared/mod.ts"
   },
   "tasks": {
-    "dev": "deno run --watch --allow-read --allow-net --allow-env --allow-write cli.ts --auto-reload",
-    "start": "deno run --allow-read --allow-net --allow-env --allow-write cli.ts",
+    "dev": "deno run --watch --allow-read --allow-net --allow-env --allow-write cmd/steady.ts --auto-reload",
+    "start": "deno run --allow-read --allow-net --allow-env --allow-write cmd/steady.ts",
     "check": "deno check **/*.ts",
     "fmt": "deno fmt",
     "lint": "deno lint",
     "check-boundaries": "deno run --allow-read scripts/check-boundaries.ts",
-    "test-all": "deno fmt && deno check cli.ts && deno lint --quiet && deno task check-boundaries"
+    "test-all": "deno fmt && deno check cmd/steady.ts && deno lint --quiet && deno task check-boundaries"
   },
   "compilerOptions": {
     "noFallthroughCasesInSwitch": true,
