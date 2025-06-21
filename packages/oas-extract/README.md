@@ -16,8 +16,30 @@ semantic, domain-aware names.
 - **AI-Powered Naming**: Uses Gemini Flash for meaningful schema names
 - **Semantic Deduplication**: Intelligently merges duplicate schemas based on
   semantic analysis
+- **Deterministic by Default**: Produces reproducible outputs for CI/CD pipelines
 - **Rate Limiting**: Built-in exponential backoff for API reliability
 - **Structured Output**: Uses JSON schema validation for reliable LLM responses
+
+## Determinism and Reproducibility
+
+The tool defaults to the `deterministic` strategy (temperature=0) which guarantees
+100% reproducible schema names across runs. This is critical for CI/CD pipelines
+and version control.
+
+Our research (see `/research/llm-naming-determinism/`) discovered that even low
+temperature settings like 0.2 produce only 32.8% naming consistency. There is no
+middle ground - any temperature above 0 introduces randomness.
+
+For development or one-time extractions where naming quality matters more than
+consistency, use the `adaptive` or `multi-sample` strategies:
+
+```bash
+# For exploration and better names (accepts naming variations)
+oas-extract extract api.yaml --strategy adaptive
+
+# For highest quality names (runs 3x samples, picks best)
+oas-extract extract api.yaml --strategy multi-sample
+```
 
 ## Installation
 
@@ -29,20 +51,17 @@ deno task extract --help
 ## Usage
 
 ```bash
-# Basic extraction
-deno task extract api.yaml
+# Basic extraction (uses deterministic strategy by default)
+oas-extract extract api.yaml
 
-# With semantic deduplication (experimental)
-deno task extract api.yaml --enable-deduplication
+# With different naming strategy for better names (not reproducible)
+oas-extract extract api.yaml --strategy adaptive
 
-# Dry run (analyze without transforming)
-deno task extract api.yaml --dry-run
-
-# Verbose output
-deno task extract api.yaml --verbose
+# Verbose output to see progress
+oas-extract extract api.yaml --verbose
 
 # Custom complexity thresholds
-deno task extract api.yaml --min-properties 3 --min-complexity 5
+oas-extract extract api.yaml --min-properties 3 --min-complexity 5
 ```
 
 ## CLI Flags

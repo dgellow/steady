@@ -1,22 +1,20 @@
 import { FastAnalyzer } from "./fast-analyzer.ts";
-import { SchemaChunker } from "./chunker.ts";
 import { GeminiClient } from "./llm.ts";
 import { SchemaNamer } from "./namer.ts";
 import { SpecTransformer } from "./transformer.ts";
 import { SemanticDeduplicator } from "./deduplicator.ts";
+import type { NamingStrategy } from "./naming-strategies.ts";
 import type {
   ExtractedSchema,
   ExtractionOptions,
   ExtractionReport,
   ExtractionResult,
-  LLMBatch,
   LLMResponse,
   OpenAPISpec,
 } from "./types.ts";
 
 export class FastExtractor {
   private analyzer: FastAnalyzer;
-  private chunker: SchemaChunker;
   private llmClient: GeminiClient;
   private namer: SchemaNamer;
   private transformer: SpecTransformer;
@@ -29,11 +27,17 @@ export class FastExtractor {
       options.minComplexity,
       options.minProperties,
     );
-    this.chunker = new SchemaChunker(50, 6000); // Larger batches for efficiency
     this.llmClient = new GeminiClient();
     this.namer = new SchemaNamer();
     this.transformer = new SpecTransformer();
-    this.deduplicator = new SemanticDeduplicator(this.llmClient);
+    this.llmClient.verbose = options.verbose || false;
+    this.deduplicator = new SemanticDeduplicator(
+      this.llmClient,
+      options.dedupBatchSize,
+      options.dedupDelay,
+      options.dedupConcurrency,
+      options.namingStrategy  // Will default to deterministic in deduplicator
+    );
   }
 
   async extract(spec: OpenAPISpec): Promise<ExtractionResult> {
@@ -60,54 +64,79 @@ export class FastExtractor {
       return this.emptyResult(spec);
     }
 
-    // Step 2: Semantic deduplication (optional)
-    let deduplicatedContexts = contexts;
-
-    if (this.options.enableDeduplication) {
-      if (this.options.verbose) {
-        console.log("🧠 Performing semantic deduplication...");
-      }
-      const deduplicationResult = await this.deduplicator.deduplicateSchemas(
-        contexts,
-      );
-      deduplicatedContexts = deduplicationResult.mergedContexts;
-
-      const reduction = contexts.length - deduplicatedContexts.length;
-      if (this.options.verbose) {
-        console.log(
-          `Reduced ${contexts.length} → ${deduplicatedContexts.length} schemas (${reduction} merged)`,
-        );
-      }
-    }
-
-    // Step 3: Create batches
-    const batches = this.chunker.createBatches(deduplicatedContexts);
+    // Step 2: Semantic deduplication
     if (this.options.verbose) {
-      console.log(`📦 Created ${batches.length} batches`);
+      console.log("🧠 Performing semantic deduplication...");
+    }
+    
+    // Collect existing schema names from the spec
+    const existingSchemaNames = Object.keys(spec.components?.schemas || {});
+    
+    const deduplicationResult = await this.deduplicator.deduplicateSchemas(
+      contexts,
+      existingSchemaNames
+    );
+    const deduplicatedContexts = deduplicationResult.mergedContexts;
+
+    const reduction = contexts.length - deduplicatedContexts.length;
+    if (this.options.verbose) {
+      console.log(
+        `Reduced ${contexts.length} → ${deduplicatedContexts.length} schemas (${reduction} merged)`,
+      );
+    }
+    
+    // Fail if too many groups failed analysis
+    if (deduplicationResult.failedGroups.length > 0) {
+      const failureRate = deduplicationResult.failedGroups.length / (deduplicationResult.failedGroups.length + deduplicationResult.auditTrail.length);
+      if (failureRate > 0.5) {
+        throw new Error(`Deduplication failed: ${deduplicationResult.failedGroups.length} groups could not be analyzed (${Math.round(failureRate * 100)}% failure rate)`);
+      }
     }
 
-    // Step 3: Process batches in parallel with rate limiting
-    const llmResponses = await this.processLLMBatches(batches);
+    // Step 3: Filter to only schemas worth extracting (those that were merged)
+    const worthyContexts = deduplicatedContexts.filter(context => {
+      // Only extract schemas that were merged (have semantic value)
+      return !!context.extractedName;
+    });
+    
+    if (this.options.verbose) {
+      const filtered = deduplicatedContexts.length - worthyContexts.length;
+      console.log(`Extracting ${worthyContexts.length} schemas (${filtered} single-use schemas skipped)`);
+    }
 
-    // Step 4: Apply names
+    // Step 4: Apply names (no additional LLM calls needed since deduplication provides names)
+    const llmResponses: LLMResponse[] = []; // Empty since deduplication already provides semantic names
     const extractedSchemas = this.namer.applyLLMSuggestions(
-      deduplicatedContexts,
+      worthyContexts,
       llmResponses,
     );
 
     // Step 5: Transform spec
-    let transformedSpec = spec;
-    if (!this.options.dryRun) {
-      if (this.options.verbose) {
-        console.log("🔄 Transforming spec...");
-      }
-      transformedSpec = this.transformer.transform(spec, extractedSchemas);
+    if (this.options.verbose) {
+      console.log("🔄 Transforming spec...");
     }
+    const transformedSpec = this.transformer.transform(spec, extractedSchemas);
 
     // Generate report
     const report = this.generateReport(extractedSchemas);
 
     const totalTime = performance.now() - startTime;
+    
+    // Production metrics logging
+    const metrics = {
+      timestamp: new Date().toISOString(),
+      totalTimeMs: Math.round(totalTime),
+      schemasFound: contexts.length,
+      schemasExtracted: extractedSchemas.length,
+      schemasDeduped: contexts.length - deduplicatedContexts.length,
+      batchesProcessed: 0, // No LLM batches needed since deduplication provides names
+      concurrency: this.options.concurrency || 1,
+    };
+    
+    if (this.options.verbose) {
+      console.log(`\n📊 Production Metrics:`, JSON.stringify(metrics, null, 2));
+    }
+    
     console.log(
       `✅ Extraction complete in ${
         (totalTime / 1000).toFixed(1)
@@ -121,44 +150,6 @@ export class FastExtractor {
     };
   }
 
-  private async processLLMBatches(batches: LLMBatch[]): Promise<LLMResponse[]> {
-    if (this.options.verbose) {
-      console.log("🚀 Processing with Gemini Flash (parallel)...");
-    }
-
-    const responses: LLMResponse[] = [];
-    const concurrency = this.options.concurrency || 1;
-
-    if (this.options.verbose) {
-      console.log(`Using concurrency: ${concurrency}`);
-    }
-
-    // Process in chunks to avoid rate limiting
-    for (let i = 0; i < batches.length; i += concurrency) {
-      const chunk = batches.slice(i, i + concurrency);
-      const chunkPromises = chunk.map(async (batch) => {
-        try {
-          // Add delay to respect rate limits and ensure quality responses
-          await new Promise((resolve) => setTimeout(resolve, 5000)); // 5s between requests
-          return await this.llmClient.generateNames(batch);
-        } catch (error) {
-          console.error(`Batch ${batch.id} failed:`, error);
-          // Return empty response to continue processing
-          return { batchId: batch.id, suggestions: {} };
-        }
-      });
-
-      const chunkResponses = await Promise.all(chunkPromises);
-      responses.push(...chunkResponses);
-
-      if (this.options.verbose && i + concurrency < batches.length) {
-        const progress = Math.min(i + concurrency, batches.length);
-        console.log(`Progress: ${progress}/${batches.length} batches`);
-      }
-    }
-
-    return responses;
-  }
 
   private emptyResult(spec: OpenAPISpec): ExtractionResult {
     return {
@@ -213,4 +204,5 @@ export class FastExtractor {
       byLocation,
     };
   }
+
 }

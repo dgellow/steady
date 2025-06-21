@@ -48,11 +48,15 @@ export class SchemaNamer {
       const suggestion = suggestionMap.get(context);
       let name: string;
 
-      if (suggestion) {
+      if (context.extractedName) {
+        // Use LLM-provided semantic name from deduplication
+        name = this.ensureUniqueName(context.extractedName);
+      } else if (suggestion) {
+        // Use LLM-provided name from naming process
         name = this.ensureUniqueName(suggestion.name);
       } else {
-        // Fallback to rule-based naming
-        name = this.generateFallbackName(context);
+        // This should never happen if filtering works correctly
+        throw new Error(`Internal error: Schema reached naming without LLM name: ${context.path} ${context.method} ${context.location}`);
       }
 
       extracted.push({
@@ -85,54 +89,6 @@ export class SchemaNamer {
     return name;
   }
 
-  private generateFallbackName(context: SchemaContext): string {
-    const parts: string[] = [];
-
-    // Add resource name
-    if (context.resourceName) {
-      parts.push(
-        ...context.resourceName.split(/[/_-]/).map((p) => this.pascalCase(p)),
-      );
-    }
-
-    // Add method
-    if (context.method) {
-      parts.push(this.pascalCase(context.method));
-    }
-
-    // Add location type
-    if (context.location.includes("requestBody")) {
-      parts.push("Request");
-    } else if (context.location.includes("responses")) {
-      if (context.statusCode === "200") {
-        parts.push("Response");
-      } else {
-        parts.push(`Response${context.statusCode}`);
-      }
-    } else if (context.location.includes("parameters")) {
-      parts.push("Parameter");
-    }
-
-    // Add property name for nested objects
-    const propMatch = context.location.match(/properties\.(\w+)$/);
-    if (propMatch && propMatch[1]) {
-      parts.push(this.pascalCase(propMatch[1]));
-    }
-
-    // Add item suffix for arrays
-    if (context.location.endsWith(".items")) {
-      parts.push("Item");
-    }
-
-    let name = parts.join("");
-
-    // Ensure we have a name
-    if (!name) {
-      name = "Schema";
-    }
-
-    return this.ensureUniqueName(name);
-  }
 
   private cleanName(name: string): string {
     // Remove any non-alphanumeric characters
@@ -154,17 +110,6 @@ export class SchemaNamer {
     return clean || "Schema";
   }
 
-  private pascalCase(str: string): string {
-    return str
-      .split(/[^a-zA-Z0-9]+/)
-      .filter(Boolean)
-      .map((word) =>
-        word.length > 0
-          ? word[0]?.toUpperCase() + word.slice(1).toLowerCase()
-          : ""
-      )
-      .join("");
-  }
 
   private buildOriginalPath(context: SchemaContext): string {
     const parts = [context.path];

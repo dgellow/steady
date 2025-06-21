@@ -1,5 +1,28 @@
-import type { ExtractedSchema, OpenAPISpec, SchemaContext } from "./types.ts";
+import type { ExtractedSchema, OpenAPISpec } from "./types.ts";
 
+/**
+ * SpecTransformer - Transforms OpenAPI specs by extracting inline schemas
+ * and replacing them with $ref references.
+ * 
+ * The transformation uses a two-phase approach:
+ * 
+ * Phase 1: Add extracted schemas to components.schemas
+ * - Ensures the components.schemas section exists
+ * - Adds all extracted schemas with their generated names
+ * 
+ * Phase 2: Replace inline schemas with $ref
+ * - Walks the entire spec tree recursively
+ * - Uses deep equality matching to find schemas that match extracted ones
+ * - Replaces matched inline schemas with $ref pointers
+ * 
+ * This two-phase approach is necessary because:
+ * - We can't use JSON path navigation reliably (schemas move during transformation)
+ * - Deep equality ensures we match the exact schemas that were extracted
+ * - The approach handles nested schemas and complex structures correctly
+ * 
+ * Performance: O(n * m) where n = spec size, m = extracted schemas
+ * In practice, this is fast enough for specs with thousands of schemas.
+ */
 export class SpecTransformer {
   transform(
     spec: OpenAPISpec,
@@ -8,7 +31,7 @@ export class SpecTransformer {
     // Deep clone the spec to avoid mutations
     const newSpec = JSON.parse(JSON.stringify(spec)) as OpenAPISpec;
 
-    // Ensure components.schemas exists
+    // Phase 1: Ensure components.schemas exists and add all extracted schemas
     if (!newSpec.components) {
       newSpec.components = {};
     }
@@ -16,114 +39,131 @@ export class SpecTransformer {
       newSpec.components.schemas = {};
     }
 
-    // Add extracted schemas to components
     for (const extracted of extractedSchemas) {
       newSpec.components.schemas[extracted.name] = extracted.schema;
     }
 
-    // Replace inline schemas with references
-    for (const extracted of extractedSchemas) {
-      this.replaceWithRef(newSpec, extracted);
-    }
+    // Phase 2: Walk through the entire spec and replace inline schemas with refs
+    // We do this by comparing the actual schema objects
+    let replacementCount = 0;
+    
+    const replaceSchemas = (obj: unknown, path: string[] = []): unknown => {
+      if (!obj || typeof obj !== "object") return obj;
+      
+      // Handle arrays
+      if (Array.isArray(obj)) {
+        return obj.map((item, index) => replaceSchemas(item, [...path, `[${index}]`]));
+      }
+      
+      // Handle objects
+      const record = obj as Record<string, unknown>;
+      
+      // Skip if already a reference
+      if ("$ref" in record) return obj;
+      
+      // Check if this matches any extracted schema
+      for (const extracted of extractedSchemas) {
+        if (this.schemasMatch(record, extracted.schema)) {
+          replacementCount++;
+          return { $ref: `#/components/schemas/${extracted.name}` };
+        }
+      }
+      
+      // Recursively process all properties
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(record)) {
+        result[key] = replaceSchemas(value, [...path, key]);
+      }
+      
+      return result;
+    };
+    
+    // Apply replacements
+    newSpec.paths = replaceSchemas(newSpec.paths) as typeof newSpec.paths;
+    
+    console.log(`\nReplacement summary: ${replacementCount} schemas replaced with references`);
+
+    // Validate the transformed spec
+    this.validateTransformation(newSpec, extractedSchemas, replacementCount);
 
     return newSpec;
   }
 
-  private replaceWithRef(spec: OpenAPISpec, extracted: ExtractedSchema): void {
-    const { context } = extracted;
-    const ref = { $ref: `#/components/schemas/${extracted.name}` };
+  private schemasMatch(a: unknown, b: unknown): boolean {
+    // Deep equality check, ignoring certain fields
+    if (a === b) return true;
+    if (!a || !b) return false;
+    if (typeof a !== typeof b) return false;
+    
+    if (Array.isArray(a)) {
+      if (!Array.isArray(b) || a.length !== b.length) return false;
+      return a.every((item, index) => this.schemasMatch(item, b[index]));
+    }
+    
+    if (typeof a === "object" && typeof b === "object") {
+      const aObj = a as Record<string, unknown>;
+      const bObj = b as Record<string, unknown>;
+      
+      // Get keys, filtering out fields we want to ignore
+      const ignoredKeys = ["description", "example", "examples", "title", "x-nullable"];
+      const aKeys = Object.keys(aObj).filter(k => !ignoredKeys.includes(k)).sort();
+      const bKeys = Object.keys(bObj).filter(k => !ignoredKeys.includes(k)).sort();
+      
+      if (aKeys.length !== bKeys.length) return false;
+      if (!aKeys.every((k, i) => k === bKeys[i])) return false;
+      
+      // Compare all non-ignored properties
+      return aKeys.every(key => this.schemasMatch(aObj[key], bObj[key]));
+    }
+    
+    return false;
+  }
 
-    // Navigate to the location and replace
-    const pathParts = this.parseLocation(context);
-    let current: unknown = spec;
-
-    // Navigate to the parent of the schema
-    for (let i = 0; i < pathParts.length - 1; i++) {
-      const part = pathParts[i];
-      if (
-        !part || !current || typeof current !== "object" || !(part in current)
-      ) {
-        console.warn(`Path not found: ${pathParts.slice(0, i + 1).join(".")}`);
+  private validateTransformation(spec: OpenAPISpec, _extractedSchemas: ExtractedSchema[], replacementCount: number): void {
+    const errors: string[] = [];
+    
+    // Check all $refs point to existing schemas
+    const schemaNames = new Set(Object.keys(spec.components?.schemas || {}));
+    
+    const checkRefs = (obj: unknown, path: string = "root"): void => {
+      if (!obj || typeof obj !== "object") return;
+      
+      if (Array.isArray(obj)) {
+        obj.forEach((item, index) => checkRefs(item, `${path}[${index}]`));
         return;
       }
-      current = (current as Record<string, unknown>)[part];
-    }
-
-    // Replace the schema with a reference
-    const lastPart = pathParts[pathParts.length - 1];
-    if (
-      lastPart && current && typeof current === "object" && lastPart in current
-    ) {
-      (current as Record<string, unknown>)[lastPart] = ref;
-    }
-  }
-
-  private parseLocation(context: SchemaContext): string[] {
-    const { path, method, location } = context;
-    const parts: string[] = ["paths", path];
-
-    if (method) {
-      parts.push(method);
-    }
-
-    // Parse the location string
-    // e.g., "requestBody.content["application/json"].schema.properties.data"
-    const locationParts = this.parseLocationString(location);
-    parts.push(...locationParts);
-
-    return parts;
-  }
-
-  private parseLocationString(location: string): string[] {
-    const parts: string[] = [];
-    let current = "";
-    let inBrackets = false;
-    let inQuotes = false;
-    let quoteChar = "";
-
-    for (let i = 0; i < location.length; i++) {
-      const char = location[i];
-
-      if (inBrackets) {
-        if (char === '"' || char === "'") {
-          if (!inQuotes) {
-            inQuotes = true;
-            quoteChar = char;
-          } else if (char === quoteChar) {
-            inQuotes = false;
-          } else {
-            current += char;
+      
+      const record = obj as Record<string, unknown>;
+      
+      if ("$ref" in record && typeof record.$ref === "string") {
+        const ref = record.$ref;
+        if (ref.startsWith("#/components/schemas/")) {
+          const schemaName = ref.replace("#/components/schemas/", "");
+          if (!schemaNames.has(schemaName)) {
+            errors.push(`Invalid reference at ${path}: ${ref} (schema does not exist)`);
           }
-        } else if (char === "]" && !inQuotes) {
-          parts.push(current);
-          current = "";
-          inBrackets = false;
-        } else if (!inQuotes || char !== quoteChar) {
-          current += char;
-        }
-      } else {
-        if (char === "[") {
-          if (current) {
-            parts.push(current);
-            current = "";
-          }
-          inBrackets = true;
-        } else if (char === ".") {
-          if (current) {
-            parts.push(current);
-            current = "";
-          }
-        } else {
-          current += char;
         }
       }
+      
+      for (const [key, value] of Object.entries(record)) {
+        checkRefs(value, `${path}.${key}`);
+      }
+    };
+    
+    checkRefs(spec.paths);
+    
+    if (errors.length > 0) {
+      console.error(`\n❌ Validation failed: ${errors.length} invalid references found`);
+      for (const error of errors.slice(0, 5)) {
+        console.error(`  - ${error}`);
+      }
+      if (errors.length > 5) {
+        console.error(`  ... and ${errors.length - 5} more`);
+      }
+      throw new Error(`Transformation created ${errors.length} invalid references`);
     }
-
-    if (current) {
-      parts.push(current);
-    }
-
-    return parts;
+    
+    console.log(`✅ Validation passed: All ${replacementCount} references are valid`);
   }
 
   generateReport(

@@ -26,8 +26,9 @@ interface GeminiResponse {
 
 export class GeminiClient {
   private apiKey: string;
+  public verbose: boolean = false;
   private baseUrl =
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent";
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey || "";
@@ -72,16 +73,16 @@ export class GeminiClient {
         });
 
         if (!response.ok) {
-          if (response.status === 429 && attempt < maxRetries) {
-            // Patient exponential backoff for correctness over speed
-            const baseDelay = Math.min(Math.pow(2, attempt) * 3000, 120000); // 3s, 6s, 12s, 24s, 48s, 96s, max 2min
-            const jitter = Math.random() * 3000; // Add up to 3s jitter
+          if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+            // Exponential backoff with jitter for production resilience
+            const baseDelay = Math.min(Math.pow(2, attempt) * 1000, 30000); // 1s, 2s, 4s, max 30s
+            const jitter = Math.random() * 1000; // Add up to 1s jitter
             const delay = baseDelay + jitter;
 
             console.log(
-              `⏳ Rate limited (429), waiting ${
+              `⏳ API error (${response.status}), retrying in ${
                 (delay / 1000).toFixed(1)
-              }s for quality results... (attempt ${attempt + 1}/${
+              }s... (attempt ${attempt + 1}/${
                 maxRetries + 1
               })`,
             );
@@ -95,14 +96,20 @@ export class GeminiClient {
         }
 
         const data = await response.json();
-        const text = data.candidates[0]?.content?.parts[0]?.text;
-
-        if (!text) {
-          throw new Error("No response from Gemini");
+        
+        if (this.verbose) {
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            try {
+              const parsed = JSON.parse(text);
+              console.log(`LLM response contains ${parsed.analyses?.length || 0} analyses`);
+            } catch {
+              console.log("LLM response is not valid JSON");
+            }
+          }
         }
-
-        // With structured output, the response should be valid JSON
-        return JSON.parse(text);
+        
+        return data;
       } catch (error) {
         if (attempt === maxRetries) {
           console.error(
@@ -153,16 +160,16 @@ export class GeminiClient {
         });
 
         if (!response.ok) {
-          if (response.status === 429 && attempt < maxRetries) {
-            // Patient exponential backoff for correctness over speed
-            const baseDelay = Math.min(Math.pow(2, attempt) * 3000, 120000); // 3s, 6s, 12s, 24s, 48s, 96s, max 2min
-            const jitter = Math.random() * 3000; // Add up to 3s jitter
+          if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+            // Exponential backoff with jitter for production resilience
+            const baseDelay = Math.min(Math.pow(2, attempt) * 1000, 30000); // 1s, 2s, 4s, max 30s
+            const jitter = Math.random() * 1000; // Add up to 1s jitter
             const delay = baseDelay + jitter;
 
             console.log(
-              `⏳ Rate limited (429), waiting ${
+              `⏳ API error (${response.status}), retrying in ${
                 (delay / 1000).toFixed(1)
-              }s for quality results... (attempt ${attempt + 1}/${
+              }s... (attempt ${attempt + 1}/${
                 maxRetries + 1
               })`,
             );
@@ -284,7 +291,7 @@ Only return the JSON object, nothing else.`;
     }
 
     if (schema.type) {
-      return schema.type;
+      return Array.isArray(schema.type) ? schema.type.join(" | ") : schema.type;
     }
 
     if (schema.allOf || schema.oneOf || schema.anyOf) {

@@ -1,5 +1,5 @@
-// Essential OpenAPI 3.0/3.1 types
-// Not exhaustive - just what we need for the prototype
+// Complete OpenAPI 3.0/3.1 type definitions
+// Based on OpenAPI Specification v3.1.0
 
 export interface OpenAPISpec {
   openapi: string;
@@ -7,6 +7,9 @@ export interface OpenAPISpec {
   servers?: ServerObject[];
   paths: PathsObject;
   components?: ComponentsObject;
+  security?: SecurityRequirement[];
+  tags?: TagObject[];
+  externalDocs?: ExternalDocsObject;
   webhooks?: WebhooksObject; // OpenAPI 3.1
   jsonSchemaDialect?: string; // OpenAPI 3.1
 }
@@ -54,6 +57,9 @@ export interface WebhooksObject {
 }
 
 export interface PathItemObject {
+  $ref?: string;
+  summary?: string;
+  description?: string;
   get?: OperationObject;
   post?: OperationObject;
   put?: OperationObject;
@@ -61,34 +67,57 @@ export interface PathItemObject {
   patch?: OperationObject;
   head?: OperationObject;
   options?: OperationObject;
+  trace?: OperationObject;
+  servers?: ServerObject[];
+  parameters?: (ParameterObject | ReferenceObject)[];
 }
 
 export interface OperationObject {
+  tags?: string[];
+  summary?: string;
+  description?: string;
+  externalDocs?: ExternalDocsObject;
   operationId?: string;
-  parameters?: ParameterObject[];
-  requestBody?: RequestBodyObject;
+  parameters?: (ParameterObject | ReferenceObject)[];
+  requestBody?: RequestBodyObject | ReferenceObject;
   responses: ResponsesObject;
+  callbacks?: { [callback: string]: CallbackObject | ReferenceObject };
+  deprecated?: boolean;
+  security?: SecurityRequirement[];
+  servers?: ServerObject[];
 }
 
 export interface ParameterObject {
   name: string;
   in: "path" | "query" | "header" | "cookie";
+  description?: string;
   required?: boolean;
-  schema?: SchemaObject;
+  deprecated?: boolean;
+  allowEmptyValue?: boolean;
+  style?: string;
+  explode?: boolean;
+  allowReserved?: boolean;
+  schema?: SchemaObject | ReferenceObject;
+  example?: unknown;
+  examples?: { [example: string]: ExampleObject | ReferenceObject };
+  content?: { [mediaType: string]: MediaTypeObject };
 }
 
 export interface RequestBodyObject {
+  description?: string;
   content: ContentObject;
   required?: boolean;
 }
 
 export interface ResponsesObject {
-  [statusCode: string]: ResponseObject;
+  [statusCode: string]: ResponseObject | ReferenceObject;
 }
 
 export interface ResponseObject {
-  description?: string;
+  description: string;
+  headers?: { [header: string]: HeaderObject | ReferenceObject };
   content?: ContentObject;
+  links?: { [link: string]: LinkObject | ReferenceObject };
 }
 
 export interface ContentObject {
@@ -96,22 +125,30 @@ export interface ContentObject {
 }
 
 export interface MediaTypeObject {
-  schema?: SchemaObject;
+  schema?: SchemaObject | ReferenceObject;
   example?: unknown;
-  examples?: { [name: string]: ExampleObject };
+  examples?: { [name: string]: ExampleObject | ReferenceObject };
+  encoding?: { [encoding: string]: EncodingObject };
 }
 
 export interface ExampleObject {
+  summary?: string;
+  description?: string;
   value?: unknown;
   externalValue?: string;
 }
 
 export interface ComponentsObject {
   schemas?: { [name: string]: SchemaObject };
-  responses?: { [name: string]: ResponseObject };
-  parameters?: { [name: string]: ParameterObject };
-  examples?: { [name: string]: ExampleObject };
-  requestBodies?: { [name: string]: RequestBodyObject };
+  responses?: { [name: string]: ResponseObject | ReferenceObject };
+  parameters?: { [name: string]: ParameterObject | ReferenceObject };
+  examples?: { [name: string]: ExampleObject | ReferenceObject };
+  requestBodies?: { [name: string]: RequestBodyObject | ReferenceObject };
+  headers?: { [name: string]: HeaderObject | ReferenceObject };
+  securitySchemes?: { [name: string]: SecuritySchemeObject | ReferenceObject };
+  links?: { [name: string]: LinkObject | ReferenceObject };
+  callbacks?: { [name: string]: CallbackObject | ReferenceObject };
+  pathItems?: { [name: string]: PathItemObject | ReferenceObject }; // OpenAPI 3.1
 }
 
 export interface SchemaObject {
@@ -213,4 +250,90 @@ export interface XMLObject {
 export interface ExternalDocsObject {
   url: string;
   description?: string;
+}
+
+// Reference Object
+export interface ReferenceObject {
+  $ref: string;
+  summary?: string; // OpenAPI 3.1
+  description?: string; // OpenAPI 3.1
+}
+
+// Tag Object
+export interface TagObject {
+  name: string;
+  description?: string;
+  externalDocs?: ExternalDocsObject;
+}
+
+// Header Object
+export interface HeaderObject {
+  description?: string;
+  required?: boolean;
+  deprecated?: boolean;
+  allowEmptyValue?: boolean;
+  style?: string;
+  explode?: boolean;
+  allowReserved?: boolean;
+  schema?: SchemaObject | ReferenceObject;
+  example?: unknown;
+  examples?: { [example: string]: ExampleObject | ReferenceObject };
+  content?: { [mediaType: string]: MediaTypeObject };
+}
+
+// Encoding Object
+export interface EncodingObject {
+  contentType?: string;
+  headers?: { [header: string]: HeaderObject | ReferenceObject };
+  style?: string;
+  explode?: boolean;
+  allowReserved?: boolean;
+}
+
+// Link Object
+export interface LinkObject {
+  operationRef?: string;
+  operationId?: string;
+  parameters?: { [parameter: string]: unknown };
+  requestBody?: unknown;
+  description?: string;
+  server?: ServerObject;
+}
+
+// Callback Object
+export interface CallbackObject {
+  [expression: string]: PathItemObject | ReferenceObject;
+}
+
+// Security Requirement Object
+export interface SecurityRequirement {
+  [name: string]: string[];
+}
+
+// Security Scheme Object
+export interface SecuritySchemeObject {
+  type: "apiKey" | "http" | "mutualTLS" | "oauth2" | "openIdConnect";
+  description?: string;
+  name?: string; // For apiKey
+  in?: "query" | "header" | "cookie"; // For apiKey
+  scheme?: string; // For http
+  bearerFormat?: string; // For http bearer
+  flows?: OAuthFlowsObject; // For oauth2
+  openIdConnectUrl?: string; // For openIdConnect
+}
+
+// OAuth Flows Object
+export interface OAuthFlowsObject {
+  implicit?: OAuthFlowObject;
+  password?: OAuthFlowObject;
+  clientCredentials?: OAuthFlowObject;
+  authorizationCode?: OAuthFlowObject;
+}
+
+// OAuth Flow Object
+export interface OAuthFlowObject {
+  authorizationUrl?: string;
+  tokenUrl?: string;
+  refreshUrl?: string;
+  scopes: { [scope: string]: string };
 }
