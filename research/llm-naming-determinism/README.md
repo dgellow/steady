@@ -137,6 +137,23 @@ benefits, reducing extraction time by 40% on large APIs. The optimal
 configuration depends on API rate limits and network conditions, but batch sizes
 of 50-80 and concurrency of 5-8 work well in practice.
 
+### Important Caveat: Model Version Stability
+
+While temperature=0 provides maximum consistency within a given model version,
+true determinism across model updates is not guaranteed. LLM providers
+periodically update their models, and these updates can change outputs even with
+temperature=0. Additionally, even within the same model version, subtle
+non-determinism can arise from GPU floating-point variations, mixture-of-experts
+routing decisions, and infrastructure-level optimizations. For production
+systems, we recommend:
+
+1. Pinning specific model versions when available
+2. Implementing output monitoring to detect drift
+3. Treating temperature=0 as "highly stable" rather than absolutely
+   deterministic
+4. Testing naming stability with your specific schemas before production
+   deployment
+
 ## Future Work
 
 Three avenues merit investigation. First, response caching could eliminate

@@ -9,6 +9,13 @@ import type { SchemaContext, SchemaObject } from "./types.ts";
  * achieves only 32.8% consistency. There is no middle ground - any temperature > 0
  * introduces non-determinism due to the fundamental sampling mechanism in LLMs.
  *
+ * IMPORTANT: Temperature=0 consistency is only guaranteed within the same model version.
+ * Model updates, GPU computation variations, and infrastructure changes can still
+ * introduce minor variations even at temperature=0. For production systems:
+ * - Pin your model version when available (e.g., gemini-2.0-flash-001)
+ * - Monitor for output drift over time
+ * - Test stability with your specific schemas
+ *
  * Choose your strategy based on your requirements:
  * - CI/CD pipelines: Use 'deterministic' (default) for reproducible builds
  * - Development: Use 'adaptive' or 'low-variance' for better semantic names

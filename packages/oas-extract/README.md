@@ -23,13 +23,22 @@ semantic, domain-aware names.
 
 ## Determinism and Reproducibility
 
-The tool defaults to the `deterministic` strategy (temperature=0) which
-guarantees 100% reproducible schema names across runs. This is critical for
-CI/CD pipelines and version control.
+The tool defaults to the `deterministic` strategy (temperature=0) which provides
+the highest available consistency for schema names across runs. This is critical
+for CI/CD pipelines and version control.
 
 Our research (see `/research/llm-naming-determinism/`) discovered that even low
 temperature settings like 0.2 produce only 32.8% naming consistency. There is no
 middle ground - any temperature above 0 introduces randomness.
+
+**Important Note**: While temperature=0 maximizes consistency, true determinism
+is only guaranteed within the same model version. Model updates, GPU computation
+variations, and infrastructure changes can still introduce minor variations. For
+production use:
+
+- Pin your model version when possible (e.g., `gemini-2.0-flash-001`)
+- Monitor for output drift over time
+- Test stability with your specific API before deploying to CI/CD
 
 For development or one-time extractions where naming quality matters more than
 consistency, use the `adaptive` or `multi-sample` strategies:
