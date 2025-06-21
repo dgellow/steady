@@ -3,6 +3,7 @@
 ## Performance Comparison
 
 ### Original Settings (batch=20, concurrency=2)
+
 ```
 📄 Loading OpenAPI spec from datadog-openapi.json...
 🔍 Analyzing structural groups...
@@ -13,6 +14,7 @@ Found 403 groups with potential duplicates
 ```
 
 ### Optimized Settings (batch=50, concurrency=5)
+
 ```
 📄 Loading OpenAPI spec from datadog-openapi.json...
 🔍 Analyzing structural groups...
@@ -30,6 +32,7 @@ Found 403 groups with potential duplicates
 ## Strategy Comparison Results
 
 ### Full comparison output:
+
 ```
 ## Strategy Comparison Summary
 
@@ -58,6 +61,7 @@ Found 403 groups with potential duplicates
 ## Consistency Test on Simple Schema
 
 ### Multi-sample variations observed:
+
 ```
 Run 1: ["ErrorResponse", "PaginationResponse"]
 Run 2: ["ErrorResponse", "PaginatedResponse"]  
@@ -65,12 +69,14 @@ Run 3: ["ErrorResponse", "PaginationResponse"]
 ```
 
 Even on this simple 2-schema test:
+
 - ErrorResponse: 100% consistent (all 3 runs)
 - Pagination schema: 66% consistent (PaginationResponse vs PaginatedResponse)
 
 ## Sample Schema Names from Datadog
 
 ### Deterministic strategy produced high-quality names:
+
 ```json
 [
   "APIKeyAttributes",

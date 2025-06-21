@@ -56,7 +56,9 @@ export class SchemaNamer {
         name = this.ensureUniqueName(suggestion.name);
       } else {
         // This should never happen if filtering works correctly
-        throw new Error(`Internal error: Schema reached naming without LLM name: ${context.path} ${context.method} ${context.location}`);
+        throw new Error(
+          `Internal error: Schema reached naming without LLM name: ${context.path} ${context.method} ${context.location}`,
+        );
       }
 
       extracted.push({
@@ -89,7 +91,6 @@ export class SchemaNamer {
     return name;
   }
 
-
   private cleanName(name: string): string {
     // Remove any non-alphanumeric characters
     let clean = name.replace(/[^a-zA-Z0-9]/g, "");
@@ -109,7 +110,6 @@ export class SchemaNamer {
 
     return clean || "Schema";
   }
-
 
   private buildOriginalPath(context: SchemaContext): string {
     const parts = [context.path];

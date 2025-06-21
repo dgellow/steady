@@ -311,29 +311,38 @@ Remember: We're building a tool that developers will use when they're already
 frustrated with their integration. Make their day better, not worse.
 
 # important-instruction-reminders
-Do what has been asked; nothing more, nothing less.
-NEVER create files unless they're absolutely necessary for achieving your goal.
-ALWAYS prefer editing an existing file to creating a new one.
-NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+
+Do what has been asked; nothing more, nothing less. NEVER create files unless
+they're absolutely necessary for achieving your goal. ALWAYS prefer editing an
+existing file to creating a new one. NEVER proactively create documentation
+files (*.md) or README files. Only create documentation files if explicitly
+requested by the User.
 
 ## Code Quality Standards
+
 - NEVER TAKE SHORTCUTS FOR ANYTHING. PERIOD.
 - NEVER use type assertions (as, !) as shortcuts for type incompatibilities
 - NEVER take shortcuts when fixing TypeScript errors - fix the root cause
 - NEVER take shortcuts when refactoring - do it properly
 - NEVER take shortcuts when debugging - understand the actual problem
 - Fix type system issues properly by unifying types or using correct interfaces
-- Don't rush - take time to understand and properly resolve issues at their source
-- When there are type conflicts between packages, align the types properly rather than casting
+- Don't rush - take time to understand and properly resolve issues at their
+  source
+- When there are type conflicts between packages, align the types properly
+  rather than casting
 - Do the work correctly the first time instead of patching over problems
 
 # CRITICAL: NO FALLBACKS OR FAKE DATA
+
 - NEVER create fallback results when operations fail
-- NEVER fake test data or make up results 
+- NEVER fake test data or make up results
 - NEVER silently substitute one result for another
-- When something fails, report the actual error - don't mask it with fake success
+- When something fails, report the actual error - don't mask it with fake
+  success
 - When LLM analysis fails, don't create fake "KEEP_SEPARATE" decisions
-- When naming fails, don't fall back to auto-generated names - use the actual LLM suggestions
+- When naming fails, don't fall back to auto-generated names - use the actual
+  LLM suggestions
 - Fail loudly and clearly rather than producing incorrect results
 - If you can't get real data, say so explicitly - don't fabricate alternatives
-- ALWAYS preserve and use LLM-provided semantic names, never override with location-based names
+- ALWAYS preserve and use LLM-provided semantic names, never override with
+  location-based names

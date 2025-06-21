@@ -1,7 +1,7 @@
 import type { SchemaContext, SchemaObject } from "./types.ts";
 import type { GeminiClient } from "./llm.ts";
-import type { NamingStrategy, NamingContext } from "./naming-strategies.ts";
-import { getTemperature, describeStrategy } from "./naming-strategies.ts";
+import type { NamingContext, NamingStrategy } from "./naming-strategies.ts";
+import { describeStrategy, getTemperature } from "./naming-strategies.ts";
 import { generateWithMultiSample } from "./multi-sample.ts";
 
 export interface SchemaGroup {
@@ -27,19 +27,19 @@ export interface DeduplicationBatch {
 /**
  * SemanticDeduplicator - Identifies and merges structurally identical schemas
  * that represent the same logical concept, using LLM for semantic analysis.
- * 
+ *
  * The deduplication process has three phases:
  * 1. Structural grouping - Group schemas by their structure (properties, types)
  * 2. Semantic analysis - Use LLM to determine if schemas in each group represent
  *    the same concept and should be merged
  * 3. Apply decisions - Merge schemas that represent the same concept
- * 
+ *
  * Performance characteristics (based on our research with Datadog API):
  * - Network latency dominates: Each LLM call takes 2-3 seconds
  * - Optimal batch size: 50-80 schemas per LLM request
  * - Optimal concurrency: 5-8 parallel requests
  * - Total time scales with number of duplicate groups, not total schemas
- * 
+ *
  * Temperature strategy is critical for consistency - see naming-strategies.ts
  */
 export class SemanticDeduplicator {
@@ -51,10 +51,10 @@ export class SemanticDeduplicator {
 
   constructor(
     llmClient: GeminiClient,
-    batchSize = 50,      // Optimal based on testing - balances API efficiency with response quality
-    delay = 50,          // Minimal delay to avoid rate limiting
-    concurrency = 5,     // 5-8 concurrent requests optimal before hitting API limits
-    namingStrategy?: NamingStrategy
+    batchSize = 50, // Optimal based on testing - balances API efficiency with response quality
+    delay = 50, // Minimal delay to avoid rate limiting
+    concurrency = 5, // 5-8 concurrent requests optimal before hitting API limits
+    namingStrategy?: NamingStrategy,
   ) {
     this.llmClient = llmClient;
     this.batchSize = batchSize;
@@ -64,15 +64,17 @@ export class SemanticDeduplicator {
   }
 
   async deduplicateSchemas(
-    contexts: SchemaContext[], 
-    existingSchemaNames?: string[]
+    contexts: SchemaContext[],
+    existingSchemaNames?: string[],
   ): Promise<{
     mergedContexts: SchemaContext[];
     auditTrail: DeduplicationDecision[];
     failedGroups: SchemaGroup[];
   }> {
     console.log("🔍 Analyzing structural groups...");
-    console.log(`📊 Using naming strategy: ${describeStrategy(this.namingStrategy)}`);
+    console.log(
+      `📊 Using naming strategy: ${describeStrategy(this.namingStrategy)}`,
+    );
 
     // Phase 1: Group by structural fingerprint
     const groups = this.createStructuralGroups(contexts);
@@ -81,17 +83,23 @@ export class SemanticDeduplicator {
     console.log(
       `Found ${duplicateGroups.length} groups with potential duplicates`,
     );
-    
+
     // Debug: Show some example groups
     if (duplicateGroups.length > 0 && this.llmClient.verbose) {
       console.log("\nExample duplicate groups:");
       for (let i = 0; i < Math.min(3, duplicateGroups.length); i++) {
         const group = duplicateGroups[i]!;
         console.log(`\nGroup ${i + 1}: ${group.schemas.length} schemas`);
-        console.log(`Properties: ${Object.keys(group.representative.schema.properties || {}).join(", ")}`);
+        console.log(
+          `Properties: ${
+            Object.keys(group.representative.schema.properties || {}).join(", ")
+          }`,
+        );
         console.log("Locations:");
         for (const schema of group.schemas.slice(0, 3)) {
-          console.log(`  - ${schema.method} ${schema.path} (${schema.location})`);
+          console.log(
+            `  - ${schema.method} ${schema.path} (${schema.location})`,
+          );
         }
         if (group.schemas.length > 3) {
           console.log(`  ... and ${group.schemas.length - 3} more`);
@@ -110,12 +118,17 @@ export class SemanticDeduplicator {
     // Phase 2: Semantic analysis with structured output
     console.log("🤖 Performing semantic analysis...");
     const totalBatches = Math.ceil(duplicateGroups.length / this.batchSize);
-    console.log(`   📦 Processing ${duplicateGroups.length} groups in ${totalBatches} batches (batch size: ${this.batchSize}, concurrency: ${this.concurrency})`);
-    
+    console.log(
+      `   📦 Processing ${duplicateGroups.length} groups in ${totalBatches} batches (batch size: ${this.batchSize}, concurrency: ${this.concurrency})`,
+    );
+
     const analysisStart = performance.now();
-    const { decisions, failedGroups } = await this.analyzeSemantics(duplicateGroups, existingSchemaNames);
+    const { decisions, failedGroups } = await this.analyzeSemantics(
+      duplicateGroups,
+      existingSchemaNames,
+    );
     const analysisTime = (performance.now() - analysisStart) / 1000;
-    
+
     console.log(`   ⏱️  Analysis completed in ${analysisTime.toFixed(1)}s`);
 
     // Phase 3: Apply decisions
@@ -123,11 +136,16 @@ export class SemanticDeduplicator {
     const mergedContexts = this.applyDecisions(contexts, groups, decisions);
 
     const mergeDecisions = decisions.filter((d) => d.decision === "MERGE");
-    const highConfidence = mergeDecisions.filter((d) => d.confidence === "HIGH").length;
-    const mediumConfidence = mergeDecisions.filter((d) => d.confidence === "MEDIUM").length;
-    const lowConfidence = mergeDecisions.filter((d) => d.confidence === "LOW").length;
-    
-    console.log(`Merge decisions: ${highConfidence} high, ${mediumConfidence} medium, ${lowConfidence} low confidence`);
+    const highConfidence =
+      mergeDecisions.filter((d) => d.confidence === "HIGH").length;
+    const mediumConfidence =
+      mergeDecisions.filter((d) => d.confidence === "MEDIUM").length;
+    const lowConfidence =
+      mergeDecisions.filter((d) => d.confidence === "LOW").length;
+
+    console.log(
+      `Merge decisions: ${highConfidence} high, ${mediumConfidence} medium, ${lowConfidence} low confidence`,
+    );
     console.log(`Applied ${highConfidence} high-confidence merges`);
 
     // Report failures if any
@@ -135,7 +153,9 @@ export class SemanticDeduplicator {
       console.error(`\n⚠️  Failed to analyze ${failedGroups.length} groups:`);
       for (const group of failedGroups.slice(0, 5)) {
         console.error(`  - Group ${group.id}: ${group.schemas.length} schemas`);
-        console.error(`    Example: ${group.schemas[0]?.method} ${group.schemas[0]?.path}`);
+        console.error(
+          `    Example: ${group.schemas[0]?.method} ${group.schemas[0]?.path}`,
+        );
       }
       if (failedGroups.length > 5) {
         console.error(`  ... and ${failedGroups.length - 5} more`);
@@ -202,42 +222,61 @@ export class SemanticDeduplicator {
 
   private async analyzeSemantics(
     groups: SchemaGroup[],
-    existingSchemaNames?: string[]
-  ): Promise<{ decisions: DeduplicationDecision[]; failedGroups: SchemaGroup[] }> {
+    existingSchemaNames?: string[],
+  ): Promise<
+    { decisions: DeduplicationDecision[]; failedGroups: SchemaGroup[] }
+  > {
     const decisions: DeduplicationDecision[] = [];
     const failedGroups: SchemaGroup[] = [];
     const usedNames = new Set(existingSchemaNames || []);
 
     let processedGroups = 0;
     const totalGroups = groups.length;
-    
+
     // Process in concurrent chunks
     for (let i = 0; i < groups.length; i += this.batchSize * this.concurrency) {
-      const chunkEnd = Math.min(i + this.batchSize * this.concurrency, groups.length);
+      const chunkEnd = Math.min(
+        i + this.batchSize * this.concurrency,
+        groups.length,
+      );
       const chunk = groups.slice(i, chunkEnd);
-      
+
       // Create concurrent batches
-      const batchPromises: Promise<{ decisions: DeduplicationDecision[]; failedGroups: SchemaGroup[] }>[] = [];
+      const batchPromises: Promise<
+        { decisions: DeduplicationDecision[]; failedGroups: SchemaGroup[] }
+      >[] = [];
       for (let j = 0; j < chunk.length; j += this.batchSize) {
         const batch = chunk.slice(j, j + this.batchSize);
         if (batch.length > 0) {
           const batchIndex = Math.floor((i + j) / this.batchSize);
           const totalBatches = Math.ceil(groups.length / this.batchSize);
-          batchPromises.push(this.analyzeBatchSafely(batch, batchIndex + 1, Array.from(usedNames), batchIndex, totalBatches));
+          batchPromises.push(
+            this.analyzeBatchSafely(
+              batch,
+              batchIndex + 1,
+              Array.from(usedNames),
+              batchIndex,
+              totalBatches,
+            ),
+          );
         }
       }
-      
+
       if (this.llmClient.verbose) {
-        console.log(`   🔄 Processing groups ${i + 1}-${Math.min(chunkEnd, totalGroups)} of ${totalGroups}...`);
+        console.log(
+          `   🔄 Processing groups ${i + 1}-${
+            Math.min(chunkEnd, totalGroups)
+          } of ${totalGroups}...`,
+        );
       }
-      
+
       // Wait for all concurrent batches
       const batchResults = await Promise.all(batchPromises);
       processedGroups += chunk.length;
       for (const result of batchResults) {
         decisions.push(...result.decisions);
         failedGroups.push(...result.failedGroups);
-        
+
         // Add newly decided names to the used set to avoid conflicts in subsequent batches
         for (const decision of result.decisions) {
           if (decision.suggestedName) {
@@ -260,10 +299,17 @@ export class SemanticDeduplicator {
     batchNumber: number,
     existingSchemaNames: string[],
     batchIndex: number,
-    totalBatches: number
-  ): Promise<{ decisions: DeduplicationDecision[]; failedGroups: SchemaGroup[] }> {
+    totalBatches: number,
+  ): Promise<
+    { decisions: DeduplicationDecision[]; failedGroups: SchemaGroup[] }
+  > {
     try {
-      const decisions = await this.analyzeBatch(batch, existingSchemaNames, batchIndex, totalBatches);
+      const decisions = await this.analyzeBatch(
+        batch,
+        existingSchemaNames,
+        batchIndex,
+        totalBatches,
+      );
       return { decisions, failedGroups: [] };
     } catch (error) {
       console.error(`Failed to analyze batch ${batchNumber}:`, error);
@@ -274,21 +320,21 @@ export class SemanticDeduplicator {
 
   /**
    * Analyze a batch of schema groups to determine which should be merged.
-   * 
+   *
    * This is the core method that sends schema groups to the LLM for semantic
    * analysis. The LLM determines if schemas in each group represent the same
    * logical concept and should be merged.
-   * 
+   *
    * Temperature control is critical here:
    * - Deterministic (temp=0): Same names every time, required for CI/CD
    * - Low variance (temp=0.2): Better names but only 33% consistent
    * - Multi-sample: Generates 3 candidates, picks most common
-   * 
+   *
    * Performance notes:
    * - Each batch takes 2-3 seconds due to network latency
    * - Optimal batch size is 50-80 schemas
    * - Larger batches don't significantly slow individual requests
-   * 
+   *
    * @param groups - Schema groups to analyze (already structurally identical)
    * @param existingSchemaNames - Existing names to avoid conflicts
    * @param batchIndex - Current batch number (for decay strategy)
@@ -299,7 +345,7 @@ export class SemanticDeduplicator {
     groups: SchemaGroup[],
     existingSchemaNames: string[],
     batchIndex: number,
-    totalBatches: number
+    totalBatches: number,
   ): Promise<DeduplicationDecision[]> {
     // Special handling for multi-sample strategy
     if (this.namingStrategy.type === "multi-sample") {
@@ -308,10 +354,10 @@ export class SemanticDeduplicator {
         existingSchemaNames,
         this.llmClient,
         this.namingStrategy,
-        (g, n) => this.buildAnalysisPrompt(g, n)
+        (g, n) => this.buildAnalysisPrompt(g, n),
       );
     }
-    
+
     // Build context for temperature calculation
     const context: NamingContext = {
       schema: groups[0]!.representative.schema,
@@ -319,16 +365,18 @@ export class SemanticDeduplicator {
       existingNames: existingSchemaNames,
       groupId: groups[0]!.id,
       batchIndex,
-      totalBatches
+      totalBatches,
     };
-    
+
     // Get temperature from strategy
     const temperature = getTemperature(this.namingStrategy, context);
-    
+
     const prompt = this.buildAnalysisPrompt(groups, existingSchemaNames);
-    
+
     if (this.llmClient.verbose) {
-      console.log(`\nAnalyzing batch of ${groups.length} groups (temperature=${temperature})...`);
+      console.log(
+        `\nAnalyzing batch of ${groups.length} groups (temperature=${temperature})...`,
+      );
     }
 
     const requestBody = {
@@ -383,16 +431,30 @@ export class SemanticDeduplicator {
       try {
         const parsed = JSON.parse(response.candidates[0].content.parts[0].text);
         const analyses = parsed.analyses || [];
-        
+
         if (this.llmClient.verbose && analyses.length > 0) {
-          console.log(`Batch results: ${analyses.filter((a: DeduplicationDecision) => a.decision === "MERGE").length} merges, ${analyses.filter((a: DeduplicationDecision) => a.decision === "KEEP_SEPARATE").length} kept separate`);
+          console.log(
+            `Batch results: ${
+              analyses.filter((a: DeduplicationDecision) =>
+                a.decision === "MERGE"
+              ).length
+            } merges, ${
+              analyses.filter((a: DeduplicationDecision) =>
+                a.decision === "KEEP_SEPARATE"
+              ).length
+            } kept separate`,
+          );
           // Show first merge decision if any
-          const firstMerge = analyses.find((a: DeduplicationDecision) => a.decision === "MERGE");
+          const firstMerge = analyses.find((a: DeduplicationDecision) =>
+            a.decision === "MERGE"
+          );
           if (firstMerge) {
-            console.log(`Example merge: ${firstMerge.groupId} - ${firstMerge.semanticConcept} (${firstMerge.confidence})`);
+            console.log(
+              `Example merge: ${firstMerge.groupId} - ${firstMerge.semanticConcept} (${firstMerge.confidence})`,
+            );
           }
         }
-        
+
         return analyses;
       } catch (e) {
         console.error("Failed to parse LLM response:", e);
@@ -403,7 +465,10 @@ export class SemanticDeduplicator {
     return [];
   }
 
-  private buildAnalysisPrompt(groups: SchemaGroup[], existingSchemaNames?: string[]): string {
+  private buildAnalysisPrompt(
+    groups: SchemaGroup[],
+    existingSchemaNames?: string[],
+  ): string {
     const groupDescriptions = groups.map((group) => {
       const schemas = group.schemas;
       const props = Object.keys(group.representative.schema.properties || {});
@@ -460,9 +525,15 @@ SPECIAL CASE - Property name matching:
 BAD NAMES: ResourceAttributes (when not an 'attributes' property), GenericObject2, ComplianceRuleOptions3, ErrorMeta2
 GOOD NAMES: User, ErrorResponse, PageInfo, MonitorConfig, EntityAttributes (for an 'attributes' property)
 
-${existingSchemaNames && existingSchemaNames.length > 0 ? `
+${
+      existingSchemaNames && existingSchemaNames.length > 0
+        ? `
 EXISTING SCHEMAS IN THIS API (for context and to avoid conflicts):
-${existingSchemaNames.slice(0, 20).join(", ")}${existingSchemaNames.length > 20 ? ` ... and ${existingSchemaNames.length - 20} more` : ""}
+${existingSchemaNames.slice(0, 20).join(", ")}${
+          existingSchemaNames.length > 20
+            ? ` ... and ${existingSchemaNames.length - 20} more`
+            : ""
+        }
 
 Note: While you should be aware of these existing names to:
 1. Avoid naming conflicts
@@ -470,7 +541,9 @@ Note: While you should be aware of these existing names to:
 3. Understand the domain terminology
 
 Do NOT over-index on existing names. Focus primarily on the actual structure and context of the schemas you're analyzing.
-` : ''}
+`
+        : ""
+    }
 
 Analyze these ${groups.length} schema groups:
 ${groupDescriptions}
@@ -496,7 +569,10 @@ Focus on the data structure's purpose, not which endpoints use it.`;
     for (const group of groups) {
       const decision = decisionMap.get(group.id);
 
-      if (decision?.decision === "MERGE" && (decision.confidence === "HIGH" || decision.confidence === "MEDIUM")) {
+      if (
+        decision?.decision === "MERGE" &&
+        (decision.confidence === "HIGH" || decision.confidence === "MEDIUM")
+      ) {
         // Use first schema as representative with suggested name
         const representative = group.representative;
         const mergedContext: SchemaContext = {

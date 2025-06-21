@@ -37,6 +37,7 @@ Consistency│
 ## Semantic Analysis Time Breakdown
 
 ### With Old Defaults (batch=20, concurrency=2)
+
 ```
 Total: 54.3s
 ├─ Structural Analysis: ~1s
@@ -45,7 +46,8 @@ Total: 54.3s
 └─ Validation: ~1s
 ```
 
-### With New Defaults (batch=50, concurrency=5)  
+### With New Defaults (batch=50, concurrency=5)
+
 ```
 Total: 34.5s
 ├─ Structural Analysis: ~1s
@@ -67,6 +69,7 @@ Batch Size  # of API Calls  Avg Time per Call  Total Time
 ## Name Variation Examples
 
 ### Deterministic (100% consistent)
+
 ```
 Run 1: PaginationResponse → ErrorResponse
 Run 2: PaginationResponse → ErrorResponse  ✓ Same
@@ -74,6 +77,7 @@ Run 3: PaginationResponse → ErrorResponse  ✓ Same
 ```
 
 ### Multi-Sample (44% consistent)
+
 ```
 Run 1: PaginationResponse → ErrorResponse
 Run 2: PaginatedResponse  → ErrorResponse  ✗ Different

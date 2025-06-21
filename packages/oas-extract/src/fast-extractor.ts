@@ -36,7 +36,7 @@ export class FastExtractor {
       options.dedupBatchSize,
       options.dedupDelay,
       options.dedupConcurrency,
-      options.namingStrategy  // Will default to deterministic in deduplicator
+      options.namingStrategy, // Will default to deterministic in deduplicator
     );
   }
 
@@ -68,13 +68,13 @@ export class FastExtractor {
     if (this.options.verbose) {
       console.log("🧠 Performing semantic deduplication...");
     }
-    
+
     // Collect existing schema names from the spec
     const existingSchemaNames = Object.keys(spec.components?.schemas || {});
-    
+
     const deduplicationResult = await this.deduplicator.deduplicateSchemas(
       contexts,
-      existingSchemaNames
+      existingSchemaNames,
     );
     const deduplicatedContexts = deduplicationResult.mergedContexts;
 
@@ -84,24 +84,32 @@ export class FastExtractor {
         `Reduced ${contexts.length} → ${deduplicatedContexts.length} schemas (${reduction} merged)`,
       );
     }
-    
+
     // Fail if too many groups failed analysis
     if (deduplicationResult.failedGroups.length > 0) {
-      const failureRate = deduplicationResult.failedGroups.length / (deduplicationResult.failedGroups.length + deduplicationResult.auditTrail.length);
+      const failureRate = deduplicationResult.failedGroups.length /
+        (deduplicationResult.failedGroups.length +
+          deduplicationResult.auditTrail.length);
       if (failureRate > 0.5) {
-        throw new Error(`Deduplication failed: ${deduplicationResult.failedGroups.length} groups could not be analyzed (${Math.round(failureRate * 100)}% failure rate)`);
+        throw new Error(
+          `Deduplication failed: ${deduplicationResult.failedGroups.length} groups could not be analyzed (${
+            Math.round(failureRate * 100)
+          }% failure rate)`,
+        );
       }
     }
 
     // Step 3: Filter to only schemas worth extracting (those that were merged)
-    const worthyContexts = deduplicatedContexts.filter(context => {
+    const worthyContexts = deduplicatedContexts.filter((context) => {
       // Only extract schemas that were merged (have semantic value)
       return !!context.extractedName;
     });
-    
+
     if (this.options.verbose) {
       const filtered = deduplicatedContexts.length - worthyContexts.length;
-      console.log(`Extracting ${worthyContexts.length} schemas (${filtered} single-use schemas skipped)`);
+      console.log(
+        `Extracting ${worthyContexts.length} schemas (${filtered} single-use schemas skipped)`,
+      );
     }
 
     // Step 4: Apply names (no additional LLM calls needed since deduplication provides names)
@@ -121,7 +129,7 @@ export class FastExtractor {
     const report = this.generateReport(extractedSchemas);
 
     const totalTime = performance.now() - startTime;
-    
+
     // Production metrics logging
     const metrics = {
       timestamp: new Date().toISOString(),
@@ -132,11 +140,11 @@ export class FastExtractor {
       batchesProcessed: 0, // No LLM batches needed since deduplication provides names
       concurrency: this.options.concurrency || 1,
     };
-    
+
     if (this.options.verbose) {
       console.log(`\n📊 Production Metrics:`, JSON.stringify(metrics, null, 2));
     }
-    
+
     console.log(
       `✅ Extraction complete in ${
         (totalTime / 1000).toFixed(1)
@@ -149,7 +157,6 @@ export class FastExtractor {
       report,
     };
   }
-
 
   private emptyResult(spec: OpenAPISpec): ExtractionResult {
     return {
@@ -204,5 +211,4 @@ export class FastExtractor {
       byLocation,
     };
   }
-
 }

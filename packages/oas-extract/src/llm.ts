@@ -73,7 +73,10 @@ export class GeminiClient {
         });
 
         if (!response.ok) {
-          if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+          if (
+            (response.status === 429 || response.status >= 500) &&
+            attempt < maxRetries
+          ) {
             // Exponential backoff with jitter for production resilience
             const baseDelay = Math.min(Math.pow(2, attempt) * 1000, 30000); // 1s, 2s, 4s, max 30s
             const jitter = Math.random() * 1000; // Add up to 1s jitter
@@ -82,9 +85,7 @@ export class GeminiClient {
             console.log(
               `⏳ API error (${response.status}), retrying in ${
                 (delay / 1000).toFixed(1)
-              }s... (attempt ${attempt + 1}/${
-                maxRetries + 1
-              })`,
+              }s... (attempt ${attempt + 1}/${maxRetries + 1})`,
             );
             await new Promise((resolve) => setTimeout(resolve, delay));
             continue;
@@ -96,19 +97,23 @@ export class GeminiClient {
         }
 
         const data = await response.json();
-        
+
         if (this.verbose) {
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
             try {
               const parsed = JSON.parse(text);
-              console.log(`LLM response contains ${parsed.analyses?.length || 0} analyses`);
+              console.log(
+                `LLM response contains ${
+                  parsed.analyses?.length || 0
+                } analyses`,
+              );
             } catch {
               console.log("LLM response is not valid JSON");
             }
           }
         }
-        
+
         return data;
       } catch (error) {
         if (attempt === maxRetries) {
@@ -160,7 +165,10 @@ export class GeminiClient {
         });
 
         if (!response.ok) {
-          if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+          if (
+            (response.status === 429 || response.status >= 500) &&
+            attempt < maxRetries
+          ) {
             // Exponential backoff with jitter for production resilience
             const baseDelay = Math.min(Math.pow(2, attempt) * 1000, 30000); // 1s, 2s, 4s, max 30s
             const jitter = Math.random() * 1000; // Add up to 1s jitter
@@ -169,9 +177,7 @@ export class GeminiClient {
             console.log(
               `⏳ API error (${response.status}), retrying in ${
                 (delay / 1000).toFixed(1)
-              }s... (attempt ${attempt + 1}/${
-                maxRetries + 1
-              })`,
+              }s... (attempt ${attempt + 1}/${maxRetries + 1})`,
             );
             await new Promise((resolve) => setTimeout(resolve, delay));
             continue;

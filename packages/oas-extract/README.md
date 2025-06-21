@@ -16,15 +16,16 @@ semantic, domain-aware names.
 - **AI-Powered Naming**: Uses Gemini Flash for meaningful schema names
 - **Semantic Deduplication**: Intelligently merges duplicate schemas based on
   semantic analysis
-- **Deterministic by Default**: Produces reproducible outputs for CI/CD pipelines
+- **Deterministic by Default**: Produces reproducible outputs for CI/CD
+  pipelines
 - **Rate Limiting**: Built-in exponential backoff for API reliability
 - **Structured Output**: Uses JSON schema validation for reliable LLM responses
 
 ## Determinism and Reproducibility
 
-The tool defaults to the `deterministic` strategy (temperature=0) which guarantees
-100% reproducible schema names across runs. This is critical for CI/CD pipelines
-and version control.
+The tool defaults to the `deterministic` strategy (temperature=0) which
+guarantees 100% reproducible schema names across runs. This is critical for
+CI/CD pipelines and version control.
 
 Our research (see `/research/llm-naming-determinism/`) discovered that even low
 temperature settings like 0.2 produce only 32.8% naming consistency. There is no

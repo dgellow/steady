@@ -2,7 +2,11 @@
 
 import { parseArgs } from "@std/cli/parse_args";
 import { parseSpec } from "../packages/parser/mod.ts";
-import { evaluateStability, compareStrategies, formatStabilityReport } from "../packages/oas-extract/src/evaluate.ts";
+import {
+  compareStrategies,
+  evaluateStability,
+  formatStabilityReport,
+} from "../packages/oas-extract/src/evaluate.ts";
 import { parseStrategy } from "../packages/oas-extract/src/naming-strategies.ts";
 import type { NamingStrategy } from "../packages/oas-extract/src/naming-strategies.ts";
 
@@ -61,21 +65,33 @@ async function main() {
 
     if (args.compare) {
       // Compare all strategies
-      console.log(`\n🔬 Comparing all naming strategies with ${args.runs} runs each...\n`);
-      
+      console.log(
+        `\n🔬 Comparing all naming strategies with ${args.runs} runs each...\n`,
+      );
+
       const strategies: Array<{ name: string; strategy: NamingStrategy }> = [
         { name: "Deterministic", strategy: { type: "deterministic" } },
         { name: "Low Variance", strategy: { type: "low-variance" } },
         { name: "Adaptive", strategy: { type: "adaptive" } },
-        { name: "Multi-Sample (3)", strategy: { type: "multi-sample", samples: 3, selection: "most-common" } },
-        { name: "Decay", strategy: { type: "decay", initial: 0.3, final: 0, rate: 0.9 } },
+        {
+          name: "Multi-Sample (3)",
+          strategy: {
+            type: "multi-sample",
+            samples: 3,
+            selection: "most-common",
+          },
+        },
+        {
+          name: "Decay",
+          strategy: { type: "decay", initial: 0.3, final: 0, rate: 0.9 },
+        },
       ];
 
       const { strategies: reports, summary } = await compareStrategies(
         spec,
         strategies,
         args.runs as number,
-        args.verbose
+        args.verbose,
       );
 
       console.log("\n" + summary);
@@ -91,15 +107,20 @@ async function main() {
       }
     } else {
       // Evaluate single strategy
-      const strategy = parseStrategy(args.strategy as string, args["strategy-opts"] as string);
-      
-      console.log(`\n🔬 Evaluating ${strategy.type} strategy with ${args.runs} runs...\n`);
-      
+      const strategy = parseStrategy(
+        args.strategy as string,
+        args["strategy-opts"] as string,
+      );
+
+      console.log(
+        `\n🔬 Evaluating ${strategy.type} strategy with ${args.runs} runs...\n`,
+      );
+
       const report = await evaluateStability(
         spec,
         strategy,
         args.runs as number,
-        args.verbose
+        args.verbose,
       );
 
       const formatted = formatStabilityReport(report);
@@ -111,7 +132,10 @@ async function main() {
       }
     }
   } catch (error) {
-    console.error("\n❌ Error:", error instanceof Error ? error.message : String(error));
+    console.error(
+      "\n❌ Error:",
+      error instanceof Error ? error.message : String(error),
+    );
     if (args.verbose && error instanceof Error && error.stack) {
       console.error("\nStack trace:");
       console.error(error.stack);

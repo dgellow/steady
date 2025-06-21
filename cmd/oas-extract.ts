@@ -82,7 +82,7 @@ async function loadSpec(path: string): Promise<OpenAPISpec> {
 
 async function saveSpec(spec: OpenAPISpec, path: string): Promise<void> {
   let content: string;
-  
+
   if (path.endsWith(".yaml") || path.endsWith(".yml")) {
     // For YAML output, we'd need a YAML serializer
     // For now, always save as JSON
@@ -91,7 +91,7 @@ async function saveSpec(spec: OpenAPISpec, path: string): Promise<void> {
   } else {
     content = JSON.stringify(spec, null, 2);
   }
-  
+
   await Deno.writeTextFile(path, content);
 }
 
@@ -104,7 +104,16 @@ async function main() {
       "no-nested",
       "no-array-items",
     ],
-    string: ["output", "report", "concurrency", "dedup-batch-size", "dedup-delay", "dedup-concurrency", "strategy", "strategy-opts"],
+    string: [
+      "output",
+      "report",
+      "concurrency",
+      "dedup-batch-size",
+      "dedup-delay",
+      "dedup-concurrency",
+      "strategy",
+      "strategy-opts",
+    ],
     alias: {
       h: "help",
       v: "version",
@@ -160,76 +169,94 @@ async function main() {
     // Load the spec
     console.log(`📄 Loading OpenAPI spec from ${inputFile}...`);
     const spec = await loadSpec(inputFile);
-    
+
     // If analyze command, run deduplication analysis only
     if (command === "analyze") {
       const analyzer = new FastAnalyzer(
         parseInt(args["min-complexity"] as string),
         parseInt(args["min-properties"] as string),
       );
-      
+
       console.log("⚡ Analyzing OpenAPI spec...");
       const contexts = analyzer.analyze(spec);
       console.log(`Found ${contexts.length} schemas`);
-      
+
       if (contexts.length === 0) {
         console.log("No schemas found to analyze.");
         Deno.exit(0);
       }
-      
+
       // Run deduplication analysis
       const llmClient = new GeminiClient();
       llmClient.verbose = args.verbose;
       await llmClient.initialize();
-      
-      const namingStrategy = parseStrategy(args.strategy as string, args["strategy-opts"] as string);
-      
+
+      const namingStrategy = parseStrategy(
+        args.strategy as string,
+        args["strategy-opts"] as string,
+      );
+
       const deduplicator = new SemanticDeduplicator(
         llmClient,
         parseInt(args["dedup-batch-size"] as string),
         parseInt(args["dedup-delay"] as string),
         parseInt(args["dedup-concurrency"] as string),
-        namingStrategy
+        namingStrategy,
       );
-      
+
       console.log("\n🧠 Performing semantic deduplication analysis...");
       const result = await deduplicator.deduplicateSchemas(contexts);
-      
+
       // Show detailed results
       const mergedCount = contexts.length - result.mergedContexts.length;
       console.log(`\n📊 Deduplication Analysis Results:`);
       console.log(`   Original schemas: ${contexts.length}`);
       console.log(`   After deduplication: ${result.mergedContexts.length}`);
       console.log(`   Schemas merged: ${mergedCount}`);
-      
+
       // Show merge decisions by confidence
       const byConfidence = {
-        HIGH: result.auditTrail.filter(d => d.decision === "MERGE" && d.confidence === "HIGH"),
-        MEDIUM: result.auditTrail.filter(d => d.decision === "MERGE" && d.confidence === "MEDIUM"),
-        LOW: result.auditTrail.filter(d => d.decision === "MERGE" && d.confidence === "LOW"),
+        HIGH: result.auditTrail.filter((d) =>
+          d.decision === "MERGE" && d.confidence === "HIGH"
+        ),
+        MEDIUM: result.auditTrail.filter((d) =>
+          d.decision === "MERGE" && d.confidence === "MEDIUM"
+        ),
+        LOW: result.auditTrail.filter((d) =>
+          d.decision === "MERGE" && d.confidence === "LOW"
+        ),
       };
-      
+
       console.log(`\n   Merge decisions by confidence:`);
       console.log(`   - High: ${byConfidence.HIGH.length}`);
       console.log(`   - Medium: ${byConfidence.MEDIUM.length}`);
       console.log(`   - Low: ${byConfidence.LOW.length}`);
-      
+
       if (args.verbose && result.auditTrail.length > 0) {
         console.log("\n🔍 Detailed merge decisions:");
-        for (const decision of result.auditTrail.filter(d => d.decision === "MERGE")) {
-          console.log(`\n${decision.groupId} (${decision.confidence} confidence):`);
+        for (
+          const decision of result.auditTrail.filter((d) =>
+            d.decision === "MERGE"
+          )
+        ) {
+          console.log(
+            `\n${decision.groupId} (${decision.confidence} confidence):`,
+          );
           console.log(`  Concept: ${decision.semanticConcept}`);
           console.log(`  Suggested name: ${decision.suggestedName || "N/A"}`);
           console.log(`  Reasoning: ${decision.reasoning}`);
         }
       }
-      
+
       Deno.exit(0);
     }
 
     // Parse naming strategy
-    const namingStrategy = parseStrategy(args.strategy as string, args["strategy-opts"] as string);
-    
+    const namingStrategy = parseStrategy(
+      args.strategy as string,
+      args["strategy-opts"] as string,
+    );
+
     // Create extractor with options
     const extractor = new FastExtractor({
       minProperties: parseInt(args["min-properties"] as string),
