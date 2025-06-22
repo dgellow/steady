@@ -349,16 +349,30 @@ export class JsonSchemaValidator {
       });
     }
 
-    if (schema.multipleOf !== undefined && data % schema.multipleOf !== 0) {
-      errors.push({
-        instancePath,
-        schemaPath: `${schemaPath}/multipleOf`,
-        keyword: "multipleOf",
-        message: `must be multiple of ${schema.multipleOf}`,
-        params: { multipleOf: schema.multipleOf },
-        schema: schema.multipleOf,
-        data,
-      });
+    if (schema.multipleOf !== undefined) {
+      let isMultiple = false;
+      
+      if (data === 0) {
+        // Zero is a multiple of any number
+        isMultiple = true;
+      } else {
+        // Use division and check if result is close to an integer to handle floating-point precision
+        const division = data / schema.multipleOf;
+        const rounded = Math.round(division);
+        isMultiple = Math.abs(division - rounded) < Number.EPSILON * Math.max(Math.abs(division), Math.abs(rounded));
+      }
+      
+      if (!isMultiple) {
+        errors.push({
+          instancePath,
+          schemaPath: `${schemaPath}/multipleOf`,
+          keyword: "multipleOf",
+          message: `must be multiple of ${schema.multipleOf}`,
+          params: { multipleOf: schema.multipleOf },
+          schema: schema.multipleOf,
+          data,
+        });
+      }
     }
   }
 
@@ -444,7 +458,7 @@ export class JsonSchemaValidator {
     }
 
     // Validate contains
-    if (schema.contains) {
+    if (schema.contains !== undefined) {
       const containsMatches: number[] = [];
       
       for (let i = 0; i < data.length; i++) {
