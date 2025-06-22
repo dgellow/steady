@@ -10,9 +10,11 @@ import type {
   ValidationResult,
   ValidatorOptions,
 } from "./types.ts";
+import { RefResolver } from "./ref-resolver.ts";
 
 export class JsonSchemaValidator {
   private options: ValidatorOptions;
+  private refResolver?: RefResolver;
 
   constructor(options: ValidatorOptions = {}) {
     this.options = {
@@ -26,6 +28,10 @@ export class JsonSchemaValidator {
 
   validate(schema: Schema, data: unknown, path = ""): ValidationResult {
     const errors: ValidationError[] = [];
+    
+    // Initialize reference resolver for this validation
+    this.refResolver = new RefResolver(schema);
+    
     this.validateInternal(schema, data, path, "#", errors);
 
     return {
@@ -41,11 +47,62 @@ export class JsonSchemaValidator {
     schemaPath: string,
     errors: ValidationError[],
   ): void {
-    // Handle $ref
-    if (schema.$ref) {
-      // For now, we don't resolve references - that's handled by the parser
-      // In a full implementation, this would resolve the reference
+    // Handle boolean schemas
+    if (typeof schema === "boolean") {
+      if (!schema) {
+        errors.push({
+          instancePath,
+          schemaPath,
+          keyword: "false",
+          message: "boolean schema false",
+          params: {},
+          schema: false,
+          data,
+        });
+      }
       return;
+    }
+
+    // Handle $ref (but continue with sibling keywords after)
+    if (schema.$ref) {
+      if (!this.refResolver) {
+        errors.push({
+          instancePath,
+          schemaPath,
+          keyword: "$ref",
+          message: "Reference resolver not initialized",
+          params: { $ref: schema.$ref },
+          schema: schema.$ref,
+          data,
+        });
+        return;
+      }
+
+      const resolved = this.refResolver.resolve(schema.$ref);
+      
+      if (!resolved.resolved) {
+        errors.push({
+          instancePath,
+          schemaPath,
+          keyword: "$ref",
+          message: resolved.error || `Failed to resolve reference: ${schema.$ref}`,
+          params: { $ref: schema.$ref },
+          schema: schema.$ref,
+          data,
+        });
+        return;
+      }
+
+      // Validate against the resolved schema
+      this.validateInternal(
+        resolved.schema,
+        data,
+        instancePath,
+        `${schemaPath}/$ref`,
+        errors,
+      );
+      
+      // Continue to validate sibling keywords - don't return here
     }
 
     // Handle undefined values - not valid JSON
@@ -357,17 +414,115 @@ export class JsonSchemaValidator {
       }
     }
 
-    // Validate items
-    if (schema.items && !Array.isArray(schema.items)) {
-      data.forEach((item, index) => {
+    const evaluatedIndices = new Set<number>();
+
+    // Validate prefixItems (tuple validation)
+    if (schema.prefixItems) {
+      for (let i = 0; i < schema.prefixItems.length && i < data.length; i++) {
+        evaluatedIndices.add(i);
+        this.validateInternal(
+          schema.prefixItems[i],
+          data[i],
+          `${instancePath}/${i}`,
+          `${schemaPath}/prefixItems/${i}`,
+          errors,
+        );
+      }
+    }
+
+    // Validate items (for remaining items after prefixItems)
+    if (schema.items !== undefined) {
+      const startIndex = schema.prefixItems ? schema.prefixItems.length : 0;
+      for (let i = startIndex; i < data.length; i++) {
+        evaluatedIndices.add(i);
         this.validateInternal(
           schema.items as Schema,
-          item,
-          `${instancePath}/${index}`,
+          data[i],
+          `${instancePath}/${i}`,
           `${schemaPath}/items`,
           errors,
         );
-      });
+      }
+    }
+
+    // Validate contains
+    if (schema.contains) {
+      const containsMatches: number[] = [];
+      
+      for (let i = 0; i < data.length; i++) {
+        const containsErrors: ValidationError[] = [];
+        this.validateInternal(
+          schema.contains,
+          data[i],
+          `${instancePath}/${i}`,
+          `${schemaPath}/contains`,
+          containsErrors,
+        );
+        
+        if (containsErrors.length === 0) {
+          containsMatches.push(i);
+          evaluatedIndices.add(i);
+        }
+      }
+
+      // Check minContains/maxContains
+      const numMatches = containsMatches.length;
+      const minContains = schema.minContains ?? 1;
+      
+      if (numMatches < minContains) {
+        errors.push({
+          instancePath,
+          schemaPath: `${schemaPath}/${schema.minContains !== undefined ? 'minContains' : 'contains'}`,
+          keyword: schema.minContains !== undefined ? 'minContains' : 'contains',
+          message: `must contain at least ${minContains} valid item(s)`,
+          params: { minContains, contains: schema.contains },
+          schema: schema.minContains ?? schema.contains,
+          data,
+        });
+      }
+
+      if (schema.maxContains !== undefined && numMatches > schema.maxContains) {
+        errors.push({
+          instancePath,
+          schemaPath: `${schemaPath}/maxContains`,
+          keyword: "maxContains",
+          message: `must contain at most ${schema.maxContains} valid item(s)`,
+          params: { maxContains: schema.maxContains },
+          schema: schema.maxContains,
+          data,
+        });
+      }
+    }
+
+    // Validate unevaluatedItems
+    if (schema.unevaluatedItems !== undefined) {
+      const unevaluatedIndices = data
+        .map((_, index) => index)
+        .filter(index => !evaluatedIndices.has(index));
+
+      if (schema.unevaluatedItems === false && unevaluatedIndices.length > 0) {
+        for (const index of unevaluatedIndices) {
+          errors.push({
+            instancePath: `${instancePath}/${index}`,
+            schemaPath: `${schemaPath}/unevaluatedItems`,
+            keyword: "unevaluatedItems",
+            message: `must NOT have unevaluated items`,
+            params: { unevaluatedItems: index },
+            schema: false,
+            data: data[index],
+          });
+        }
+      } else if (typeof schema.unevaluatedItems === "object") {
+        for (const index of unevaluatedIndices) {
+          this.validateInternal(
+            schema.unevaluatedItems,
+            data[index],
+            `${instancePath}/${index}`,
+            `${schemaPath}/unevaluatedItems`,
+            errors,
+          );
+        }
+      }
     }
   }
 
@@ -425,15 +580,175 @@ export class JsonSchemaValidator {
       }
     }
 
+    // Dependent required
+    if (schema.dependentRequired) {
+      for (const [prop, deps] of Object.entries(schema.dependentRequired)) {
+        if (prop in data) {
+          for (const dep of deps) {
+            if (!(dep in data)) {
+              errors.push({
+                instancePath,
+                schemaPath: `${schemaPath}/dependentRequired/${prop}`,
+                keyword: "dependentRequired",
+                message: `must have property '${dep}' when property '${prop}' is present`,
+                params: { property: prop, missingProperty: dep, deps },
+                schema: deps,
+                data,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Dependent schemas
+    if (schema.dependentSchemas) {
+      for (const [prop, depSchema] of Object.entries(schema.dependentSchemas)) {
+        if (prop in data) {
+          this.validateInternal(
+            depSchema,
+            data,
+            instancePath,
+            `${schemaPath}/dependentSchemas/${prop}`,
+            errors,
+          );
+        }
+      }
+    }
+
+    const evaluatedProps = new Set<string>();
+
     // Validate properties
     if (schema.properties) {
       for (const [propName, propSchema] of Object.entries(schema.properties)) {
         if (propName in data) {
+          evaluatedProps.add(propName);
           this.validateInternal(
             propSchema,
             data[propName],
             `${instancePath}/${propName}`,
             `${schemaPath}/properties/${propName}`,
+            errors,
+          );
+        }
+      }
+    }
+
+    // Pattern properties
+    if (schema.patternProperties) {
+      for (const [pattern, patternSchema] of Object.entries(schema.patternProperties)) {
+        let regex: RegExp;
+        try {
+          regex = new RegExp(pattern);
+        } catch {
+          errors.push({
+            instancePath,
+            schemaPath: `${schemaPath}/patternProperties/${pattern}`,
+            keyword: "patternProperties",
+            message: `invalid regular expression: ${pattern}`,
+            params: { pattern },
+            schema: pattern,
+            data,
+          });
+          continue;
+        }
+
+        for (const propName of keys) {
+          if (regex.test(propName)) {
+            evaluatedProps.add(propName);
+            this.validateInternal(
+              patternSchema,
+              data[propName],
+              `${instancePath}/${propName}`,
+              `${schemaPath}/patternProperties/${pattern}`,
+              errors,
+            );
+          }
+        }
+      }
+    }
+
+    // Additional properties
+    if (schema.additionalProperties !== undefined) {
+      const additionalProps = keys.filter(key => !evaluatedProps.has(key));
+      
+      if (schema.additionalProperties === false && additionalProps.length > 0) {
+        for (const prop of additionalProps) {
+          errors.push({
+            instancePath: `${instancePath}/${prop}`,
+            schemaPath: `${schemaPath}/additionalProperties`,
+            keyword: "additionalProperties",
+            message: `must NOT have additional properties`,
+            params: { additionalProperty: prop },
+            schema: false,
+            data: data[prop],
+          });
+        }
+      } else if (typeof schema.additionalProperties === "object") {
+        for (const prop of additionalProps) {
+          this.validateInternal(
+            schema.additionalProperties,
+            data[prop],
+            `${instancePath}/${prop}`,
+            `${schemaPath}/additionalProperties`,
+            errors,
+          );
+        }
+      }
+    }
+
+    // Property names validation
+    if (schema.propertyNames) {
+      for (const propName of keys) {
+        const propNameErrors: ValidationError[] = [];
+        this.validateInternal(
+          schema.propertyNames,
+          propName,
+          instancePath,
+          `${schemaPath}/propertyNames`,
+          propNameErrors,
+        );
+        
+        if (propNameErrors.length > 0) {
+          errors.push({
+            instancePath: `${instancePath}/${propName}`,
+            schemaPath: `${schemaPath}/propertyNames`,
+            keyword: "propertyNames",
+            message: `property name '${propName}' is invalid`,
+            params: { propertyName: propName },
+            schema: schema.propertyNames,
+            data: propName,
+          });
+        }
+      }
+    }
+
+    // Unevaluated properties (simplified implementation)
+    if (schema.unevaluatedProperties !== undefined) {
+      // Note: Full implementation requires tracking evaluated properties
+      // across allOf, anyOf, oneOf, if/then/else which is complex
+      // This is a simplified version for now
+      const unevaluatedProps = keys.filter(key => !evaluatedProps.has(key));
+      
+      if (schema.unevaluatedProperties === false && unevaluatedProps.length > 0) {
+        for (const prop of unevaluatedProps) {
+          errors.push({
+            instancePath: `${instancePath}/${prop}`,
+            schemaPath: `${schemaPath}/unevaluatedProperties`,
+            keyword: "unevaluatedProperties",
+            message: `must NOT have unevaluated properties`,
+            params: { unevaluatedProperty: prop },
+            schema: false,
+            data: data[prop],
+          });
+        }
+      } else if (typeof schema.unevaluatedProperties === "object") {
+        for (const prop of unevaluatedProps) {
+          this.validateInternal(
+            schema.unevaluatedProperties,
+            data[prop],
+            `${instancePath}/${prop}`,
+            `${schemaPath}/unevaluatedProperties`,
             errors,
           );
         }

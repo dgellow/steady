@@ -40,9 +40,21 @@ export function escapeSegment(segment: string): string {
 
 /**
  * Unescape a path segment according to RFC 6901
+ * Handles both JSON Pointer escaping (~0, ~1) and percent encoding (%25, etc.)
  */
 export function unescapeSegment(segment: string): string {
-  return segment.replace(/~1/g, "/").replace(/~0/g, "~");
+  // First decode percent encoding, then JSON Pointer escaping
+  let result = segment;
+  
+  // Decode percent encoding
+  try {
+    result = decodeURIComponent(result);
+  } catch {
+    // If decoding fails, continue with the original string
+  }
+  
+  // Apply JSON Pointer unescaping
+  return result.replace(/~1/g, "/").replace(/~0/g, "~");
 }
 
 /**
