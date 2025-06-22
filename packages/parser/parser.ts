@@ -1,6 +1,8 @@
 import { parse as parseYAML } from "https://deno.land/std@0.208.0/yaml/parse.ts";
 import { OpenAPISpec } from "./openapi.ts";
 import { ParseError, ValidationError } from "./errors.ts";
+import { getAllReferences, isValidReference } from "../json-pointer/mod.ts";
+// import { JsonSchemaValidator } from "../json-schema/mod.ts";
 
 export async function parseSpec(path: string): Promise<OpenAPISpec> {
   // Check if file exists
@@ -100,7 +102,7 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
     });
   }
 
-  // Basic OpenAPI validation
+  // Comprehensive OpenAPI validation
   const errors: ValidationError[] = [];
   const anySpec = spec as Record<string, unknown>;
 
@@ -112,10 +114,10 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
         errorType: "validate",
         schemaPath: ["openapi"],
         reason: "OpenAPI spec must have an 'openapi' field with the version",
-        expected: "string (e.g., '3.0.0')",
+        expected: "string (e.g., '3.1.0')",
         actual: anySpec.openapi,
         suggestion: "Add the OpenAPI version to your spec",
-        examples: ["openapi: 3.0.0", "openapi: 3.1.0"],
+        examples: ["openapi: 3.1.0"],
       }),
     );
   } else if (!anySpec.openapi.startsWith("3.")) {
@@ -128,7 +130,7 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
           `Steady only supports OpenAPI 3.x, but found ${anySpec.openapi}`,
         expected: "3.x.x",
         actual: anySpec.openapi,
-        suggestion: "Update your spec to use OpenAPI 3.0.0 or 3.1.0",
+        suggestion: "Update your spec to use OpenAPI 3.x",
       }),
     );
   }
@@ -179,12 +181,26 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
         }),
       );
     }
+
+    // Validate info.summary if present (OpenAPI 3.1 field)
+    if ("summary" in info && typeof info.summary !== "string") {
+      errors.push(
+        new ValidationError("Invalid info summary", {
+          specFile: path,
+          errorType: "validate",
+          schemaPath: ["info", "summary"],
+          reason: "The info summary must be a string",
+          suggestion: "Provide a string summary or remove the field",
+          examples: ["summary: Brief description of the API"],
+        }),
+      );
+    }
   }
 
   // Check paths
   if (
     !("paths" in spec) || typeof anySpec.paths !== "object" ||
-    anySpec.paths === null
+    anySpec.paths === null || Array.isArray(anySpec.paths)
   ) {
     errors.push(
       new ValidationError("Missing paths object", {
@@ -205,11 +221,134 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
     );
   }
 
-  // If we have validation errors, throw them
+  // Validate OpenAPI 3.1 specific fields
+
+  // Validate jsonSchemaDialect if present
+  if ("jsonSchemaDialect" in anySpec) {
+    if (typeof anySpec.jsonSchemaDialect !== "string") {
+      errors.push(
+        new ValidationError("Invalid jsonSchemaDialect", {
+          specFile: path,
+          errorType: "validate",
+          schemaPath: ["jsonSchemaDialect"],
+          reason: "jsonSchemaDialect must be a string URI",
+          suggestion: "Provide a valid JSON Schema dialect URI",
+          examples: ["https://spec.openapis.org/oas/3.1/dialect/base"],
+        }),
+      );
+    } else {
+      // Basic URI validation
+      try {
+        new URL(anySpec.jsonSchemaDialect);
+      } catch {
+        errors.push(
+          new ValidationError("Invalid jsonSchemaDialect URI", {
+            specFile: path,
+            errorType: "validate",
+            schemaPath: ["jsonSchemaDialect"],
+            reason: `"${anySpec.jsonSchemaDialect}" is not a valid URI`,
+            suggestion: "Provide a valid JSON Schema dialect URI",
+            examples: ["https://spec.openapis.org/oas/3.1/dialect/base"],
+          }),
+        );
+      }
+    }
+  }
+
+  // Validate webhooks if present
+  if ("webhooks" in anySpec) {
+    if (typeof anySpec.webhooks !== "object" || anySpec.webhooks === null) {
+      errors.push(
+        new ValidationError("Invalid webhooks object", {
+          specFile: path,
+          errorType: "validate",
+          schemaPath: ["webhooks"],
+          reason: "webhooks must be an object",
+          suggestion: "Provide a valid webhooks object or remove the field",
+          examples: [
+            "webhooks:",
+            "  myWebhook:",
+            "    post:",
+            "      requestBody:",
+            "        content:",
+            "          application/json:",
+            "            schema:",
+            "              type: object",
+          ],
+        }),
+      );
+    }
+  }
+
+  // Validate components.pathItems if present
+  if (
+    "components" in anySpec &&
+    typeof anySpec.components === "object" &&
+    anySpec.components !== null
+  ) {
+    const components = anySpec.components as Record<string, unknown>;
+    if ("pathItems" in components) {
+      if (
+        typeof components.pathItems !== "object" ||
+        components.pathItems === null
+      ) {
+        errors.push(
+          new ValidationError("Invalid components.pathItems", {
+            specFile: path,
+            errorType: "validate",
+            schemaPath: ["components", "pathItems"],
+            reason: "components.pathItems must be an object",
+            suggestion: "Provide a valid pathItems object or remove the field",
+          }),
+        );
+      }
+    }
+  }
+
+  // Validate all references
+  const allRefs = getAllReferences(spec);
+  for (const ref of allRefs) {
+    if (ref.startsWith("#/")) {
+      if (!isValidReference(spec, ref)) {
+        errors.push(
+          new ValidationError("Invalid reference", {
+            specFile: path,
+            errorType: "validate",
+            schemaPath: [],
+            reason: `Reference ${ref} could not be resolved`,
+            suggestion: "Ensure the referenced component exists",
+            examples: [
+              "#/components/schemas/Pet",
+              "#/components/responses/NotFound",
+            ],
+          }),
+        );
+      }
+    }
+  }
+
+  // If we have validation errors, collect them all instead of throwing just the first
   if (errors.length > 0) {
-    // For now, just throw the first error
-    // In a more complete implementation, we'd collect all errors
-    throw errors[0];
+    // Create a comprehensive error message
+    const firstError = errors[0]!; // We know errors.length > 0
+    const errorSummary = errors.length === 1
+      ? firstError.message
+      : `Found ${errors.length} validation errors:\n${
+        errors.map((e, i) => `${i + 1}. ${e.message}`).join("\n")
+      }`;
+
+    throw new ValidationError(errorSummary, {
+      specFile: path,
+      errorType: "validate",
+      schemaPath: firstError.context.schemaPath,
+      reason: errors.length === 1
+        ? firstError.context.reason
+        : `Multiple validation errors found`,
+      suggestion: errors.length === 1
+        ? firstError.context.suggestion
+        : "Fix all validation errors listed above",
+      allErrors: errors,
+    });
   }
 
   return spec as OpenAPISpec;

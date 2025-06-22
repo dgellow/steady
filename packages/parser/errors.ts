@@ -17,6 +17,9 @@ export interface ErrorContext {
   // How to fix
   suggestion?: string;
   examples?: string[];
+
+  // Multiple errors (for comprehensive validation)
+  allErrors?: ValidationError[];
 }
 
 export class SteadyError extends Error {

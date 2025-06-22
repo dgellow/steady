@@ -1,8 +1,6 @@
 {
   "workspace": [
-    "./packages/parser",
-    "./packages/shared",
-    "./packages/oas-extract"
+    "./packages/*"
   ],
   "imports": {
     "@steady/parser": "./packages/parser/mod.ts",
