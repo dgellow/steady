@@ -619,7 +619,7 @@ export class JsonSchemaValidator {
     // Validate properties
     if (schema.properties) {
       for (const [propName, propSchema] of Object.entries(schema.properties)) {
-        if (propName in data) {
+        if (Object.prototype.hasOwnProperty.call(data, propName)) {
           evaluatedProps.add(propName);
           this.validateInternal(
             propSchema,
@@ -696,7 +696,7 @@ export class JsonSchemaValidator {
     }
 
     // Property names validation
-    if (schema.propertyNames) {
+    if (schema.propertyNames !== undefined) {
       for (const propName of keys) {
         const propNameErrors: ValidationError[] = [];
         this.validateInternal(
@@ -876,7 +876,9 @@ export class JsonSchemaValidator {
         ifErrors,
       );
 
-      if (ifErrors.length === 0 && schema.then) {
+      const ifPassed = ifErrors.length === 0;
+      
+      if (ifPassed && schema.then) {
         // If condition is true, validate then
         this.validateInternal(
           schema.then,
@@ -885,7 +887,7 @@ export class JsonSchemaValidator {
           `${schemaPath}/then`,
           errors,
         );
-      } else if (ifErrors.length > 0 && schema.else) {
+      } else if (!ifPassed && schema.else) {
         // If condition is false, validate else
         this.validateInternal(
           schema.else,
