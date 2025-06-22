@@ -883,7 +883,7 @@ export class JsonSchemaValidator {
     schemaPath: string,
     errors: ValidationError[],
   ): void {
-    if (schema.if) {
+    if (schema.if !== undefined) {
       const ifErrors: ValidationError[] = [];
       this.validateInternal(
         schema.if,
