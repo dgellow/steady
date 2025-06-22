@@ -33,6 +33,23 @@ export interface ResolvedReference {
   error?: string;
 }
 
+interface ExternalRefInfo {
+  /** Original reference string */
+  original: string;
+  /** Protocol (http, https, file, etc.) */
+  protocol?: string;
+  /** Host for network URLs */
+  host?: string;
+  /** Path component */
+  path?: string;
+  /** Fragment identifier (including #) */
+  fragment?: string;
+  /** Whether this is a relative file path */
+  isRelativePath: boolean;
+  /** Whether this is a relative ID reference */
+  isRelativeId: boolean;
+}
+
 export class RefResolver {
   private readonly context: ResolverContext;
 
@@ -314,21 +331,109 @@ export class RefResolver {
 
   /**
    * Handle external references (http://..., relative paths, etc.)
-   * For now, return unresolved - can be extended later with HTTP fetching
+   * Parses and identifies external references without resolving them
    */
   private resolveExternalRef(ref: string): ResolvedReference {
-    // TODO: Implement external reference resolution
-    // This would involve:
-    // 1. Fetching external documents
-    // 2. Parsing and validating them
-    // 3. Resolving any fragments (#/path)
-    // 4. Caching results
+    // Parse the external reference
+    const externalRefInfo = this.parseExternalRef(ref);
+    
+    // Provide detailed error message based on the type of external reference
+    let errorMessage = `External reference not supported: ${ref}\n`;
+    
+    if (externalRefInfo.protocol === 'http' || externalRefInfo.protocol === 'https') {
+      errorMessage += `\nDetails:\n`;
+      errorMessage += `  Protocol: ${externalRefInfo.protocol}\n`;
+      errorMessage += `  Host: ${externalRefInfo.host}\n`;
+      errorMessage += `  Path: ${externalRefInfo.path}\n`;
+      if (externalRefInfo.fragment) {
+        errorMessage += `  Fragment: ${externalRefInfo.fragment}\n`;
+      }
+      errorMessage += `\nThis validator does not support fetching schemas from remote URLs.`;
+      errorMessage += `\nTo use this schema, you must:`;
+      errorMessage += `\n  1. Download the referenced schema manually`;
+      errorMessage += `\n  2. Include it directly in your root schema using $defs`;
+      errorMessage += `\n  3. Update the $ref to use a local reference`;
+    } else if (externalRefInfo.protocol === 'file') {
+      errorMessage += `\nFile references are not supported for security reasons.`;
+      errorMessage += `\nPlease include the schema content directly in your root schema.`;
+    } else if (externalRefInfo.isRelativePath) {
+      errorMessage += `\nRelative file path references are not supported.`;
+      errorMessage += `\nPlease include the referenced schema directly in your root schema using $defs.`;
+    } else if (externalRefInfo.isRelativeId) {
+      // This might be an ID reference with a fragment
+      const [id, fragment] = ref.split('#');
+      errorMessage = `Reference to external schema ID not found: ${id}`;
+      if (fragment) {
+        errorMessage += `\nFragment: #${fragment}`;
+      }
+      errorMessage += `\n\nThis appears to be a reference to a schema with $id="${id}"`;
+      errorMessage += `\nMake sure the schema is included in your root schema's $defs.`;
+    }
     
     return {
-      schema: true, // For now, assume external refs are valid (fail open)
+      schema: false,
       resolved: false,
-      error: `External references not yet supported: ${ref}`
+      error: errorMessage
     };
+  }
+
+  /**
+   * Parse an external reference to extract its components
+   */
+  private parseExternalRef(ref: string): ExternalRefInfo {
+    const info: ExternalRefInfo = {
+      original: ref,
+      protocol: undefined,
+      host: undefined,
+      path: undefined,
+      fragment: undefined,
+      isRelativePath: false,
+      isRelativeId: false
+    };
+
+    // Check for fragment
+    const fragmentIndex = ref.indexOf('#');
+    if (fragmentIndex !== -1) {
+      info.fragment = ref.substring(fragmentIndex);
+      ref = ref.substring(0, fragmentIndex);
+    }
+
+    // Check for protocol
+    if (ref.startsWith('http://')) {
+      info.protocol = 'http';
+      const urlPart = ref.substring(7);
+      const pathIndex = urlPart.indexOf('/');
+      if (pathIndex !== -1) {
+        info.host = urlPart.substring(0, pathIndex);
+        info.path = urlPart.substring(pathIndex);
+      } else {
+        info.host = urlPart;
+        info.path = '/';
+      }
+    } else if (ref.startsWith('https://')) {
+      info.protocol = 'https';
+      const urlPart = ref.substring(8);
+      const pathIndex = urlPart.indexOf('/');
+      if (pathIndex !== -1) {
+        info.host = urlPart.substring(0, pathIndex);
+        info.path = urlPart.substring(pathIndex);
+      } else {
+        info.host = urlPart;
+        info.path = '/';
+      }
+    } else if (ref.startsWith('file://')) {
+      info.protocol = 'file';
+      info.path = ref.substring(7);
+    } else if (ref.includes('/')) {
+      // Relative path reference
+      info.isRelativePath = true;
+      info.path = ref;
+    } else {
+      // Possibly a relative ID reference
+      info.isRelativeId = true;
+    }
+
+    return info;
   }
 
   /**
