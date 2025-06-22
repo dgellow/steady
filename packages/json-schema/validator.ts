@@ -226,7 +226,10 @@ export class JsonSchemaValidator {
     schemaPath: string,
     errors: ValidationError[],
   ): void {
-    if (schema.minLength !== undefined && data.length < schema.minLength) {
+    // Count grapheme clusters, not code units
+    const graphemeLength = this.countGraphemeClusters(data);
+    
+    if (schema.minLength !== undefined && graphemeLength < schema.minLength) {
       errors.push({
         instancePath,
         schemaPath: `${schemaPath}/minLength`,
@@ -238,7 +241,7 @@ export class JsonSchemaValidator {
       });
     }
 
-    if (schema.maxLength !== undefined && data.length > schema.maxLength) {
+    if (schema.maxLength !== undefined && graphemeLength > schema.maxLength) {
       errors.push({
         instancePath,
         schemaPath: `${schemaPath}/maxLength`,
@@ -578,7 +581,7 @@ export class JsonSchemaValidator {
     // Required properties
     if (schema.required) {
       for (const requiredProp of schema.required) {
-        if (!(requiredProp in data)) {
+        if (!Object.prototype.hasOwnProperty.call(data, requiredProp)) {
           errors.push({
             instancePath,
             schemaPath: `${schemaPath}/required`,
@@ -1366,5 +1369,41 @@ export class JsonSchemaValidator {
 
     if (keysA.length !== keysB.length) return false;
     return keysA.every((key) => this.deepEqual(objA[key], objB[key]));
+  }
+
+  private countGraphemeClusters(str: string): number {
+    // Use Intl.Segmenter if available (modern approach)
+    if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
+      const segmenter = new (Intl as any).Segmenter(undefined, { granularity: 'grapheme' });
+      return Array.from(segmenter.segment(str)).length;
+    }
+    
+    // Fallback: simplified grapheme counting
+    // This handles most common cases including emojis and combining marks
+    let count = 0;
+    const str32 = Array.from(str); // Convert to array of code points
+    
+    for (let i = 0; i < str32.length; i++) {
+      count++;
+      
+      // Skip combining marks (simplified check)
+      while (i + 1 < str32.length) {
+        const nextCodePoint = str32[i + 1].codePointAt(0);
+        if (!nextCodePoint) break;
+        
+        // Check for common combining character ranges
+        if ((nextCodePoint >= 0x0300 && nextCodePoint <= 0x036F) || // Combining Diacritical Marks
+            (nextCodePoint >= 0x1AB0 && nextCodePoint <= 0x1AFF) || // Combining Diacritical Marks Extended
+            (nextCodePoint >= 0x1DC0 && nextCodePoint <= 0x1DFF) || // Combining Diacritical Marks Supplement
+            (nextCodePoint >= 0x20D0 && nextCodePoint <= 0x20FF) || // Combining Diacritical Marks for Symbols
+            (nextCodePoint >= 0xFE20 && nextCodePoint <= 0xFE2F)) { // Combining Half Marks
+          i++;
+        } else {
+          break;
+        }
+      }
+    }
+    
+    return count;
   }
 }
