@@ -20,6 +20,8 @@ export interface ResolverContext {
   baseUri?: string;
   /** Visited references (for circular detection) */
   visited: Set<string>;
+  /** Anchor registry for location-independent identifiers */
+  anchors: Map<string, Schema | boolean>;
 }
 
 export interface ResolvedReference {
@@ -39,8 +41,12 @@ export class RefResolver {
       rootSchema,
       resolutionPath: [],
       baseUri,
-      visited: new Set()
+      visited: new Set(),
+      anchors: new Map()
     };
+    
+    // Collect all anchors during initialization
+    this.collectAnchors(rootSchema);
   }
 
   /**
@@ -71,23 +77,53 @@ export class RefResolver {
   }
 
   /**
-   * Resolve internal JSON Pointer reference (#/path/to/schema)
+   * Determine the type of reference
+   */
+  private getRefType(ref: string): 'root' | 'pointer' | 'anchor' | 'external' {
+    if (ref === '#') return 'root';
+    if (ref.startsWith('#/')) return 'pointer';
+    if (ref.startsWith('#')) return 'anchor';
+    return 'external';
+  }
+
+  /**
+   * Resolve internal reference (root, pointer, or anchor)
    */
   private resolveInternalRef(ref: string): ResolvedReference {
+    const refType = this.getRefType(ref);
+    
+    switch (refType) {
+      case 'root':
+        return {
+          schema: this.context.rootSchema,
+          resolved: true
+        };
+      
+      case 'pointer':
+        return this.resolvePointer(ref);
+        
+      case 'anchor':
+        return this.resolveAnchor(ref);
+        
+      default:
+        return {
+          schema: false,
+          resolved: false,
+          error: `Invalid internal reference: ${ref}`
+        };
+    }
+  }
+
+  /**
+   * Resolve JSON Pointer reference (#/path/to/schema)
+   */
+  private resolvePointer(ref: string): ResolvedReference {
     // Check for circular references
     if (this.context.visited.has(ref)) {
       return {
         schema: false,
         resolved: false,
         error: `Circular reference detected: ${ref}`
-      };
-    }
-
-    // Root reference (#)
-    if (ref === '#') {
-      return {
-        schema: this.context.rootSchema,
-        resolved: true
       };
     }
 
@@ -127,6 +163,152 @@ export class RefResolver {
         resolved: false,
         error: `Failed to resolve reference: ${ref}`
       };
+    }
+  }
+
+  /**
+   * Resolve anchor reference (#anchorName)
+   */
+  private resolveAnchor(ref: string): ResolvedReference {
+    // Extract anchor name (remove #)
+    const anchorName = ref.slice(1);
+    
+    // Look up in anchor registry
+    const schema = this.context.anchors.get(anchorName);
+    
+    if (schema !== undefined) {
+      return {
+        schema,
+        resolved: true
+      };
+    }
+    
+    return {
+      schema: false,
+      resolved: false,
+      error: `Anchor not found: ${anchorName}`
+    };
+  }
+
+  /**
+   * Collect all $anchor definitions in the schema tree
+   * Populates the anchor registry for location-independent references
+   */
+  private collectAnchors(schema: Schema | boolean, currentPath: string = ""): void {
+    if (typeof schema === 'boolean') {
+      return;
+    }
+
+    // Register this schema if it has an $anchor
+    if (schema.$anchor) {
+      this.context.anchors.set(schema.$anchor, schema);
+    }
+
+    // Recursively collect anchors from all sub-schemas
+    
+    // Check $defs
+    if (schema.$defs) {
+      for (const [key, subSchema] of Object.entries(schema.$defs)) {
+        this.collectAnchors(subSchema, `${currentPath}/$defs/${key}`);
+      }
+    }
+
+    // Check properties
+    if (schema.properties) {
+      for (const [key, subSchema] of Object.entries(schema.properties)) {
+        this.collectAnchors(subSchema, `${currentPath}/properties/${key}`);
+      }
+    }
+
+    // Check patternProperties
+    if (schema.patternProperties) {
+      for (const [pattern, subSchema] of Object.entries(schema.patternProperties)) {
+        this.collectAnchors(subSchema, `${currentPath}/patternProperties/${pattern}`);
+      }
+    }
+
+    // Check additionalProperties
+    if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
+      this.collectAnchors(schema.additionalProperties, `${currentPath}/additionalProperties`);
+    }
+
+    // Check items
+    if (schema.items && typeof schema.items === 'object' && !Array.isArray(schema.items)) {
+      this.collectAnchors(schema.items, `${currentPath}/items`);
+    } else if (Array.isArray(schema.items)) {
+      schema.items.forEach((subSchema, index) => {
+        this.collectAnchors(subSchema, `${currentPath}/items/${index}`);
+      });
+    }
+
+    // Check prefixItems
+    if (schema.prefixItems) {
+      schema.prefixItems.forEach((subSchema, index) => {
+        this.collectAnchors(subSchema, `${currentPath}/prefixItems/${index}`);
+      });
+    }
+
+    // Check additionalItems (deprecated in 2020-12, but may exist in legacy schemas)
+    if ('additionalItems' in schema && schema.additionalItems && typeof schema.additionalItems === 'object') {
+      this.collectAnchors(schema.additionalItems as Schema, `${currentPath}/additionalItems`);
+    }
+
+    // Check contains
+    if (schema.contains && typeof schema.contains === 'object') {
+      this.collectAnchors(schema.contains, `${currentPath}/contains`);
+    }
+
+    // Check allOf
+    if (schema.allOf) {
+      schema.allOf.forEach((subSchema, index) => {
+        this.collectAnchors(subSchema, `${currentPath}/allOf/${index}`);
+      });
+    }
+
+    // Check anyOf
+    if (schema.anyOf) {
+      schema.anyOf.forEach((subSchema, index) => {
+        this.collectAnchors(subSchema, `${currentPath}/anyOf/${index}`);
+      });
+    }
+
+    // Check oneOf
+    if (schema.oneOf) {
+      schema.oneOf.forEach((subSchema, index) => {
+        this.collectAnchors(subSchema, `${currentPath}/oneOf/${index}`);
+      });
+    }
+
+    // Check not
+    if (schema.not && typeof schema.not === 'object') {
+      this.collectAnchors(schema.not, `${currentPath}/not`);
+    }
+
+    // Check if
+    if (schema.if && typeof schema.if === 'object') {
+      this.collectAnchors(schema.if, `${currentPath}/if`);
+    }
+
+    // Check then
+    if (schema.then && typeof schema.then === 'object') {
+      this.collectAnchors(schema.then, `${currentPath}/then`);
+    }
+
+    // Check else
+    if (schema.else && typeof schema.else === 'object') {
+      this.collectAnchors(schema.else, `${currentPath}/else`);
+    }
+
+    // Check dependentSchemas
+    if (schema.dependentSchemas) {
+      for (const [key, subSchema] of Object.entries(schema.dependentSchemas)) {
+        this.collectAnchors(subSchema, `${currentPath}/dependentSchemas/${key}`);
+      }
+    }
+
+    // Check propertyNames
+    if (schema.propertyNames && typeof schema.propertyNames === 'object') {
+      this.collectAnchors(schema.propertyNames, `${currentPath}/propertyNames`);
     }
   }
 
@@ -185,7 +367,7 @@ export class RefResolver {
     
     // Search in $defs
     if (schema.$defs) {
-      for (const [key, subSchema] of Object.entries(schema.$defs)) {
+      for (const [, subSchema] of Object.entries(schema.$defs)) {
         const found = this.findSchemaById(subSchema, targetId);
         if (found) return found;
       }
@@ -193,7 +375,7 @@ export class RefResolver {
     
     // Search in properties
     if (schema.properties) {
-      for (const [key, subSchema] of Object.entries(schema.properties)) {
+      for (const [, subSchema] of Object.entries(schema.properties)) {
         const found = this.findSchemaById(subSchema, targetId);
         if (found) return found;
       }
@@ -201,8 +383,15 @@ export class RefResolver {
     
     // Search in other schema locations
     if (schema.items && typeof schema.items === 'object') {
-      const found = this.findSchemaById(schema.items, targetId);
-      if (found) return found;
+      if (Array.isArray(schema.items)) {
+        for (const subSchema of schema.items) {
+          const found = this.findSchemaById(subSchema, targetId);
+          if (found) return found;
+        }
+      } else {
+        const found = this.findSchemaById(schema.items, targetId);
+        if (found) return found;
+      }
     }
     
     if (schema.allOf) {
