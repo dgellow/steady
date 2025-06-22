@@ -337,6 +337,358 @@ Steady is successful when:
 Remember: We're building a tool that developers will use when they're already
 frustrated with their integration. Make their day better, not worse.
 
+# JSON Schema Processor - Enterprise-Scale Implementation Plan
+
+## Project Vision
+
+Transform Steady's JSON Schema capabilities from a basic validator into a world-class, enterprise-scale schema processor that can handle the most complex real-world OpenAPI specifications while providing surgical error attribution for SDK validation workflows.
+
+## Current State Analysis
+
+### Package Structure Assessment
+The current split makes good sense:
+- **`json-pointer/`** - RFC 6901 implementation (solid foundation)
+- **`json-schema/`** - JSON Schema processor (needs major redesign)
+- **`parser/`** - OpenAPI parser (needs JSON Schema integration)
+- **`shared/`** - Common utilities (appropriate)
+- **`oas-extract/`** - Separate concern (good isolation)
+
+### Current Issues
+
+1. **`json-schema/` is currently a validator, not a processor**
+   - Only validates data against schemas
+   - Doesn't validate schemas themselves
+   - Missing enterprise-scale capabilities
+   - No proper error attribution
+
+2. **`parser/` doesn't use `json-schema/`**
+   - Comment shows intended integration: `// import { JsonSchemaValidator }`
+   - Missing schema validation in OpenAPI parsing
+   - No way to distinguish spec vs SDK issues
+
+3. **Missing the core processor we need**
+   - No schema analysis/indexing
+   - No response generation capabilities
+   - No enterprise-scale reference handling
+
+## High-Level Design
+
+### Core Architecture Principles
+
+1. **Three-Phase Processing**:
+   ```
+   Raw Object → Schema Analysis → Runtime Operations
+   ```
+
+2. **Clear Separation of Concerns**:
+   - **Schema Analysis**: Parse, validate, index schemas once
+   - **Data Validation**: Fast runtime validation against analyzed schemas
+   - **Response Generation**: Create mock data from schemas
+
+3. **Enterprise-Scale Design**:
+   - Memory-efficient algorithms for massive specs
+   - Circular reference detection without stack overflow
+   - Smart caching and indexing for 19K+ references
+
+### Updated Package Responsibilities
+
+#### `json-schema/` - Complete JSON Schema Processor
+```typescript
+// Core API
+export class JsonSchemaProcessor {
+  process(schemaObject: unknown): SchemaProcessResult
+}
+
+export interface SchemaProcessResult {
+  valid: boolean
+  schema?: ProcessedSchema
+  errors: SchemaError[]
+  warnings: SchemaWarning[]
+  metadata: SchemaMetadata
+}
+
+// Runtime APIs
+export class SchemaValidator {
+  validate(data: unknown): ValidationResult
+}
+
+export class ResponseGenerator {
+  generate(): unknown
+}
+```
+
+#### `parser/` - OpenAPI Parser with Schema Integration
+```typescript
+export interface ParsedOpenAPISpec {
+  spec: OpenAPISpec
+  schemas: Map<string, ProcessedSchema>  // All schemas indexed
+  endpoints: EndpointInfo[]             // Fast endpoint lookup
+  errors: ParseError[]
+  warnings: ParseWarning[]
+}
+```
+
+## Implementation Plan
+
+### Phase 1: Schema Processor Foundation
+**Goal**: Transform `json-schema/` into a complete schema processor
+
+**Deliverables**:
+1. **`SchemaProcessor`** - Validates and analyzes schema objects
+2. **Enterprise-scale reference handling** - Efficient resolution without stack overflow
+3. **Schema indexing** - Fast lookups for massive specs
+4. **Error attribution** - Distinguish schema issues from data issues
+
+**Validation**: Test with massive-real-life-spec.json (12MB, 19K+ refs)
+
+### Phase 2: Data Validation Engine
+**Goal**: Fast runtime validation against processed schemas
+
+**Deliverables**:
+1. **`SchemaValidator`** - Runtime data validation
+2. **Detailed error context** - Location, cause, fix suggestions
+3. **Performance optimization** - <10ms validation for typical requests
+
+**Validation**: SDK test scenarios with clear error attribution
+
+### Phase 3: Response Generation
+**Goal**: Generate realistic mock responses from schemas
+
+**Deliverables**:
+1. **`ResponseGenerator`** - Create valid data from schemas
+2. **Example prioritization** - Use explicit examples when available
+3. **Schema-driven generation** - Realistic data from constraints
+
+**Validation**: Generate responses for all endpoints in massive spec
+
+### Phase 4: OpenAPI Integration
+**Goal**: Integrate schema processor into OpenAPI parser
+
+**Deliverables**:
+1. **Schema extraction** - Pull all schemas from OpenAPI spec
+2. **Endpoint indexing** - Fast request routing
+3. **Error attribution** - Spec issues vs implementation issues
+
+**Validation**: Parse massive-real-life-spec.json with full schema analysis
+
+## Technical Trade-offs
+
+### Memory vs Speed
+**Decision**: Optimize for memory efficiency over raw speed
+**Reasoning**: Enterprise specs are memory-constrained, not CPU-constrained
+**Implementation**: Lazy loading, efficient indexing, smart caching
+
+### Compilation vs Interpretation
+**Decision**: Hybrid approach - analyze once, interpret at runtime
+**Reasoning**: Maintains schema context for great error messages while avoiding interpretation overhead
+**Implementation**: Pre-process schemas, keep structured representation for runtime
+
+### Error Detail vs Performance
+**Decision**: Prioritize error detail
+**Reasoning**: Primary use case is debugging SDK issues - clear errors save more time than faster validation
+**Implementation**: Rich error context with precise location tracking
+
+## Success Metrics
+
+1. **Enterprise Scale**: Handle 12MB specs with 19K+ references without OOM
+2. **Startup Time**: Process massive specs in <10 seconds 
+3. **Runtime Performance**: <10ms request validation
+4. **Error Quality**: Clear attribution between SDK and spec issues
+5. **Memory Efficiency**: Reasonable memory usage even with complex specs
+
+## Current Baseline
+
+- **JSON Schema 2020-12 Compliance**: 91.6% (1151/1257 tests passing)
+- **Major remaining work**: unevaluatedProperties (35), unevaluatedItems (19), dynamicRef (18)
+- **Test spec**: 12MB enterprise spec with 19K+ references available for validation
+
+# Steady Complete Implementation Plan
+
+## Overall Project Architecture
+
+Steady is built as a modular system with clear separation of concerns:
+
+```
+packages/
+├── json-pointer/     # RFC 6901 JSON Pointer (foundation)
+├── json-schema/      # JSON Schema processor (analysis + validation + generation)
+├── parser/           # OpenAPI spec parser with schema integration
+├── shared/           # Common utilities and logging
+└── core/             # Main server logic (to be created)
+```
+
+## Package Responsibilities
+
+### `json-pointer/` - JSON Pointer Foundation
+- **Purpose**: RFC 6901 JSON Pointer implementation
+- **Status**: Complete and solid
+- **Dependencies**: None
+- **Used by**: json-schema, parser
+
+### `json-schema/` - Enterprise JSON Schema Processor
+- **Purpose**: Complete JSON Schema analysis, validation, and response generation
+- **Status**: Needs major redesign (currently just validator)
+- **Key capabilities**:
+  - Schema validation against metaschema
+  - Enterprise-scale reference resolution (19K+ refs)
+  - Runtime data validation with rich error context
+  - Response generation from schemas
+  - Error attribution (SDK vs spec issues)
+- **Dependencies**: json-pointer
+- **Used by**: parser, core
+
+### `parser/` - OpenAPI Parser
+- **Purpose**: Parse and validate OpenAPI 3.x specifications
+- **Status**: Basic implementation, needs JSON Schema integration
+- **Key capabilities**:
+  - YAML/JSON parsing with clear error messages
+  - OpenAPI structure validation
+  - Schema extraction and indexing
+  - Endpoint discovery and indexing
+- **Dependencies**: json-pointer, json-schema
+- **Used by**: core
+
+### `shared/` - Common Utilities
+- **Purpose**: Shared logging, types, and utilities
+- **Status**: Basic implementation
+- **Key capabilities**:
+  - Structured logging for CI environments
+  - Common error types
+  - Utility functions
+- **Dependencies**: None
+- **Used by**: All packages
+
+### `core/` - Main Server Logic (To Be Created)
+- **Purpose**: HTTP server, request matching, response generation
+- **Status**: Not yet created
+- **Key capabilities**:
+  - HTTP server implementation
+  - Request routing and matching
+  - Response selection and generation
+  - Validation modes (strict/relaxed)
+  - Error reporting with attribution
+  - Health and diagnostic endpoints
+- **Dependencies**: parser, json-schema, shared
+
+## Implementation Roadmap
+
+### Phase 1: JSON Schema Processor Foundation
+**Timeline**: Current focus
+**Goal**: Transform json-schema into enterprise-scale processor
+
+**Tasks**:
+1. Schema validation against metaschema
+2. Enterprise-scale reference handling
+3. Schema indexing and analysis
+4. Error attribution system
+
+**Validation**: Handle massive-real-life-spec.json without issues
+
+### Phase 2: Data Validation Engine
+**Goal**: Fast runtime validation with excellent error messages
+
+**Tasks**:
+1. Runtime data validation against processed schemas
+2. Detailed error context with location and suggestions
+3. Performance optimization for <10ms validation
+4. SDK vs spec error attribution
+
+**Validation**: Clear error messages for SDK testing scenarios
+
+### Phase 3: Response Generation
+**Goal**: Generate realistic mock responses
+
+**Tasks**:
+1. Response generation from schemas
+2. Example prioritization (explicit examples first)
+3. Schema-driven data generation
+4. Content-type handling
+
+**Validation**: Generate responses for all massive-spec endpoints
+
+### Phase 4: OpenAPI Integration
+**Goal**: Complete OpenAPI parser with schema integration
+
+**Tasks**:
+1. Integrate json-schema processor into parser
+2. Schema extraction from OpenAPI specs
+3. Endpoint indexing for fast routing
+4. Complete error attribution
+
+**Validation**: Parse massive spec with full schema analysis
+
+### Phase 5: Core Server Implementation
+**Goal**: Complete HTTP mock server
+
+**Tasks**:
+1. HTTP server with Deno native APIs
+2. Request routing and parameter extraction
+3. Response selection (examples → generated → errors)
+4. Validation modes and error reporting
+5. Special endpoints (health, spec)
+
+**Validation**: Full SDK testing workflows
+
+### Phase 6: Advanced Features
+**Goal**: Enterprise-grade capabilities
+
+**Tasks**:
+1. Live reload on spec changes
+2. Interactive logging and debugging
+3. Webhook support
+4. Performance monitoring
+5. CI integration optimizations
+
+**Validation**: Production deployment scenarios
+
+## Success Criteria by Phase
+
+### Phase 1-2: Foundation
+- Handle 12MB specs without memory issues
+- Process 19K+ references efficiently
+- 91.6%+ JSON Schema compliance maintained
+- Clear error attribution working
+
+### Phase 3-4: Integration
+- Generate responses for all spec endpoints
+- Parse massive specs in <10 seconds
+- Complete OpenAPI + JSON Schema integration
+- SDK testing workflows functional
+
+### Phase 5-6: Production Ready
+- <10ms request processing
+- Zero crashes in CI environments
+- Better than Prism for enterprise specs
+- Comprehensive error messages that eliminate debugging time
+
+## Technical Principles
+
+### Resource Efficiency
+- Memory-efficient algorithms for massive specs
+- Smart caching and indexing
+- Lazy loading where appropriate
+- No memory leaks or unbounded growth
+
+### Error Excellence
+- Surgical error attribution (SDK vs spec)
+- Precise location information
+- Actionable fix suggestions
+- Rich context for debugging
+
+### Enterprise Scale
+- Handle 1500+ endpoint specs
+- Complex schema recursion support
+- Circular reference detection
+- Production CI reliability
+
+### Developer Experience
+- Zero configuration required
+- Clear, beautiful error messages
+- Fast feedback loops
+- Obvious behavior
+
+This plan ensures Steady becomes the definitive OpenAPI mock server that enterprises choose when they need something that actually works at scale.
+
 # important-instruction-reminders
 
 Do what has been asked; nothing more, nothing less. NEVER create files unless

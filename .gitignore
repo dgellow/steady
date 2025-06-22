@@ -33,3 +33,5 @@ coverage/
 
 # Debug logs
 ink-logger-debug.log
+
+massive-real-life-spec.json
