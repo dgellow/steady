@@ -1,21 +1,20 @@
-# Steady - The Reliable OpenAPI 3 Mock Server
+# Steady - The World-Class OpenAPI 3 Mock Server
 
-A rock-solid OpenAPI 3.0/3.1 mock server built with Deno that prioritizes
-reliability, clarity, and developer experience. Where other mock servers fail
-with cryptic errors, Steady provides crystal-clear feedback and predictable
-behavior.
+The definitive OpenAPI 3.0/3.1 mock server designed to be the best of its kind
+in the world. Built specifically for **SDK validation workflows** in CI and
+production environments, Steady excels where other tools fail: handling
+enterprise-scale specs with surgical error attribution.
 
 ## Features
 
-- **OpenAPI 3.0 & 3.1 Support** - Full compatibility with modern OpenAPI
-  specifications
-- **Excellent Error Messages** - Know exactly what went wrong and how to fix it
-- **Smart Example Generation** - Automatically generates valid responses from
-  schemas when examples aren't provided
-- **Interactive TUI Logger** - Navigate and filter requests with a beautiful
-  terminal interface
-- **Zero Configuration** - Just point it at your spec and go
-- **Fast & Lightweight** - Built on Deno for minimal overhead
+- **Enterprise-Scale Support** - Handle massive specs (1500+ endpoints) without breaking
+- **Surgical Error Attribution** - Instantly distinguish SDK bugs from spec issues
+- **Zero Crashes in CI** - Bulletproof reliability in automated environments
+- **Resource Efficient** - Smart algorithms that scale without memory issues
+- **World-Class Error Messages** - Precise location, root cause, and fix instructions
+- **SDK Testing Focus** - Built specifically for generated SDK validation workflows
+- **Complex Schema Handling** - Circular references, deep nesting, massive complexity
+- **Zero Configuration** - Works perfectly out of the box
 
 ## Installation
 
@@ -121,31 +120,87 @@ steady api.yaml --interactive
 - `Esc` - Exit filter/jump mode
 - `q` or `Ctrl+C` - Quit
 
-### Validation Modes
+## SDK Validation Workflows
 
-Control how strictly Steady validates requests:
+Steady excels at validating generated SDKs against OpenAPI specifications:
+
+### CI Integration
 
 ```bash
-# Strict mode (default) - fail on any validation error
+# Run SDK tests with Steady mock server
+steady api.yaml --ci-mode &
+STEADY_PID=$!
+
+# Run your generated SDK tests
+npm test  # or python -m pytest, go test, etc.
+
+# Steady provides detailed attribution for any failures
+kill $STEADY_PID
+```
+
+### Error Attribution Examples
+
+**SDK Bug Detection:**
+```
+❌ Request validation failed
+
+  Endpoint: POST /users
+  SDK: user_service.create_user(email="invalid")
+  
+  Schema violation:
+    Field: email
+    Expected: valid email format
+    Received: "invalid"
+    
+  CAUSE: SDK validation bug
+  FIX: Check SDK's email validation logic
+```
+
+**Spec Issue Detection:**
+```
+❌ OpenAPI spec validation failed
+
+  Path: /users/{id}
+  Schema: responses.200.content.application/json.schema
+  
+  Invalid schema definition:
+    Field: user.age  
+    Issue: type="number" with string constraints
+    
+  CAUSE: OpenAPI spec error
+  FIX: Use type="string" or remove string constraints
+```
+
+### Validation Modes
+
+```bash
+# Strict mode (default) - fail on any validation error  
 steady api.yaml --strict
 
-# Relaxed mode - log warnings but don't fail requests
+# Relaxed mode - log warnings but continue processing
 steady api.yaml --relaxed
 
-# Or use the X-Steady-Mode header per request
+# Per-request control
 curl -H "X-Steady-Mode: relaxed" http://localhost:3000/users/123
 ```
 
-## Response Generation
+## Enterprise-Scale Capabilities
 
-Steady prioritizes responses in this order:
+### Handle Massive Specs
+- **1500+ endpoints** (Cloudflare-scale) without memory issues
+- **Complex schema recursion** without stack overflow
+- **Deep nesting** and circular references handled gracefully
+- **Resource-efficient algorithms** that scale properly
 
-1. **Explicit examples** - If your spec includes example responses, those are
-   used
-2. **Generated from schema** - Valid data is generated based on your JSON Schema
-3. **Helpful errors** - If neither is available, you get a clear error message
+### Response Generation
 
-Example with schema generation:
+Steady prioritizes responses intelligently:
+
+1. **Explicit examples** - Use provided examples for consistent testing
+2. **Schema-generated data** - Create realistic responses from JSON Schema
+3. **Detailed errors** - Clear feedback when neither is available
+
+Example with complex schema:
 
 ```yaml
 responses:
@@ -155,17 +210,22 @@ responses:
         schema:
           type: object
           properties:
-            id:
-              type: integer
-              minimum: 1
-            name:
-              type: string
-              minLength: 1
-            email:
-              type: string
-              format: email
+            id: { type: integer, minimum: 1 }
+            name: { type: string, minLength: 1 }
+            email: { type: string, format: email }
+            nested:
+              type: object
+              properties:
+                deep: { $ref: "#/components/schemas/RecursiveType" }
           required: [id, name, email]
 ```
+
+### Why Replace Prism?
+
+- **Prism breaks** on complex, real-world specs
+- **Steady scales** to enterprise requirements  
+- **Better error messages** with precise attribution
+- **CI-optimized** for automated testing workflows
 
 ## Special Endpoints
 
@@ -234,15 +294,14 @@ All code must pass:
 
 ## Philosophy
 
-Steady follows the Zig Zen principles:
+Steady is built to be the world's best OpenAPI mock server:
 
-- **Communicate intent precisely** - Every error tells you exactly what went
-  wrong
-- **Edge cases matter** - Handle malformed specs and partial definitions
-  gracefully
-- **Favor reading code over writing code** - Simple, obvious implementation
-- **Runtime crashes are better than bugs** - Fail fast and loud
-- **Together we serve the users** - Developer experience is paramount
+- **Enterprise-first** - Handle the most complex real-world specs without breaking
+- **SDK-focused** - Designed specifically for generated SDK validation workflows
+- **Error attribution** - Instantly distinguish between SDK bugs and spec issues
+- **Resource efficient** - Smart algorithms that scale to massive specs
+- **Zero crashes** - Bulletproof reliability in CI and production environments
+- **Developer experience** - Error messages so good they eliminate debugging time
 
 ## License
 

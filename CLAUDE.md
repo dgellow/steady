@@ -1,29 +1,35 @@
-# Steady - The Reliable OpenAPI 3 Mock Server
+# Steady - The World-Class OpenAPI 3 Mock Server
 
 ## Project Overview
 
-Steady is an OpenAPI 3 mock server built with Deno that prioritizes reliability,
-clarity, and developer experience above all else. Where other mock servers fail
-with cryptic errors and unpredictable behavior, Steady provides rock-solid
-stability with crystal-clear feedback.
+Steady is the definitive OpenAPI 3 mock server built with Deno - designed to be
+the best of its kind in the world. While other mock servers fail with cryptic 
+errors, break on complex specs, or can't handle enterprise scale, Steady excels
+where it matters most: **SDK validation workflows** in CI/production environments.
+
+Steady is purpose-built for validating generated SDKs against OpenAPI specifications,
+providing surgical precision in distinguishing between SDK bugs and spec issues.
+It handles the most complex real-world specs (1500+ endpoints like major cloud
+providers) with bulletproof reliability and crystal-clear error attribution.
 
 ## Core Philosophy (Zig Zen Principles)
 
 1. **Communicate intent precisely** - Every error message tells you exactly what
-   went wrong and how to fix it
-2. **Edge cases matter** - Handle malformed specs, missing examples, and partial
-   definitions gracefully
+   went wrong, where, and how to fix it - with clear attribution between SDK vs spec issues
+2. **Edge cases matter** - Handle malformed specs, circular references, massive schemas,
+   and enterprise complexity gracefully without breaking
 3. **Favor reading code over writing code** - Simple, obvious implementation
-   that's easy to understand
+   that's easy to understand and maintain at scale
 4. **Only one obvious way to do things** - No confusing configuration options or
    multiple ways to achieve the same result
 5. **Runtime crashes are better than bugs** - Fail fast and loud rather than
-   silently misbehaving
+   silently misbehaving, especially in CI environments
 6. **Compile errors are better than runtime crashes** - TypeScript's type system
    prevents errors before they happen
 7. **Reduce the amount one must remember** - Sensible defaults, minimal
-   configuration
-8. **Together we serve the users** - Developer experience is paramount
+   configuration, works out of the box
+8. **Together we serve the users** - Developer experience is paramount, especially
+   for SDK validation workflows
 
 ## Technical Requirements
 
@@ -63,34 +69,49 @@ steady api.yaml
 # Shows a beautiful, informative startup message
 ```
 
-### 2. Brilliant Error Messages
+### 2. World-Class Error Attribution
 
 When something goes wrong, tell the developer:
 
-- WHAT went wrong
-- WHERE it went wrong (file, line number, path)
-- WHY it went wrong
-- HOW to fix it
+- WHAT went wrong (with surgical precision)
+- WHERE it went wrong (exact location in spec or request)
+- WHY it went wrong (root cause analysis)
+- WHO is responsible (SDK bug vs spec issue)
+- HOW to fix it (actionable steps)
 
-Example:
+Example spec validation error:
 
 ```
-ERROR: Missing example for response
+ERROR: Invalid schema in OpenAPI spec
 
   In spec: api.yaml:47
   Path: GET /users/{id}
-  Response: 200
+  Schema: response.200.content.application/json.schema.properties.email
 
-  Your OpenAPI spec defines a 200 response but doesn't include an example.
+  The email field schema is invalid:
+    Expected: string with format constraint
+    Found: type="email" (invalid type)
 
-  Add an example to your spec:
-    responses:
-      200:
-        content:
-          application/json:
-            example:
-              id: 123
-              name: "John Doe"
+  CAUSE: OpenAPI spec error
+  FIX: Change 'type: email' to 'type: string, format: email'
+```
+
+Example request validation error:
+
+```
+ERROR: Request validation failed
+
+  Endpoint: POST /users
+  Content-Type: application/json
+  
+  Schema violation in request body:
+    Field: user.email  
+    Expected: string with format "email"
+    Received: "not-an-email"
+    Location: $.user.email
+
+  CAUSE: SDK bug - invalid email validation
+  FIX: Check the SDK's user creation method for email validation
 ```
 
 ### 3. Request Matching
@@ -194,28 +215,33 @@ export class SteadyError extends Error {
 }
 ```
 
-## Quality Requirements
+## Enterprise-Grade Requirements
 
-### Reliability
+### Scalability & Resource Efficiency
 
-- Zero crashes in normal operation
-- Handle malformed requests gracefully
-- Recover from spec parsing errors
-- Clear shutdown on SIGTERM/SIGINT
+- **Handle massive specs**: 1500+ endpoints (Cloudflare-scale) without OOM
+- **Efficient recursion handling**: Complex schema references without stack overflow
+- **Resource-efficient algorithms**: Smart memory usage, not minimal usage
+- **Fast startup**: < 100ms even with complex specs
+- **Responsive operation**: < 10ms request processing
+- **Memory conscious**: No memory leaks, efficient garbage collection
 
-### Performance
+### Bulletproof Reliability
 
-- Start up in < 100ms
-- Respond to requests in < 10ms
-- Minimal memory footprint
-- No memory leaks
+- **Zero crashes in CI**: Must work flawlessly in automated environments
+- **Graceful degradation**: Handle malformed specs without breaking completely
+- **Circular reference handling**: Detect and handle recursive schemas safely
+- **Enterprise complexity**: Support the most complex real-world specs
+- **Clear shutdown**: Proper cleanup on SIGTERM/SIGINT
 
-### Developer Experience
+### World-Class Developer Experience
 
-- Install with single command: `deno install -g https://steady.dev/cli.ts`
-- Zero configuration for basic use
-- Helpful defaults for everything
-- Progressive disclosure of advanced features
+- **Zero configuration**: Works perfectly out of the box with any valid OpenAPI spec
+- **One command install**: `deno install -g https://steady.dev/cli.ts`
+- **CI-optimized**: Structured output, clear exit codes, reliable operation
+- **SDK validation focus**: Built specifically for generated SDK testing workflows
+- **Error attribution**: Instantly know if issues are in SDK code or OpenAPI spec
+- **Enterprise-ready**: Replace Stoplight Prism and other tools that break at scale
 
 ### Testing
 
@@ -293,11 +319,12 @@ These can be added after MVP:
 
 Steady is successful when:
 
-1. A developer can mock an API in 30 seconds
-2. Error messages are so good they never need documentation
-3. It never crashes or behaves unpredictably
-4. The code is so simple anyone can contribute
-5. It becomes the obvious choice over Prism
+1. **SDK teams choose Steady over all alternatives** for their CI/validation workflows
+2. **Enterprise companies migrate from Prism** because Steady handles their complex specs
+3. **Error messages eliminate debugging time** - developers instantly know what's wrong and how to fix it
+4. **Zero crashes in production CI** - completely reliable even with massive, complex specs
+5. **The code is maintainable at scale** - simple enough for anyone to contribute and extend
+6. **Resource efficiency enables broad adoption** - works in constrained environments without compromise
 
 ## Development Principles
 
