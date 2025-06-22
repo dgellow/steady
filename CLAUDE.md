@@ -509,12 +509,13 @@ export interface ParsedOpenAPISpec {
 Steady is built as a modular system with clear separation of concerns:
 
 ```
-packages/
-├── json-pointer/     # RFC 6901 JSON Pointer (foundation)
-├── json-schema/      # JSON Schema processor (analysis + validation + generation)
-├── parser/           # OpenAPI spec parser with schema integration
-├── shared/           # Common utilities and logging
-└── core/             # Main server logic (to be created)
+steady/
+├── src/              # Main server implementation 
+└── packages/
+    ├── json-pointer/ # RFC 6901 JSON Pointer (foundation)
+    ├── json-schema/  # JSON Schema processor (analysis + validation + generation)
+    ├── parser/       # OpenAPI spec parser with schema integration
+    └── shared/       # Common utilities and logging
 ```
 
 ## Package Responsibilities
@@ -535,7 +536,7 @@ packages/
   - Response generation from schemas
   - Error attribution (SDK vs spec issues)
 - **Dependencies**: json-pointer
-- **Used by**: parser, core
+- **Used by**: parser, src
 
 ### `parser/` - OpenAPI Parser
 - **Purpose**: Parse and validate OpenAPI 3.x specifications
@@ -546,7 +547,7 @@ packages/
   - Schema extraction and indexing
   - Endpoint discovery and indexing
 - **Dependencies**: json-pointer, json-schema
-- **Used by**: core
+- **Used by**: src
 
 ### `shared/` - Common Utilities
 - **Purpose**: Shared logging, types, and utilities
@@ -558,9 +559,9 @@ packages/
 - **Dependencies**: None
 - **Used by**: All packages
 
-### `core/` - Main Server Logic (To Be Created)
+### `src/` - Main Server Implementation
 - **Purpose**: HTTP server, request matching, response generation
-- **Status**: Not yet created
+- **Status**: Complete implementation
 - **Key capabilities**:
   - HTTP server implementation
   - Request routing and matching
@@ -568,7 +569,7 @@ packages/
   - Validation modes (strict/relaxed)
   - Error reporting with attribution
   - Health and diagnostic endpoints
-- **Dependencies**: parser, json-schema, shared
+- **Dependencies**: packages/parser, packages/json-schema, packages/shared
 
 ## Implementation Roadmap
 
@@ -617,15 +618,15 @@ packages/
 
 **Validation**: Parse massive spec with full schema analysis
 
-### Phase 5: Core Server Implementation
-**Goal**: Complete HTTP mock server
+### Phase 5: Server Integration
+**Goal**: Integrate enhanced JSON Schema processor into existing server
 
 **Tasks**:
-1. HTTP server with Deno native APIs
-2. Request routing and parameter extraction
-3. Response selection (examples → generated → errors)
-4. Validation modes and error reporting
-5. Special endpoints (health, spec)
+1. Update path parameter matching in src/server.ts
+2. Enable request body validation in src/validator.ts
+3. Integrate JSON Schema processor into src/parser.ts
+4. Add proper error attribution throughout
+5. Optimize performance for enterprise specs
 
 **Validation**: Full SDK testing workflows
 
