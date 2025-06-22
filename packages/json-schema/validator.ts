@@ -20,8 +20,8 @@ export class JsonSchemaValidator {
     this.options = {
       dialect: "https://json-schema.org/draft/2020-12/schema",
       strict: true,
-      validateFormats: true,
-      allowUnknownFormats: false,
+      validateFormats: false, // Format validation is annotation-only by default in 2020-12
+      allowUnknownFormats: true,
       ...options,
     };
   }
@@ -394,23 +394,21 @@ export class JsonSchemaValidator {
     }
 
     if (schema.uniqueItems === true) {
-      const seen = new Set();
+      // Use proper deep equality that ignores property order
       for (let i = 0; i < data.length; i++) {
-        const item = JSON.stringify(data[i]);
-        if (seen.has(item)) {
-          errors.push({
-            instancePath: `${instancePath}/${i}`,
-            schemaPath: `${schemaPath}/uniqueItems`,
-            keyword: "uniqueItems",
-            message: `must NOT have duplicate items (items ## ${
-              Array.from(seen).indexOf(item)
-            } and ${i} are identical)`,
-            params: { i, j: Array.from(seen).indexOf(item) },
-            schema: true,
-            data: data[i],
-          });
+        for (let j = i + 1; j < data.length; j++) {
+          if (this.deepEqual(data[i], data[j])) {
+            errors.push({
+              instancePath: `${instancePath}/${j}`,
+              schemaPath: `${schemaPath}/uniqueItems`,
+              keyword: "uniqueItems",
+              message: `must NOT have duplicate items (items ## ${i} and ${j} are identical)`,
+              params: { i, j },
+              schema: true,
+              data: data[j],
+            });
+          }
         }
-        seen.add(item);
       }
     }
 
@@ -913,8 +911,44 @@ export class JsonSchemaValidator {
       case "email":
         isValid = this.isValidEmail(data);
         break;
+      case "idn-email":
+        isValid = this.isValidIdnEmail(data);
+        break;
+      case "hostname":
+        isValid = this.isValidHostname(data);
+        break;
+      case "idn-hostname":
+        isValid = this.isValidIdnHostname(data);
+        break;
+      case "ipv4":
+        isValid = this.isValidIpv4(data);
+        break;
+      case "ipv6":
+        isValid = this.isValidIpv6(data);
+        break;
       case "uri":
         isValid = this.isValidUri(data);
+        break;
+      case "uri-reference":
+        isValid = this.isValidUriReference(data);
+        break;
+      case "iri":
+        isValid = this.isValidIri(data);
+        break;
+      case "iri-reference":
+        isValid = this.isValidIriReference(data);
+        break;
+      case "uri-template":
+        isValid = this.isValidUriTemplate(data);
+        break;
+      case "json-pointer":
+        isValid = this.isValidJsonPointer(data);
+        break;
+      case "relative-json-pointer":
+        isValid = this.isValidRelativeJsonPointer(data);
+        break;
+      case "regex":
+        isValid = this.isValidRegex(data);
         break;
       case "date-time":
         isValid = this.isValidDateTime(data);
@@ -924,6 +958,9 @@ export class JsonSchemaValidator {
         break;
       case "time":
         isValid = this.isValidTime(data);
+        break;
+      case "duration":
+        isValid = this.isValidDuration(data);
         break;
       case "uuid":
         isValid = this.isValidUuid(data);
@@ -1080,6 +1117,193 @@ export class JsonSchemaValidator {
     }
 
     return true;
+  }
+
+  private isValidIdnEmail(email: string): boolean {
+    // For now, treat IDN email same as regular email
+    // Full IDN support would require Unicode normalization
+    return this.isValidEmail(email);
+  }
+
+  private isValidHostname(hostname: string): boolean {
+    if (hostname.length === 0 || hostname.length > 253) return false;
+    if (hostname.endsWith(".")) {
+      hostname = hostname.slice(0, -1);
+    }
+    
+    const labels = hostname.split(".");
+    for (const label of labels) {
+      if (label.length === 0 || label.length > 63) return false;
+      if (label.startsWith("-") || label.endsWith("-")) return false;
+      if (!/^[a-zA-Z0-9-]+$/.test(label)) return false;
+    }
+    
+    return true;
+  }
+
+  private isValidIdnHostname(hostname: string): boolean {
+    // For now, treat IDN hostname same as regular hostname
+    // Full IDN support would require Unicode normalization
+    return this.isValidHostname(hostname);
+  }
+
+  private isValidIpv4(ip: string): boolean {
+    const parts = ip.split(".");
+    if (parts.length !== 4) return false;
+    
+    for (const part of parts) {
+      if (part.length === 0) return false;
+      if (part.length > 1 && part.startsWith("0")) return false; // No leading zeros
+      const num = parseInt(part, 10);
+      if (isNaN(num) || num < 0 || num > 255) return false;
+      if (num.toString() !== part) return false; // Ensure no extra characters
+    }
+    
+    return true;
+  }
+
+  private isValidIpv6(ip: string): boolean {
+    // Basic IPv6 validation - handles most common cases
+    if (ip.includes("::")) {
+      const parts = ip.split("::");
+      if (parts.length !== 2) return false;
+      
+      const left = parts[0] ? parts[0].split(":") : [];
+      const right = parts[1] ? parts[1].split(":") : [];
+      
+      if (left.length + right.length > 6) return false;
+      
+      for (const part of [...left, ...right]) {
+        if (part.length === 0) continue;
+        if (part.length > 4) return false;
+        if (!/^[0-9a-fA-F]+$/.test(part)) return false;
+      }
+    } else {
+      const parts = ip.split(":");
+      if (parts.length !== 8) return false;
+      
+      for (const part of parts) {
+        if (part.length === 0 || part.length > 4) return false;
+        if (!/^[0-9a-fA-F]+$/.test(part)) return false;
+      }
+    }
+    
+    return true;
+  }
+
+  private isValidUriReference(uri: string): boolean {
+    // URI reference can be absolute URI or relative reference
+    if (uri.length === 0) return true; // Empty string is valid relative reference
+    
+    try {
+      // Try as absolute URI
+      new URL(uri);
+      return true;
+    } catch {
+      // Check as relative reference - basic validation
+      return !/[\x00-\x20\x7f-\xff]/.test(uri);
+    }
+  }
+
+  private isValidIri(iri: string): boolean {
+    // For now, treat IRI same as URI
+    // Full IRI support would require Unicode character validation
+    return this.isValidUri(iri);
+  }
+
+  private isValidIriReference(iri: string): boolean {
+    // For now, treat IRI reference same as URI reference
+    return this.isValidUriReference(iri);
+  }
+
+  private isValidUriTemplate(template: string): boolean {
+    // Basic URI template validation (RFC 6570)
+    // Check for properly formed expressions
+    let braceDepth = 0;
+    for (let i = 0; i < template.length; i++) {
+      const char = template[i];
+      if (char === "{") {
+        braceDepth++;
+        if (braceDepth > 1) return false; // No nested braces
+      } else if (char === "}") {
+        braceDepth--;
+        if (braceDepth < 0) return false; // Unmatched closing brace
+      }
+    }
+    return braceDepth === 0; // All braces must be matched
+  }
+
+  private isValidJsonPointer(pointer: string): boolean {
+    // JSON Pointer must start with "/" or be empty
+    if (pointer === "") return true;
+    if (!pointer.startsWith("/")) return false;
+    
+    // Check for proper escaping
+    const segments = pointer.split("/").slice(1);
+    for (const segment of segments) {
+      // Check for unescaped ~ that's not ~0 or ~1
+      for (let i = 0; i < segment.length; i++) {
+        if (segment[i] === "~") {
+          if (i === segment.length - 1) return false; // ~ at end
+          const next = segment[i + 1];
+          if (next !== "0" && next !== "1") return false; // Invalid escape
+        }
+      }
+    }
+    
+    return true;
+  }
+
+  private isValidRelativeJsonPointer(pointer: string): boolean {
+    // Relative JSON Pointer starts with non-negative integer
+    if (pointer.length === 0) return false;
+    
+    let i = 0;
+    // Parse non-negative integer
+    if (pointer[0] === "0") {
+      i = 1;
+    } else if (pointer[0] >= "1" && pointer[0] <= "9") {
+      i = 1;
+      while (i < pointer.length && pointer[i] >= "0" && pointer[i] <= "9") {
+        i++;
+      }
+    } else {
+      return false;
+    }
+    
+    // Rest must be empty or valid JSON pointer
+    const rest = pointer.slice(i);
+    return rest === "" || rest === "#" || this.isValidJsonPointer(rest);
+  }
+
+  private isValidRegex(pattern: string): boolean {
+    try {
+      new RegExp(pattern);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private isValidDuration(duration: string): boolean {
+    // ISO 8601 duration format: P[n]Y[n]M[n]DT[n]H[n]M[n]S
+    if (!duration.startsWith("P")) return false;
+    
+    const regex = /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/;
+    const match = duration.match(regex);
+    
+    if (!match) return false;
+    
+    // Must have at least one component
+    const hasDateComponent = match[1] || match[2] || match[3];
+    const hasTimeComponent = match[4] || match[5] || match[6];
+    
+    if (duration.includes("T")) {
+      // If T is present, must have time component
+      return hasTimeComponent;
+    }
+    
+    return hasDateComponent || hasTimeComponent;
   }
 
   private getType(data: unknown): SchemaType {
