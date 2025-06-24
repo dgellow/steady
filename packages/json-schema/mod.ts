@@ -9,8 +9,7 @@
  * - Error attribution (SDK vs spec)
  */
 
-// Legacy validator (for backward compatibility)
-export { JsonSchemaValidator } from "./validator.ts";
+// Legacy validator removed - use JsonSchemaProcessor instead
 
 // New processor architecture
 export { JsonSchemaProcessor } from "./processor.ts";

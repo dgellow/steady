@@ -49,7 +49,7 @@ export class JsonSchemaProcessor {
         valid: false,
         errors: this.convertToSchemaErrors(metaschemaResult.errors),
         warnings,
-        metadata: this.extractBasicMetadata(schemaObject),
+        // No metadata for invalid schemas
       };
     }
     
@@ -75,19 +75,27 @@ export class JsonSchemaProcessor {
           message: warn,
           location: "#",
         })),
-        metadata: this.extractBasicMetadata(schemaObject),
+        // No metadata for invalid schemas
       };
     }
     
     // 3. Build indexes for O(1) runtime operations
+    // Detect circular references in the dependency graph
+    const cyclicRefs = new Set<string>();
+    for (const cycle of resolveResult.cycles) {
+      for (const ref of cycle) {
+        cyclicRefs.add(ref);
+      }
+    }
+    
     const refs: ProcessedSchema["refs"] = {
       resolved: resolveResult.resolved,
       graph: {
-        nodes: new Set(resolveResult.resolved.keys()),
-        edges: new Map(),
-        cycles: [],
+        nodes: resolveResult.dependencyGraph.nodes,
+        edges: resolveResult.dependencyGraph.edges,
+        cycles: resolveResult.cycles,
       },
-      cyclic: new Set(),
+      cyclic: cyclicRefs,
     };
     
     const indexed = this.indexer.index(
@@ -99,7 +107,11 @@ export class JsonSchemaProcessor {
     // 4. Analyze complexity and add warnings
     const complexityWarnings = this.analyzeComplexity(indexed);
     warnings.push(...complexityWarnings);
-    warnings.push(...resolveResult.warnings);
+    warnings.push(...resolveResult.warnings.map(warn => ({
+      type: "performance-concern" as const,
+      message: warn,
+      location: "#",
+    })));
     
     return {
       valid: true,
@@ -293,21 +305,5 @@ export class JsonSchemaProcessor {
       type: "metaschema-violation" as const,
       suggestion: "Fix the schema to comply with JSON Schema specification",
     }));
-  }
-  
-  private extractBasicMetadata(schemaObject: unknown): SchemaMetadata {
-    return {
-      totalSchemas: 1,
-      totalRefs: 0,
-      maxDepth: 0,
-      complexity: {
-        score: 0,
-        circularRefs: 0,
-        maxNesting: 0,
-        totalKeywords: 0,
-      },
-      formats: new Set(),
-      features: new Set(),
-    };
   }
 }

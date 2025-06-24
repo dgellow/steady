@@ -6,7 +6,7 @@
  */
 
 import type { ValidationResult, ValidationError } from "./types.ts";
-import { JsonSchemaValidator } from "./validator.ts";
+import { JsonSchemaValidator } from "./validator_legacy.ts";
 
 // JSON Schema 2020-12 metaschema (simplified for initial implementation)
 // In production, we'd load the full metaschema from the spec

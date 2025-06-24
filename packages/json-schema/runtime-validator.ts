@@ -320,7 +320,7 @@ export class RuntimeValidator {
         context.evaluated.items.add(i);
         this.validateWithSchema(
           data[i],
-          schema.prefixItems[i],
+          schema.prefixItems[i]!,
           {
             ...context,
             instancePath: `${context.instancePath}/${i}`,
@@ -498,7 +498,7 @@ export class RuntimeValidator {
         const tempErrors: ValidationError[] = [];
         this.validateWithSchema(
           data,
-          schema.anyOf[i],
+          schema.anyOf[i]!,
           {
             ...context,
             schemaPath: `${context.schemaPath}/anyOf/${i}`,
@@ -530,7 +530,7 @@ export class RuntimeValidator {
         const tempErrors: ValidationError[] = [];
         this.validateWithSchema(
           data,
-          schema.oneOf[i],
+          schema.oneOf[i]!,
           {
             ...context,
             schemaPath: `${context.schemaPath}/oneOf/${i}`,

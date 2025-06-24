@@ -19,14 +19,28 @@ interface ErrorPattern {
 }
 
 export class AttributionAnalyzer {
-  constructor(private schema: ProcessedSchema) {}
+  constructor(private readonly schema: ProcessedSchema) {}
   
   /**
    * Analyze validation errors to determine SDK vs spec issues
    */
   analyze(errors: ValidationError[], data: unknown): ErrorAttribution {
     if (errors.length === 0) {
-      return this.createAttribution("ambiguous", 0, "No errors to analyze", errors[0]);
+      // Return a default attribution when there are no errors
+      return {
+        type: "ambiguous",
+        confidence: 0,
+        reasoning: "No errors to analyze",
+        primaryError: {
+          keyword: "unknown",
+          instancePath: "",
+          schemaPath: "",
+          message: "No validation errors",
+          params: {},
+        },
+        suggestion: "No validation errors found",
+        relatedIssues: [],
+      };
     }
     
     // Collect error patterns
@@ -49,7 +63,7 @@ export class AttributionAnalyzer {
       "ambiguous",
       0.5,
       "Could not determine clear attribution - check both SDK and spec",
-      errors[0],
+      errors[0]!,
       "Review the validation errors and verify both your SDK implementation and OpenAPI specification",
     );
   }
@@ -104,7 +118,7 @@ export class AttributionAnalyzer {
         "sdk-error",
         0.9,
         "Consistent type mismatches indicate SDK serialization/deserialization issues",
-        errors[0],
+        errors[0]!,
         "Check your SDK's type conversions and serialization logic. The SDK is sending incorrect data types.",
       );
     }
@@ -115,7 +129,7 @@ export class AttributionAnalyzer {
         "sdk-error",
         0.85,
         "Missing multiple required fields suggests SDK is not properly constructing the request",
-        errors[0],
+        errors[0]!,
         "Verify the SDK is setting all required fields before sending the request.",
       );
     }
@@ -126,7 +140,7 @@ export class AttributionAnalyzer {
         "sdk-error",
         0.8,
         "Systematic null values suggest SDK is not handling optional fields correctly",
-        errors.find(e => e.keyword === "type" && e.data === null) || errors[0],
+        errors.find(e => e.keyword === "type" && e.data === null) || errors[0]!,
         "Check how your SDK handles optional vs required fields. Null may be sent for undefined values.",
       );
     }
@@ -137,7 +151,7 @@ export class AttributionAnalyzer {
         "sdk-error",
         0.85,
         "Multiple format errors of the same type indicate SDK formatting issues",
-        errors.find(e => e.keyword === "format") || errors[0],
+        errors.find(e => e.keyword === "format") || errors[0]!,
         "Review how your SDK formats data, especially dates, times, and other formatted strings.",
       );
     }
@@ -159,7 +173,7 @@ export class AttributionAnalyzer {
         "spec-error",
         0.8,
         "Schema constraints may be too restrictive for valid data",
-        errors[0],
+        errors[0]!,
         "Review the schema constraints - they may be more restrictive than intended.",
       );
     }
@@ -170,7 +184,7 @@ export class AttributionAnalyzer {
         "spec-error",
         0.85,
         "Schema has conflicting or impossible requirements",
-        errors[0],
+        errors[0]!,
         "Check for conflicting constraints in your schema (e.g., minLength > maxLength).",
       );
     }
@@ -181,7 +195,7 @@ export class AttributionAnalyzer {
         "spec-error",
         0.9,
         "Schema uses invalid or incorrectly formatted keywords",
-        errors[0],
+        errors[0]!,
         "Verify your schema uses valid JSON Schema keywords and syntax.",
       );
     }
@@ -192,7 +206,7 @@ export class AttributionAnalyzer {
         "spec-error",
         0.75,
         "Schema may be too strict about additional properties",
-        errors.find(e => e.keyword === "additionalProperties") || errors[0],
+        errors.find(e => e.keyword === "additionalProperties") || errors[0]!,
         "Consider if additionalProperties: false is too restrictive for your use case.",
       );
     }
@@ -205,7 +219,7 @@ export class AttributionAnalyzer {
    */
   private analyzeByErrorType(
     errors: ValidationError[],
-    data: unknown,
+    _data: unknown,
   ): ErrorAttribution | null {
     // Group errors by keyword
     const errorsByKeyword = new Map<string, ValidationError[]>();

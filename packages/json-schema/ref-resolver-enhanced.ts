@@ -49,7 +49,8 @@ export class ScaleAwareRefResolver extends RefResolver {
     resolved: Map<string, Schema | boolean>;
     errors: string[];
     warnings: string[];
-    metadata: any;
+    cycles: string[][];
+    dependencyGraph: DependencyGraph;
   }> {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -68,7 +69,7 @@ export class ScaleAwareRefResolver extends RefResolver {
     }
     
     // 3. Create resolution batches (topological sort with parallelization)
-    const batches = this.createResolutionBatches();
+    const batches = this.createResolutionBatches(refs);
     
     // 4. Resolve in optimal order
     for (const batch of batches) {
@@ -89,12 +90,8 @@ export class ScaleAwareRefResolver extends RefResolver {
       resolved,
       errors,
       warnings,
-      metadata: {
-        totalRefs: refs.length,
-        resolvedRefs: resolved.size,
-        cycles: cycles.length,
-        maxDepth: this.calculateMaxDepth(),
-      },
+      cycles,
+      dependencyGraph: this.dependencyGraph,
     };
   }
   
@@ -110,30 +107,52 @@ export class ScaleAwareRefResolver extends RefResolver {
     const refs: string[] = [];
     
     // Use a work queue to avoid stack overflow on deep schemas
-    const queue: Array<{ schema: Schema | boolean; path: string }> = [
+    const queue: Array<{ schema: Schema | boolean; path: string; defPath?: string }> = [
       { schema, path: "#" },
     ];
     
     while (queue.length > 0) {
-      const { schema: current, path } = queue.shift()!;
+      const { schema: current, path, defPath } = queue.shift()!;
       
       if (typeof current === "boolean") continue;
       
       // Extract $ref
-      if (current.$ref && !found.has(current.$ref)) {
-        refs.push(current.$ref);
-        found.add(current.$ref);
+      if (current.$ref) {
+        // Add to refs list only if not already found (for reference resolution)
+        if (!found.has(current.$ref)) {
+          refs.push(current.$ref);
+          found.add(current.$ref);
+        }
+        
+        // Always add nodes and edges for dependency graph (even for duplicate refs)
+        this.dependencyGraph.nodes.add(path);
         this.dependencyGraph.nodes.add(current.$ref);
         
-        // Track dependency
+        // For dependency graph, we need to track which schema definition contains this reference
+        // If this ref is inside a $defs definition, the edge should be from that definition
+        const sourceNode = defPath || path;
+        
+        // Track dependency: sourceNode → ref target
+        if (!this.dependencyGraph.edges.has(sourceNode)) {
+          this.dependencyGraph.edges.set(sourceNode, new Set());
+        }
+        this.dependencyGraph.edges.get(sourceNode)!.add(current.$ref);
+      }
+      
+      // Queue all sub-schemas, propagating the current definition path
+      // Also add containment edges: current schema contains its sub-schemas
+      const subSchemas = this.queueSubSchemas(current, path, queue, defPath);
+      
+      // Add containment edges for cycle detection
+      for (const subSchemaPath of subSchemas) {
+        this.dependencyGraph.nodes.add(path);
+        this.dependencyGraph.nodes.add(subSchemaPath);
+        
         if (!this.dependencyGraph.edges.has(path)) {
           this.dependencyGraph.edges.set(path, new Set());
         }
-        this.dependencyGraph.edges.get(path)!.add(current.$ref);
+        this.dependencyGraph.edges.get(path)!.add(subSchemaPath);
       }
-      
-      // Queue all sub-schemas
-      this.queueSubSchemas(current, path, queue);
     }
     
     return refs;
@@ -141,12 +160,14 @@ export class ScaleAwareRefResolver extends RefResolver {
   
   /**
    * Queue sub-schemas for processing (avoiding recursion)
+   * Returns the list of sub-schema paths for containment edge tracking
    */
   private queueSubSchemas(
     schema: Schema,
     basePath: string,
-    queue: Array<{ schema: Schema | boolean; path: string }>,
-  ): void {
+    queue: Array<{ schema: Schema | boolean; path: string; defPath?: string }>,
+    currentDefPath?: string,
+  ): string[] {
     // All possible schema locations
     const locations: Array<[string, Schema | boolean | undefined]> = [
       ...Object.entries(schema.$defs || {}).map(([k, v]) => [`$defs/${k}`, v] as [string, Schema | boolean]),
@@ -202,15 +223,32 @@ export class ScaleAwareRefResolver extends RefResolver {
       });
     }
     
-    // Queue all valid sub-schemas
+    // Queue all valid sub-schemas and track paths for containment edges
+    const subSchemaPaths: string[] = [];
+    
     for (const [pathSegment, subSchema] of locations) {
       if (subSchema !== undefined) {
+        const fullPath = `${basePath}/${pathSegment}`;
+        
+        // Determine if this is a new definition that can be referenced
+        let newDefPath = currentDefPath;
+        if (pathSegment.startsWith('$defs/')) {
+          // This is a new schema definition - it becomes the source for any refs inside it
+          newDefPath = fullPath;
+        }
+        
         queue.push({
           schema: subSchema,
-          path: `${basePath}/${pathSegment}`,
+          path: fullPath,
+          defPath: newDefPath,
         });
+        
+        // Track this sub-schema path for containment edge
+        subSchemaPaths.push(fullPath);
       }
     }
+    
+    return subSchemaPaths;
   }
   
   /**
@@ -268,25 +306,28 @@ export class ScaleAwareRefResolver extends RefResolver {
   /**
    * Create optimal resolution batches
    */
-  private createResolutionBatches(): ResolutionBatch[] {
+  private createResolutionBatches(refsToResolve: string[]): ResolutionBatch[] {
     const batches: ResolutionBatch[] = [];
     const resolved = new Set<string>();
     const inDegree = new Map<string, number>();
     
-    // Calculate in-degrees
-    for (const node of this.dependencyGraph.nodes) {
-      inDegree.set(node, 0);
+    // Calculate in-degrees only for refs we need to resolve
+    const refSet = new Set(refsToResolve);
+    for (const ref of refsToResolve) {
+      inDegree.set(ref, 0);
     }
     
-    for (const edges of this.dependencyGraph.edges.values()) {
-      for (const target of edges) {
-        inDegree.set(target, (inDegree.get(target) || 0) + 1);
+    for (const [source, targets] of this.dependencyGraph.edges) {
+      for (const target of targets) {
+        if (refSet.has(target)) {
+          inDegree.set(target, (inDegree.get(target) || 0) + 1);
+        }
       }
     }
     
     // Kahn's algorithm with batching
     let priority = 0;
-    while (resolved.size < this.dependencyGraph.nodes.size) {
+    while (resolved.size < refsToResolve.length) {
       const batch: string[] = [];
       
       // Find all nodes with no dependencies
@@ -297,10 +338,10 @@ export class ScaleAwareRefResolver extends RefResolver {
       }
       
       if (batch.length === 0) {
-        // Handle cycles - take any unresolved node
-        for (const node of this.dependencyGraph.nodes) {
-          if (!resolved.has(node)) {
-            batch.push(node);
+        // Handle cycles - take any unresolved ref
+        for (const ref of refsToResolve) {
+          if (!resolved.has(ref)) {
+            batch.push(ref);
             break;
           }
         }

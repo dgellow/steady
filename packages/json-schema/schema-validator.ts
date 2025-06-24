@@ -63,7 +63,7 @@ export class SchemaValidator {
    */
   validateFirst(data: unknown): ValidationError | null {
     const result = this.validate(data);
-    return result.errors.length > 0 ? result.errors[0] : null;
+    return result.errors.length > 0 ? result.errors[0]! : null;
   }
   
   /**
@@ -73,7 +73,7 @@ export class SchemaValidator {
     const result = this.validate(data);
     if (!result.valid) {
       const error = new Error(
-        `Validation failed: ${result.errors[0].message} at ${result.errors[0].instancePath || "root"}`
+        `Validation failed: ${result.errors[0]!.message} at ${result.errors[0]!.instancePath || "root"}`
       );
       (error as any).validationResult = result;
       throw error;

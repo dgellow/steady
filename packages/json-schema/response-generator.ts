@@ -16,7 +16,9 @@ import type {
 
 // Default random generator using Math.random
 class DefaultRandomGenerator implements RandomGenerator {
-  constructor(private seed?: number) {
+  private seed: number;
+  
+  constructor(seed?: number) {
     // Simple seedable random if seed provided
     this.seed = seed ?? Math.random() * 1000000;
   }
@@ -37,7 +39,7 @@ class DefaultRandomGenerator implements RandomGenerator {
   }
   
   pick<T>(array: T[]): T {
-    return array[Math.floor(this.next() * array.length)];
+    return array[Math.floor(this.next() * array.length)]!;
   }
 }
 
@@ -173,7 +175,7 @@ export class ResponseGenerator {
       if (Array.isArray(schema.type)) {
         // Pick first non-null type
         const nonNullTypes = schema.type.filter(t => t !== "null");
-        return nonNullTypes.length > 0 ? nonNullTypes[0] : "null";
+        return nonNullTypes.length > 0 ? nonNullTypes[0]! : null;
       }
       return schema.type;
     }
@@ -233,7 +235,8 @@ export class ResponseGenerator {
   private generateString(schema: Schema, context: GenerateContext): string {
     // Handle format-specific generation
     if (schema.format && this.options.formats?.[schema.format]) {
-      return this.options.formats[schema.format](context);
+      const formatter = this.options.formats[schema.format]!;
+      return formatter(context) as string;
     }
     
     // Built-in format generators
@@ -268,7 +271,7 @@ export class ResponseGenerator {
       case "date":
         return new Date(Date.now() - Math.floor(context.random.next() * 365 * 24 * 60 * 60 * 1000))
           .toISOString()
-          .split("T")[0];
+          .split("T")[0]!;
         
       case "time":
         const hours = Math.floor(context.random.next() * 24);
@@ -347,7 +350,7 @@ export class ResponseGenerator {
     if (schema.prefixItems) {
       for (let i = 0; i < schema.prefixItems.length && i < length; i++) {
         array.push(this.generateFromSchema(
-          schema.prefixItems[i],
+          schema.prefixItems[i]!,
           `${pointer}/prefixItems/${i}`,
           { ...context, depth: context.depth + 1 },
         ));

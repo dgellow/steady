@@ -238,7 +238,7 @@ export interface SchemaProcessResult {
   schema?: ProcessedSchema;
   errors: SchemaError[];
   warnings: SchemaWarning[];
-  metadata: SchemaMetadata;
+  metadata?: SchemaMetadata;  // Only present when processing succeeds
 }
 
 export interface SchemaError extends ValidationError {

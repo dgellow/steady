@@ -8,7 +8,6 @@
 import type {
   Schema,
   ProcessedSchema,
-  SchemaType,
   SchemaSource,
   SchemaMetadata,
   ComplexityMetrics,
@@ -411,10 +410,10 @@ export class SchemaIndexer {
       index.byPointer.size * 5 +           // Base complexity per schema
       refs.resolved.size * 10 +            // References add complexity
       refs.cyclic.size * 50 +              // Circular refs are complex
-      index.byKeyword.get("allOf")?.size || 0 * 20 +    // Composition is complex
-      index.byKeyword.get("anyOf")?.size || 0 * 15 +
-      index.byKeyword.get("oneOf")?.size || 0 * 15 +
-      index.byKeyword.get("if")?.size || 0 * 25;        // Conditionals are complex
+      (index.byKeyword.get("allOf")?.size || 0) * 20 +    // Composition is complex
+      (index.byKeyword.get("anyOf")?.size || 0) * 15 +
+      (index.byKeyword.get("oneOf")?.size || 0) * 15 +
+      (index.byKeyword.get("if")?.size || 0) * 25;        // Conditionals are complex
     
     return {
       score,
