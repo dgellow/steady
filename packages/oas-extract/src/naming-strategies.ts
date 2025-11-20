@@ -89,11 +89,12 @@ export function getTemperature(
       // Selection mechanism provides some consistency improvement
       return 0.3;
 
-    case "decay":
+    case "decay": {
       // Starts creative, becomes deterministic over time
       // Useful for large APIs to explore patterns then lock them in
       const progress = context.batchIndex / context.totalBatches;
       return strategy.initial * Math.pow(strategy.rate, progress);
+    }
   }
 }
 
