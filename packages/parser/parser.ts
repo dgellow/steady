@@ -4,7 +4,7 @@ import { ParseError, ValidationError } from "./errors.ts";
 import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
 import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
 
-const metaschema = metaschemaJson as Schema;
+const metaschema = metaschemaJson as unknown as Schema;
 
 export async function parseSpec(path: string): Promise<OpenAPISpec> {
   // Check if file exists

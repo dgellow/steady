@@ -23,7 +23,7 @@ export class MetaschemaValidator {
   /**
    * Validate a schema against the JSON Schema metaschema
    */
-  async validate(schemaObject: unknown, metaschema: Schema): Promise<ValidationResult> {
+  validate(schemaObject: unknown, metaschema: Schema): ValidationResult {
     // First, check if it's a valid JSON value
     if (schemaObject === undefined) {
       return {
