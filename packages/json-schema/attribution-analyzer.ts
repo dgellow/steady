@@ -309,7 +309,7 @@ export class AttributionAnalyzer {
   /**
    * Helper: Check for systematic null values
    */
-  private hasSystematicNulls(errors: ValidationError[], data: unknown): boolean {
+  private hasSystematicNulls(errors: ValidationError[], _data: unknown): boolean {
     const nullErrors = errors.filter(e => e.data === null);
     return nullErrors.length > 2;
   }
@@ -317,7 +317,7 @@ export class AttributionAnalyzer {
   /**
    * Helper: Check for consistent format errors
    */
-  private hasConsistentFormatErrors(patterns: ErrorPattern, errors: ValidationError[]): boolean {
+  private hasConsistentFormatErrors(_patterns: ErrorPattern, errors: ValidationError[]): boolean {
     const formatErrors = errors.filter(e => e.keyword === "format" || e.keyword === "pattern");
     if (formatErrors.length < 2) return false;
     
@@ -408,9 +408,9 @@ export class AttributionAnalyzer {
    * Helper: Check if rejecting valid additional properties
    */
   private isRejectingValidAdditionalProperties(
-    patterns: ErrorPattern,
+    _patterns: ErrorPattern,
     errors: ValidationError[],
-    data: unknown,
+    _data: unknown,
   ): boolean {
     const additionalPropErrors = errors.filter(e => e.keyword === "additionalProperties");
     if (additionalPropErrors.length === 0) return false;
