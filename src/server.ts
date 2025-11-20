@@ -12,7 +12,7 @@ import {
   RequestLogger,
   startInkSimpleLogger,
 } from "@steady/shared";
-import { RequestValidator } from "./validator.ts";
+import { RequestValidator } from "./validator_legacy.ts";
 
 // ANSI colors for startup message
 const BOLD = "\x1b[1m";

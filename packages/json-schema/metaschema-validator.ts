@@ -43,7 +43,7 @@ export class MetaschemaValidator {
     
     // Enhance errors with better messages for common issues
     if (!result.valid) {
-      result.errors = this.enhanceErrors(result.errors, schemaObject);
+      result.errors = this.enhanceErrors(result.errors);
     }
     
     // Additional semantic validation
@@ -59,7 +59,7 @@ export class MetaschemaValidator {
   /**
    * Enhance error messages with schema-specific context
    */
-  private enhanceErrors(errors: ValidationError[], schema: unknown): ValidationError[] {
+  private enhanceErrors(errors: ValidationError[]): ValidationError[] {
     return errors.map(error => {
       const enhanced = { ...error };
       
