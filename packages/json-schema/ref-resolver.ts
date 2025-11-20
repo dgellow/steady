@@ -333,7 +333,7 @@ export class RefResolver {
    * Handle external references (http://..., relative paths, etc.)
    * Parses and identifies external references without resolving them
    */
-  private resolveExternalRef(ref: string, baseUri?: string): ResolvedReference {
+  private resolveExternalRef(ref: string, _baseUri?: string): ResolvedReference {
     // Parse the external reference
     const externalRefInfo = this.parseExternalRef(ref);
     
