@@ -1,7 +1,5 @@
 import type { GeminiClient } from "./llm.ts";
 import type {
-  NamingContext,
-  NamingResult,
   NamingStrategy,
 } from "./naming-strategies.ts";
 import type { DeduplicationDecision, SchemaGroup } from "./deduplicator.ts";
@@ -149,7 +147,7 @@ function selectBest(
   // Select best decision for each group
   const results: DeduplicationDecision[] = [];
 
-  for (const [groupId, decisions] of groupedDecisions) {
+  for (const [_groupId, decisions] of groupedDecisions) {
     const selected = selection === "most-common"
       ? selectMostCommon(decisions)
       : selectBestScore(decisions);

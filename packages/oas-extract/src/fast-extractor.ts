@@ -3,7 +3,6 @@ import { GeminiClient } from "./llm.ts";
 import { SchemaNamer } from "./namer.ts";
 import { SpecTransformer } from "./transformer.ts";
 import { SemanticDeduplicator } from "./deduplicator.ts";
-import type { NamingStrategy } from "./naming-strategies.ts";
 import type {
   ExtractedSchema,
   ExtractionOptions,
