@@ -272,12 +272,13 @@ export class ResponseGenerator {
         return new Date(Date.now() - Math.floor(context.random.next() * 365 * 24 * 60 * 60 * 1000))
           .toISOString()
           .split("T")[0]!;
-        
-      case "time":
+
+      case "time": {
         const hours = Math.floor(context.random.next() * 24);
         const minutes = Math.floor(context.random.next() * 60);
         const seconds = Math.floor(context.random.next() * 60);
         return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+      }
         
       case "email":
         return `user${Math.floor(context.random.next() * 1000)}@example.com`;
@@ -442,7 +443,7 @@ export class ResponseGenerator {
     // Generate additional properties
     if (schema.properties) {
       for (const [prop, propSchema] of Object.entries(schema.properties)) {
-        if (!obj.hasOwnProperty(prop)) {
+        if (!Object.prototype.hasOwnProperty.call(obj, prop)) {
           // Optional property - include based on random chance
           if (context.random.next() > 0.5) {
             obj[prop] = this.generateFromSchema(
