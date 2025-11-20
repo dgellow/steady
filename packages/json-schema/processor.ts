@@ -13,9 +13,6 @@ import type {
   ProcessedSchema,
   SchemaError,
   SchemaWarning,
-  SchemaMetadata,
-  ComplexityMetrics,
-  DependencyGraph,
   SchemaSource,
 } from "./types.ts";
 import { MetaschemaValidator } from "./metaschema-validator.ts";
@@ -39,7 +36,6 @@ export class JsonSchemaProcessor {
     schemaObject: unknown,
     source?: SchemaSource,
   ): Promise<SchemaProcessResult> {
-    const errors: SchemaError[] = [];
     const warnings: SchemaWarning[] = [];
     
     // 1. Validate against metaschema
@@ -301,7 +297,7 @@ export class JsonSchemaProcessor {
     return warnings;
   }
   
-  private convertToSchemaErrors(errors: any[]): SchemaError[] {
+  private convertToSchemaErrors(errors: SchemaError[]): SchemaError[] {
     return errors.map(err => ({
       ...err,
       type: "metaschema-violation" as const,
