@@ -70,14 +70,14 @@ export class RefResolver {
    * Resolve a $ref within the current context
    * Designed to be easily cacheable/memoizable later
    */
-  resolve(ref: string): ResolvedReference {
+  resolve(ref: string, baseUri?: string): ResolvedReference {
     // Handle different types of references
     if (ref.startsWith('#')) {
       return this.resolveInternalRef(ref);
     }
     
     if (this.isExternalRef(ref)) {
-      return this.resolveExternalRef(ref);
+      return this.resolveExternalRef(ref, baseUri);
     }
     
     // Handle relative $id references (e.g., "node" should find schema with $id: "node")
@@ -333,7 +333,7 @@ export class RefResolver {
    * Handle external references (http://..., relative paths, etc.)
    * Parses and identifies external references without resolving them
    */
-  private resolveExternalRef(ref: string): ResolvedReference {
+  private resolveExternalRef(ref: string, baseUri?: string): ResolvedReference {
     // Parse the external reference
     const externalRefInfo = this.parseExternalRef(ref);
     

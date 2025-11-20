@@ -216,6 +216,8 @@ export interface ComplexityMetrics {
 }
 
 export interface SchemaSource {
+  metaschema?: Schema;
+  baseUri?: string;
   file?: string;
   location?: string;      // JSON Pointer in OpenAPI spec
   lineNumbers?: Map<string, LineInfo>; // For rich error messages

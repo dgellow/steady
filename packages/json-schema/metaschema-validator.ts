@@ -5,142 +5,8 @@
  * Critical for providing clear error messages when schemas are malformed.
  */
 
-import type { ValidationResult, ValidationError } from "./types.ts";
+import type { ValidationResult, ValidationError, Schema } from "./types.ts";
 import { JsonSchemaValidator } from "./validator_legacy.ts";
-
-// JSON Schema 2020-12 metaschema (simplified for initial implementation)
-// In production, we'd load the full metaschema from the spec
-const METASCHEMA_2020_12 = {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://json-schema.org/draft/2020-12/schema",
-  "$vocabulary": {
-    "https://json-schema.org/draft/2020-12/vocab/core": true,
-    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
-    "https://json-schema.org/draft/2020-12/vocab/validation": true,
-    "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
-    "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
-    "https://json-schema.org/draft/2020-12/vocab/content": true,
-    "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
-  },
-  "type": ["object", "boolean"],
-  "properties": {
-    // Core vocabulary
-    "$id": { "type": "string", "format": "uri-reference" },
-    "$schema": { "type": "string", "format": "uri" },
-    "$ref": { "type": "string", "format": "uri-reference" },
-    "$anchor": { "type": "string", "pattern": "^[A-Za-z_][-A-Za-z0-9._]*$" },
-    "$dynamicRef": { "type": "string", "format": "uri-reference" },
-    "$dynamicAnchor": { "type": "string", "pattern": "^[A-Za-z_][-A-Za-z0-9._]*$" },
-    "$vocabulary": { "type": "object", "additionalProperties": { "type": "boolean" } },
-    "$comment": { "type": "string" },
-    "$defs": { "type": "object", "additionalProperties": { "$ref": "#" } },
-    
-    // Metadata
-    "title": { "type": "string" },
-    "description": { "type": "string" },
-    "default": {},
-    "deprecated": { "type": "boolean" },
-    "readOnly": { "type": "boolean" },
-    "writeOnly": { "type": "boolean" },
-    "examples": { "type": "array" },
-    
-    // Type validation
-    "type": {
-      "anyOf": [
-        { "$ref": "#/$defs/simpleTypes" },
-        {
-          "type": "array",
-          "items": { "$ref": "#/$defs/simpleTypes" },
-          "minItems": 1,
-          "uniqueItems": true,
-        },
-      ],
-    },
-    "enum": { "type": "array", "minItems": 1 },
-    "const": {},
-    
-    // Numeric validation
-    "multipleOf": { "type": "number", "exclusiveMinimum": 0 },
-    "maximum": { "type": "number" },
-    "exclusiveMaximum": { "type": "number" },
-    "minimum": { "type": "number" },
-    "exclusiveMinimum": { "type": "number" },
-    
-    // String validation
-    "maxLength": { "$ref": "#/$defs/nonNegativeInteger" },
-    "minLength": { "$ref": "#/$defs/nonNegativeIntegerDefault0" },
-    "pattern": { "type": "string", "format": "regex" },
-    "format": { "type": "string" },
-    
-    // Array validation
-    "items": { "$ref": "#" },
-    "prefixItems": { "$ref": "#/$defs/schemaArray" },
-    "unevaluatedItems": { "$ref": "#" },
-    "contains": { "$ref": "#" },
-    "minContains": { "$ref": "#/$defs/nonNegativeInteger" },
-    "maxContains": { "$ref": "#/$defs/nonNegativeInteger" },
-    "maxItems": { "$ref": "#/$defs/nonNegativeInteger" },
-    "minItems": { "$ref": "#/$defs/nonNegativeIntegerDefault0" },
-    "uniqueItems": { "type": "boolean", "default": false },
-    
-    // Object validation
-    "properties": { "type": "object", "additionalProperties": { "$ref": "#" } },
-    "patternProperties": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#" },
-      "propertyNames": { "format": "regex" },
-    },
-    "additionalProperties": { "$ref": "#" },
-    "unevaluatedProperties": { "$ref": "#" },
-    "propertyNames": { "$ref": "#" },
-    "maxProperties": { "$ref": "#/$defs/nonNegativeInteger" },
-    "minProperties": { "$ref": "#/$defs/nonNegativeIntegerDefault0" },
-    "required": { "$ref": "#/$defs/stringArray" },
-    "dependentRequired": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/stringArray" },
-    },
-    "dependentSchemas": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#" },
-    },
-    
-    // Composition
-    "allOf": { "$ref": "#/$defs/schemaArray" },
-    "anyOf": { "$ref": "#/$defs/schemaArray" },
-    "oneOf": { "$ref": "#/$defs/schemaArray" },
-    "not": { "$ref": "#" },
-    
-    // Conditional
-    "if": { "$ref": "#" },
-    "then": { "$ref": "#" },
-    "else": { "$ref": "#" },
-  },
-  "$defs": {
-    "simpleTypes": {
-      "enum": ["array", "boolean", "integer", "null", "number", "object", "string"],
-    },
-    "nonNegativeInteger": {
-      "type": "integer",
-      "minimum": 0,
-    },
-    "nonNegativeIntegerDefault0": {
-      "type": "integer",
-      "minimum": 0,
-      "default": 0,
-    },
-    "stringArray": {
-      "type": "array",
-      "items": { "type": "string" },
-      "uniqueItems": true,
-      "default": [],
-    },
-    "schemaArray": {
-      "type": "array",
-      "items": { "$ref": "#" },
-    },
-  },
-};
 
 export class MetaschemaValidator {
   private validator: JsonSchemaValidator;
@@ -157,7 +23,7 @@ export class MetaschemaValidator {
   /**
    * Validate a schema against the JSON Schema metaschema
    */
-  async validate(schemaObject: unknown): Promise<ValidationResult> {
+  async validate(schemaObject: unknown, metaschema: Schema): Promise<ValidationResult> {
     // First, check if it's a valid JSON value
     if (schemaObject === undefined) {
       return {
@@ -173,7 +39,7 @@ export class MetaschemaValidator {
     }
     
     // Validate against metaschema
-    const result = this.validator.validate(METASCHEMA_2020_12, schemaObject);
+    const result = this.validator.validate(metaschema, schemaObject);
     
     // Enhance errors with better messages for common issues
     if (!result.valid) {

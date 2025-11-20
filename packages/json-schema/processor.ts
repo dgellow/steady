@@ -43,20 +43,22 @@ export class JsonSchemaProcessor {
     const warnings: SchemaWarning[] = [];
     
     // 1. Validate against metaschema
-    const metaschemaResult = await this.metaschemaValidator.validate(schemaObject);
-    if (!metaschemaResult.valid) {
-      return {
-        valid: false,
-        errors: this.convertToSchemaErrors(metaschemaResult.errors),
-        warnings,
-        // No metadata for invalid schemas
-      };
+    if (source?.metaschema) {
+      const metaschemaResult = await this.metaschemaValidator.validate(schemaObject, source.metaschema);
+      if (!metaschemaResult.valid) {
+        return {
+          valid: false,
+          errors: this.convertToSchemaErrors(metaschemaResult.errors),
+          warnings,
+          // No metadata for invalid schemas
+        };
+      }
     }
     
     const schema = schemaObject as Schema | boolean;
     
     // 2. Resolve all references efficiently
-    const resolver = new ScaleAwareRefResolver(schema);
+    const resolver = new ScaleAwareRefResolver(schema, source?.baseUri);
     const resolveResult = await resolver.resolveAll(schema);
     
     if (!resolveResult.success) {

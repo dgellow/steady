@@ -41,6 +41,10 @@ export class ScaleAwareRefResolver extends RefResolver {
   };
   private maxCacheSize = 10000; // Prevent unbounded memory growth
   
+  constructor(private schema: Schema | boolean, private baseUri?: string) {
+    super(schema);
+  }
+
   /**
    * Resolve all references in a schema efficiently
    */
@@ -416,7 +420,7 @@ export class ScaleAwareRefResolver extends RefResolver {
     }
     
     // Resolve
-    const result = this.resolve(ref);
+    const result = this.resolve(ref, this.baseUri);
     
     // Cache management - evict old entries if needed
     if (this.cache.size >= this.maxCacheSize) {
