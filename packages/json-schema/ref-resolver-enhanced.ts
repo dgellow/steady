@@ -9,7 +9,6 @@
  * - Better circular reference handling
  */
 
-import { resolve as resolvePointer, JsonPointerError } from "../json-pointer/mod.ts";
 import type { Schema, DependencyGraph } from "./types.ts";
 import { RefResolver, ResolvedReference } from "./ref-resolver.ts";
 
@@ -258,7 +257,7 @@ export class ScaleAwareRefResolver extends RefResolver {
   /**
    * Build dependency graph for resolution ordering
    */
-  private buildDependencyGraph(refs: string[]): void {
+  private buildDependencyGraph(_refs: string[]): void {
     // Graph is built during extraction
     // Here we could add additional analysis
   }
@@ -321,7 +320,7 @@ export class ScaleAwareRefResolver extends RefResolver {
       inDegree.set(ref, 0);
     }
     
-    for (const [source, targets] of this.dependencyGraph.edges) {
+    for (const [_source, targets] of this.dependencyGraph.edges) {
       for (const target of targets) {
         if (refSet.has(target)) {
           inDegree.set(target, (inDegree.get(target) || 0) + 1);
@@ -413,7 +412,7 @@ export class ScaleAwareRefResolver extends RefResolver {
   /**
    * Resolve with caching
    */
-  private async resolveCached(ref: string): Promise<ResolvedReference> {
+  private resolveCached(ref: string): ResolvedReference {
     // Check cache
     if (this.cache.has(ref)) {
       return this.cache.get(ref)!;
