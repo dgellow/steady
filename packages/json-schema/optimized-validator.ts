@@ -328,7 +328,7 @@ export class OptimizedJsonSchemaValidator {
     }
   }
 
-  private queuePropertyValidation(schema: Schema, data: unknown, key: string): void {
+  private queuePropertyValidation(schema: Schema, data: unknown, _key: string): void {
     // Add to work queue instead of recursive call
     this.workQueue.push({
       schema,
