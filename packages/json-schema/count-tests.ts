@@ -106,7 +106,7 @@ for (const file of testFiles) {
     if (fileFailures > 0) {
       console.log(`${file}: ${fileFailures} failures`);
     }
-  } catch (error) {
+  } catch (_error) {
     // Skip
   }
 }
