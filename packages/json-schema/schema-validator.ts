@@ -74,8 +74,8 @@ export class SchemaValidator {
     if (!result.valid) {
       const error = new Error(
         `Validation failed: ${result.errors[0]!.message} at ${result.errors[0]!.instancePath || "root"}`
-      );
-      (error as any).validationResult = result;
+      ) as Error & { validationResult: ValidationResult };
+      error.validationResult = result;
       throw error;
     }
   }
