@@ -63,12 +63,12 @@ class Benchmark {
     };
   }
 
-  async runBenchmark(
+  runBenchmark(
     name: string,
     schema: Schema,
     data: unknown,
     iterations: number = 1000
-  ): Promise<BenchmarkResult> {
+  ): BenchmarkResult {
     // Warm up
     for (let i = 0; i < 10; i++) {
       this.validator.validate(schema, data);
@@ -106,13 +106,13 @@ class Benchmark {
   private getMemoryUsage(): number {
     // Deno-specific memory usage
     try {
-      return (Deno as any).memoryUsage?.().heapUsed || 0;
+      return (Deno as { memoryUsage?: () => { heapUsed: number } }).memoryUsage?.().heapUsed || 0;
     } catch {
       return 0;
     }
   }
 
-  async runAllBenchmarks(): Promise<BenchmarkResult[]> {
+  runAllBenchmarks(): BenchmarkResult[] {
     const results: BenchmarkResult[] = [];
 
     console.log("🚀 Starting JSON Schema Validator Benchmarks...\n");
@@ -120,12 +120,12 @@ class Benchmark {
     // Simple validation
     const simpleSchema: Schema = { type: "string", minLength: 5 };
     const simpleData = "hello world";
-    results.push(await this.runBenchmark("Simple string validation", simpleSchema, simpleData, 10000));
+    results.push(this.runBenchmark("Simple string validation", simpleSchema, simpleData, 10000));
 
     // Complex object validation
     const complexSchema = this.generateComplexSchema();
     const complexData = this.generateLargeObject(1);
-    results.push(await this.runBenchmark("Complex object validation", complexSchema, complexData, 1000));
+    results.push(this.runBenchmark("Complex object validation", complexSchema, complexData, 1000));
 
     // Large object validation
     const largeSchema: Schema = {
@@ -136,7 +136,7 @@ class Benchmark {
       additionalProperties: false
     };
     const largeData = this.generateLargeObject(100);
-    results.push(await this.runBenchmark("Large object (100 props)", largeSchema, largeData, 100));
+    results.push(this.runBenchmark("Large object (100 props)", largeSchema, largeData, 100));
 
     // Array with uniqueItems (expensive)
     const arraySchema: Schema = {
@@ -145,7 +145,7 @@ class Benchmark {
       uniqueItems: true
     };
     const arrayData = Array.from({ length: 1000 }, (_, i) => ({ id: i, value: `item${i}` }));
-    results.push(await this.runBenchmark("Array uniqueItems (1000 items)", arraySchema, arrayData, 10));
+    results.push(this.runBenchmark("Array uniqueItems (1000 items)", arraySchema, arrayData, 10));
 
     // Deep nesting
     let deepSchema: Schema = { type: "string" };
@@ -156,11 +156,11 @@ class Benchmark {
         required: ["nested"]
       };
     }
-    let deepData: any = "deep value";
+    let deepData: unknown = "deep value";
     for (let i = 0; i < 50; i++) {
       deepData = { nested: deepData };
     }
-    results.push(await this.runBenchmark("Deep nesting (50 levels)", deepSchema, deepData, 100));
+    results.push(this.runBenchmark("Deep nesting (50 levels)", deepSchema, deepData, 100));
 
     return results;
   }
@@ -207,6 +207,6 @@ class Benchmark {
 
 if (import.meta.main) {
   const benchmark = new Benchmark();
-  const results = await benchmark.runAllBenchmarks();
+  const results = benchmark.runAllBenchmarks();
   benchmark.printResults(results);
 }
