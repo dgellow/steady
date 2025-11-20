@@ -1,10 +1,10 @@
 import { parse as parseYAML } from "https://deno.land/std@0.208.0/yaml/parse.ts";
 import { OpenAPISpec } from "./openapi.ts";
-import { ParseError, ValidationError } from "./errors.ts";
-import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
-import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
+import { ParseError } from "./errors.ts";
+// import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
+// import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
 
-const metaschema = metaschemaJson as unknown as Schema;
+// const metaschema = metaschemaJson as unknown as Schema;
 
 export async function parseSpec(path: string): Promise<OpenAPISpec> {
   // Check if file exists
