@@ -20,13 +20,11 @@ import type {
 import {
   JsonSchemaProcessor,
   SchemaValidator,
-  type ProcessedSchema,
   type Schema,
 } from "../packages/json-schema/mod.ts";
 
 export class RequestValidator {
   private schemaProcessors: Map<string, SchemaValidator> = new Map();
-  private processingCache: Map<SchemaObject, Promise<ProcessedSchema>> = new Map();
 
   constructor(
     private spec: OpenAPISpec,
