@@ -19,8 +19,8 @@ import type {
 } from "@steady/parser";
 import {
   JsonSchemaProcessor,
-  SchemaValidator,
   type Schema,
+  SchemaValidator,
 } from "../packages/json-schema/mod.ts";
 
 export class RequestValidator {
@@ -34,7 +34,7 @@ export class RequestValidator {
   async validateRequest(
     req: Request,
     operation: OperationObject,
-    pathPattern: string,
+    _pathPattern: string,
     pathParams: Record<string, string>,
   ): Promise<ValidationResult> {
     const errors: ValidationError[] = [];
@@ -54,7 +54,9 @@ export class RequestValidator {
 
     // Validate path parameters
     if (operation.parameters) {
-      const pathParamSpecs = operation.parameters.filter((p) => p.in === "path");
+      const pathParamSpecs = operation.parameters.filter((p) =>
+        p.in === "path"
+      );
       const pathValidation = await this.validatePathParams(
         pathParams,
         pathParamSpecs,
@@ -248,7 +250,10 @@ export class RequestValidator {
    */
   private async validateRequestBody(
     body: string,
-    requestBody: { required?: boolean; content?: Record<string, { schema?: SchemaObject }> },
+    requestBody: {
+      required?: boolean;
+      content?: Record<string, { schema?: SchemaObject }>;
+    },
     contentType: string,
   ): Promise<ValidationResult> {
     const errors: ValidationError[] = [];

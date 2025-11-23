@@ -152,10 +152,16 @@ export class MockServer {
 
     // Find matching path and operation
     try {
-      const { operation, statusCode, pathPattern, pathParams } = this.findOperation(path, method);
+      const { operation, statusCode, pathPattern, pathParams } = this
+        .findOperation(path, method);
 
       // Validate request (now async)
-      const validation = await this.validator.validateRequest(req, operation, pathPattern, pathParams);
+      const validation = await this.validator.validateRequest(
+        req,
+        operation,
+        pathPattern,
+        pathParams,
+      );
 
       // Log request (with validation if in details mode)
       this.logger.logRequest(req, path, method, validation);
@@ -255,7 +261,12 @@ export class MockServer {
   private findOperation(
     path: string,
     method: string,
-  ): { operation: OperationObject; statusCode: string; pathPattern: string; pathParams: Record<string, string> } {
+  ): {
+    operation: OperationObject;
+    statusCode: string;
+    pathPattern: string;
+    pathParams: Record<string, string>;
+  } {
     // Try exact match first (fast path)
     let pathItem = this.spec.paths[path];
     let pathPattern = path;
@@ -319,10 +330,13 @@ export class MockServer {
    * Supports path parameters like /users/{id}
    * Returns the extracted parameters if match, null otherwise
    */
-  private matchPath(requestPath: string, pattern: string): Record<string, string> | null {
+  private matchPath(
+    requestPath: string,
+    pattern: string,
+  ): Record<string, string> | null {
     // Split paths into segments
-    const requestSegments = requestPath.split("/").filter(s => s.length > 0);
-    const patternSegments = pattern.split("/").filter(s => s.length > 0);
+    const requestSegments = requestPath.split("/").filter((s) => s.length > 0);
+    const patternSegments = pattern.split("/").filter((s) => s.length > 0);
 
     // Must have same number of segments
     if (requestSegments.length !== patternSegments.length) {
