@@ -12,7 +12,7 @@ import {
   RequestLogger,
   startInkSimpleLogger,
 } from "@steady/shared";
-import { RequestValidator } from "./validator_legacy.ts";
+import { RequestValidator } from "./validator.ts";
 
 // ANSI colors for startup message
 const BOLD = "\x1b[1m";
@@ -135,7 +135,7 @@ export class MockServer {
     return methods;
   }
 
-  private handleRequest(req: Request): Response {
+  private async handleRequest(req: Request): Promise<Response> {
     const startTime = performance.now();
     const url = new URL(req.url);
     const method = req.method.toLowerCase();
@@ -152,10 +152,10 @@ export class MockServer {
 
     // Find matching path and operation
     try {
-      const { operation, statusCode } = this.findOperation(path, method);
+      const { operation, statusCode, pathPattern, pathParams } = this.findOperation(path, method);
 
-      // Validate request
-      const validation = this.validator.validateRequest(req, operation, path);
+      // Validate request (now async)
+      const validation = await this.validator.validateRequest(req, operation, pathPattern, pathParams);
 
       // Log request (with validation if in details mode)
       this.logger.logRequest(req, path, method, validation);
@@ -255,9 +255,24 @@ export class MockServer {
   private findOperation(
     path: string,
     method: string,
-  ): { operation: OperationObject; statusCode: string } {
-    // For MVP, just do exact path matching
-    const pathItem = this.spec.paths[path];
+  ): { operation: OperationObject; statusCode: string; pathPattern: string; pathParams: Record<string, string> } {
+    // Try exact match first (fast path)
+    let pathItem = this.spec.paths[path];
+    let pathPattern = path;
+    let pathParams: Record<string, string> = {};
+
+    if (!pathItem) {
+      // Try pattern matching with path parameters
+      for (const [pattern, item] of Object.entries(this.spec.paths)) {
+        const match = this.matchPath(path, pattern);
+        if (match) {
+          pathItem = item;
+          pathPattern = pattern;
+          pathParams = match;
+          break;
+        }
+      }
+    }
 
     if (!pathItem) {
       // List available paths for helpful error
@@ -291,12 +306,52 @@ export class MockServer {
       });
     }
 
-    // For MVP, always return 200 if it exists, otherwise first response
+    // Always return 200 if it exists, otherwise first response
     const statusCode = operation.responses["200"]
       ? "200"
       : Object.keys(operation.responses)[0] || "200";
 
-    return { operation, statusCode };
+    return { operation, statusCode, pathPattern, pathParams };
+  }
+
+  /**
+   * Match a request path against an OpenAPI path pattern
+   * Supports path parameters like /users/{id}
+   * Returns the extracted parameters if match, null otherwise
+   */
+  private matchPath(requestPath: string, pattern: string): Record<string, string> | null {
+    // Split paths into segments
+    const requestSegments = requestPath.split("/").filter(s => s.length > 0);
+    const patternSegments = pattern.split("/").filter(s => s.length > 0);
+
+    // Must have same number of segments
+    if (requestSegments.length !== patternSegments.length) {
+      return null;
+    }
+
+    const params: Record<string, string> = {};
+
+    // Match each segment
+    for (let i = 0; i < patternSegments.length; i++) {
+      const patternSeg = patternSegments[i];
+      const requestSeg = requestSegments[i];
+
+      if (!patternSeg || !requestSeg) {
+        return null;
+      }
+
+      // Check if this is a parameter (e.g., {id})
+      if (patternSeg.startsWith("{") && patternSeg.endsWith("}")) {
+        // Extract parameter name
+        const paramName = patternSeg.slice(1, -1);
+        params[paramName] = requestSeg;
+      } else if (patternSeg !== requestSeg) {
+        // Literal segment must match exactly
+        return null;
+      }
+    }
+
+    return params;
   }
 
   private generateResponse(
