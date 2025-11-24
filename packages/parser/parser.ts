@@ -112,5 +112,120 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
   //   });
   // }
 
+  // Basic structural validation
+  if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
+    throw new ParseError("Invalid OpenAPI spec", {
+      specFile: path,
+      errorType: "parse",
+      reason: "OpenAPI spec must be an object, not an array or primitive value",
+      suggestion: "Ensure your spec file contains a valid OpenAPI object",
+      examples: [
+        "openapi: 3.1.0",
+        "info:",
+        "  title: My API",
+        "  version: 1.0.0",
+        "paths: {}",
+      ],
+    });
+  }
+
+  const s = spec as Record<string, unknown>;
+
+  // Validate openapi version field
+  if (typeof s.openapi !== "string") {
+    throw new ParseError("Missing 'openapi' version field", {
+      specFile: path,
+      errorType: "parse",
+      reason:
+        "Every OpenAPI spec must have an 'openapi' field specifying the version",
+      suggestion: "Add the 'openapi' field at the top of your spec",
+      examples: [
+        'openapi: "3.1.0"  # For OpenAPI 3.1',
+        'openapi: "3.0.3"  # For OpenAPI 3.0',
+      ],
+    });
+  }
+
+  const version = s.openapi;
+  if (!version.startsWith("3.0.") && !version.startsWith("3.1.")) {
+    throw new ParseError(`Unsupported OpenAPI version: ${version}`, {
+      specFile: path,
+      errorType: "parse",
+      reason: "Steady only supports OpenAPI 3.0.x and 3.1.x specifications",
+      suggestion: version.startsWith("2.")
+        ? "Convert your Swagger 2.0 spec to OpenAPI 3.0+ using a migration tool"
+        : `Update your spec to use a supported OpenAPI version (found: ${version})`,
+      examples: [
+        'openapi: "3.1.0"',
+        'openapi: "3.0.3"',
+      ],
+    });
+  }
+
+  // Validate info object
+  if (!s.info || typeof s.info !== "object" || Array.isArray(s.info)) {
+    throw new ParseError("Missing or invalid 'info' object", {
+      specFile: path,
+      errorType: "parse",
+      reason: "OpenAPI spec must have an 'info' object with API metadata",
+      suggestion: "Add an 'info' object with title and version",
+      examples: [
+        "info:",
+        "  title: My API",
+        "  version: 1.0.0",
+        "  description: A description of my API",
+      ],
+    });
+  }
+
+  const info = s.info as Record<string, unknown>;
+  if (typeof info.title !== "string") {
+    throw new ParseError("Missing 'info.title' field", {
+      specFile: path,
+      errorType: "parse",
+      reason: "The info object must have a 'title' field describing the API",
+      suggestion: "Add a title to your info object",
+      examples: [
+        "info:",
+        "  title: My API",
+        "  version: 1.0.0",
+      ],
+    });
+  }
+
+  if (typeof info.version !== "string") {
+    throw new ParseError("Missing 'info.version' field", {
+      specFile: path,
+      errorType: "parse",
+      reason:
+        "The info object must have a 'version' field indicating the API version",
+      suggestion: "Add a version to your info object",
+      examples: [
+        "info:",
+        "  title: My API",
+        "  version: 1.0.0",
+      ],
+    });
+  }
+
+  // Validate paths object
+  if (!s.paths || typeof s.paths !== "object" || Array.isArray(s.paths)) {
+    throw new ParseError("Missing or invalid 'paths' object", {
+      specFile: path,
+      errorType: "parse",
+      reason:
+        "OpenAPI spec must have a 'paths' object defining the API endpoints",
+      suggestion: "Add a 'paths' object with your API endpoints",
+      examples: [
+        "paths:",
+        "  /users:",
+        "    get:",
+        "      responses:",
+        "        200:",
+        "          description: Success",
+      ],
+    });
+  }
+
   return spec as OpenAPISpec;
 }
