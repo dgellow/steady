@@ -1,16 +1,16 @@
 /**
  * Schema Indexer - Builds efficient indexes for runtime operations
- * 
+ *
  * Pre-computes various indexes to enable O(1) lookups during validation
  * and response generation. This is critical for performance with large schemas.
  */
 
 import type {
-  Schema,
-  ProcessedSchema,
-  SchemaSource,
-  SchemaMetadata,
   ComplexityMetrics,
+  ProcessedSchema,
+  Schema,
+  SchemaMetadata,
+  SchemaSource,
 } from "./types.ts";
 
 export class SchemaIndexer {
@@ -31,30 +31,32 @@ export class SchemaIndexer {
       byFormat: new Map(),
       byKeyword: new Map(),
     };
-    
+
     const formats = new Set<string>();
     const features = new Set<string>();
-    
+
     // Walk the schema tree once, building all indexes
     this.walkSchema(schema, "", (subSchema, pointer) => {
       // Add to pointer index
       index.byPointer.set(pointer, subSchema);
-      
+
       if (typeof subSchema === "boolean") return;
-      
+
       // ID index
       if (subSchema.$id) {
         index.byId.set(subSchema.$id, subSchema);
       }
-      
+
       // Anchor index
       if (subSchema.$anchor) {
         index.byAnchor.set(subSchema.$anchor, subSchema);
       }
-      
+
       // Type index
       if (subSchema.type) {
-        const types = Array.isArray(subSchema.type) ? subSchema.type : [subSchema.type];
+        const types = Array.isArray(subSchema.type)
+          ? subSchema.type
+          : [subSchema.type];
         for (const type of types) {
           if (!index.byType.has(type)) {
             index.byType.set(type, new Set());
@@ -62,7 +64,7 @@ export class SchemaIndexer {
           index.byType.get(type)!.add(pointer);
         }
       }
-      
+
       // Format index
       if (subSchema.format) {
         formats.add(subSchema.format);
@@ -71,16 +73,18 @@ export class SchemaIndexer {
         }
         index.byFormat.get(subSchema.format)!.add(pointer);
       }
-      
+
       // Keyword index for feature detection
       this.indexKeywords(subSchema, pointer, index.byKeyword, features);
-      
+
       // Track definitions
-      if (pointer.startsWith("#/$defs/") || pointer.startsWith("#/definitions/")) {
+      if (
+        pointer.startsWith("#/$defs/") || pointer.startsWith("#/definitions/")
+      ) {
         index.definitions.set(pointer, subSchema);
       }
     });
-    
+
     // Calculate metadata
     const metadata: SchemaMetadata = {
       totalSchemas: index.byPointer.size,
@@ -90,7 +94,7 @@ export class SchemaIndexer {
       formats,
       features,
     };
-    
+
     return {
       root: schema,
       refs,
@@ -99,7 +103,7 @@ export class SchemaIndexer {
       source: source || {},
     };
   }
-  
+
   /**
    * Walk the schema tree, calling visitor for each sub-schema
    */
@@ -112,12 +116,12 @@ export class SchemaIndexer {
     // Prevent infinite recursion
     if (visited.has(pointer)) return;
     visited.add(pointer);
-    
+
     // Visit current schema
     visitor(schema, pointer);
-    
+
     if (typeof schema === "boolean") return;
-    
+
     // Walk all possible schema locations
     if (schema.$defs) {
       for (const [key, subSchema] of Object.entries(schema.$defs)) {
@@ -129,7 +133,7 @@ export class SchemaIndexer {
         );
       }
     }
-    
+
     if (schema.properties) {
       for (const [key, subSchema] of Object.entries(schema.properties)) {
         this.walkSchema(
@@ -140,9 +144,11 @@ export class SchemaIndexer {
         );
       }
     }
-    
+
     if (schema.patternProperties) {
-      for (const [pattern, subSchema] of Object.entries(schema.patternProperties)) {
+      for (
+        const [pattern, subSchema] of Object.entries(schema.patternProperties)
+      ) {
         this.walkSchema(
           subSchema,
           `${pointer}/patternProperties/${this.escapeJsonPointer(pattern)}`,
@@ -151,8 +157,11 @@ export class SchemaIndexer {
         );
       }
     }
-    
-    if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
+
+    if (
+      schema.additionalProperties &&
+      typeof schema.additionalProperties === "object"
+    ) {
       this.walkSchema(
         schema.additionalProperties,
         `${pointer}/additionalProperties`,
@@ -160,7 +169,7 @@ export class SchemaIndexer {
         visited,
       );
     }
-    
+
     if (schema.items) {
       if (Array.isArray(schema.items)) {
         schema.items.forEach((subSchema, index) => {
@@ -180,7 +189,7 @@ export class SchemaIndexer {
         );
       }
     }
-    
+
     if (schema.prefixItems) {
       schema.prefixItems.forEach((subSchema, index) => {
         this.walkSchema(
@@ -191,7 +200,7 @@ export class SchemaIndexer {
         );
       });
     }
-    
+
     if (schema.contains) {
       this.walkSchema(
         schema.contains,
@@ -200,7 +209,7 @@ export class SchemaIndexer {
         visited,
       );
     }
-    
+
     if (schema.propertyNames) {
       this.walkSchema(
         schema.propertyNames,
@@ -209,7 +218,7 @@ export class SchemaIndexer {
         visited,
       );
     }
-    
+
     // Composition schemas
     if (schema.allOf) {
       schema.allOf.forEach((subSchema, index) => {
@@ -221,7 +230,7 @@ export class SchemaIndexer {
         );
       });
     }
-    
+
     if (schema.anyOf) {
       schema.anyOf.forEach((subSchema, index) => {
         this.walkSchema(
@@ -232,7 +241,7 @@ export class SchemaIndexer {
         );
       });
     }
-    
+
     if (schema.oneOf) {
       schema.oneOf.forEach((subSchema, index) => {
         this.walkSchema(
@@ -243,7 +252,7 @@ export class SchemaIndexer {
         );
       });
     }
-    
+
     if (schema.not) {
       this.walkSchema(
         schema.not,
@@ -252,7 +261,7 @@ export class SchemaIndexer {
         visited,
       );
     }
-    
+
     // Conditional schemas
     if (schema.if) {
       this.walkSchema(
@@ -262,7 +271,7 @@ export class SchemaIndexer {
         visited,
       );
     }
-    
+
     if (schema.then) {
       this.walkSchema(
         schema.then,
@@ -271,7 +280,7 @@ export class SchemaIndexer {
         visited,
       );
     }
-    
+
     if (schema.else) {
       this.walkSchema(
         schema.else,
@@ -280,7 +289,7 @@ export class SchemaIndexer {
         visited,
       );
     }
-    
+
     // Dependent schemas
     if (schema.dependentSchemas) {
       for (const [key, subSchema] of Object.entries(schema.dependentSchemas)) {
@@ -292,9 +301,12 @@ export class SchemaIndexer {
         );
       }
     }
-    
+
     // Unevaluated properties/items
-    if (schema.unevaluatedProperties && typeof schema.unevaluatedProperties === "object") {
+    if (
+      schema.unevaluatedProperties &&
+      typeof schema.unevaluatedProperties === "object"
+    ) {
       this.walkSchema(
         schema.unevaluatedProperties,
         `${pointer}/unevaluatedProperties`,
@@ -302,8 +314,10 @@ export class SchemaIndexer {
         visited,
       );
     }
-    
-    if (schema.unevaluatedItems && typeof schema.unevaluatedItems === "object") {
+
+    if (
+      schema.unevaluatedItems && typeof schema.unevaluatedItems === "object"
+    ) {
       this.walkSchema(
         schema.unevaluatedItems,
         `${pointer}/unevaluatedItems`,
@@ -312,7 +326,7 @@ export class SchemaIndexer {
       );
     }
   }
-  
+
   /**
    * Index keywords for feature detection
    */
@@ -322,82 +336,96 @@ export class SchemaIndexer {
     keywordIndex: Map<string, Set<string>>,
     features: Set<string>,
   ): void {
-    const keywords = Object.keys(schema).filter(k => !k.startsWith("$"));
-    
+    const keywords = Object.keys(schema).filter((k) => !k.startsWith("$"));
+
     for (const keyword of keywords) {
       features.add(keyword);
-      
+
       if (!keywordIndex.has(keyword)) {
         keywordIndex.set(keyword, new Set());
       }
       keywordIndex.get(keyword)!.add(pointer);
     }
-    
+
     // Track specific features
     if (schema.if || schema.then || schema.else) {
       features.add("conditional");
     }
-    
+
     if (schema.unevaluatedProperties || schema.unevaluatedItems) {
       features.add("unevaluated");
     }
-    
+
     if (schema.$dynamicRef || schema.$dynamicAnchor) {
       features.add("dynamic");
     }
-    
+
     if (schema.dependentSchemas || schema.dependentRequired) {
       features.add("dependencies");
     }
   }
-  
+
   /**
    * Calculate maximum depth of schema nesting
    */
   private calculateMaxDepth(
     schema: Schema | boolean,
     currentDepth = 0,
-    visited = new Set<string>(),
+    visited = new WeakSet<object>(),
   ): number {
-    if (typeof schema === "boolean" || currentDepth > 100) {
+    if (typeof schema === "boolean") {
       return currentDepth;
     }
-    
-    // Create a unique key for this schema instance
-    const schemaKey = JSON.stringify(schema);
-    if (visited.has(schemaKey)) {
+
+    // Check depth limit and warn if hit
+    if (currentDepth > 100) {
+      console.warn(
+        `Schema depth limit (100) reached - calculation may be incomplete`,
+      );
       return currentDepth;
     }
-    visited.add(schemaKey);
-    
+
+    // Use object identity for cycle detection (more efficient than stringify)
+    if (visited.has(schema)) {
+      return currentDepth; // Already visited this schema object
+    }
+    visited.add(schema);
+
     let maxDepth = currentDepth;
-    
+
     const checkDepth = (subSchema: Schema | boolean) => {
-      const depth = this.calculateMaxDepth(subSchema, currentDepth + 1, visited);
+      const depth = this.calculateMaxDepth(
+        subSchema,
+        currentDepth + 1,
+        visited,
+      );
       maxDepth = Math.max(maxDepth, depth);
     };
-    
+
     // Check all nested schemas
     if (schema.properties) {
       Object.values(schema.properties).forEach(checkDepth);
     }
-    
+
     if (schema.items && !Array.isArray(schema.items)) {
       checkDepth(schema.items);
     }
-    
-    if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
+
+    if (
+      schema.additionalProperties &&
+      typeof schema.additionalProperties === "object"
+    ) {
       checkDepth(schema.additionalProperties);
     }
-    
+
     if (schema.allOf) schema.allOf.forEach(checkDepth);
     if (schema.anyOf) schema.anyOf.forEach(checkDepth);
     if (schema.oneOf) schema.oneOf.forEach(checkDepth);
     if (schema.not) checkDepth(schema.not);
-    
+
     return maxDepth;
   }
-  
+
   /**
    * Calculate complexity metrics
    */
@@ -406,15 +434,14 @@ export class SchemaIndexer {
     index: ProcessedSchema["index"],
     refs: ProcessedSchema["refs"],
   ): ComplexityMetrics {
-    const score = 
-      index.byPointer.size * 5 +           // Base complexity per schema
-      refs.resolved.size * 10 +            // References add complexity
-      refs.cyclic.size * 50 +              // Circular refs are complex
-      (index.byKeyword.get("allOf")?.size || 0) * 20 +    // Composition is complex
+    const score = index.byPointer.size * 5 + // Base complexity per schema
+      refs.resolved.size * 10 + // References add complexity
+      refs.cyclic.size * 50 + // Circular refs are complex
+      (index.byKeyword.get("allOf")?.size || 0) * 20 + // Composition is complex
       (index.byKeyword.get("anyOf")?.size || 0) * 15 +
       (index.byKeyword.get("oneOf")?.size || 0) * 15 +
-      (index.byKeyword.get("if")?.size || 0) * 25;        // Conditionals are complex
-    
+      (index.byKeyword.get("if")?.size || 0) * 25; // Conditionals are complex
+
     return {
       score,
       circularRefs: refs.cyclic.size,
@@ -423,7 +450,7 @@ export class SchemaIndexer {
         .reduce((sum, set) => sum + set.size, 0),
     };
   }
-  
+
   /**
    * Escape JSON Pointer tokens according to RFC 6901
    */
