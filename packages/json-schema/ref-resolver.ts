@@ -8,7 +8,7 @@
  * - Path-oriented design enables efficient memoization
  */
 
-import { resolve, JsonPointerError } from "../json-pointer/mod.ts";
+import { resolve, JsonPointerError, validateRef } from "../json-pointer/mod.ts";
 import type { Schema } from "./types.ts";
 
 export interface ResolverContext {
@@ -71,6 +71,16 @@ export class RefResolver {
    * Designed to be easily cacheable/memoizable later
    */
   resolve(ref: string, baseUri?: string): ResolvedReference {
+    // Validate ref syntax according to RFC 6901 BEFORE attempting resolution
+    const validation = validateRef(ref);
+    if (!validation.valid) {
+      return {
+        schema: false,
+        resolved: false,
+        error: `Invalid $ref syntax: ${validation.error}${validation.suggestion ? `\nSuggestion: ${validation.suggestion}` : ""}`
+      };
+    }
+
     // Handle different types of references
     if (ref.startsWith('#')) {
       return this.resolveInternalRef(ref);

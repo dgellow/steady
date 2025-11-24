@@ -12,19 +12,6 @@
 import type { Schema, DependencyGraph } from "./types.ts";
 import { RefResolver, ResolvedReference } from "./ref-resolver.ts";
 
-interface ResolveResult {
-  success: boolean;
-  resolved: Schema | boolean;
-  errors: string[];
-  warnings: string[];
-  metadata: {
-    totalRefs: number;
-    resolvedRefs: number;
-    cycles: number;
-    maxDepth: number;
-  };
-}
-
 interface ResolutionBatch {
   refs: string[];
   priority: number;
@@ -39,8 +26,8 @@ export class ScaleAwareRefResolver extends RefResolver {
     cycles: [],
   };
   private maxCacheSize = 10000; // Prevent unbounded memory growth
-  
-  constructor(private schema: Schema | boolean, private baseUri?: string) {
+
+  constructor(schema: Schema | boolean, private baseUri?: string) {
     super(schema);
   }
 
@@ -386,12 +373,15 @@ export class ScaleAwareRefResolver extends RefResolver {
       // Resolve in parallel
       const promises = batch.refs.map(ref => this.resolveCached(ref));
       const results = await Promise.all(promises);
-      
+
       results.forEach((result, i) => {
+        const ref = batch.refs[i];
+        if (ref === undefined) return; // Skip if undefined (shouldn't happen but satisfies type checker)
+
         if (result.resolved) {
-          resolved.set(batch.refs[i], result.schema);
+          resolved.set(ref, result.schema);
         } else {
-          errors.push(result.error || `Failed to resolve ${batch.refs[i]}`);
+          errors.push(result.error || `Failed to resolve ${ref}`);
         }
       });
     } else {
@@ -449,38 +439,5 @@ export class ScaleAwareRefResolver extends RefResolver {
       // Use anyOf with empty schema to allow anything but mark it clearly
       anyOf: [{}],
     };
-  }
-  
-  /**
-   * Calculate maximum reference depth
-   */
-  private calculateMaxDepth(): number {
-    let maxDepth = 0;
-    const depths = new Map<string, number>();
-    
-    const calculateDepth = (node: string, visited = new Set<string>()): number => {
-      if (visited.has(node)) return 0; // Cycle
-      if (depths.has(node)) return depths.get(node)!;
-      
-      visited.add(node);
-      
-      const edges = this.dependencyGraph.edges.get(node) || new Set();
-      let nodeDepth = 0;
-      
-      for (const child of edges) {
-        nodeDepth = Math.max(nodeDepth, 1 + calculateDepth(child, new Set(visited)));
-      }
-      
-      depths.set(node, nodeDepth);
-      visited.delete(node);
-      
-      return nodeDepth;
-    };
-    
-    for (const node of this.dependencyGraph.nodes) {
-      maxDepth = Math.max(maxDepth, calculateDepth(node));
-    }
-    
-    return maxDepth;
   }
 }

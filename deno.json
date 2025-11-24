@@ -15,7 +15,16 @@
     "fmt": "deno fmt",
     "lint": "deno lint",
     "check-boundaries": "deno run --allow-read scripts/check-boundaries.ts",
-    "test-all": "deno fmt && deno check cmd/steady.ts && deno lint --quiet && deno task check-boundaries",
+    "test": "deno test --allow-read --allow-write --allow-net --allow-env",
+    "test:watch": "deno test --allow-read --allow-write --allow-net --allow-env --watch",
+    "test:coverage": "deno test --allow-read --allow-write --allow-net --allow-env --coverage=coverage && deno coverage coverage",
+    "test:json-schema": "deno test --allow-read --allow-write --allow-net --allow-env packages/json-schema/**/*.test.ts",
+    "test:parser": "deno test --allow-read --allow-write --allow-net --allow-env packages/parser/**/*.test.ts",
+    "test:json-pointer": "deno test --allow-read --allow-write --allow-net --allow-env packages/json-pointer/**/*.test.ts",
+    "test:integration": "deno test --allow-read --allow-write --allow-net --allow-env tests/**/*.test.ts",
+    "test:edge-cases": "deno test --allow-read --allow-write --allow-net --allow-env tests/edge-cases/**/*.test.ts",
+    "test:suite": "deno run --allow-read packages/json-schema/test-suite-runner.ts",
+    "test-all": "deno fmt && deno check cmd/steady.ts && deno lint --quiet && deno task check-boundaries && deno task test",
     "extract": "deno run --allow-read --allow-write --allow-net --allow-env cmd/oas-extract.ts extract"
   },
   "compilerOptions": {

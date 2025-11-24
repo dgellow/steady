@@ -1,18 +1,17 @@
-import { ReferenceGraph, ServerConfig } from "./types.ts";
+import { ServerConfig } from "./types.ts";
 import type {
   OpenAPISpec,
   OperationObject,
   PathItemObject,
 } from "@steady/parser";
 import { MatchError, missingExampleError } from "./errors.ts";
-import { generateFromMediaType } from "./generator.ts";
-import { buildReferenceGraph } from "./resolver.ts";
+import { ServerSchemaProcessor } from "./schema-processor.ts";
 import {
   InkSimpleLogger,
   RequestLogger,
   startInkSimpleLogger,
 } from "@steady/shared";
-import { RequestValidator } from "./validator_legacy.ts";
+import { RequestValidator } from "./validator.ts";
 
 // ANSI colors for startup message
 const BOLD = "\x1b[1m";
@@ -20,17 +19,17 @@ const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
 export class MockServer {
-  private refGraph: ReferenceGraph;
+  private schemaProcessor: ServerSchemaProcessor;
   private abortController: AbortController;
   private logger: RequestLogger;
   private validator: RequestValidator;
+  private initialized = false;
 
   constructor(
     private spec: OpenAPISpec,
     private config: ServerConfig,
   ) {
-    // Build reference graph upfront
-    this.refGraph = buildReferenceGraph(spec);
+    this.schemaProcessor = new ServerSchemaProcessor(spec);
     this.abortController = new AbortController();
 
     // Use interactive logger if requested
@@ -43,7 +42,24 @@ export class MockServer {
     this.validator = new RequestValidator(spec, config.mode);
   }
 
+  /**
+   * Initialize the server by processing all schemas
+   * Must be called before start()
+   */
+  async init(): Promise<void> {
+    if (this.initialized) return;
+
+    // Process all component schemas upfront for performance
+    await this.schemaProcessor.processComponentSchemas();
+    this.initialized = true;
+  }
+
   start() {
+    if (!this.initialized) {
+      throw new Error(
+        "Server must be initialized before starting. Call await server.init() first.",
+      );
+    }
     // Start interactive logger if enabled
     if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
       startInkSimpleLogger(this.logger);
@@ -135,7 +151,7 @@ export class MockServer {
     return methods;
   }
 
-  private handleRequest(req: Request): Response {
+  private async handleRequest(req: Request): Promise<Response> {
     const startTime = performance.now();
     const url = new URL(req.url);
     const method = req.method.toLowerCase();
@@ -152,10 +168,16 @@ export class MockServer {
 
     // Find matching path and operation
     try {
-      const { operation, statusCode } = this.findOperation(path, method);
+      const { operation, statusCode, pathPattern, pathParams } = this
+        .findOperation(path, method);
 
-      // Validate request
-      const validation = this.validator.validateRequest(req, operation, path);
+      // Validate request (now async)
+      const validation = await this.validator.validateRequest(
+        req,
+        operation,
+        pathPattern,
+        pathParams,
+      );
 
       // Log request (with validation if in details mode)
       this.logger.logRequest(req, path, method, validation);
@@ -177,7 +199,7 @@ export class MockServer {
         );
       }
 
-      const response = this.generateResponse(
+      const response = await this.generateResponse(
         operation,
         statusCode,
         path,
@@ -255,9 +277,29 @@ export class MockServer {
   private findOperation(
     path: string,
     method: string,
-  ): { operation: OperationObject; statusCode: string } {
-    // For MVP, just do exact path matching
-    const pathItem = this.spec.paths[path];
+  ): {
+    operation: OperationObject;
+    statusCode: string;
+    pathPattern: string;
+    pathParams: Record<string, string>;
+  } {
+    // Try exact match first (fast path)
+    let pathItem = this.spec.paths[path];
+    let pathPattern = path;
+    let pathParams: Record<string, string> = {};
+
+    if (!pathItem) {
+      // Try pattern matching with path parameters
+      for (const [pattern, item] of Object.entries(this.spec.paths)) {
+        const match = this.matchPath(path, pattern);
+        if (match) {
+          pathItem = item;
+          pathPattern = pattern;
+          pathParams = match;
+          break;
+        }
+      }
+    }
 
     if (!pathItem) {
       // List available paths for helpful error
@@ -291,20 +333,63 @@ export class MockServer {
       });
     }
 
-    // For MVP, always return 200 if it exists, otherwise first response
+    // Always return 200 if it exists, otherwise first response
     const statusCode = operation.responses["200"]
       ? "200"
       : Object.keys(operation.responses)[0] || "200";
 
-    return { operation, statusCode };
+    return { operation, statusCode, pathPattern, pathParams };
   }
 
-  private generateResponse(
+  /**
+   * Match a request path against an OpenAPI path pattern
+   * Supports path parameters like /users/{id}
+   * Returns the extracted parameters if match, null otherwise
+   */
+  private matchPath(
+    requestPath: string,
+    pattern: string,
+  ): Record<string, string> | null {
+    // Split paths into segments
+    const requestSegments = requestPath.split("/").filter((s) => s.length > 0);
+    const patternSegments = pattern.split("/").filter((s) => s.length > 0);
+
+    // Must have same number of segments
+    if (requestSegments.length !== patternSegments.length) {
+      return null;
+    }
+
+    const params: Record<string, string> = {};
+
+    // Match each segment
+    for (let i = 0; i < patternSegments.length; i++) {
+      const patternSeg = patternSegments[i];
+      const requestSeg = requestSegments[i];
+
+      if (!patternSeg || !requestSeg) {
+        return null;
+      }
+
+      // Check if this is a parameter (e.g., {id})
+      if (patternSeg.startsWith("{") && patternSeg.endsWith("}")) {
+        // Extract parameter name and decode URL-encoded value
+        const paramName = patternSeg.slice(1, -1);
+        params[paramName] = decodeURIComponent(requestSeg);
+      } else if (patternSeg !== requestSeg) {
+        // Literal segment must match exactly
+        return null;
+      }
+    }
+
+    return params;
+  }
+
+  private async generateResponse(
     operation: OperationObject,
     statusCode: string,
     path: string,
     method: string,
-  ): Response {
+  ): Promise<Response> {
     const responseObj = operation.responses[statusCode];
     if (!responseObj) {
       throw new MatchError("Response not defined", {
@@ -333,7 +418,7 @@ export class MockServer {
           : Object.keys(responseObj.content)[0] || "application/json";
 
         try {
-          body = generateFromMediaType(mediaType, this.spec, this.refGraph);
+          body = await this.schemaProcessor.generateFromMediaType(mediaType);
         } catch (_error) {
           // If generation fails, throw a helpful error
           throw missingExampleError(path, method, statusCode);

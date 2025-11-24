@@ -147,6 +147,7 @@ async function startServer(
 
   // Create and start server
   const server = new MockServer(spec, config);
+  await server.init();
   server.start();
   return server;
 }

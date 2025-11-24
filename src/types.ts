@@ -1,7 +1,6 @@
 // Internal types for Steady (non-OpenAPI types)
 
 import type {
-  OpenAPISpec,
   OperationObject,
   ResponseObject,
   SchemaObject,
@@ -31,20 +30,6 @@ export interface ResolvedMediaType {
 export interface ResolvedSchema extends Omit<SchemaObject, "$ref"> {
   // Schema with all $refs resolved
   resolvedFrom?: string; // Track where this was resolved from
-}
-
-export interface ReferenceGraph {
-  nodes: Map<string, SchemaObject>;
-  edges: Map<string, Set<string>>;
-  cycles: Set<string>[];
-}
-
-export interface GenerationContext {
-  depth: number;
-  maxDepth: number;
-  visitedRefs: Set<string>;
-  generatedObjects: WeakMap<SchemaObject, unknown>;
-  spec: OpenAPISpec;
 }
 
 export interface ServerConfig {
