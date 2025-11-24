@@ -14,10 +14,12 @@ import type {
   SchemaProcessResult,
   SchemaSource,
   SchemaWarning,
+  ValidationError,
 } from "./types.ts";
 import { MetaschemaValidator } from "./metaschema-validator.ts";
 import { SchemaIndexer } from "./schema-indexer.ts";
 import { ScaleAwareRefResolver } from "./ref-resolver-enhanced.ts";
+import { checkRefSiblings } from "./ref-sibling-checker.ts";
 
 export class JsonSchemaProcessor {
   private metaschemaValidator: MetaschemaValidator;
@@ -105,6 +107,10 @@ export class JsonSchemaProcessor {
       source,
     );
 
+    // 3.5. Check for $ref siblings (JSON Schema 2020-12 behavior)
+    const siblingWarnings = checkRefSiblings(schema);
+    warnings.push(...siblingWarnings);
+
     // 4. Analyze complexity and add warnings
     const complexityWarnings = this.analyzeComplexity(indexed);
     warnings.push(...complexityWarnings);
@@ -158,7 +164,7 @@ export class JsonSchemaProcessor {
     return warnings;
   }
 
-  private convertToSchemaErrors(errors: SchemaError[]): SchemaError[] {
+  private convertToSchemaErrors(errors: ValidationError[]): SchemaError[] {
     return errors.map((err) => ({
       ...err,
       type: "metaschema-violation" as const,

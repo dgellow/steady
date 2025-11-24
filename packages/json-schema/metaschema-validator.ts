@@ -88,21 +88,26 @@ export class MetaschemaValidator {
       );
     }
 
-    // Index the metaschema
-    const metadata = this.indexer.index(metaschema);
+    // Build dependency graph for refs
+    const cyclicRefs = new Set<string>();
+    for (const cycle of resolveResult.cycles) {
+      for (const ref of cycle) {
+        cyclicRefs.add(ref);
+      }
+    }
 
-    return {
-      root: metaschema,
-      metadata,
-      refs: {
-        internal: resolveResult.resolved,
-        external: new Map(),
-        resolved: resolveResult.resolved,
-      },
-      source: {
-        dialect: "https://json-schema.org/draft/2020-12/schema",
-      },
+    const refs: ProcessedSchema["refs"] = {
+      resolved: resolveResult.resolved,
+      graph: resolveResult.dependencyGraph,
+      cyclic: cyclicRefs,
     };
+
+    // Index the metaschema
+    const indexed = this.indexer.index(metaschema, refs, {
+      baseUri: "https://json-schema.org/draft/2020-12/schema",
+    });
+
+    return indexed;
   }
 
   /**
