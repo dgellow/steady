@@ -1,12 +1,11 @@
-import { ReferenceGraph, ServerConfig } from "./types.ts";
+import { ServerConfig } from "./types.ts";
 import type {
   OpenAPISpec,
   OperationObject,
   PathItemObject,
 } from "@steady/parser";
 import { MatchError, missingExampleError } from "./errors.ts";
-import { generateFromMediaType } from "./generator.ts";
-import { buildReferenceGraph } from "./resolver.ts";
+import { ServerSchemaProcessor } from "./schema-processor.ts";
 import {
   InkSimpleLogger,
   RequestLogger,
@@ -20,17 +19,17 @@ const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
 export class MockServer {
-  private refGraph: ReferenceGraph;
+  private schemaProcessor: ServerSchemaProcessor;
   private abortController: AbortController;
   private logger: RequestLogger;
   private validator: RequestValidator;
+  private initialized = false;
 
   constructor(
     private spec: OpenAPISpec,
     private config: ServerConfig,
   ) {
-    // Build reference graph upfront
-    this.refGraph = buildReferenceGraph(spec);
+    this.schemaProcessor = new ServerSchemaProcessor(spec);
     this.abortController = new AbortController();
 
     // Use interactive logger if requested
@@ -43,7 +42,24 @@ export class MockServer {
     this.validator = new RequestValidator(spec, config.mode);
   }
 
+  /**
+   * Initialize the server by processing all schemas
+   * Must be called before start()
+   */
+  async init(): Promise<void> {
+    if (this.initialized) return;
+
+    // Process all component schemas upfront for performance
+    await this.schemaProcessor.processComponentSchemas();
+    this.initialized = true;
+  }
+
   start() {
+    if (!this.initialized) {
+      throw new Error(
+        "Server must be initialized before starting. Call await server.init() first.",
+      );
+    }
     // Start interactive logger if enabled
     if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
       startInkSimpleLogger(this.logger);
@@ -183,7 +199,7 @@ export class MockServer {
         );
       }
 
-      const response = this.generateResponse(
+      const response = await this.generateResponse(
         operation,
         statusCode,
         path,
@@ -368,12 +384,12 @@ export class MockServer {
     return params;
   }
 
-  private generateResponse(
+  private async generateResponse(
     operation: OperationObject,
     statusCode: string,
     path: string,
     method: string,
-  ): Response {
+  ): Promise<Response> {
     const responseObj = operation.responses[statusCode];
     if (!responseObj) {
       throw new MatchError("Response not defined", {
@@ -402,7 +418,7 @@ export class MockServer {
           : Object.keys(responseObj.content)[0] || "application/json";
 
         try {
-          body = generateFromMediaType(mediaType, this.spec, this.refGraph);
+          body = await this.schemaProcessor.generateFromMediaType(mediaType);
         } catch (_error) {
           // If generation fails, throw a helpful error
           throw missingExampleError(path, method, statusCode);
