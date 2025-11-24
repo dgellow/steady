@@ -5,9 +5,12 @@
  * These are COMMON mistakes in real specs that break many tools.
  *
  * USER REQUIREMENT: "openapi spec are often messy in complicated ways in the real world"
+ *
+ * RFC 6901 Compliance: This test suite enforces STRICT RFC 6901 compliance for
+ * JSON Pointer syntax. Malformed $refs MUST be rejected with clear error messages.
  */
 
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
@@ -23,13 +26,14 @@ Deno.test("EDGE: $ref with double hash (common typo)", async () => {
 
   // Should fail with clear error message
   assertEquals(result.valid, false, "Should reject double hash in $ref");
+  assertEquals(result.errors.length > 0, true, "Should have at least one error");
+
+  // Error should mention the specific problem
+  const errorMessages = result.errors.map((e) => e.message.toLowerCase()).join(" ");
   assertEquals(
-    result.errors.some((e) =>
-      e.message.toLowerCase().includes("invalid") ||
-      e.message.toLowerCase().includes("ref")
-    ),
+    errorMessages.includes("ref") || errorMessages.includes("reference"),
     true,
-    "Should provide clear error about invalid $ref",
+    "Error should mention ref/reference",
   );
 });
 
@@ -45,6 +49,7 @@ Deno.test("EDGE: $ref with trailing slash", async () => {
 
   // Should fail - empty name after trailing slash
   assertEquals(result.valid, false, "Should reject trailing slash in $ref");
+  assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
 Deno.test("EDGE: $ref missing slash after hash", async () => {
@@ -57,8 +62,9 @@ Deno.test("EDGE: $ref missing slash after hash", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Should fail - invalid pointer format
-  assertEquals(result.valid, false, "Should reject missing slash after #");
+  // Should fail - invalid pointer format per RFC 6901
+  assertEquals(result.valid, false, "Should reject missing slash after # per RFC 6901");
+  assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
 Deno.test("EDGE: $ref missing hash", async () => {
@@ -71,24 +77,24 @@ Deno.test("EDGE: $ref missing hash", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Missing hash could be interpreted as external ref or as error
-  // Current behavior: should fail to resolve
-  assertEquals(result.valid, false, "Should fail to resolve ref without #");
+  // Missing hash could be external ref, but without proper URI scheme should fail
+  assertEquals(result.valid, false, "Should fail to resolve ref without # (not external)");
+  assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
 Deno.test("EDGE: $ref with spaces", async () => {
   const schema: Schema = {
     properties: {
-      user: { $ref: "#/components/schemas/User Name" }, // Space in name
+      user: { $ref: "#/components/schemas/User Name" }, // Space in name - not encoded
     },
   };
 
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Should fail unless properly encoded
-  // This is a common issue - spaces should be %20 in JSON pointers
-  assertEquals(result.valid, false, "Should reject unencoded spaces in $ref");
+  // Should fail - spaces must be percent-encoded as %20 per RFC 6901
+  assertEquals(result.valid, false, "Should reject unencoded spaces in $ref per RFC 6901");
+  assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
 Deno.test("EDGE: $ref with URL-encoded characters", async () => {
@@ -104,9 +110,9 @@ Deno.test("EDGE: $ref with URL-encoded characters", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Should work if properly encoded
-  // JSON Pointer RFC 6901 allows percent-encoding
-  assertEquals(result.valid, true, "Should accept URL-encoded $ref");
+  // Should work - RFC 6901 allows percent-encoding
+  assertEquals(result.valid, true, "Should accept URL-encoded $ref per RFC 6901");
+  assertExists(result.schema, "Should return processed schema");
 });
 
 Deno.test("EDGE: $ref with backslashes (Windows paths)", async () => {
@@ -119,8 +125,9 @@ Deno.test("EDGE: $ref with backslashes (Windows paths)", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Should fail - JSON Pointers use forward slashes
-  assertEquals(result.valid, false, "Should reject backslashes in $ref");
+  // Should fail - JSON Pointers use forward slashes per RFC 6901
+  assertEquals(result.valid, false, "Should reject backslashes in $ref per RFC 6901");
+  assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
 Deno.test("EDGE: $ref with query string", async () => {
@@ -133,8 +140,9 @@ Deno.test("EDGE: $ref with query string", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Query strings not valid in JSON Pointers
-  assertEquals(result.valid, false, "Should reject query string in $ref");
+  // Query strings are not valid in JSON Pointers per RFC 6901
+  assertEquals(result.valid, false, "Should reject query string in $ref per RFC 6901");
+  assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
 Deno.test("EDGE: $ref with fragment identifier twice", async () => {
@@ -147,8 +155,9 @@ Deno.test("EDGE: $ref with fragment identifier twice", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Multiple fragments invalid
-  assertEquals(result.valid, false, "Should reject multiple fragments in $ref");
+  // Multiple fragments invalid per RFC 6901
+  assertEquals(result.valid, false, "Should reject multiple fragments in $ref per RFC 6901");
+  assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
 Deno.test("EDGE: $ref with dots in path", async () => {
@@ -164,10 +173,11 @@ Deno.test("EDGE: $ref with dots in path", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Dots are valid in JSON Pointer tokens
-  assertEquals(result.valid, true, "Should accept dots in $ref");
+  // Dots are valid in JSON Pointer tokens per RFC 6901
+  assertEquals(result.valid, true, "Should accept dots in $ref per RFC 6901");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.resolved.has("#/$defs/User.Admin"),
+    result.schema.refs.resolved.has("#/$defs/User.Admin"),
     true,
     "Should resolve ref with dots",
   );
@@ -186,16 +196,17 @@ Deno.test("EDGE: $ref with empty string as key", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Empty string is valid JSON object key
-  assertEquals(result.valid, true, "Should accept empty string in $ref");
+  // Empty string is valid JSON object key, and "//" is valid pointer per RFC 6901
+  assertEquals(result.valid, true, "Should accept empty string in $ref per RFC 6901");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.resolved.has("#/$defs/"),
+    result.schema.refs.resolved.has("#/$defs/"),
     true,
     "Should resolve ref to empty string key",
   );
 });
 
-Deno.test("EDGE: $ref with tilde not escaped", async () => {
+Deno.test("EDGE: $ref with tilde not escaped - RFC 6901 VIOLATION", async () => {
   const schema: Schema = {
     $defs: {
       "User~Admin": { type: "string" }, // Tilde in name
@@ -208,71 +219,78 @@ Deno.test("EDGE: $ref with tilde not escaped", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Tilde must be escaped as ~0 in JSON Pointers
-  // But we're lenient and handle it
+  // RFC 6901: Tilde MUST be escaped as ~0
+  // STRICT COMPLIANCE: Reject unescaped tildes
   assertEquals(
     result.valid,
-    true,
-    "Should handle unescaped tilde (lenient)",
+    false,
+    "Should reject unescaped tilde per RFC 6901 (MUST be ~0)",
   );
+  assertEquals(result.errors.length > 0, true, "Should have errors");
+
+  // NOTE: Some implementations may be lenient, but Steady enforces RFC 6901
 });
 
-Deno.test("EDGE: $ref with properly escaped tilde", async () => {
+Deno.test("EDGE: $ref with properly escaped tilde - RFC 6901 COMPLIANT", async () => {
   const schema: Schema = {
     $defs: {
       "User~Admin": { type: "string" }, // Tilde in name
     },
     properties: {
-      user: { $ref: "#/$defs/User~0Admin" }, // Properly escaped
+      user: { $ref: "#/$defs/User~0Admin" }, // Properly escaped per RFC 6901
     },
   };
 
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Properly escaped should work
-  assertEquals(result.valid, true, "Should accept properly escaped tilde");
+  // Properly escaped should work per RFC 6901
+  assertEquals(result.valid, true, "Should accept properly escaped tilde (~0) per RFC 6901");
+  assertExists(result.schema, "Should return processed schema");
 });
 
-Deno.test("EDGE: $ref with slash not escaped", async () => {
+Deno.test("EDGE: $ref with slash not escaped - RFC 6901 AMBIGUOUS", async () => {
   const schema: Schema = {
     $defs: {
       "User/Admin": { type: "string" }, // Slash in name (unusual)
     },
     properties: {
-      user: { $ref: "#/$defs/User/Admin" }, // Ambiguous - could be nested
+      user: { $ref: "#/$defs/User/Admin" }, // Ambiguous - could be nested path
     },
   };
 
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // This is ambiguous - is it User/Admin or User > Admin?
-  // Should fail to resolve (likely tries to find nested path)
+  // This is ambiguous - "/" is a path separator
+  // Processor will try to resolve #/$defs/User then /Admin (nested)
+  // Should fail since "User" doesn't exist as object with "Admin" property
   assertEquals(
     result.valid,
     false,
-    "Should fail on ambiguous unescaped slash",
+    "Should fail on ambiguous unescaped slash (interpreted as path separator)",
   );
+  assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
-Deno.test("EDGE: $ref with properly escaped slash", async () => {
+Deno.test("EDGE: $ref with properly escaped slash - RFC 6901 COMPLIANT", async () => {
   const schema: Schema = {
     $defs: {
       "User/Admin": { type: "string" }, // Slash in name
     },
     properties: {
-      user: { $ref: "#/$defs/User~1Admin" }, // Properly escaped
+      user: { $ref: "#/$defs/User~1Admin" }, // Properly escaped per RFC 6901
     },
   };
 
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // Properly escaped should work
-  assertEquals(result.valid, true, "Should accept properly escaped slash");
+  // Properly escaped should work per RFC 6901
+  assertEquals(result.valid, true, "Should accept properly escaped slash (~1) per RFC 6901");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.resolved.has("#/$defs/User~1Admin"),
+    result.schema.refs.resolved.has("#/$defs/User~1Admin"),
     true,
     "Should resolve ref with escaped slash",
   );
@@ -290,6 +308,7 @@ Deno.test("EDGE: $ref pointing to non-existent deep path", async () => {
 
   // Should fail with clear error about missing path
   assertEquals(result.valid, false, "Should reject non-existent deep path");
+  assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
 Deno.test("EDGE: $ref with array index syntax", async () => {
@@ -306,31 +325,32 @@ Deno.test("EDGE: $ref with array index syntax", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // $defs should be object, not array
-  // But if it IS an array, numeric indices should work
-  assertEquals(result.valid, true, "Should handle array $defs");
+  // $defs as array is unusual but valid JSON
+  // Numeric indices should work per RFC 6901
+  assertEquals(result.valid, true, "Should handle array $defs per RFC 6901");
+  assertExists(result.schema, "Should return processed schema");
 });
 
-Deno.test("EDGE: $ref with negative array index", async () => {
+Deno.test("EDGE: $ref with negative array index as string key", async () => {
   const schema: Schema = {
     properties: {
-      user: { $ref: "#/$defs/-1" }, // Negative index
+      user: { $ref: "#/$defs/-1" }, // Looks like negative index
     },
     $defs: {
-      "-1": { type: "string" }, // String key "-1"
+      "-1": { type: "string" }, // String key "-1", not array index
     },
   };
 
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // "-1" as string key should work
+  // "-1" as string key should work - it's a valid object key
   assertEquals(result.valid, true, "Should handle string key that looks like negative index");
+  assertExists(result.schema, "Should return processed schema");
 });
 
-Deno.test("EDGE: Multiple $refs in same schema", async () => {
-  // Invalid - schema can't have multiple $ref properties
-  // But malformed specs might try this
+Deno.test("EDGE: $ref with siblings (JSON Schema 2020-12 behavior)", async () => {
+  // In JSON Schema 2020-12, keywords that are siblings to $ref are ignored
   const schema: Schema = {
     $ref: "#/$defs/A",
     properties: {
@@ -345,13 +365,58 @@ Deno.test("EDGE: Multiple $refs in same schema", async () => {
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
 
-  // In JSON Schema 2020-12, sibling keywords to $ref are ignored
-  assertEquals(result.valid, true, "Should process $ref with siblings");
+  // Schema should be valid per JSON Schema 2020-12
+  assertEquals(result.valid, true, "Should process $ref with siblings per JSON Schema 2020-12");
+  assertExists(result.schema, "Should return processed schema");
 
   // Should warn about ignored keywords
   assertEquals(
     result.warnings.length > 0,
     true,
-    "Should warn about sibling keywords to $ref",
+    "Should warn about sibling keywords to $ref being ignored",
   );
+
+  // Verify warning mentions ignored siblings
+  const warningMessages = result.warnings.map((w) => w.message.toLowerCase()).join(" ");
+  assertEquals(
+    warningMessages.includes("sibling") || warningMessages.includes("ignored"),
+    true,
+    "Warning should mention siblings are ignored",
+  );
+});
+
+Deno.test("EDGE: RFC 6901 escape sequence ~0 (represents ~)", async () => {
+  const schema: Schema = {
+    $defs: {
+      "foo~bar": { type: "string" }, // Literal tilde in key
+    },
+    properties: {
+      test: { $ref: "#/$defs/foo~0bar" }, // ~0 = literal ~
+    },
+  };
+
+  const processor = new JsonSchemaProcessor();
+  const result = await processor.process(schema);
+
+  // Per RFC 6901: ~0 represents literal ~
+  assertEquals(result.valid, true, "Should handle ~0 escape sequence per RFC 6901");
+  assertExists(result.schema, "Should return processed schema");
+});
+
+Deno.test("EDGE: RFC 6901 escape sequence ~1 (represents /)", async () => {
+  const schema: Schema = {
+    $defs: {
+      "foo/bar": { type: "string" }, // Literal slash in key
+    },
+    properties: {
+      test: { $ref: "#/$defs/foo~1bar" }, // ~1 = literal /
+    },
+  };
+
+  const processor = new JsonSchemaProcessor();
+  const result = await processor.process(schema);
+
+  // Per RFC 6901: ~1 represents literal /
+  assertEquals(result.valid, true, "Should handle ~1 escape sequence per RFC 6901");
+  assertExists(result.schema, "Should return processed schema");
 });

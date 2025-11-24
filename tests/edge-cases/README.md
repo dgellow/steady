@@ -258,14 +258,18 @@ Many tools crash or hang on recursive schemas. Steady uses:
 
 ## Comparison with Other Tools
 
-| Pattern | Prism | Swagger UI | OpenAPI Gen | **Steady** |
+**⚠️ IMPORTANT**: These comparisons represent *expected behavior* based on test implementation. Tests have not yet been executed to verify actual behavior. Comparison with other tools is based on documented known issues.
+
+| Pattern | Prism | Swagger UI | OpenAPI Gen | **Steady (Expected)** |
 |---------|-------|------------|-------------|-----------|
-| Recursive oneOf | ❌ Hangs | ❌ Hangs | ❌ Crashes | ✅ Works |
-| allOf circular ref | ❌ Error | ⚠️ Partial | ❌ Crashes | ✅ Works |
-| Double hash in $ref | ❌ Cryptic error | ❌ Silent fail | ❌ Cryptic error | ✅ Clear error |
-| allOf + addlProps | ⚠️ Wrong | ⚠️ Wrong | ❌ Crashes | ✅ Correct |
-| 100-level nesting | ❌ Stack overflow | ❌ Hangs | ❌ Crashes | ✅ Works |
-| 19K+ references | ❌ OOM | N/A | ❌ Slow | ✅ Fast |
+| Recursive oneOf | ❌ Hangs | ❌ Hangs | ❌ Crashes | ⏳ Should work |
+| allOf circular ref | ❌ Error | ⚠️ Partial | ❌ Crashes | ⏳ Should work |
+| Double hash in $ref | ❌ Cryptic error | ❌ Silent fail | ❌ Cryptic error | ⏳ Should give clear error |
+| allOf + addlProps | ⚠️ Wrong | ⚠️ Wrong | ❌ Crashes | ⏳ Should be correct |
+| 100-level nesting | ❌ Stack overflow | ❌ Hangs | ❌ Crashes | ⏳ Should work |
+| 19K+ references | ❌ OOM | N/A | ❌ Slow | ⏳ Should be fast |
+
+Legend: ✅ Verified | ⏳ Expected (untested) | ❌ Known issue | ⚠️ Partial support
 
 ## Contributing Edge Cases
 
@@ -302,7 +306,8 @@ Deno.test("EDGE: Description of the pattern", async () => {
 
 ---
 
-**Status**: 🟢 Active Development
+**Status**: 🟡 Initial Implementation (Tests Not Yet Executed)
 **Last Updated**: 2025-11-24
-**Tests Passing**: 59/59 (100%)
-**Coverage**: Foundation complete, expansion in progress
+**Tests Written**: 59 test cases
+**Tests Passing**: Not yet executed (awaiting environment setup)
+**Coverage**: Test structure complete, execution and validation pending

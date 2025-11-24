@@ -8,7 +8,7 @@
  * variants, etc causing infinite loop in a lot of openapi tools."
  */
 
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
@@ -32,13 +32,14 @@ Deno.test("EDGE: allOf with circular self-reference", async () => {
 
   // Should detect cycle and not crash
   assertEquals(result.valid, true, "Should process without crashing");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.size > 0,
+    result.schema.refs.cyclic.size > 0,
     true,
     "Should detect circular reference",
   );
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect cycle at root",
   );
@@ -59,7 +60,10 @@ Deno.test("EDGE: allOf with conflicting type requirements", async () => {
   // Validation of data should fail, but schema processing should succeed
   assertEquals(result.valid, true, "Schema itself should be valid");
 
-  // Note: The actual impossibility is detected during data validation, not schema validation
+  // TODO: Add data validation test to verify impossibility is detected
+  // const validator = new SchemaValidator(result.schema);
+  // assertEquals(validator.validate("test").valid, false);
+  // assertEquals(validator.validate(42).valid, false);
 });
 
 Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
@@ -76,31 +80,39 @@ Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
 
   // Schema is valid, but creates impossible constraint
   assertEquals(result.valid, true, "Schema itself should be valid");
+
+  // TODO: Add data validation test
+  // const validator = new SchemaValidator(result.schema);
+  // assertEquals(validator.validate(7).valid, false);
 });
 
-Deno.test("EDGE: Deeply nested allOf (100 levels)", async () => {
-  // Create deeply nested allOf schema
-  let schema: Schema = { type: "object" };
-  for (let i = 0; i < 100; i++) {
-    schema = {
-      allOf: [schema, { type: "object" }],
-    };
-  }
+Deno.test({
+  name: "EDGE: Deeply nested allOf (100 levels)",
+  timeout: 10000, // 10 second timeout
+  async fn() {
+    // Create deeply nested allOf schema
+    let schema: Schema = { type: "object" };
+    for (let i = 0; i < 100; i++) {
+      schema = {
+        allOf: [schema, { type: "object" }],
+      };
+    }
 
-  const processor = new JsonSchemaProcessor();
-  const start = performance.now();
-  const result = await processor.process(schema);
-  const duration = performance.now() - start;
+    const processor = new JsonSchemaProcessor();
+    const start = performance.now();
+    const result = await processor.process(schema);
+    const duration = performance.now() - start;
 
-  // Should handle without stack overflow
-  assertEquals(result.valid, true, "Should process deeply nested allOf");
+    // Should handle without stack overflow
+    assertEquals(result.valid, true, "Should process deeply nested allOf");
 
-  // Should complete in reasonable time (< 10 seconds)
-  assertEquals(
-    duration < 10000,
-    true,
-    `Should complete in < 10s (took ${duration.toFixed(2)}ms)`,
-  );
+    // Should complete in reasonable time (< 10 seconds)
+    assertEquals(
+      duration < 10000,
+      true,
+      `Should complete in < 10s (took ${duration.toFixed(2)}ms)`,
+    );
+  },
 });
 
 Deno.test("EDGE: allOf with circular refs through properties", async () => {
@@ -120,8 +132,9 @@ Deno.test("EDGE: allOf with circular refs through properties", async () => {
 
   // Should detect cycles
   assertEquals(result.valid, true, "Should process without crashing");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.size > 0,
+    result.schema.refs.cyclic.size > 0,
     true,
     "Should detect circular references",
   );
@@ -157,23 +170,24 @@ Deno.test("EDGE: allOf with indirect circular reference", async () => {
 
   // Should detect three-way cycle
   assertEquals(result.valid, true, "Should process without crashing");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.size >= 3,
+    result.schema.refs.cyclic.size >= 3,
     true,
     "Should detect all three refs in cycle",
   );
   assertEquals(
-    result.schema!.refs.cyclic.has("#/$defs/A"),
+    result.schema.refs.cyclic.has("#/$defs/A"),
     true,
     "Should detect A in cycle",
   );
   assertEquals(
-    result.schema!.refs.cyclic.has("#/$defs/B"),
+    result.schema.refs.cyclic.has("#/$defs/B"),
     true,
     "Should detect B in cycle",
   );
   assertEquals(
-    result.schema!.refs.cyclic.has("#/$defs/C"),
+    result.schema.refs.cyclic.has("#/$defs/C"),
     true,
     "Should detect C in cycle",
   );
@@ -219,8 +233,9 @@ Deno.test("EDGE: allOf with mixed composition and recursion", async () => {
 
   // Should handle complex composition with recursion
   assertEquals(result.valid, true, "Should process complex composition");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root recursion",
   );
@@ -252,8 +267,18 @@ Deno.test("EDGE: allOf with additionalProperties false across schemas", async ()
   // Schema itself should be valid
   assertEquals(result.valid, true, "Schema should be valid");
 
-  // Properties a, b, c should all be allowed (not additional properties)
-  // This is tested in validation, not schema processing
+  // TODO: Add data validation test - this is the CORE of the edge case
+  // const validator = new SchemaValidator(result.schema);
+  //
+  // // SHOULD accept - properties defined in allOf
+  // const validData = { a: "x", b: "y", c: "z" };
+  // assertEquals(validator.validate(validData).valid, true,
+  //   "Should accept properties from allOf");
+  //
+  // // SHOULD reject - truly additional property
+  // const invalidData = { a: "x", b: "y", c: "z", d: "extra" };
+  // assertEquals(validator.validate(invalidData).valid, false,
+  //   "Should reject additional properties");
 });
 
 Deno.test("EDGE: allOf with empty schemas", async () => {
@@ -304,6 +329,10 @@ Deno.test("EDGE: allOf with false schema (impossible)", async () => {
     true,
     "Schema with false in allOf should be valid",
   );
+
+  // TODO: Add data validation test
+  // const validator = new SchemaValidator(result.schema);
+  // assertEquals(validator.validate({}).valid, false);
 });
 
 Deno.test("EDGE: allOf with nested allOf", async () => {
@@ -362,10 +391,23 @@ Deno.test("EDGE: allOf with $ref that points to another allOf", async () => {
 
   // Should handle reference chains through allOf
   assertEquals(result.valid, true, "Should handle allOf reference chains");
+  assertExists(result.schema, "Should return processed schema");
+
+  // Check that all expected refs are resolved (test behavior, not implementation details)
   assertEquals(
-    result.schema!.refs.resolved.size,
-    3,
-    "Should resolve all three refs",
+    result.schema.refs.resolved.has("#/$defs/AllOfDef"),
+    true,
+    "Should resolve AllOfDef ref",
+  );
+  assertEquals(
+    result.schema.refs.resolved.has("#/$defs/Base"),
+    true,
+    "Should resolve Base ref",
+  );
+  assertEquals(
+    result.schema.refs.resolved.has("#/$defs/Extension"),
+    true,
+    "Should resolve Extension ref",
   );
 });
 
@@ -393,8 +435,9 @@ Deno.test("EDGE: allOf with circular dependency in properties", async () => {
 
   // Should handle circular dependency in allOf properties
   assertEquals(result.valid, true, "Should handle circular allOf properties");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root cycle",
   );
@@ -429,6 +472,13 @@ Deno.test("EDGE: allOf merging conflicting required arrays", async () => {
     true,
     "Should handle merging required arrays in allOf",
   );
+
+  // TODO: Add data validation test
+  // const validator = new SchemaValidator(result.schema);
+  // // Should require both a and c
+  // assertEquals(validator.validate({ a: "x" }).valid, false);
+  // assertEquals(validator.validate({ c: "z" }).valid, false);
+  // assertEquals(validator.validate({ a: "x", c: "z" }).valid, true);
 });
 
 Deno.test("EDGE: allOf with unevaluatedProperties", async () => {
@@ -454,31 +504,35 @@ Deno.test("EDGE: allOf with unevaluatedProperties", async () => {
   );
 });
 
-Deno.test("EDGE: Performance - allOf with many schemas", async () => {
-  // Create allOf with 100 schemas
-  const schemas: Schema[] = [];
-  for (let i = 0; i < 100; i++) {
-    schemas.push({
-      properties: {
-        [`prop${i}`]: { type: "string" },
-      },
-    });
-  }
+Deno.test({
+  name: "EDGE: Performance - allOf with many schemas",
+  timeout: 10000, // 10 second timeout
+  async fn() {
+    // Create allOf with 100 schemas
+    const schemas: Schema[] = [];
+    for (let i = 0; i < 100; i++) {
+      schemas.push({
+        properties: {
+          [`prop${i}`]: { type: "string" },
+        },
+      });
+    }
 
-  const schema: Schema = {
-    allOf: schemas,
-  };
+    const schema: Schema = {
+      allOf: schemas,
+    };
 
-  const processor = new JsonSchemaProcessor();
-  const start = performance.now();
-  const result = await processor.process(schema);
-  const duration = performance.now() - start;
+    const processor = new JsonSchemaProcessor();
+    const start = performance.now();
+    const result = await processor.process(schema);
+    const duration = performance.now() - start;
 
-  // Should handle many allOf schemas efficiently
-  assertEquals(result.valid, true, "Should handle many allOf schemas");
-  assertEquals(
-    duration < 5000,
-    true,
-    `Should complete in < 5s (took ${duration.toFixed(2)}ms)`,
-  );
+    // Should handle many allOf schemas efficiently
+    assertEquals(result.valid, true, "Should handle many allOf schemas");
+    assertEquals(
+      duration < 5000,
+      true,
+      `Should complete in < 5s (took ${duration.toFixed(2)}ms)`,
+    );
+  },
 });

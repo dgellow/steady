@@ -7,42 +7,47 @@
  * USER REQUIREMENT: "variants, etc causing infinite loop in a lot of openapi tools"
  */
 
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
 import { ResponseGenerator } from "../../../packages/json-schema/response-generator.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
-Deno.test("EDGE: oneOf with recursive array items", async () => {
-  // This pattern causes infinite expansion in many tools
-  const schema: Schema = {
-    oneOf: [
-      { type: "string" },
-      { type: "array", items: { $ref: "#" } }, // Infinite expansion
-    ],
-  };
+Deno.test({
+  name: "EDGE: oneOf with recursive array items",
+  timeout: 10000, // 10 second timeout for generation
+  async fn() {
+    // This pattern causes infinite expansion in many tools
+    const schema: Schema = {
+      oneOf: [
+        { type: "string" },
+        { type: "array", items: { $ref: "#" } }, // Infinite expansion
+      ],
+    };
 
-  const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+    const processor = new JsonSchemaProcessor();
+    const result = await processor.process(schema);
 
-  // Should detect cycle
-  assertEquals(result.valid, true, "Should process without crashing");
-  assertEquals(
-    result.schema!.refs.cyclic.has("#"),
-    true,
-    "Should detect root cycle",
-  );
+    // Should detect cycle
+    assertEquals(result.valid, true, "Should process without crashing");
+    assertExists(result.schema, "Should return processed schema");
+    assertEquals(
+      result.schema.refs.cyclic.has("#"),
+      true,
+      "Should detect root cycle",
+    );
 
-  // Should generate response without infinite loop
-  const generator = new ResponseGenerator(result.schema!);
-  const response = generator.generate();
+    // Should generate response without infinite loop (with timeout protection)
+    const generator = new ResponseGenerator(result.schema);
+    const response = generator.generate();
 
-  // Generated response should be finite
-  const responseStr = JSON.stringify(response);
-  assertEquals(
-    responseStr.length < 100000,
-    true,
-    `Response should be finite (got ${responseStr.length} chars)`,
-  );
+    // Generated response should be finite
+    const responseStr = JSON.stringify(response);
+    assertEquals(
+      responseStr.length < 100000,
+      true,
+      `Response should be finite (got ${responseStr.length} chars)`,
+    );
+  },
 });
 
 Deno.test("EDGE: anyOf with mutual recursion", async () => {
@@ -70,18 +75,19 @@ Deno.test("EDGE: anyOf with mutual recursion", async () => {
 
   // Should detect cycle between A and B
   assertEquals(result.valid, true, "Should process mutual recursion");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.size >= 2,
+    result.schema.refs.cyclic.size >= 2,
     true,
     "Should detect both refs in cycle",
   );
   assertEquals(
-    result.schema!.refs.cyclic.has("#/$defs/A"),
+    result.schema.refs.cyclic.has("#/$defs/A"),
     true,
     "Should detect A in cycle",
   );
   assertEquals(
-    result.schema!.refs.cyclic.has("#/$defs/B"),
+    result.schema.refs.cyclic.has("#/$defs/B"),
     true,
     "Should detect B in cycle",
   );
@@ -101,48 +107,54 @@ Deno.test("EDGE: Complex variant nesting with recursion", async () => {
 
   // Should handle complex nesting
   assertEquals(result.valid, true, "Should process complex variant nesting");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root cycle",
   );
 });
 
-Deno.test("EDGE: anyOf with multiple recursive branches", async () => {
-  const schema: Schema = {
-    type: "object",
-    properties: {
-      value: {
-        anyOf: [
-          { type: "string" },
-          { type: "array", items: { $ref: "#" } },
-          { type: "object", additionalProperties: { $ref: "#" } },
-        ],
+Deno.test({
+  name: "EDGE: anyOf with multiple recursive branches",
+  timeout: 10000, // 10 second timeout for generation
+  async fn() {
+    const schema: Schema = {
+      type: "object",
+      properties: {
+        value: {
+          anyOf: [
+            { type: "string" },
+            { type: "array", items: { $ref: "#" } },
+            { type: "object", additionalProperties: { $ref: "#" } },
+          ],
+        },
       },
-    },
-  };
+    };
 
-  const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+    const processor = new JsonSchemaProcessor();
+    const result = await processor.process(schema);
 
-  // Should handle multiple recursive branches
-  assertEquals(result.valid, true, "Should process multiple recursive branches");
-  assertEquals(
-    result.schema!.refs.cyclic.has("#"),
-    true,
-    "Should detect root cycle",
-  );
+    // Should handle multiple recursive branches
+    assertEquals(result.valid, true, "Should process multiple recursive branches");
+    assertExists(result.schema, "Should return processed schema");
+    assertEquals(
+      result.schema.refs.cyclic.has("#"),
+      true,
+      "Should detect root cycle",
+    );
 
-  // Response generation should not loop infinitely
-  const generator = new ResponseGenerator(result.schema!);
-  const response = generator.generate();
-  const responseStr = JSON.stringify(response);
+    // Response generation should not loop infinitely
+    const generator = new ResponseGenerator(result.schema);
+    const response = generator.generate();
+    const responseStr = JSON.stringify(response);
 
-  assertEquals(
-    responseStr.length < 100000,
-    true,
-    "Response should be finite with multiple branches",
-  );
+    assertEquals(
+      responseStr.length < 100000,
+      true,
+      "Response should be finite with multiple branches",
+    );
+  },
 });
 
 Deno.test("EDGE: oneOf with discriminator and recursion", async () => {
@@ -175,8 +187,9 @@ Deno.test("EDGE: oneOf with discriminator and recursion", async () => {
 
   // Should handle discriminator with recursion
   assertEquals(result.valid, true, "Should process discriminator with recursion");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root cycle",
   );
@@ -199,8 +212,9 @@ Deno.test("EDGE: anyOf with circular chain through properties", async () => {
 
   // Linked list pattern - common and should work
   assertEquals(result.valid, true, "Should process linked list pattern");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root cycle",
   );
@@ -220,40 +234,45 @@ Deno.test("EDGE: oneOf with all branches recursive", async () => {
 
   // All branches recursive - should still work
   assertEquals(result.valid, true, "Should process all-recursive oneOf");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root cycle",
   );
 });
 
-Deno.test("EDGE: Performance - oneOf with many recursive variants", async () => {
-  // Create oneOf with 50 recursive variants
-  const variants: Schema[] = [];
-  for (let i = 0; i < 50; i++) {
-    variants.push({
-      properties: {
-        [`variant${i}`]: { $ref: "#" },
-      },
-    });
-  }
+Deno.test({
+  name: "EDGE: Performance - oneOf with many recursive variants",
+  timeout: 10000, // 10 second timeout
+  async fn() {
+    // Create oneOf with 50 recursive variants
+    const variants: Schema[] = [];
+    for (let i = 0; i < 50; i++) {
+      variants.push({
+        properties: {
+          [`variant${i}`]: { $ref: "#" },
+        },
+      });
+    }
 
-  const schema: Schema = {
-    oneOf: variants,
-  };
+    const schema: Schema = {
+      oneOf: variants,
+    };
 
-  const processor = new JsonSchemaProcessor();
-  const start = performance.now();
-  const result = await processor.process(schema);
-  const duration = performance.now() - start;
+    const processor = new JsonSchemaProcessor();
+    const start = performance.now();
+    const result = await processor.process(schema);
+    const duration = performance.now() - start;
 
-  // Should handle many variants efficiently
-  assertEquals(result.valid, true, "Should process many recursive variants");
-  assertEquals(
-    duration < 5000,
-    true,
-    `Should complete in < 5s (took ${duration.toFixed(2)}ms)`,
-  );
+    // Should handle many variants efficiently
+    assertEquals(result.valid, true, "Should process many recursive variants");
+    assertEquals(
+      duration < 5000,
+      true,
+      `Should complete in < 5s (took ${duration.toFixed(2)}ms)`,
+    );
+  },
 });
 
 Deno.test("EDGE: anyOf with nested oneOf recursion", async () => {
@@ -274,8 +293,9 @@ Deno.test("EDGE: anyOf with nested oneOf recursion", async () => {
 
   // Nested variants with recursion
   assertEquals(result.valid, true, "Should process nested variant recursion");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root cycle",
   );
@@ -306,8 +326,9 @@ Deno.test("EDGE: Triple nested variants with recursion", async () => {
 
   // Triple nesting with recursion
   assertEquals(result.valid, true, "Should process triple nested variants");
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root cycle",
   );
@@ -340,53 +361,59 @@ Deno.test("EDGE: anyOf with if/then/else and recursion", async () => {
     true,
     "Should process variants with conditionals",
   );
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root cycle",
   );
 });
 
-Deno.test("EDGE: Response generation does not loop infinitely", async () => {
-  const schema: Schema = {
-    oneOf: [
-      { type: "string" },
-      {
-        type: "array",
-        items: { $ref: "#" },
-        minItems: 0,
-        maxItems: 3,
-      },
-    ],
-  };
+Deno.test({
+  name: "EDGE: Response generation does not loop infinitely",
+  timeout: 15000, // 15 second timeout for 10 generations
+  async fn() {
+    const schema: Schema = {
+      oneOf: [
+        { type: "string" },
+        {
+          type: "array",
+          items: { $ref: "#" },
+          minItems: 0,
+          maxItems: 3,
+        },
+      ],
+    };
 
-  const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
-  assertEquals(result.valid, true);
+    const processor = new JsonSchemaProcessor();
+    const result = await processor.process(schema);
+    assertEquals(result.valid, true);
+    assertExists(result.schema, "Should return processed schema");
 
-  // Generate response 10 times - should never hang
-  const generator = new ResponseGenerator(result.schema!);
+    // Generate response 10 times - should never hang
+    const generator = new ResponseGenerator(result.schema);
 
-  for (let i = 0; i < 10; i++) {
-    const start = performance.now();
-    const response = generator.generate();
-    const duration = performance.now() - start;
+    for (let i = 0; i < 10; i++) {
+      const start = performance.now();
+      const response = generator.generate();
+      const duration = performance.now() - start;
 
-    // Each generation should complete quickly
-    assertEquals(
-      duration < 1000,
-      true,
-      `Generation ${i} should complete in < 1s (took ${duration.toFixed(2)}ms)`,
-    );
+      // Each generation should complete quickly
+      assertEquals(
+        duration < 1000,
+        true,
+        `Generation ${i} should complete in < 1s (took ${duration.toFixed(2)}ms)`,
+      );
 
-    // Response should be finite
-    const responseStr = JSON.stringify(response);
-    assertEquals(
-      responseStr.length < 50000,
-      true,
-      `Response ${i} should be finite (got ${responseStr.length} chars)`,
-    );
-  }
+      // Response should be finite
+      const responseStr = JSON.stringify(response);
+      assertEquals(
+        responseStr.length < 50000,
+        true,
+        `Response ${i} should be finite (got ${responseStr.length} chars)`,
+      );
+    }
+  },
 });
 
 Deno.test("EDGE: Variant with unevaluatedProperties recursion", async () => {
@@ -408,40 +435,46 @@ Deno.test("EDGE: Variant with unevaluatedProperties recursion", async () => {
     true,
     "Should process unevaluatedProperties with variants",
   );
+  assertExists(result.schema, "Should return processed schema");
   assertEquals(
-    result.schema!.refs.cyclic.has("#"),
+    result.schema.refs.cyclic.has("#"),
     true,
     "Should detect root cycle",
   );
 });
 
-Deno.test("EDGE: Deep variant stack without recursion", async () => {
-  // Not all deep nesting is recursive - this should be fast
-  let schema: Schema = { type: "string" };
-  for (let i = 0; i < 50; i++) {
-    schema = {
-      oneOf: [
-        schema,
-        { type: "number" },
-      ],
-    };
-  }
+Deno.test({
+  name: "EDGE: Deep variant stack without recursion",
+  timeout: 5000, // 5 second timeout
+  async fn() {
+    // Not all deep nesting is recursive - this should be fast
+    let schema: Schema = { type: "string" };
+    for (let i = 0; i < 50; i++) {
+      schema = {
+        oneOf: [
+          schema,
+          { type: "number" },
+        ],
+      };
+    }
 
-  const processor = new JsonSchemaProcessor();
-  const start = performance.now();
-  const result = await processor.process(schema);
-  const duration = performance.now() - start;
+    const processor = new JsonSchemaProcessor();
+    const start = performance.now();
+    const result = await processor.process(schema);
+    const duration = performance.now() - start;
 
-  // Deep non-recursive nesting should still be fast
-  assertEquals(result.valid, true, "Should process deep variant nesting");
-  assertEquals(
-    result.schema!.refs.cyclic.size,
-    0,
-    "Should not detect cycles (no refs)",
-  );
-  assertEquals(
-    duration < 3000,
-    true,
-    `Should complete in < 3s (took ${duration.toFixed(2)}ms)`,
-  );
+    // Deep non-recursive nesting should still be fast
+    assertEquals(result.valid, true, "Should process deep variant nesting");
+    assertExists(result.schema, "Should return processed schema");
+    assertEquals(
+      result.schema.refs.cyclic.size,
+      0,
+      "Should not detect cycles (no refs)",
+    );
+    assertEquals(
+      duration < 3000,
+      true,
+      `Should complete in < 3s (took ${duration.toFixed(2)}ms)`,
+    );
+  },
 });
