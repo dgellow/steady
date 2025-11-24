@@ -40,7 +40,7 @@ export class JsonSchemaProcessor {
 
     // 1. Validate against metaschema
     if (source?.metaschema) {
-      const metaschemaResult = this.metaschemaValidator.validate(
+      const metaschemaResult = await this.metaschemaValidator.validate(
         schemaObject,
         source.metaschema,
       );

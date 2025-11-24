@@ -372,9 +372,9 @@ export class MockServer {
 
       // Check if this is a parameter (e.g., {id})
       if (patternSeg.startsWith("{") && patternSeg.endsWith("}")) {
-        // Extract parameter name
+        // Extract parameter name and decode URL-encoded value
         const paramName = patternSeg.slice(1, -1);
-        params[paramName] = requestSeg;
+        params[paramName] = decodeURIComponent(requestSeg);
       } else if (patternSeg !== requestSeg) {
         // Literal segment must match exactly
         return null;

@@ -120,19 +120,32 @@ export class RequestValidator {
 
     // Check required parameters
     for (const spec of paramSpecs) {
-      const value = params.get(spec.name);
+      // For array-type params, get all values; for others, get single value
+      const isArrayType = Array.isArray(spec.schema?.type)
+        ? spec.schema.type.includes("array")
+        : spec.schema?.type === "array";
 
-      if (spec.required && value === null) {
+      const values = isArrayType
+        ? params.getAll(spec.name)
+        : [params.get(spec.name)];
+      const hasValue = values.length > 0 && values[0] !== null;
+
+      if (spec.required && !hasValue) {
         errors.push({
           path: `query.${spec.name}`,
           message: "Required parameter missing",
           expected: spec.schema?.type || "string",
           actual: undefined,
         });
-      } else if (value !== null && spec.schema) {
+      } else if (hasValue && spec.schema) {
+        // Parse value(s) according to schema type
+        const parsedValue = isArrayType
+          ? values.map((v) => this.parseQueryValue(v!, spec.schema!))
+          : this.parseQueryValue(values[0]!, spec.schema);
+
         // Validate parameter using JSON Schema processor
         const validation = await this.validateValue(
-          this.parseQueryValue(value, spec.schema),
+          parsedValue,
           spec.schema as Schema,
           `query.${spec.name}`,
         );
@@ -187,8 +200,9 @@ export class RequestValidator {
         });
       } else if (value !== undefined && spec.schema) {
         // Validate parameter using JSON Schema processor
+        // Path params are always single values (never arrays)
         const validation = await this.validateValue(
-          this.parseQueryValue(value, spec.schema),
+          this.parseParamValue(value, spec.schema),
           spec.schema as Schema,
           `path.${spec.name}`,
         );
@@ -227,8 +241,9 @@ export class RequestValidator {
         });
       } else if (value !== null && spec.schema) {
         // Validate header using JSON Schema processor
+        // Headers are always single values (never arrays)
         const validation = await this.validateValue(
-          this.parseQueryValue(value, spec.schema),
+          this.parseParamValue(value, spec.schema),
           spec.schema as Schema,
           `header.${spec.name}`,
         );
@@ -387,9 +402,10 @@ export class RequestValidator {
   }
 
   /**
-   * Parse query parameter value based on schema type
+   * Parse parameter value based on schema type
+   * Used for path params, headers, and individual query param values
    */
-  private parseQueryValue(value: string, schema: SchemaObject): unknown {
+  private parseParamValue(value: string, schema: SchemaObject): unknown {
     // Handle OpenAPI 3.1 type arrays
     const types = Array.isArray(schema.type)
       ? schema.type
@@ -407,9 +423,6 @@ export class RequestValidator {
         return parseFloat(value);
       case "boolean":
         return value === "true";
-      case "array":
-        // Query params like ?tag=a&tag=b should be parsed as array
-        return [value];
       case "object":
         // Try to parse as JSON
         try {
@@ -420,5 +433,13 @@ export class RequestValidator {
       default:
         return value;
     }
+  }
+
+  /**
+   * Parse query parameter value based on schema type
+   * Wrapper for backwards compatibility
+   */
+  private parseQueryValue(value: string, schema: SchemaObject): unknown {
+    return this.parseParamValue(value, schema);
   }
 }
