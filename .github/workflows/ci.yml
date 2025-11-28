@@ -25,7 +25,7 @@ jobs:
         run: deno check cmd/steady.ts src/**/*.ts packages/**/*.ts
 
       - name: Lint code
-        run: deno lint --quiet
+        run: ./scripts/lint
 
       - name: Check import boundaries
         run: deno task check-boundaries
@@ -41,11 +41,5 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v2
 
-      - name: Run unit tests
-        run: deno task test
-
-      - name: Run JSON Schema test suite
-        run: deno task test:suite
-
-      - name: Run edge case tests
-        run: deno task test:edge-cases
+      - name: Run tests
+        run: ./scripts/test
