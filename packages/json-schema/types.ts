@@ -268,7 +268,7 @@ export interface GenerateOptions {
   seed?: number;          // For deterministic generation
   locale?: string;        // For localized data
   useExamples?: boolean;  // Prefer examples over generated data
-  formats?: Record<string, (options: any) => unknown>; // Custom format generators
+  formats?: Record<string, (options: GenerateContext) => unknown>; // Custom format generators
 }
 
 export interface GenerateContext {

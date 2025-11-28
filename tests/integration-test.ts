@@ -11,7 +11,7 @@
 
 import { parseSpec } from "../packages/parser/mod.ts";
 import { MockServer } from "../src/server.ts";
-import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
 
 Deno.test("Integration: Load massive Datadog spec (8.4MB, 323 endpoints)", async () => {
   const spec = await parseSpec("./datadog-openapi.json");
@@ -62,6 +62,7 @@ Deno.test("Integration: Path parameter extraction", async () => {
 
   for (const tc of testCases) {
     // Use the private matchPath method (we'll access via reflection for testing)
+    // deno-lint-ignore no-explicit-any
     const matchPath = (server as any).matchPath.bind(server);
     const result = matchPath(tc.path, tc.pattern);
 
@@ -234,6 +235,7 @@ Deno.test("Integration: Multiple path parameters", async () => {
   });
 
   // Test matching paths with multiple parameters
+  // deno-lint-ignore no-explicit-any
   const matchPath = (server as any).matchPath.bind(server);
 
   // Example: /api/v2/usage/{product_family}
