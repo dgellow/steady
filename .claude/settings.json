@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" != \"true\" ] && exit 0; command -v deno >/dev/null 2>&1 && exit 0; echo 'Installing Deno for Claude Code web session...' && npm install -g deno && echo 'Deno installed successfully'"
+          }
+        ]
+      }
+    ]
+  }
+}

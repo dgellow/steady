@@ -2,7 +2,7 @@
  * Tests for circular reference detection in JSON Schema processor
  */
 
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { JsonSchemaProcessor } from "./processor.ts";
 import type { Schema } from "./types.ts";
 

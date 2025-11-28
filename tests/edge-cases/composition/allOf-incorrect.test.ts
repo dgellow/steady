@@ -8,7 +8,7 @@
  * variants, etc causing infinite loop in a lot of openapi tools."
  */
 
-import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
