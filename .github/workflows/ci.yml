@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  check:
-    name: Quality Checks
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
 
     steps:
