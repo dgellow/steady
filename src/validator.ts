@@ -4,15 +4,14 @@
  * Integrates the @steady/json-schema processor to provide:
  * - Complete JSON Schema 2020-12 validation
  * - Error attribution (SDK vs spec issues)
- * - Request body validation
+ * - Request body validation with size limits
  * - Path parameter extraction and validation
- * - Enterprise-scale performance
+ * - Enterprise-scale performance with schema caching
  */
 
-import { ValidationError } from "./types.ts";
+import type { ValidationError } from "./types.ts";
 import type { ValidationResult } from "@steady/shared";
 import type {
-  OpenAPISpec,
   OperationObject,
   ParameterObject,
   SchemaObject,
@@ -21,13 +20,22 @@ import {
   JsonSchemaProcessor,
   type Schema,
   SchemaValidator,
-} from "../packages/json-schema/mod.ts";
+} from "@steady/json-schema";
+
+/** Maximum request body size (10MB) to prevent DoS attacks */
+const MAX_BODY_SIZE = 10 * 1024 * 1024;
+
+/** Cache for processed schemas using schema identity */
+const schemaCache = new WeakMap<object, SchemaValidator>();
+
+/** Cache for schemas by JSON key (for primitive schemas) */
+const schemaKeyCache = new Map<string, SchemaValidator>();
+
+/** Maximum entries in key cache to prevent memory leaks */
+const MAX_KEY_CACHE_SIZE = 1000;
 
 export class RequestValidator {
-  private schemaProcessors: Map<string, SchemaValidator> = new Map();
-
   constructor(
-    private spec: OpenAPISpec,
     private mode: "strict" | "relaxed",
   ) {}
 
@@ -82,23 +90,12 @@ export class RequestValidator {
     if (
       operation.requestBody && req.method !== "GET" && req.method !== "HEAD"
     ) {
-      try {
-        const body = await req.clone().text();
-        const bodyValidation = await this.validateRequestBody(
-          body,
-          operation.requestBody,
-          req.headers.get("content-type") || "application/json",
-        );
-        errors.push(...bodyValidation.errors);
-        warnings.push(...bodyValidation.warnings);
-      } catch (error) {
-        errors.push({
-          path: "body",
-          message: `Failed to read request body: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        });
-      }
+      const bodyValidation = await this.validateRequestBodyFromRequest(
+        req,
+        operation.requestBody,
+      );
+      errors.push(...bodyValidation.errors);
+      warnings.push(...bodyValidation.warnings);
     }
 
     return {
@@ -118,13 +115,8 @@ export class RequestValidator {
     const errors: ValidationError[] = [];
     const warnings: ValidationError[] = [];
 
-    // Check required parameters
     for (const spec of paramSpecs) {
-      // For array-type params, get all values; for others, get single value
-      const isArrayType = Array.isArray(spec.schema?.type)
-        ? spec.schema.type.includes("array")
-        : spec.schema?.type === "array";
-
+      const isArrayType = this.isArraySchema(spec.schema);
       const values = isArrayType
         ? params.getAll(spec.name)
         : [params.get(spec.name)];
@@ -138,39 +130,31 @@ export class RequestValidator {
           actual: undefined,
         });
       } else if (hasValue && spec.schema) {
-        // Parse value(s) according to schema type
         const parsedValue = isArrayType
-          ? values.map((v) => this.parseQueryValue(v!, spec.schema!))
-          : this.parseQueryValue(values[0]!, spec.schema);
+          ? values.map((v) => this.parseParamValue(v!, spec.schema!))
+          : this.parseParamValue(values[0]!, spec.schema);
 
-        // Validate parameter using JSON Schema processor
         const validation = await this.validateValue(
           parsedValue,
           spec.schema as Schema,
           `query.${spec.name}`,
         );
-        if (!validation.valid) {
-          if (this.mode === "strict") {
-            errors.push(...validation.errors);
-          } else {
-            warnings.push(...validation.errors);
-          }
-        }
+        this.collectErrors(validation, errors, warnings);
       }
     }
 
-    // Check for unknown parameters
+    // Check for unknown parameters in strict mode
     const knownParams = new Set(paramSpecs.map((p) => p.name));
     for (const [key] of params) {
       if (!knownParams.has(key)) {
-        const warning: ValidationError = {
+        const error: ValidationError = {
           path: `query.${key}`,
           message: "Unknown parameter",
         };
         if (this.mode === "strict") {
-          errors.push(warning);
+          errors.push(error);
         } else {
-          warnings.push(warning);
+          warnings.push(error);
         }
       }
     }
@@ -199,20 +183,12 @@ export class RequestValidator {
           actual: undefined,
         });
       } else if (value !== undefined && spec.schema) {
-        // Validate parameter using JSON Schema processor
-        // Path params are always single values (never arrays)
         const validation = await this.validateValue(
           this.parseParamValue(value, spec.schema),
           spec.schema as Schema,
           `path.${spec.name}`,
         );
-        if (!validation.valid) {
-          if (this.mode === "strict") {
-            errors.push(...validation.errors);
-          } else {
-            warnings.push(...validation.errors);
-          }
-        }
+        this.collectErrors(validation, errors, warnings);
       }
     }
 
@@ -240,20 +216,12 @@ export class RequestValidator {
           actual: undefined,
         });
       } else if (value !== null && spec.schema) {
-        // Validate header using JSON Schema processor
-        // Headers are always single values (never arrays)
         const validation = await this.validateValue(
           this.parseParamValue(value, spec.schema),
           spec.schema as Schema,
           `header.${spec.name}`,
         );
-        if (!validation.valid) {
-          if (this.mode === "strict") {
-            errors.push(...validation.errors);
-          } else {
-            warnings.push(...validation.errors);
-          }
-        }
+        this.collectErrors(validation, errors, warnings);
       }
     }
 
@@ -261,7 +229,96 @@ export class RequestValidator {
   }
 
   /**
-   * Validate request body using JSON Schema processor
+   * Read and validate request body with size limits
+   */
+  private async validateRequestBodyFromRequest(
+    req: Request,
+    requestBody: {
+      required?: boolean;
+      content?: Record<string, { schema?: SchemaObject }>;
+    },
+  ): Promise<ValidationResult> {
+    const errors: ValidationError[] = [];
+    const warnings: ValidationError[] = [];
+
+    // Check content length header for early rejection
+    const contentLength = req.headers.get("content-length");
+    if (contentLength) {
+      const size = parseInt(contentLength, 10);
+      if (size > MAX_BODY_SIZE) {
+        errors.push({
+          path: "body",
+          message: `Request body too large: ${size} bytes exceeds limit of ${MAX_BODY_SIZE} bytes`,
+        });
+        return { valid: false, errors, warnings };
+      }
+    }
+
+    try {
+      // Clone and read with streaming to enforce size limit
+      const body = await this.readBodyWithLimit(req.clone());
+      const contentType = req.headers.get("content-type") || "application/json";
+
+      return this.validateRequestBody(body, requestBody, contentType);
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) {
+        errors.push({
+          path: "body",
+          message: error.message,
+        });
+      } else {
+        errors.push({
+          path: "body",
+          message: `Failed to read request body: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      }
+      return { valid: false, errors, warnings };
+    }
+  }
+
+  /**
+   * Read request body with size limit enforcement
+   */
+  private async readBodyWithLimit(req: Request): Promise<string> {
+    const reader = req.body?.getReader();
+    if (!reader) {
+      return "";
+    }
+
+    const chunks: Uint8Array[] = [];
+    let totalSize = 0;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        totalSize += value.length;
+        if (totalSize > MAX_BODY_SIZE) {
+          throw new BodyTooLargeError(
+            `Request body exceeds maximum size of ${MAX_BODY_SIZE} bytes`
+          );
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const allChunks = new Uint8Array(totalSize);
+    let offset = 0;
+    for (const chunk of chunks) {
+      allChunks.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return new TextDecoder().decode(allChunks);
+  }
+
+  /**
+   * Validate request body content
    */
   private async validateRequestBody(
     body: string,
@@ -274,10 +331,8 @@ export class RequestValidator {
     const errors: ValidationError[] = [];
     const warnings: ValidationError[] = [];
 
-    // Parse content type (strip parameters like charset)
     const mediaType = contentType.split(";")[0]?.trim() || "application/json";
 
-    // Check if content type is supported
     if (!requestBody.content || !requestBody.content[mediaType]) {
       if (requestBody.required) {
         errors.push({
@@ -292,17 +347,14 @@ export class RequestValidator {
 
     const mediaTypeSpec = requestBody.content[mediaType];
     if (!mediaTypeSpec?.schema) {
-      // No schema to validate against
       return { valid: true, errors, warnings };
     }
 
-    // Parse body based on content type
     let parsedBody: unknown;
     try {
       if (mediaType === "application/json" || mediaType.endsWith("+json")) {
         parsedBody = JSON.parse(body);
       } else {
-        // For non-JSON content types, validate as string
         parsedBody = body;
       }
     } catch (error) {
@@ -315,46 +367,34 @@ export class RequestValidator {
       return { valid: false, errors, warnings };
     }
 
-    // Validate using JSON Schema processor
     const validation = await this.validateValue(
       parsedBody,
       mediaTypeSpec.schema as Schema,
       "body",
     );
-
-    if (!validation.valid) {
-      if (this.mode === "strict") {
-        errors.push(...validation.errors);
-      } else {
-        warnings.push(...validation.errors);
-      }
-    }
+    this.collectErrors(validation, errors, warnings);
 
     return { valid: errors.length === 0, errors, warnings };
   }
 
   /**
-   * Validate a value against a JSON Schema using the processor
+   * Validate a value against a JSON Schema using cached processors
    */
   private async validateValue(
     value: unknown,
     schema: Schema,
     path: string,
   ): Promise<ValidationResult> {
-    // Get or create schema validator
-    const schemaKey = JSON.stringify(schema);
-    let validator = this.schemaProcessors.get(schemaKey);
+    let validator = this.getValidatorFromCache(schema);
 
     if (!validator) {
       try {
-        // Process schema once
         const processor = new JsonSchemaProcessor();
         const processResult = await processor.process(schema, {
           baseUri: "steady://internal/validation",
         });
 
         if (!processResult.valid || !processResult.schema) {
-          // Schema itself is invalid - this is a spec error
           return {
             valid: false,
             errors: processResult.errors.map((err) => ({
@@ -368,7 +408,7 @@ export class RequestValidator {
         }
 
         validator = new SchemaValidator(processResult.schema);
-        this.schemaProcessors.set(schemaKey, validator);
+        this.setValidatorInCache(schema, validator);
       } catch (error) {
         return {
           valid: false,
@@ -383,10 +423,7 @@ export class RequestValidator {
       }
     }
 
-    // Validate the data
     const result = validator.validate(value);
-
-    // Convert JSON Schema validation errors to our format
     const errors: ValidationError[] = result.errors.map((err) => ({
       path: err.instancePath ? `${path}${err.instancePath}` : path,
       message: err.message,
@@ -402,18 +439,79 @@ export class RequestValidator {
   }
 
   /**
+   * Get a cached validator for a schema
+   */
+  private getValidatorFromCache(schema: Schema): SchemaValidator | undefined {
+    // Try WeakMap first (for object schemas)
+    if (typeof schema === "object" && schema !== null) {
+      const cached = schemaCache.get(schema);
+      if (cached) return cached;
+    }
+
+    // Fall back to key cache for simple schemas
+    const key = JSON.stringify(schema);
+    return schemaKeyCache.get(key);
+  }
+
+  /**
+   * Cache a validator for a schema
+   */
+  private setValidatorInCache(schema: Schema, validator: SchemaValidator): void {
+    // Use WeakMap for object schemas (automatic GC)
+    if (typeof schema === "object" && schema !== null) {
+      schemaCache.set(schema, validator);
+    }
+
+    // Also store in key cache for lookup by equivalent schemas
+    const key = JSON.stringify(schema);
+
+    // Evict oldest entries if cache is full
+    if (schemaKeyCache.size >= MAX_KEY_CACHE_SIZE) {
+      const firstKey = schemaKeyCache.keys().next().value;
+      if (firstKey) schemaKeyCache.delete(firstKey);
+    }
+
+    schemaKeyCache.set(key, validator);
+  }
+
+  /**
+   * Collect validation errors based on mode
+   */
+  private collectErrors(
+    validation: ValidationResult,
+    errors: ValidationError[],
+    warnings: ValidationError[],
+  ): void {
+    if (!validation.valid) {
+      if (this.mode === "strict") {
+        errors.push(...validation.errors);
+      } else {
+        warnings.push(...validation.errors);
+      }
+    }
+  }
+
+  /**
+   * Check if a schema represents an array type
+   */
+  private isArraySchema(schema?: SchemaObject): boolean {
+    if (!schema) return false;
+    if (Array.isArray(schema.type)) {
+      return schema.type.includes("array");
+    }
+    return schema.type === "array";
+  }
+
+  /**
    * Parse parameter value based on schema type
-   * Used for path params, headers, and individual query param values
    */
   private parseParamValue(value: string, schema: SchemaObject): unknown {
-    // Handle OpenAPI 3.1 type arrays
     const types = Array.isArray(schema.type)
       ? schema.type
       : schema.type
       ? [schema.type]
       : ["string"];
 
-    // Find the first non-null type
     const type = types.find((t) => t !== "null") || "string";
 
     switch (type) {
@@ -422,9 +520,9 @@ export class RequestValidator {
       case "number":
         return parseFloat(value);
       case "boolean":
-        return value === "true";
+        return value === "true" || value === "1";
       case "object":
-        // Try to parse as JSON
+      case "array":
         try {
           return JSON.parse(value);
         } catch {
@@ -434,12 +532,14 @@ export class RequestValidator {
         return value;
     }
   }
+}
 
-  /**
-   * Parse query parameter value based on schema type
-   * Wrapper for backwards compatibility
-   */
-  private parseQueryValue(value: string, schema: SchemaObject): unknown {
-    return this.parseParamValue(value, schema);
+/**
+ * Error thrown when request body exceeds size limit
+ */
+class BodyTooLargeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BodyTooLargeError";
   }
 }

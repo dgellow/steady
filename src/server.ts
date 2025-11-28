@@ -1,4 +1,14 @@
-import { ServerConfig } from "./types.ts";
+/**
+ * Steady Mock Server - Enterprise-grade OpenAPI mock server
+ *
+ * Features:
+ * - Pre-compiled path patterns for O(1) route matching
+ * - Efficient schema processing with caching
+ * - Graceful shutdown handling
+ * - Interactive and standard logging modes
+ */
+
+import type { ServerConfig } from "./types.ts";
 import type {
   OpenAPISpec,
   OperationObject,
@@ -18,12 +28,28 @@ const BOLD = "\x1b[1m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
+/** HTTP methods supported by OpenAPI */
+const HTTP_METHODS = ["get", "post", "put", "delete", "patch", "head", "options"] as const;
+type HttpMethod = typeof HTTP_METHODS[number];
+
+/** Pre-compiled path pattern for efficient matching */
+interface CompiledPath {
+  pattern: string;
+  pathItem: PathItemObject;
+  segments: Array<{ type: "literal"; value: string } | { type: "param"; name: string }>;
+  segmentCount: number;
+}
+
 export class MockServer {
   private schemaProcessor: ServerSchemaProcessor;
   private abortController: AbortController;
   private logger: RequestLogger;
   private validator: RequestValidator;
   private initialized = false;
+
+  // Pre-compiled routes for O(1) exact matches and efficient pattern matching
+  private exactRoutes = new Map<string, PathItemObject>();
+  private patternRoutes: CompiledPath[] = [];
 
   constructor(
     private spec: OpenAPISpec,
@@ -39,7 +65,45 @@ export class MockServer {
       this.logger = new RequestLogger(config.logLevel, config.logBodies);
     }
 
-    this.validator = new RequestValidator(spec, config.mode);
+    this.validator = new RequestValidator(config.mode);
+
+    // Pre-compile all path patterns at construction time
+    this.compileRoutes();
+  }
+
+  /**
+   * Pre-compile all routes for efficient matching
+   */
+  private compileRoutes(): void {
+    for (const [pattern, pathItem] of Object.entries(this.spec.paths)) {
+      // Check if this is an exact path (no parameters)
+      if (!pattern.includes("{")) {
+        this.exactRoutes.set(pattern, pathItem);
+      } else {
+        // Compile the pattern
+        const segments = pattern.split("/").filter((s) => s.length > 0);
+        const compiledSegments = segments.map((seg) => {
+          if (seg.startsWith("{") && seg.endsWith("}")) {
+            return { type: "param" as const, name: seg.slice(1, -1) };
+          }
+          return { type: "literal" as const, value: seg };
+        });
+
+        this.patternRoutes.push({
+          pattern,
+          pathItem,
+          segments: compiledSegments,
+          segmentCount: segments.length,
+        });
+      }
+    }
+
+    // Sort pattern routes by specificity (more literal segments first)
+    this.patternRoutes.sort((a, b) => {
+      const aLiterals = a.segments.filter((s) => s.type === "literal").length;
+      const bLiterals = b.segments.filter((s) => s.type === "literal").length;
+      return bLiterals - aLiterals;
+    });
   }
 
   /**
@@ -54,12 +118,13 @@ export class MockServer {
     this.initialized = true;
   }
 
-  start() {
+  start(): void {
     if (!this.initialized) {
       throw new Error(
         "Server must be initialized before starting. Call await server.init() first.",
       );
     }
+
     // Start interactive logger if enabled
     if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
       startInkSimpleLogger(this.logger);
@@ -84,77 +149,67 @@ export class MockServer {
     }
   }
 
-  stop() {
+  stop(): void {
     this.abortController.abort();
     if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
       this.logger.stop();
     }
   }
 
-  private printStartupMessage() {
-    // In interactive mode, don't print to console (it will be cleared)
+  private printStartupMessage(): void {
     if (this.config.interactive) {
       return;
     }
 
-    console.log(`\n🚀 ${BOLD}Steady Mock Server v1.0.0${RESET}`);
+    console.log(`\n${BOLD}Steady Mock Server v1.0.0${RESET}`);
     console.log(
-      `📄 Loaded spec: ${this.spec.info.title} v${this.spec.info.version}`,
+      `Loaded spec: ${this.spec.info.title} v${this.spec.info.version}`,
     );
     console.log(
-      `🔗 Server running at http://${this.config.host}:${this.config.port}`,
+      `Server running at http://${this.config.host}:${this.config.port}`,
     );
 
-    // Show configuration
     console.log(`\n${BOLD}Configuration:${RESET}`);
     console.log(
-      `  Mode: ${this.config.mode === "strict" ? "🔒 strict" : "🌊 relaxed"}`,
+      `  Mode: ${this.config.mode === "strict" ? "strict" : "relaxed"}`,
     );
     console.log(
-      `  Logging: ${
-        this.config.verbose ? `📊 ${this.config.logLevel}` : "🔇 disabled"
-      }`,
+      `  Logging: ${this.config.verbose ? this.config.logLevel : "disabled"}`,
     );
     if (this.config.logBodies) {
-      console.log(`  Bodies: 👁️  shown`);
+      console.log(`  Bodies: shown`);
     }
     if (this.config.interactive) {
-      console.log(`  Interactive: 🎮 enabled`);
+      console.log(`  Interactive: enabled`);
     }
 
     // List available endpoints
     console.log(`\n${BOLD}Available endpoints:${RESET}`);
+    const endpointCount = { exact: this.exactRoutes.size, pattern: this.patternRoutes.length };
+
     for (const [path, pathItem] of Object.entries(this.spec.paths)) {
       const methods = this.getMethodsForPath(pathItem);
       for (const method of methods) {
-        console.log(`  ${method.toUpperCase()} ${path}`);
+        console.log(`  ${method.toUpperCase().padEnd(7)} ${path}`);
       }
     }
 
-    // Add special endpoints
     console.log(`\n${DIM}Special endpoints:${RESET}`);
-    console.log(`  ${DIM}GET /_x-steady/health${RESET}`);
-    console.log(`  ${DIM}GET /_x-steady/spec${RESET}`);
+    console.log(`  ${DIM}GET     /_x-steady/health${RESET}`);
+    console.log(`  ${DIM}GET     /_x-steady/spec${RESET}`);
 
-    console.log(`\n${DIM}Press Ctrl+C to stop${RESET}\n`);
+    console.log(`\n${DIM}Routes compiled: ${endpointCount.exact} exact, ${endpointCount.pattern} patterns${RESET}`);
+    console.log(`${DIM}Press Ctrl+C to stop${RESET}\n`);
   }
 
-  private getMethodsForPath(pathItem: PathItemObject): string[] {
-    const methods: string[] = [];
-    if (pathItem.get) methods.push("get");
-    if (pathItem.post) methods.push("post");
-    if (pathItem.put) methods.push("put");
-    if (pathItem.delete) methods.push("delete");
-    if (pathItem.patch) methods.push("patch");
-    if (pathItem.head) methods.push("head");
-    if (pathItem.options) methods.push("options");
-    return methods;
+  private getMethodsForPath(pathItem: PathItemObject): HttpMethod[] {
+    return HTTP_METHODS.filter((method) => pathItem[method] !== undefined);
   }
 
   private async handleRequest(req: Request): Promise<Response> {
     const startTime = performance.now();
     const url = new URL(req.url);
-    const method = req.method.toLowerCase();
+    const method = req.method.toLowerCase() as HttpMethod;
     const path = url.pathname;
 
     // Handle special endpoints (no logging for these)
@@ -166,12 +221,10 @@ export class MockServer {
       return this.handleSpec();
     }
 
-    // Find matching path and operation
     try {
-      const { operation, statusCode, pathPattern, pathParams } = this
-        .findOperation(path, method);
+      const { operation, statusCode, pathPattern, pathParams } = this.findOperation(path, method);
 
-      // Validate request (now async)
+      // Validate request
       const validation = await this.validator.validateRequest(
         req,
         operation,
@@ -179,7 +232,7 @@ export class MockServer {
         pathParams,
       );
 
-      // Log request (with validation if in details mode)
+      // Log request
       this.logger.logRequest(req, path, method, validation);
 
       // If validation failed in strict mode, return error
@@ -199,14 +252,8 @@ export class MockServer {
         );
       }
 
-      const response = await this.generateResponse(
-        operation,
-        statusCode,
-        path,
-        method,
-      );
+      const response = await this.generateResponse(operation, statusCode, path, method);
 
-      // Log response
       const timing = Math.round(performance.now() - startTime);
       this.logger.logResponse(parseInt(statusCode), timing, validation);
 
@@ -215,7 +262,6 @@ export class MockServer {
       const timing = Math.round(performance.now() - startTime);
 
       if (error instanceof MatchError) {
-        // Log the request first (no validation for 404s)
         this.logger.logRequest(req, path, method);
         this.logger.logResponse(404, timing);
         if (this.config.logLevel !== "summary") {
@@ -233,7 +279,6 @@ export class MockServer {
         );
       }
 
-      // Log other errors
       this.logger.logRequest(req, path, method);
       this.logger.logResponse(500, timing);
       console.error(error);
@@ -274,6 +319,9 @@ export class MockServer {
     );
   }
 
+  /**
+   * Find matching operation using pre-compiled routes
+   */
   private findOperation(
     path: string,
     method: string,
@@ -283,105 +331,107 @@ export class MockServer {
     pathPattern: string;
     pathParams: Record<string, string>;
   } {
-    // Try exact match first (fast path)
-    let pathItem = this.spec.paths[path];
-    let pathPattern = path;
-    let pathParams: Record<string, string> = {};
+    // Try exact match first (O(1) lookup)
+    const exactMatch = this.exactRoutes.get(path);
+    if (exactMatch) {
+      const operation = this.getOperationForMethod(exactMatch, method, path);
+      const statusCode = this.selectStatusCode(operation);
+      return { operation, statusCode, pathPattern: path, pathParams: {} };
+    }
 
-    if (!pathItem) {
-      // Try pattern matching with path parameters
-      for (const [pattern, item] of Object.entries(this.spec.paths)) {
-        const match = this.matchPath(path, pattern);
-        if (match) {
-          pathItem = item;
-          pathPattern = pattern;
-          pathParams = match;
-          break;
-        }
+    // Try pattern matching with pre-compiled routes
+    const requestSegments = path.split("/").filter((s) => s.length > 0);
+    const segmentCount = requestSegments.length;
+
+    for (const compiled of this.patternRoutes) {
+      // Quick check: segment count must match
+      if (compiled.segmentCount !== segmentCount) {
+        continue;
+      }
+
+      const params = this.matchCompiledPath(requestSegments, compiled);
+      if (params) {
+        const operation = this.getOperationForMethod(compiled.pathItem, method, compiled.pattern);
+        const statusCode = this.selectStatusCode(operation);
+        return {
+          operation,
+          statusCode,
+          pathPattern: compiled.pattern,
+          pathParams: params,
+        };
       }
     }
 
-    if (!pathItem) {
-      // List available paths for helpful error
-      const availablePaths = Object.keys(this.spec.paths);
-      throw new MatchError("Path not found", {
-        httpPath: path,
-        httpMethod: method.toUpperCase(),
-        errorType: "match",
-        reason: `No path definition found for "${path}"`,
-        suggestion: availablePaths.length > 0
-          ? `Available paths: ${availablePaths.join(", ")}`
-          : "No paths defined in the OpenAPI spec",
-      });
-    }
-
-    // Get operation for method
-    const operation = pathItem[method as keyof PathItemObject] as
-      | OperationObject
-      | undefined;
-
-    if (!operation) {
-      const availableMethods = this.getMethodsForPath(pathItem);
-      throw new MatchError("Method not allowed", {
-        httpPath: path,
-        httpMethod: method.toUpperCase(),
-        errorType: "match",
-        reason: `Method ${method.toUpperCase()} not defined for path "${path}"`,
-        suggestion: `Available methods: ${
-          availableMethods.map((m) => m.toUpperCase()).join(", ")
-        }`,
-      });
-    }
-
-    // Always return 200 if it exists, otherwise first response
-    const statusCode = operation.responses["200"]
-      ? "200"
-      : Object.keys(operation.responses)[0] || "200";
-
-    return { operation, statusCode, pathPattern, pathParams };
+    // No match found
+    const availablePaths = Object.keys(this.spec.paths);
+    throw new MatchError("Path not found", {
+      httpPath: path,
+      httpMethod: method.toUpperCase(),
+      errorType: "match",
+      reason: `No path definition found for "${path}"`,
+      suggestion: availablePaths.length > 0
+        ? `Available paths: ${availablePaths.slice(0, 5).join(", ")}${availablePaths.length > 5 ? "..." : ""}`
+        : "No paths defined in the OpenAPI spec",
+    });
   }
 
   /**
-   * Match a request path against an OpenAPI path pattern
-   * Supports path parameters like /users/{id}
-   * Returns the extracted parameters if match, null otherwise
+   * Match request segments against a compiled path pattern
    */
-  private matchPath(
-    requestPath: string,
-    pattern: string,
+  private matchCompiledPath(
+    requestSegments: string[],
+    compiled: CompiledPath,
   ): Record<string, string> | null {
-    // Split paths into segments
-    const requestSegments = requestPath.split("/").filter((s) => s.length > 0);
-    const patternSegments = pattern.split("/").filter((s) => s.length > 0);
-
-    // Must have same number of segments
-    if (requestSegments.length !== patternSegments.length) {
-      return null;
-    }
-
     const params: Record<string, string> = {};
 
-    // Match each segment
-    for (let i = 0; i < patternSegments.length; i++) {
-      const patternSeg = patternSegments[i];
+    for (let i = 0; i < compiled.segments.length; i++) {
+      const compiledSeg = compiled.segments[i]!;
       const requestSeg = requestSegments[i];
 
-      if (!patternSeg || !requestSeg) {
-        return null;
-      }
+      if (!requestSeg) return null;
 
-      // Check if this is a parameter (e.g., {id})
-      if (patternSeg.startsWith("{") && patternSeg.endsWith("}")) {
-        // Extract parameter name and decode URL-encoded value
-        const paramName = patternSeg.slice(1, -1);
-        params[paramName] = decodeURIComponent(requestSeg);
-      } else if (patternSeg !== requestSeg) {
-        // Literal segment must match exactly
+      if (compiledSeg.type === "param") {
+        params[compiledSeg.name] = decodeURIComponent(requestSeg);
+      } else if (compiledSeg.value !== requestSeg) {
         return null;
       }
     }
 
     return params;
+  }
+
+  /**
+   * Get operation for HTTP method with helpful error if not found
+   */
+  private getOperationForMethod(
+    pathItem: PathItemObject,
+    method: string,
+    pathPattern: string,
+  ): OperationObject {
+    const operation = pathItem[method as keyof PathItemObject] as OperationObject | undefined;
+
+    if (!operation) {
+      const availableMethods = this.getMethodsForPath(pathItem);
+      throw new MatchError("Method not allowed", {
+        httpPath: pathPattern,
+        httpMethod: method.toUpperCase(),
+        errorType: "match",
+        reason: `Method ${method.toUpperCase()} not defined for path "${pathPattern}"`,
+        suggestion: `Available methods: ${availableMethods.map((m) => m.toUpperCase()).join(", ")}`,
+      });
+    }
+
+    return operation;
+  }
+
+  /**
+   * Select the best status code to return (prefer 200, then first available)
+   */
+  private selectStatusCode(operation: OperationObject): string {
+    if (operation.responses["200"]) return "200";
+    if (operation.responses["201"]) return "201";
+    if (operation.responses["204"]) return "204";
+    return Object.keys(operation.responses)[0] || "200";
   }
 
   private async generateResponse(
@@ -397,18 +447,15 @@ export class MockServer {
         httpMethod: method.toUpperCase(),
         errorType: "match",
         reason: `No response defined for status code ${statusCode}`,
-        suggestion: `Available response codes: ${
-          Object.keys(operation.responses).join(", ")
-        }`,
+        suggestion: `Available response codes: ${Object.keys(operation.responses).join(", ")}`,
       });
     }
 
-    // Generate response body
     let body: unknown = null;
     let contentType = "application/json";
 
     if (responseObj.content) {
-      // For MVP, prefer JSON
+      // Prefer JSON, then any other content type
       const mediaType = responseObj.content["application/json"] ||
         Object.values(responseObj.content)[0];
 
@@ -419,18 +466,16 @@ export class MockServer {
 
         try {
           body = await this.schemaProcessor.generateFromMediaType(mediaType);
-        } catch (_error) {
-          // If generation fails, throw a helpful error
+        } catch {
           throw missingExampleError(path, method, statusCode);
         }
       }
     }
 
-    // Build response
     const headers = new Headers({
       "Content-Type": contentType,
       "X-Steady-Matched-Path": path,
-      "X-Steady-Example-Source": "generated", // or "provided" if from example
+      "X-Steady-Example-Source": body !== null ? "generated" : "none",
     });
 
     return new Response(
