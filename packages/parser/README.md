@@ -1,17 +1,21 @@
 # OpenAPI Parser
 
-Enterprise-grade OpenAPI 3.x specification parser with integrated JSON Schema processing.
+Enterprise-grade OpenAPI 3.x specification parser with integrated JSON Schema
+processing.
 
 ## Purpose
 
-Parse and validate OpenAPI 3.0/3.1 specifications, extract and analyze all embedded JSON Schemas, and provide fast endpoint indexing for the mock server. Designed to handle massive enterprise specs with excellent error messages.
+Parse and validate OpenAPI 3.0/3.1 specifications, extract and analyze all
+embedded JSON Schemas, and provide fast endpoint indexing for the mock server.
+Designed to handle massive enterprise specs with excellent error messages.
 
 ## Key Features
 
 - **OpenAPI 3.x Support** - Full compatibility with OpenAPI 3.0 and 3.1
 - **JSON Schema Integration** - Extract and validate all schemas in the spec
 - **Enterprise Scale** - Handle specs with 1500+ endpoints efficiently
-- **Excellent Error Messages** - Clear attribution of spec issues with fix suggestions
+- **Excellent Error Messages** - Clear attribution of spec issues with fix
+  suggestions
 - **Endpoint Indexing** - Fast lookup structures for request routing
 - **Reference Resolution** - Handle complex $ref structures across the spec
 
@@ -25,14 +29,14 @@ Parse and validate OpenAPI 3.0/3.1 specifications, extract and analyze all embed
 
 ```typescript
 export interface ParsedOpenAPISpec {
-  spec: OpenAPISpec
-  schemas: Map<string, ProcessedSchema>  // All schemas indexed
-  endpoints: EndpointInfo[]             // Fast endpoint lookup
-  errors: ParseError[]
-  warnings: ParseWarning[]
+  spec: OpenAPISpec;
+  schemas: Map<string, ProcessedSchema>; // All schemas indexed
+  endpoints: EndpointInfo[]; // Fast endpoint lookup
+  errors: ParseError[];
+  warnings: ParseWarning[];
 }
 
-export async function parseSpec(path: string): Promise<ParsedOpenAPISpec>
+export async function parseSpec(path: string): Promise<ParsedOpenAPISpec>;
 ```
 
 ## Dependencies

@@ -11,7 +11,7 @@
 
 import { parseSpec } from "../packages/parser/mod.ts";
 import { MockServer } from "../src/server.ts";
-import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
 
 Deno.test("Integration: Load massive Datadog spec (8.4MB, 323 endpoints)", async () => {
   const spec = await parseSpec("./datadog-openapi.json");
@@ -62,6 +62,7 @@ Deno.test("Integration: Path parameter extraction", async () => {
 
   for (const tc of testCases) {
     // Use the private matchPath method (we'll access via reflection for testing)
+    // deno-lint-ignore no-explicit-any
     const matchPath = (server as any).matchPath.bind(server);
     const result = matchPath(tc.path, tc.pattern);
 
@@ -167,7 +168,9 @@ Deno.test("Integration: Path parameter validation with types", async () => {
     console.log("✅ Valid integer path parameter accepted");
 
     // Test invalid integer path parameter
-    const invalidIdResponse = await fetch("http://localhost:3002/users/not-a-number");
+    const invalidIdResponse = await fetch(
+      "http://localhost:3002/users/not-a-number",
+    );
     assertEquals(invalidIdResponse.status, 400);
     const errorData = await invalidIdResponse.json();
     assertExists(errorData.errors);
@@ -212,10 +215,16 @@ Deno.test("Integration: Performance with complex nested schemas", async () => {
     const duration = endTime - startTime;
 
     assertExists(response);
-    console.log(`✅ Complex nested schema validated in ${duration.toFixed(2)}ms`);
+    console.log(
+      `✅ Complex nested schema validated in ${duration.toFixed(2)}ms`,
+    );
 
     // Should be fast even with complex schemas
-    assertEquals(duration < 100, true, `Validation took ${duration}ms, expected < 100ms`);
+    assertEquals(
+      duration < 100,
+      true,
+      `Validation took ${duration}ms, expected < 100ms`,
+    );
   } finally {
     server.stop();
   }
@@ -234,6 +243,7 @@ Deno.test("Integration: Multiple path parameters", async () => {
   });
 
   // Test matching paths with multiple parameters
+  // deno-lint-ignore no-explicit-any
   const matchPath = (server as any).matchPath.bind(server);
 
   // Example: /api/v2/usage/{product_family}
@@ -265,7 +275,9 @@ Deno.test("Integration: Query parameter validation", async () => {
   try {
     // Test endpoint with query parameters
     // /api/v1/hosts typically has filter_by parameter
-    const response = await fetch("http://localhost:3005/api/v1/hosts?filter=hostname:example");
+    const response = await fetch(
+      "http://localhost:3005/api/v1/hosts?filter=hostname:example",
+    );
 
     assertExists(response);
     console.log("✅ Query parameter validation working");

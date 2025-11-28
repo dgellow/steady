@@ -7,13 +7,18 @@ enterprise-scale specs with surgical error attribution.
 
 ## Features
 
-- **Enterprise-Scale Support** - Handle massive specs (1500+ endpoints) without breaking
-- **Surgical Error Attribution** - Instantly distinguish SDK bugs from spec issues
+- **Enterprise-Scale Support** - Handle massive specs (1500+ endpoints) without
+  breaking
+- **Surgical Error Attribution** - Instantly distinguish SDK bugs from spec
+  issues
 - **Zero Crashes in CI** - Bulletproof reliability in automated environments
 - **Resource Efficient** - Smart algorithms that scale without memory issues
-- **World-Class Error Messages** - Precise location, root cause, and fix instructions
-- **SDK Testing Focus** - Built specifically for generated SDK validation workflows
-- **Complex Schema Handling** - Circular references, deep nesting, massive complexity
+- **World-Class Error Messages** - Precise location, root cause, and fix
+  instructions
+- **SDK Testing Focus** - Built specifically for generated SDK validation
+  workflows
+- **Complex Schema Handling** - Circular references, deep nesting, massive
+  complexity
 - **Zero Configuration** - Works perfectly out of the box
 
 ## Installation
@@ -141,6 +146,7 @@ kill $STEADY_PID
 ### Error Attribution Examples
 
 **SDK Bug Detection:**
+
 ```
 ❌ Request validation failed
 
@@ -157,6 +163,7 @@ kill $STEADY_PID
 ```
 
 **Spec Issue Detection:**
+
 ```
 ❌ OpenAPI spec validation failed
 
@@ -187,6 +194,7 @@ curl -H "X-Steady-Mode: relaxed" http://localhost:3000/users/123
 ## Enterprise-Scale Capabilities
 
 ### Handle Massive Specs
+
 - **1500+ endpoints** (Cloudflare-scale) without memory issues
 - **Complex schema recursion** without stack overflow
 - **Deep nesting** and circular references handled gracefully
@@ -223,7 +231,7 @@ responses:
 ### Why Replace Prism?
 
 - **Prism breaks** on complex, real-world specs
-- **Steady scales** to enterprise requirements  
+- **Steady scales** to enterprise requirements
 - **Better error messages** with precise attribution
 - **CI-optimized** for automated testing workflows
 
@@ -296,12 +304,14 @@ All code must pass:
 
 Steady is built to be the world's best OpenAPI mock server:
 
-- **Enterprise-first** - Handle the most complex real-world specs without breaking
+- **Enterprise-first** - Handle the most complex real-world specs without
+  breaking
 - **SDK-focused** - Designed specifically for generated SDK validation workflows
 - **Error attribution** - Instantly distinguish between SDK bugs and spec issues
 - **Resource efficient** - Smart algorithms that scale to massive specs
 - **Zero crashes** - Bulletproof reliability in CI and production environments
-- **Developer experience** - Error messages so good they eliminate debugging time
+- **Developer experience** - Error messages so good they eliminate debugging
+  time
 
 ## License
 

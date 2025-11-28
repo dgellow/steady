@@ -2,7 +2,7 @@
  * Tests for JSON Schema Processor
  */
 
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { JsonSchemaProcessor } from "./processor.ts";
 import type { Schema } from "./types.ts";
 
@@ -18,7 +18,7 @@ Deno.test("JsonSchemaProcessor - process valid schema", async () => {
   };
 
   const result = await processor.process(schema);
-  
+
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
   assertEquals(result.schema?.root, schema);
@@ -44,10 +44,10 @@ Deno.test("JsonSchemaProcessor - process schema with references", async () => {
   };
 
   const result = await processor.process(schema);
-  
+
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
-  
+
   assertEquals(result.schema?.refs.resolved.size, 1);
   assertEquals(result.schema?.refs.resolved.has("#/$defs/User"), true);
 });
@@ -60,7 +60,7 @@ Deno.test("JsonSchemaProcessor - handle invalid schema", async () => {
   };
 
   const result = await processor.process(invalidSchema);
-  
+
   assertEquals(result.valid, false);
   assertEquals(result.errors.length > 0, true);
 });
@@ -75,21 +75,21 @@ Deno.test("JsonSchemaProcessor - detect circular references", async () => {
   };
 
   const result = await processor.process(schema);
-  
+
   assertEquals(result.valid, true);
   assertEquals(result.warnings.length >= 0, true); // May or may not have warnings
-  
+
   assertEquals(result.schema?.refs.cyclic.size > 0, true);
 });
 
 Deno.test("JsonSchemaProcessor - process boolean schema", async () => {
   const processor = new JsonSchemaProcessor();
-  
+
   // true schema allows anything
   const trueResult = await processor.process(true);
   assertEquals(trueResult.valid, true);
   assertEquals(trueResult.schema?.root, true);
-  
+
   // false schema allows nothing
   const falseResult = await processor.process(false);
   assertEquals(falseResult.valid, true);
@@ -102,7 +102,7 @@ Deno.test("JsonSchemaProcessor - process complex schema", async () => {
     type: "object",
     properties: {
       name: { type: "string" },
-      age: { 
+      age: {
         type: "integer",
         minimum: 0,
         maximum: 150,
@@ -127,7 +127,7 @@ Deno.test("JsonSchemaProcessor - process complex schema", async () => {
   };
 
   const result = await processor.process(schema);
-  
+
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
   // Check metadata exists and has expected features

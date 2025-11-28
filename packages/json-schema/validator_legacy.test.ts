@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { JsonSchemaValidator } from "./validator.ts";
 import type { Schema, ValidationResult } from "./types.ts";
 

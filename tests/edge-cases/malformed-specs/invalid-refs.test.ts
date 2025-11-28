@@ -10,7 +10,7 @@
  * JSON Pointer syntax. Malformed $refs MUST be rejected with clear error messages.
  */
 
-import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
@@ -26,10 +26,16 @@ Deno.test("EDGE: $ref with double hash (common typo)", async () => {
 
   // Should fail with clear error message
   assertEquals(result.valid, false, "Should reject double hash in $ref");
-  assertEquals(result.errors.length > 0, true, "Should have at least one error");
+  assertEquals(
+    result.errors.length > 0,
+    true,
+    "Should have at least one error",
+  );
 
   // Error should mention the specific problem
-  const errorMessages = result.errors.map((e) => e.message.toLowerCase()).join(" ");
+  const errorMessages = result.errors.map((e) => e.message.toLowerCase()).join(
+    " ",
+  );
   assertEquals(
     errorMessages.includes("ref") || errorMessages.includes("reference"),
     true,
@@ -63,7 +69,11 @@ Deno.test("EDGE: $ref missing slash after hash", async () => {
   const result = await processor.process(schema);
 
   // Should fail - invalid pointer format per RFC 6901
-  assertEquals(result.valid, false, "Should reject missing slash after # per RFC 6901");
+  assertEquals(
+    result.valid,
+    false,
+    "Should reject missing slash after # per RFC 6901",
+  );
   assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
@@ -78,7 +88,11 @@ Deno.test("EDGE: $ref missing hash", async () => {
   const result = await processor.process(schema);
 
   // Missing hash could be external ref, but without proper URI scheme should fail
-  assertEquals(result.valid, false, "Should fail to resolve ref without # (not external)");
+  assertEquals(
+    result.valid,
+    false,
+    "Should fail to resolve ref without # (not external)",
+  );
   assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
@@ -93,7 +107,11 @@ Deno.test("EDGE: $ref with spaces", async () => {
   const result = await processor.process(schema);
 
   // Should fail - spaces must be percent-encoded as %20 per RFC 6901
-  assertEquals(result.valid, false, "Should reject unencoded spaces in $ref per RFC 6901");
+  assertEquals(
+    result.valid,
+    false,
+    "Should reject unencoded spaces in $ref per RFC 6901",
+  );
   assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
@@ -111,7 +129,11 @@ Deno.test("EDGE: $ref with URL-encoded characters", async () => {
   const result = await processor.process(schema);
 
   // Should work - RFC 6901 allows percent-encoding
-  assertEquals(result.valid, true, "Should accept URL-encoded $ref per RFC 6901");
+  assertEquals(
+    result.valid,
+    true,
+    "Should accept URL-encoded $ref per RFC 6901",
+  );
   assertExists(result.schema, "Should return processed schema");
 });
 
@@ -126,7 +148,11 @@ Deno.test("EDGE: $ref with backslashes (Windows paths)", async () => {
   const result = await processor.process(schema);
 
   // Should fail - JSON Pointers use forward slashes per RFC 6901
-  assertEquals(result.valid, false, "Should reject backslashes in $ref per RFC 6901");
+  assertEquals(
+    result.valid,
+    false,
+    "Should reject backslashes in $ref per RFC 6901",
+  );
   assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
@@ -141,7 +167,11 @@ Deno.test("EDGE: $ref with query string", async () => {
   const result = await processor.process(schema);
 
   // Query strings are not valid in JSON Pointers per RFC 6901
-  assertEquals(result.valid, false, "Should reject query string in $ref per RFC 6901");
+  assertEquals(
+    result.valid,
+    false,
+    "Should reject query string in $ref per RFC 6901",
+  );
   assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
@@ -156,7 +186,11 @@ Deno.test("EDGE: $ref with fragment identifier twice", async () => {
   const result = await processor.process(schema);
 
   // Multiple fragments invalid per RFC 6901
-  assertEquals(result.valid, false, "Should reject multiple fragments in $ref per RFC 6901");
+  assertEquals(
+    result.valid,
+    false,
+    "Should reject multiple fragments in $ref per RFC 6901",
+  );
   assertEquals(result.errors.length > 0, true, "Should have errors");
 });
 
@@ -197,7 +231,11 @@ Deno.test("EDGE: $ref with empty string as key", async () => {
   const result = await processor.process(schema);
 
   // Empty string is valid JSON object key, and "//" is valid pointer per RFC 6901
-  assertEquals(result.valid, true, "Should accept empty string in $ref per RFC 6901");
+  assertEquals(
+    result.valid,
+    true,
+    "Should accept empty string in $ref per RFC 6901",
+  );
   assertExists(result.schema, "Should return processed schema");
   assertEquals(
     result.schema.refs.resolved.has("#/$defs/"),
@@ -245,7 +283,11 @@ Deno.test("EDGE: $ref with properly escaped tilde - RFC 6901 COMPLIANT", async (
   const result = await processor.process(schema);
 
   // Properly escaped should work per RFC 6901
-  assertEquals(result.valid, true, "Should accept properly escaped tilde (~0) per RFC 6901");
+  assertEquals(
+    result.valid,
+    true,
+    "Should accept properly escaped tilde (~0) per RFC 6901",
+  );
   assertExists(result.schema, "Should return processed schema");
 });
 
@@ -287,7 +329,11 @@ Deno.test("EDGE: $ref with properly escaped slash - RFC 6901 COMPLIANT", async (
   const result = await processor.process(schema);
 
   // Properly escaped should work per RFC 6901
-  assertEquals(result.valid, true, "Should accept properly escaped slash (~1) per RFC 6901");
+  assertEquals(
+    result.valid,
+    true,
+    "Should accept properly escaped slash (~1) per RFC 6901",
+  );
   assertExists(result.schema, "Should return processed schema");
   assertEquals(
     result.schema.refs.resolved.has("#/$defs/User~1Admin"),
@@ -345,7 +391,11 @@ Deno.test("EDGE: $ref with negative array index as string key", async () => {
   const result = await processor.process(schema);
 
   // "-1" as string key should work - it's a valid object key
-  assertEquals(result.valid, true, "Should handle string key that looks like negative index");
+  assertEquals(
+    result.valid,
+    true,
+    "Should handle string key that looks like negative index",
+  );
   assertExists(result.schema, "Should return processed schema");
 });
 
@@ -366,7 +416,11 @@ Deno.test("EDGE: $ref with siblings (JSON Schema 2020-12 behavior)", async () =>
   const result = await processor.process(schema);
 
   // Schema should be valid per JSON Schema 2020-12
-  assertEquals(result.valid, true, "Should process $ref with siblings per JSON Schema 2020-12");
+  assertEquals(
+    result.valid,
+    true,
+    "Should process $ref with siblings per JSON Schema 2020-12",
+  );
   assertExists(result.schema, "Should return processed schema");
 
   // Should warn about ignored keywords
@@ -377,7 +431,8 @@ Deno.test("EDGE: $ref with siblings (JSON Schema 2020-12 behavior)", async () =>
   );
 
   // Verify warning mentions ignored siblings
-  const warningMessages = result.warnings.map((w) => w.message.toLowerCase()).join(" ");
+  const warningMessages = result.warnings.map((w) => w.message.toLowerCase())
+    .join(" ");
   assertEquals(
     warningMessages.includes("sibling") || warningMessages.includes("ignored"),
     true,
@@ -399,7 +454,11 @@ Deno.test("EDGE: RFC 6901 escape sequence ~0 (represents ~)", async () => {
   const result = await processor.process(schema);
 
   // Per RFC 6901: ~0 represents literal ~
-  assertEquals(result.valid, true, "Should handle ~0 escape sequence per RFC 6901");
+  assertEquals(
+    result.valid,
+    true,
+    "Should handle ~0 escape sequence per RFC 6901",
+  );
   assertExists(result.schema, "Should return processed schema");
 });
 
@@ -417,6 +476,10 @@ Deno.test("EDGE: RFC 6901 escape sequence ~1 (represents /)", async () => {
   const result = await processor.process(schema);
 
   // Per RFC 6901: ~1 represents literal /
-  assertEquals(result.valid, true, "Should handle ~1 escape sequence per RFC 6901");
+  assertEquals(
+    result.valid,
+    true,
+    "Should handle ~1 escape sequence per RFC 6901",
+  );
   assertExists(result.schema, "Should return processed schema");
 });

@@ -1,6 +1,6 @@
 /**
  * JSON Schema validation utilities for OpenAPI
- * 
+ *
  * This package provides a complete JSON Schema processor with:
  * - Schema validation against metaschema
  * - Enterprise-scale reference resolution
@@ -18,24 +18,23 @@ export { ResponseGenerator } from "./response-generator.ts";
 
 // Types
 export type {
+  ComplexityMetrics,
+  ErrorAttribution,
+  GenerateContext,
+  GenerateOptions,
   // Core types
   JsonSchemaDialect,
   JsonSchemaDialects,
+  // New processor types
+  ProcessedSchema,
   Schema,
+  SchemaError,
+  SchemaMetadata,
+  SchemaProcessResult,
+  SchemaSource,
   SchemaType,
+  SchemaWarning,
   ValidationError,
   ValidationResult,
   ValidatorOptions,
-  
-  // New processor types
-  ProcessedSchema,
-  SchemaProcessResult,
-  SchemaError,
-  SchemaWarning,
-  SchemaMetadata,
-  ComplexityMetrics,
-  SchemaSource,
-  ErrorAttribution,
-  GenerateOptions,
-  GenerateContext,
 } from "./types.ts";

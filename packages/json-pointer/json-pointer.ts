@@ -45,14 +45,14 @@ export function escapeSegment(segment: string): string {
 export function unescapeSegment(segment: string): string {
   // First decode percent encoding, then JSON Pointer escaping
   let result = segment;
-  
+
   // Decode percent encoding
   try {
     result = decodeURIComponent(result);
   } catch {
     // If decoding fails, continue with the original string
   }
-  
+
   // Apply JSON Pointer unescaping
   return result.replace(/~1/g, "/").replace(/~0/g, "~");
 }

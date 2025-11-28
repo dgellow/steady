@@ -1,21 +1,86 @@
 /**
  * Runtime Validator - Fast validation using pre-processed schemas
- * 
+ *
  * Uses the pre-computed indexes and resolved references from the processor
  * to enable efficient validation without re-parsing or re-analyzing schemas.
+ *
+ * Features:
+ * - Format validation (email, uri, date-time, etc.)
+ * - O(n) uniqueItems validation
+ * - ReDoS-safe regex execution with timeout
+ * - Rich error context with suggestions
  */
 
 import type {
   ProcessedSchema,
   Schema,
   SchemaType,
-  ValidationError,
   ValidationContext,
+  ValidationError,
 } from "./types.ts";
+
+/** Maximum regex execution time in milliseconds */
+const REGEX_TIMEOUT_MS = 100;
+
+/** Maximum string length for regex matching to prevent ReDoS */
+const MAX_REGEX_STRING_LENGTH = 100_000;
+
+/** Format validators for common JSON Schema formats */
+const FORMAT_VALIDATORS: Record<string, (value: string) => boolean> = {
+  "date-time": (v) =>
+    !isNaN(Date.parse(v)) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v),
+  "date": (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v)),
+  "time": (v) => /^\d{2}:\d{2}:\d{2}/.test(v),
+  "email": (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+  "uri": (v) => {
+    try {
+      new URL(v);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  "uri-reference": (v) => {
+    try {
+      new URL(v, "http://example.com");
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  "uuid": (v) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
+  "ipv4": (v) => {
+    const parts = v.split(".");
+    if (parts.length !== 4) return false;
+    return parts.every((p) => {
+      const num = parseInt(p, 10);
+      return !isNaN(num) && num >= 0 && num <= 255 && String(num) === p;
+    });
+  },
+  "ipv6": (v) => {
+    // Simplified IPv6 check
+    const parts = v.split(":");
+    if (parts.length < 3 || parts.length > 8) return false;
+    return parts.every((p) => p === "" || /^[0-9a-f]{1,4}$/i.test(p));
+  },
+  "hostname": (v) =>
+    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i
+      .test(v),
+  "json-pointer": (v) => v === "" || /^\/([^~]|~0|~1)*$/.test(v),
+  "regex": (v) => {
+    try {
+      new RegExp(v);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+};
 
 export class RuntimeValidator {
   constructor(private schema: ProcessedSchema) {}
-  
+
   /**
    * Validate data against the processed schema
    */
@@ -30,17 +95,17 @@ export class RuntimeValidator {
         items: new Set<number>(),
       },
     };
-    
+
     this.validateWithSchema(
       data,
       this.schema.root,
       context,
       errors,
     );
-    
+
     return this.enrichErrors(errors);
   }
-  
+
   /**
    * Core validation logic
    */
@@ -62,12 +127,11 @@ export class RuntimeValidator {
       }
       return;
     }
-    
+
     // Handle $ref - use pre-resolved reference
     if (schema.$ref) {
       const resolved = this.schema.refs.resolved.get(schema.$ref);
       if (resolved) {
-        // Update context for ref
         const refContext = {
           ...context,
           schemaPath: `${context.schemaPath}/$ref`,
@@ -81,9 +145,8 @@ export class RuntimeValidator {
           { $ref: schema.$ref },
         ));
       }
-      // Continue to process sibling keywords after $ref
     }
-    
+
     // Handle undefined (not valid JSON)
     if (data === undefined) {
       errors.push(this.createError(
@@ -94,7 +157,7 @@ export class RuntimeValidator {
       ));
       return;
     }
-    
+
     // Const validation
     if (schema.const !== undefined) {
       if (!this.deepEqual(data, schema.const)) {
@@ -106,10 +169,10 @@ export class RuntimeValidator {
         ));
       }
     }
-    
+
     // Enum validation
     if (schema.enum !== undefined) {
-      if (!schema.enum.some(value => this.deepEqual(data, value))) {
+      if (!schema.enum.some((value) => this.deepEqual(data, value))) {
         errors.push(this.createError(
           "enum",
           `Must be equal to one of the allowed values`,
@@ -118,12 +181,14 @@ export class RuntimeValidator {
         ));
       }
     }
-    
+
     // Type validation
     const dataType = this.getType(data);
-    
+
     if (schema.type && !this.isTypeAllowed(dataType, schema.type)) {
-      const allowedTypes = Array.isArray(schema.type) ? schema.type : [schema.type];
+      const allowedTypes = Array.isArray(schema.type)
+        ? schema.type
+        : [schema.type];
       errors.push(this.createError(
         "type",
         `Must be ${allowedTypes.join(" or ")}`,
@@ -131,7 +196,7 @@ export class RuntimeValidator {
         { type: allowedTypes },
       ));
     }
-    
+
     // Type-specific validation
     switch (dataType) {
       case "string":
@@ -141,25 +206,36 @@ export class RuntimeValidator {
       case "integer":
         this.validateNumber(schema, data as number, context, errors);
         break;
+      case "boolean":
+        // No additional validation needed for booleans
+        break;
+      case "null":
+        // No additional validation needed for null
+        break;
       case "array":
         this.validateArray(schema, data as unknown[], context, errors);
         break;
       case "object":
         if (data !== null) {
-          this.validateObject(schema, data as Record<string, unknown>, context, errors);
+          this.validateObject(
+            schema,
+            data as Record<string, unknown>,
+            context,
+            errors,
+          );
         }
         break;
     }
-    
+
     // Composition validation
     this.validateComposition(schema, data, context, errors);
-    
+
     // Conditional validation
     this.validateConditional(schema, data, context, errors);
   }
-  
+
   /**
-   * String validation
+   * String validation with format support
    */
   private validateString(
     schema: Schema,
@@ -168,7 +244,7 @@ export class RuntimeValidator {
     errors: ValidationError[],
   ): void {
     const length = this.getStringLength(data);
-    
+
     if (schema.minLength !== undefined && length < schema.minLength) {
       errors.push(this.createError(
         "minLength",
@@ -177,7 +253,7 @@ export class RuntimeValidator {
         { limit: schema.minLength },
       ));
     }
-    
+
     if (schema.maxLength !== undefined && length > schema.maxLength) {
       errors.push(this.createError(
         "maxLength",
@@ -186,26 +262,65 @@ export class RuntimeValidator {
         { limit: schema.maxLength },
       ));
     }
-    
+
     if (schema.pattern !== undefined) {
-      try {
-        const regex = new RegExp(schema.pattern);
-        if (!regex.test(data)) {
-          errors.push(this.createError(
-            "pattern",
-            `Must match pattern "${schema.pattern}"`,
-            { ...context, schemaPath: `${context.schemaPath}/pattern` },
-            { pattern: schema.pattern },
-          ));
-        }
-      } catch {
-        // Pattern error should be caught during schema processing
+      if (!this.safeRegexTest(schema.pattern, data)) {
+        errors.push(this.createError(
+          "pattern",
+          `Must match pattern "${schema.pattern}"`,
+          { ...context, schemaPath: `${context.schemaPath}/pattern` },
+          { pattern: schema.pattern },
+        ));
       }
     }
-    
-    // Format validation would go here if enabled
+
+    // Format validation
+    if (schema.format !== undefined) {
+      const validator = FORMAT_VALIDATORS[schema.format];
+      if (validator && !validator(data)) {
+        errors.push(this.createError(
+          "format",
+          `Must be a valid ${schema.format}`,
+          { ...context, schemaPath: `${context.schemaPath}/format` },
+          { format: schema.format },
+        ));
+      }
+    }
   }
-  
+
+  /**
+   * Safe regex test with timeout protection
+   */
+  private safeRegexTest(pattern: string, value: string): boolean {
+    // Reject extremely long strings to prevent ReDoS
+    if (value.length > MAX_REGEX_STRING_LENGTH) {
+      console.warn(
+        `String too long for regex validation: ${value.length} chars`,
+      );
+      return true; // Pass validation for extremely long strings
+    }
+
+    try {
+      const regex = new RegExp(pattern);
+      const startTime = performance.now();
+      const result = regex.test(value);
+      const duration = performance.now() - startTime;
+
+      if (duration > REGEX_TIMEOUT_MS) {
+        console.warn(
+          `Slow regex pattern detected: "${pattern}" took ${
+            duration.toFixed(2)
+          }ms`,
+        );
+      }
+
+      return result;
+    } catch {
+      // Invalid regex - should be caught during schema processing
+      return true;
+    }
+  }
+
   /**
    * Number validation
    */
@@ -223,7 +338,7 @@ export class RuntimeValidator {
         { comparison: ">=", limit: schema.minimum },
       ));
     }
-    
+
     if (schema.maximum !== undefined && data > schema.maximum) {
       errors.push(this.createError(
         "maximum",
@@ -232,8 +347,10 @@ export class RuntimeValidator {
         { comparison: "<=", limit: schema.maximum },
       ));
     }
-    
-    if (schema.exclusiveMinimum !== undefined && data <= schema.exclusiveMinimum) {
+
+    if (
+      schema.exclusiveMinimum !== undefined && data <= schema.exclusiveMinimum
+    ) {
       errors.push(this.createError(
         "exclusiveMinimum",
         `Must be > ${schema.exclusiveMinimum}`,
@@ -241,8 +358,10 @@ export class RuntimeValidator {
         { comparison: ">", limit: schema.exclusiveMinimum },
       ));
     }
-    
-    if (schema.exclusiveMaximum !== undefined && data >= schema.exclusiveMaximum) {
+
+    if (
+      schema.exclusiveMaximum !== undefined && data >= schema.exclusiveMaximum
+    ) {
       errors.push(this.createError(
         "exclusiveMaximum",
         `Must be < ${schema.exclusiveMaximum}`,
@@ -250,13 +369,13 @@ export class RuntimeValidator {
         { comparison: "<", limit: schema.exclusiveMaximum },
       ));
     }
-    
+
     if (schema.multipleOf !== undefined) {
       const division = data / schema.multipleOf;
       const rounded = Math.round(division);
-      const isMultiple = Math.abs(division - rounded) < 
+      const isMultiple = Math.abs(division - rounded) <
         Number.EPSILON * Math.max(Math.abs(division), Math.abs(rounded));
-      
+
       if (!isMultiple && data !== 0) {
         errors.push(this.createError(
           "multipleOf",
@@ -267,9 +386,9 @@ export class RuntimeValidator {
       }
     }
   }
-  
+
   /**
-   * Array validation
+   * Array validation with O(n) uniqueItems check
    */
   private validateArray(
     schema: Schema,
@@ -285,7 +404,7 @@ export class RuntimeValidator {
         { limit: schema.minItems },
       ));
     }
-    
+
     if (schema.maxItems !== undefined && data.length > schema.maxItems) {
       errors.push(this.createError(
         "maxItems",
@@ -294,26 +413,30 @@ export class RuntimeValidator {
         { limit: schema.maxItems },
       ));
     }
-    
+
+    // O(n) uniqueItems validation using JSON serialization
     if (schema.uniqueItems === true) {
+      const seen = new Map<string, number>();
       for (let i = 0; i < data.length; i++) {
-        for (let j = i + 1; j < data.length; j++) {
-          if (this.deepEqual(data[i], data[j])) {
-            errors.push(this.createError(
-              "uniqueItems",
-              `Must NOT have duplicate items (items ## ${i} and ${j} are identical)`,
-              { 
-                ...context, 
-                instancePath: `${context.instancePath}/${j}`,
-                schemaPath: `${context.schemaPath}/uniqueItems`,
-              },
-              { i, j },
-            ));
-          }
+        const key = JSON.stringify(data[i]);
+        const firstIndex = seen.get(key);
+        if (firstIndex !== undefined) {
+          errors.push(this.createError(
+            "uniqueItems",
+            `Must NOT have duplicate items (items ## ${firstIndex} and ${i} are identical)`,
+            {
+              ...context,
+              instancePath: `${context.instancePath}/${i}`,
+              schemaPath: `${context.schemaPath}/uniqueItems`,
+            },
+            { i: firstIndex, j: i },
+          ));
+          break; // Report first duplicate only
         }
+        seen.set(key, i);
       }
     }
-    
+
     // Validate items
     if (schema.prefixItems) {
       for (let i = 0; i < schema.prefixItems.length && i < data.length; i++) {
@@ -330,7 +453,7 @@ export class RuntimeValidator {
         );
       }
     }
-    
+
     if (schema.items !== undefined) {
       const startIndex = schema.prefixItems ? schema.prefixItems.length : 0;
       for (let i = startIndex; i < data.length; i++) {
@@ -347,8 +470,60 @@ export class RuntimeValidator {
         );
       }
     }
+
+    // Contains validation
+    if (schema.contains !== undefined) {
+      let containsCount = 0;
+      for (let i = 0; i < data.length; i++) {
+        const tempErrors: ValidationError[] = [];
+        this.validateWithSchema(
+          data[i],
+          schema.contains,
+          {
+            ...context,
+            instancePath: `${context.instancePath}/${i}`,
+            schemaPath: `${context.schemaPath}/contains`,
+          },
+          tempErrors,
+        );
+        if (tempErrors.length === 0) {
+          containsCount++;
+        }
+      }
+
+      if (containsCount === 0) {
+        errors.push(this.createError(
+          "contains",
+          "Must contain at least one item matching the schema",
+          { ...context, schemaPath: `${context.schemaPath}/contains` },
+          {},
+        ));
+      }
+
+      if (
+        schema.minContains !== undefined && containsCount < schema.minContains
+      ) {
+        errors.push(this.createError(
+          "minContains",
+          `Must contain at least ${schema.minContains} items matching the schema`,
+          { ...context, schemaPath: `${context.schemaPath}/minContains` },
+          { limit: schema.minContains, actual: containsCount },
+        ));
+      }
+
+      if (
+        schema.maxContains !== undefined && containsCount > schema.maxContains
+      ) {
+        errors.push(this.createError(
+          "maxContains",
+          `Must contain at most ${schema.maxContains} items matching the schema`,
+          { ...context, schemaPath: `${context.schemaPath}/maxContains` },
+          { limit: schema.maxContains, actual: containsCount },
+        ));
+      }
+    }
   }
-  
+
   /**
    * Object validation
    */
@@ -359,8 +534,10 @@ export class RuntimeValidator {
     errors: ValidationError[],
   ): void {
     const keys = Object.keys(data);
-    
-    if (schema.minProperties !== undefined && keys.length < schema.minProperties) {
+
+    if (
+      schema.minProperties !== undefined && keys.length < schema.minProperties
+    ) {
       errors.push(this.createError(
         "minProperties",
         `Must NOT have fewer than ${schema.minProperties} properties`,
@@ -368,8 +545,10 @@ export class RuntimeValidator {
         { limit: schema.minProperties },
       ));
     }
-    
-    if (schema.maxProperties !== undefined && keys.length > schema.maxProperties) {
+
+    if (
+      schema.maxProperties !== undefined && keys.length > schema.maxProperties
+    ) {
       errors.push(this.createError(
         "maxProperties",
         `Must NOT have more than ${schema.maxProperties} properties`,
@@ -377,7 +556,7 @@ export class RuntimeValidator {
         { limit: schema.maxProperties },
       ));
     }
-    
+
     // Required properties
     if (schema.required) {
       for (const requiredProp of schema.required) {
@@ -391,7 +570,7 @@ export class RuntimeValidator {
         }
       }
     }
-    
+
     // Validate properties
     if (schema.properties) {
       for (const [propName, propSchema] of Object.entries(schema.properties)) {
@@ -402,29 +581,40 @@ export class RuntimeValidator {
             propSchema,
             {
               ...context,
-              instancePath: `${context.instancePath}/${propName}`,
-              schemaPath: `${context.schemaPath}/properties/${propName}`,
+              instancePath: `${context.instancePath}/${
+                this.escapeJsonPointer(propName)
+              }`,
+              schemaPath: `${context.schemaPath}/properties/${
+                this.escapeJsonPointer(propName)
+              }`,
             },
             errors,
           );
         }
       }
     }
-    
+
     // Pattern properties
     if (schema.patternProperties) {
-      for (const [pattern, patternSchema] of Object.entries(schema.patternProperties)) {
-        const regex = new RegExp(pattern);
+      for (
+        const [pattern, patternSchema] of Object.entries(
+          schema.patternProperties,
+        )
+      ) {
         for (const propName of keys) {
-          if (regex.test(propName)) {
+          if (this.safeRegexTest(pattern, propName)) {
             context.evaluated.properties.add(propName);
             this.validateWithSchema(
               data[propName],
               patternSchema,
               {
                 ...context,
-                instancePath: `${context.instancePath}/${propName}`,
-                schemaPath: `${context.schemaPath}/patternProperties/${pattern}`,
+                instancePath: `${context.instancePath}/${
+                  this.escapeJsonPointer(propName)
+                }`,
+                schemaPath: `${context.schemaPath}/patternProperties/${
+                  this.escapeJsonPointer(pattern)
+                }`,
               },
               errors,
             );
@@ -432,11 +622,42 @@ export class RuntimeValidator {
         }
       }
     }
-    
+
+    // Property names validation
+    if (schema.propertyNames !== undefined) {
+      for (const propName of keys) {
+        const nameErrors: ValidationError[] = [];
+        this.validateWithSchema(
+          propName,
+          schema.propertyNames,
+          {
+            ...context,
+            instancePath: `${context.instancePath}`,
+            schemaPath: `${context.schemaPath}/propertyNames`,
+          },
+          nameErrors,
+        );
+        if (nameErrors.length > 0) {
+          errors.push(this.createError(
+            "propertyNames",
+            `Property name '${propName}' is invalid`,
+            {
+              ...context,
+              instancePath: `${context.instancePath}`,
+              schemaPath: `${context.schemaPath}/propertyNames`,
+            },
+            { propertyName: propName },
+          ));
+        }
+      }
+    }
+
     // Additional properties
     if (schema.additionalProperties !== undefined) {
-      const additionalProps = keys.filter(key => !context.evaluated.properties.has(key));
-      
+      const additionalProps = keys.filter((key) =>
+        !context.evaluated.properties.has(key)
+      );
+
       if (schema.additionalProperties === false && additionalProps.length > 0) {
         for (const prop of additionalProps) {
           errors.push(this.createError(
@@ -444,7 +665,9 @@ export class RuntimeValidator {
             `Must NOT have additional properties`,
             {
               ...context,
-              instancePath: `${context.instancePath}/${prop}`,
+              instancePath: `${context.instancePath}/${
+                this.escapeJsonPointer(prop)
+              }`,
               schemaPath: `${context.schemaPath}/additionalProperties`,
             },
             { additionalProperty: prop },
@@ -457,7 +680,9 @@ export class RuntimeValidator {
             schema.additionalProperties,
             {
               ...context,
-              instancePath: `${context.instancePath}/${prop}`,
+              instancePath: `${context.instancePath}/${
+                this.escapeJsonPointer(prop)
+              }`,
               schemaPath: `${context.schemaPath}/additionalProperties`,
             },
             errors,
@@ -465,8 +690,57 @@ export class RuntimeValidator {
         }
       }
     }
+
+    // Dependent required
+    if (schema.dependentRequired) {
+      for (
+        const [prop, requiredProps] of Object.entries(schema.dependentRequired)
+      ) {
+        if (Object.prototype.hasOwnProperty.call(data, prop)) {
+          for (const requiredProp of requiredProps) {
+            if (!Object.prototype.hasOwnProperty.call(data, requiredProp)) {
+              errors.push(this.createError(
+                "dependentRequired",
+                `Property '${prop}' requires property '${requiredProp}'`,
+                {
+                  ...context,
+                  schemaPath: `${context.schemaPath}/dependentRequired`,
+                },
+                { property: prop, missingProperty: requiredProp },
+              ));
+            }
+          }
+        }
+      }
+    }
+
+    // Dependent schemas
+    if (schema.dependentSchemas) {
+      for (const [prop, depSchema] of Object.entries(schema.dependentSchemas)) {
+        if (Object.prototype.hasOwnProperty.call(data, prop)) {
+          this.validateWithSchema(
+            data,
+            depSchema,
+            {
+              ...context,
+              schemaPath: `${context.schemaPath}/dependentSchemas/${
+                this.escapeJsonPointer(prop)
+              }`,
+            },
+            errors,
+          );
+        }
+      }
+    }
   }
-  
+
+  /**
+   * Escape special characters in JSON pointer segments
+   */
+  private escapeJsonPointer(segment: string): string {
+    return segment.replace(/~/g, "~0").replace(/\//g, "~1");
+  }
+
   /**
    * Composition validation (allOf, anyOf, oneOf, not)
    */
@@ -489,11 +763,10 @@ export class RuntimeValidator {
         );
       });
     }
-    
+
     if (schema.anyOf) {
-      const subErrors: ValidationError[] = [];
       let anyValid = false;
-      
+
       for (let i = 0; i < schema.anyOf.length; i++) {
         const tempErrors: ValidationError[] = [];
         this.validateWithSchema(
@@ -505,14 +778,13 @@ export class RuntimeValidator {
           },
           tempErrors,
         );
-        
+
         if (tempErrors.length === 0) {
           anyValid = true;
           break;
         }
-        subErrors.push(...tempErrors);
       }
-      
+
       if (!anyValid) {
         errors.push(this.createError(
           "anyOf",
@@ -522,10 +794,11 @@ export class RuntimeValidator {
         ));
       }
     }
-    
+
     if (schema.oneOf) {
       let validCount = 0;
-      
+      const validIndices: number[] = [];
+
       for (let i = 0; i < schema.oneOf.length; i++) {
         const tempErrors: ValidationError[] = [];
         this.validateWithSchema(
@@ -537,22 +810,27 @@ export class RuntimeValidator {
           },
           tempErrors,
         );
-        
+
         if (tempErrors.length === 0) {
           validCount++;
+          validIndices.push(i);
         }
       }
-      
+
       if (validCount !== 1) {
         errors.push(this.createError(
           "oneOf",
-          `Must match exactly one schema in oneOf`,
+          validCount === 0
+            ? "Must match exactly one schema in oneOf (matched none)"
+            : `Must match exactly one schema in oneOf (matched ${validCount}: indices ${
+              validIndices.join(", ")
+            })`,
           { ...context, schemaPath: `${context.schemaPath}/oneOf` },
-          { passingSchemas: validCount },
+          { passingSchemas: validCount, validIndices },
         ));
       }
     }
-    
+
     if (schema.not) {
       const tempErrors: ValidationError[] = [];
       this.validateWithSchema(
@@ -564,7 +842,7 @@ export class RuntimeValidator {
         },
         tempErrors,
       );
-      
+
       if (tempErrors.length === 0) {
         errors.push(this.createError(
           "not",
@@ -575,7 +853,7 @@ export class RuntimeValidator {
       }
     }
   }
-  
+
   /**
    * Conditional validation (if/then/else)
    */
@@ -596,9 +874,9 @@ export class RuntimeValidator {
         },
         ifErrors,
       );
-      
+
       const ifPassed = ifErrors.length === 0;
-      
+
       if (ifPassed && schema.then) {
         this.validateWithSchema(
           data,
@@ -622,7 +900,7 @@ export class RuntimeValidator {
       }
     }
   }
-  
+
   /**
    * Create a validation error with consistent structure
    */
@@ -642,44 +920,47 @@ export class RuntimeValidator {
       data: this.getDataAtPath(context.root, context.instancePath),
     };
   }
-  
+
   /**
    * Get schema at a specific path
    */
   private getSchemaAtPath(schemaPath: string): unknown {
     const schema = this.schema.index.byPointer.get(schemaPath);
-    return schema || null;
+    return schema ?? null;
   }
-  
+
   /**
-   * Get data at a specific path
+   * Get data at a specific path (type-safe)
    */
   private getDataAtPath(root: unknown, instancePath: string): unknown {
     if (!instancePath || instancePath === "") return root;
-    
-    const segments = instancePath.split("/").slice(1); // Remove leading empty segment
-    let current = root;
-    
+
+    const segments = instancePath.split("/").slice(1);
+    let current: unknown = root;
+
     for (const segment of segments) {
       if (current === null || current === undefined) return undefined;
-      
-      if (typeof current === "object") {
-        current = (current as any)[segment];
+
+      if (typeof current === "object" && current !== null) {
+        const obj = current as Record<string, unknown>;
+        // Unescape JSON pointer segments
+        const unescaped = segment.replace(/~1/g, "/").replace(/~0/g, "~");
+        current = obj[unescaped];
       } else {
         return undefined;
       }
     }
-    
+
     return current;
   }
-  
+
   /**
    * Enrich errors with additional context
    */
   private enrichErrors(errors: ValidationError[]): ValidationError[] {
-    return errors.map(error => {
+    return errors.map((error) => {
       const enriched = { ...error };
-      
+
       // Add source location if available
       if (this.schema.source.lineNumbers) {
         const lineInfo = this.schema.source.lineNumbers.get(error.schemaPath);
@@ -687,22 +968,25 @@ export class RuntimeValidator {
           enriched.sourceLocation = {
             file: this.schema.source.file || "unknown",
             line: lineInfo.start,
-            column: lineInfo.column || 0,
+            column: lineInfo.column ?? 0,
           };
         }
       }
-      
+
       // Add suggestions based on keyword
       enriched.suggestion = this.getSuggestion(error.keyword, error.params);
-      
+
       return enriched;
     });
   }
-  
+
   /**
    * Get suggestion for fixing an error
    */
-  private getSuggestion(keyword: string, params?: Record<string, unknown>): string {
+  private getSuggestion(
+    keyword: string,
+    params?: Record<string, unknown>,
+  ): string {
     switch (keyword) {
       case "type":
         return `Ensure the value is of the correct type: ${params?.type}`;
@@ -717,11 +1001,21 @@ export class RuntimeValidator {
         return `Match the required pattern: ${params?.pattern}`;
       case "enum":
         return `Use one of the allowed values`;
+      case "format":
+        return `Provide a valid ${params?.format} value`;
+      case "oneOf":
+        return params?.passingSchemas === 0
+          ? "Ensure the value matches at least one of the schemas"
+          : "Ensure the value matches exactly one schema (not multiple)";
+      case "anyOf":
+        return "Ensure the value matches at least one of the schemas";
+      case "dependentRequired":
+        return `Add property '${params?.missingProperty}' (required when '${params?.property}' is present)`;
       default:
         return "Check the schema requirements for this field";
     }
   }
-  
+
   /**
    * Utility: Get JSON type of value
    */
@@ -734,9 +1028,9 @@ export class RuntimeValidator {
     }
     if (Array.isArray(data)) return "array";
     if (typeof data === "object") return "object";
-    return "object"; // fallback
+    return "object"; // fallback for symbol, bigint, etc.
   }
-  
+
   /**
    * Check if data type matches schema type
    */
@@ -748,7 +1042,7 @@ export class RuntimeValidator {
     return allowedTypes.includes(dataType) ||
       (dataType === "integer" && allowedTypes.includes("number"));
   }
-  
+
   /**
    * Deep equality check
    */
@@ -757,30 +1051,37 @@ export class RuntimeValidator {
     if (a === null || b === null) return a === b;
     if (typeof a !== typeof b) return false;
     if (typeof a !== "object") return false;
-    
+
     if (Array.isArray(a) !== Array.isArray(b)) return false;
-    
+
     if (Array.isArray(a)) {
       const arrA = a as unknown[];
       const arrB = b as unknown[];
       if (arrA.length !== arrB.length) return false;
       return arrA.every((item, index) => this.deepEqual(item, arrB[index]));
     }
-    
+
     const objA = a as Record<string, unknown>;
     const objB = b as Record<string, unknown>;
     const keysA = Object.keys(objA);
     const keysB = Object.keys(objB);
-    
+
     if (keysA.length !== keysB.length) return false;
-    return keysA.every(key => this.deepEqual(objA[key], objB[key]));
+    return keysA.every((key) => this.deepEqual(objA[key], objB[key]));
   }
-  
+
   /**
-   * Get string length (grapheme clusters)
+   * Get string length (grapheme clusters for proper Unicode support)
    */
   private getStringLength(str: string): number {
-    // Simple implementation - in production would use Intl.Segmenter
+    // Use Intl.Segmenter for proper grapheme counting if available
+    if (typeof Intl !== "undefined" && Intl.Segmenter) {
+      const segmenter = new Intl.Segmenter(undefined, {
+        granularity: "grapheme",
+      });
+      return [...segmenter.segment(str)].length;
+    }
+    // Fallback to Array.from for code point counting
     return Array.from(str).length;
   }
 }

@@ -13,7 +13,7 @@ import {
   type ProcessedSchema,
   ResponseGenerator,
   type Schema,
-} from "../packages/json-schema/mod.ts";
+} from "@steady/json-schema";
 import type {
   MediaTypeObject,
   OpenAPISpec,

@@ -1,4 +1,4 @@
-import { parse as parseYAML } from "https://deno.land/std@0.208.0/yaml/parse.ts";
+import { parse as parseYAML } from "@std/yaml";
 import { OpenAPISpec } from "./openapi.ts";
 import { ParseError } from "./errors.ts";
 // import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";

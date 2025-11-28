@@ -4,7 +4,9 @@ RFC 6901 JSON Pointer implementation for JavaScript/TypeScript.
 
 ## Purpose
 
-Provides reliable JSON Pointer resolution for traversing JSON documents. This is the foundation for JSON Schema reference resolution and OpenAPI component lookups.
+Provides reliable JSON Pointer resolution for traversing JSON documents. This is
+the foundation for JSON Schema reference resolution and OpenAPI component
+lookups.
 
 ## Key Features
 
@@ -21,13 +23,13 @@ import { resolve } from "@steady/json-pointer";
 const data = {
   users: [
     { id: 1, name: "Alice" },
-    { id: 2, name: "Bob" }
-  ]
+    { id: 2, name: "Bob" },
+  ],
 };
 
 // Resolve JSON Pointer
-const alice = resolve(data, "/users/0");  // { id: 1, name: "Alice" }
-const name = resolve(data, "/users/0/name");  // "Alice"
+const alice = resolve(data, "/users/0"); // { id: 1, name: "Alice" }
+const name = resolve(data, "/users/0/name"); // "Alice"
 ```
 
 ## API

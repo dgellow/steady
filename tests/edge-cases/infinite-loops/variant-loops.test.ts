@@ -7,7 +7,7 @@
  * USER REQUIREMENT: "variants, etc causing infinite loop in a lot of openapi tools"
  */
 
-import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
 import { ResponseGenerator } from "../../../packages/json-schema/response-generator.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
@@ -136,7 +136,11 @@ Deno.test({
     const result = await processor.process(schema);
 
     // Should handle multiple recursive branches
-    assertEquals(result.valid, true, "Should process multiple recursive branches");
+    assertEquals(
+      result.valid,
+      true,
+      "Should process multiple recursive branches",
+    );
     assertExists(result.schema, "Should return processed schema");
     assertEquals(
       result.schema.refs.cyclic.has("#"),
@@ -186,7 +190,11 @@ Deno.test("EDGE: oneOf with discriminator and recursion", async () => {
   const result = await processor.process(schema);
 
   // Should handle discriminator with recursion
-  assertEquals(result.valid, true, "Should process discriminator with recursion");
+  assertEquals(
+    result.valid,
+    true,
+    "Should process discriminator with recursion",
+  );
   assertExists(result.schema, "Should return processed schema");
   assertEquals(
     result.schema.refs.cyclic.has("#"),
@@ -402,7 +410,9 @@ Deno.test({
       assertEquals(
         duration < 1000,
         true,
-        `Generation ${i} should complete in < 1s (took ${duration.toFixed(2)}ms)`,
+        `Generation ${i} should complete in < 1s (took ${
+          duration.toFixed(2)
+        }ms)`,
       );
 
       // Response should be finite

@@ -1,14 +1,14 @@
 /**
  * JSON Schema Reference Resolver
  * Handles $ref resolution for JSON Schema validation
- * 
+ *
  * Designed for future performance optimization:
  * - Separation of resolution logic from caching
  * - Interface supports both eager and lazy resolution
  * - Path-oriented design enables efficient memoization
  */
 
-import { resolve, JsonPointerError, validateRef } from "../json-pointer/mod.ts";
+import { JsonPointerError, resolve, validateRef } from "../json-pointer/mod.ts";
 import type { Schema } from "./types.ts";
 
 export interface ResolverContext {
@@ -59,9 +59,9 @@ export class RefResolver {
       resolutionPath: [],
       baseUri,
       visited: new Set(),
-      anchors: new Map()
+      anchors: new Map(),
     };
-    
+
     // Collect all anchors during initialization
     this.collectAnchors(rootSchema);
   }
@@ -77,19 +77,21 @@ export class RefResolver {
       return {
         schema: false,
         resolved: false,
-        error: `Invalid $ref syntax: ${validation.error}${validation.suggestion ? `\nSuggestion: ${validation.suggestion}` : ""}`
+        error: `Invalid $ref syntax: ${validation.error}${
+          validation.suggestion ? `\nSuggestion: ${validation.suggestion}` : ""
+        }`,
       };
     }
 
     // Handle different types of references
-    if (ref.startsWith('#')) {
+    if (ref.startsWith("#")) {
       return this.resolveInternalRef(ref);
     }
-    
+
     if (this.isExternalRef(ref)) {
       return this.resolveExternalRef(ref, baseUri);
     }
-    
+
     // Handle relative $id references (e.g., "node" should find schema with $id: "node")
     const idRef = this.resolveIdReference(ref);
     if (idRef.resolved) {
@@ -99,18 +101,18 @@ export class RefResolver {
     return {
       schema: false,
       resolved: false,
-      error: `Invalid reference format: ${ref}`
+      error: `Invalid reference format: ${ref}`,
     };
   }
 
   /**
    * Determine the type of reference
    */
-  private getRefType(ref: string): 'root' | 'pointer' | 'anchor' | 'external' {
-    if (ref === '#') return 'root';
-    if (ref.startsWith('#/')) return 'pointer';
-    if (ref.startsWith('#')) return 'anchor';
-    return 'external';
+  private getRefType(ref: string): "root" | "pointer" | "anchor" | "external" {
+    if (ref === "#") return "root";
+    if (ref.startsWith("#/")) return "pointer";
+    if (ref.startsWith("#")) return "anchor";
+    return "external";
   }
 
   /**
@@ -118,25 +120,25 @@ export class RefResolver {
    */
   private resolveInternalRef(ref: string): ResolvedReference {
     const refType = this.getRefType(ref);
-    
+
     switch (refType) {
-      case 'root':
+      case "root":
         return {
           schema: this.context.rootSchema,
-          resolved: true
+          resolved: true,
         };
-      
-      case 'pointer':
+
+      case "pointer":
         return this.resolvePointer(ref);
-        
-      case 'anchor':
+
+      case "anchor":
         return this.resolveAnchor(ref);
-        
+
       default:
         return {
           schema: false,
           resolved: false,
-          error: `Invalid internal reference: ${ref}`
+          error: `Invalid internal reference: ${ref}`,
         };
     }
   }
@@ -150,27 +152,27 @@ export class RefResolver {
       return {
         schema: false,
         resolved: false,
-        error: `Circular reference detected: ${ref}`
+        error: `Circular reference detected: ${ref}`,
       };
     }
 
     // JSON Pointer reference (#/path)
     const pointer = ref.slice(1); // Remove '#'
-    
+
     try {
       // Add to visited set for circular detection
       this.context.visited.add(ref);
       this.context.resolutionPath.push(ref);
 
       const resolved = resolve(this.context.rootSchema, pointer);
-      
+
       // Clean up tracking
       this.context.visited.delete(ref);
       this.context.resolutionPath.pop();
 
       return {
         schema: resolved as Schema | boolean,
-        resolved: true
+        resolved: true,
       };
     } catch (error) {
       // Clean up tracking on error
@@ -181,14 +183,14 @@ export class RefResolver {
         return {
           schema: false,
           resolved: false,
-          error: `Reference not found: ${ref} (${error.message})`
+          error: `Reference not found: ${ref} (${error.message})`,
         };
       }
 
       return {
         schema: false,
         resolved: false,
-        error: `Failed to resolve reference: ${ref}`
+        error: `Failed to resolve reference: ${ref}`,
       };
     }
   }
@@ -199,21 +201,21 @@ export class RefResolver {
   private resolveAnchor(ref: string): ResolvedReference {
     // Extract anchor name (remove #)
     const anchorName = ref.slice(1);
-    
+
     // Look up in anchor registry
     const schema = this.context.anchors.get(anchorName);
-    
+
     if (schema !== undefined) {
       return {
         schema,
-        resolved: true
+        resolved: true,
       };
     }
-    
+
     return {
       schema: false,
       resolved: false,
-      error: `Anchor not found: ${anchorName}`
+      error: `Anchor not found: ${anchorName}`,
     };
   }
 
@@ -221,8 +223,11 @@ export class RefResolver {
    * Collect all $anchor definitions in the schema tree
    * Populates the anchor registry for location-independent references
    */
-  private collectAnchors(schema: Schema | boolean, currentPath: string = ""): void {
-    if (typeof schema === 'boolean') {
+  private collectAnchors(
+    schema: Schema | boolean,
+    currentPath: string = "",
+  ): void {
+    if (typeof schema === "boolean") {
       return;
     }
 
@@ -232,7 +237,7 @@ export class RefResolver {
     }
 
     // Recursively collect anchors from all sub-schemas
-    
+
     // Check $defs
     if (schema.$defs) {
       for (const [key, subSchema] of Object.entries(schema.$defs)) {
@@ -249,18 +254,32 @@ export class RefResolver {
 
     // Check patternProperties
     if (schema.patternProperties) {
-      for (const [pattern, subSchema] of Object.entries(schema.patternProperties)) {
-        this.collectAnchors(subSchema, `${currentPath}/patternProperties/${pattern}`);
+      for (
+        const [pattern, subSchema] of Object.entries(schema.patternProperties)
+      ) {
+        this.collectAnchors(
+          subSchema,
+          `${currentPath}/patternProperties/${pattern}`,
+        );
       }
     }
 
     // Check additionalProperties
-    if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
-      this.collectAnchors(schema.additionalProperties, `${currentPath}/additionalProperties`);
+    if (
+      schema.additionalProperties &&
+      typeof schema.additionalProperties === "object"
+    ) {
+      this.collectAnchors(
+        schema.additionalProperties,
+        `${currentPath}/additionalProperties`,
+      );
     }
 
     // Check items
-    if (schema.items && typeof schema.items === 'object' && !Array.isArray(schema.items)) {
+    if (
+      schema.items && typeof schema.items === "object" &&
+      !Array.isArray(schema.items)
+    ) {
       this.collectAnchors(schema.items, `${currentPath}/items`);
     } else if (Array.isArray(schema.items)) {
       schema.items.forEach((subSchema, index) => {
@@ -276,12 +295,18 @@ export class RefResolver {
     }
 
     // Check additionalItems (deprecated in 2020-12, but may exist in legacy schemas)
-    if ('additionalItems' in schema && schema.additionalItems && typeof schema.additionalItems === 'object') {
-      this.collectAnchors(schema.additionalItems as Schema, `${currentPath}/additionalItems`);
+    if (
+      "additionalItems" in schema && schema.additionalItems &&
+      typeof schema.additionalItems === "object"
+    ) {
+      this.collectAnchors(
+        schema.additionalItems as Schema,
+        `${currentPath}/additionalItems`,
+      );
     }
 
     // Check contains
-    if (schema.contains && typeof schema.contains === 'object') {
+    if (schema.contains && typeof schema.contains === "object") {
       this.collectAnchors(schema.contains, `${currentPath}/contains`);
     }
 
@@ -307,34 +332,37 @@ export class RefResolver {
     }
 
     // Check not
-    if (schema.not && typeof schema.not === 'object') {
+    if (schema.not && typeof schema.not === "object") {
       this.collectAnchors(schema.not, `${currentPath}/not`);
     }
 
     // Check if
-    if (schema.if && typeof schema.if === 'object') {
+    if (schema.if && typeof schema.if === "object") {
       this.collectAnchors(schema.if, `${currentPath}/if`);
     }
 
     // Check then
-    if (schema.then && typeof schema.then === 'object') {
+    if (schema.then && typeof schema.then === "object") {
       this.collectAnchors(schema.then, `${currentPath}/then`);
     }
 
     // Check else
-    if (schema.else && typeof schema.else === 'object') {
+    if (schema.else && typeof schema.else === "object") {
       this.collectAnchors(schema.else, `${currentPath}/else`);
     }
 
     // Check dependentSchemas
     if (schema.dependentSchemas) {
       for (const [key, subSchema] of Object.entries(schema.dependentSchemas)) {
-        this.collectAnchors(subSchema, `${currentPath}/dependentSchemas/${key}`);
+        this.collectAnchors(
+          subSchema,
+          `${currentPath}/dependentSchemas/${key}`,
+        );
       }
     }
 
     // Check propertyNames
-    if (schema.propertyNames && typeof schema.propertyNames === 'object') {
+    if (schema.propertyNames && typeof schema.propertyNames === "object") {
       this.collectAnchors(schema.propertyNames, `${currentPath}/propertyNames`);
     }
   }
@@ -343,14 +371,20 @@ export class RefResolver {
    * Handle external references (http://..., relative paths, etc.)
    * Parses and identifies external references without resolving them
    */
-  private resolveExternalRef(ref: string, _baseUri?: string): ResolvedReference {
+  private resolveExternalRef(
+    ref: string,
+    _baseUri?: string,
+  ): ResolvedReference {
     // Parse the external reference
     const externalRefInfo = this.parseExternalRef(ref);
-    
+
     // Provide detailed error message based on the type of external reference
     let errorMessage = `External reference not supported: ${ref}\n`;
-    
-    if (externalRefInfo.protocol === 'http' || externalRefInfo.protocol === 'https') {
+
+    if (
+      externalRefInfo.protocol === "http" ||
+      externalRefInfo.protocol === "https"
+    ) {
       errorMessage += `\nDetails:\n`;
       errorMessage += `  Protocol: ${externalRefInfo.protocol}\n`;
       errorMessage += `  Host: ${externalRefInfo.host}\n`;
@@ -358,32 +392,39 @@ export class RefResolver {
       if (externalRefInfo.fragment) {
         errorMessage += `  Fragment: ${externalRefInfo.fragment}\n`;
       }
-      errorMessage += `\nThis validator does not support fetching schemas from remote URLs.`;
+      errorMessage +=
+        `\nThis validator does not support fetching schemas from remote URLs.`;
       errorMessage += `\nTo use this schema, you must:`;
       errorMessage += `\n  1. Download the referenced schema manually`;
-      errorMessage += `\n  2. Include it directly in your root schema using $defs`;
+      errorMessage +=
+        `\n  2. Include it directly in your root schema using $defs`;
       errorMessage += `\n  3. Update the $ref to use a local reference`;
-    } else if (externalRefInfo.protocol === 'file') {
-      errorMessage += `\nFile references are not supported for security reasons.`;
-      errorMessage += `\nPlease include the schema content directly in your root schema.`;
+    } else if (externalRefInfo.protocol === "file") {
+      errorMessage +=
+        `\nFile references are not supported for security reasons.`;
+      errorMessage +=
+        `\nPlease include the schema content directly in your root schema.`;
     } else if (externalRefInfo.isRelativePath) {
       errorMessage += `\nRelative file path references are not supported.`;
-      errorMessage += `\nPlease include the referenced schema directly in your root schema using $defs.`;
+      errorMessage +=
+        `\nPlease include the referenced schema directly in your root schema using $defs.`;
     } else if (externalRefInfo.isRelativeId) {
       // This might be an ID reference with a fragment
-      const [id, fragment] = ref.split('#');
+      const [id, fragment] = ref.split("#");
       errorMessage = `Reference to external schema ID not found: ${id}`;
       if (fragment) {
         errorMessage += `\nFragment: #${fragment}`;
       }
-      errorMessage += `\n\nThis appears to be a reference to a schema with $id="${id}"`;
-      errorMessage += `\nMake sure the schema is included in your root schema's $defs.`;
+      errorMessage +=
+        `\n\nThis appears to be a reference to a schema with $id="${id}"`;
+      errorMessage +=
+        `\nMake sure the schema is included in your root schema's $defs.`;
     }
-    
+
     return {
       schema: false,
       resolved: false,
-      error: errorMessage
+      error: errorMessage,
     };
   }
 
@@ -398,43 +439,43 @@ export class RefResolver {
       path: undefined,
       fragment: undefined,
       isRelativePath: false,
-      isRelativeId: false
+      isRelativeId: false,
     };
 
     // Check for fragment
-    const fragmentIndex = ref.indexOf('#');
+    const fragmentIndex = ref.indexOf("#");
     if (fragmentIndex !== -1) {
       info.fragment = ref.substring(fragmentIndex);
       ref = ref.substring(0, fragmentIndex);
     }
 
     // Check for protocol
-    if (ref.startsWith('http://')) {
-      info.protocol = 'http';
+    if (ref.startsWith("http://")) {
+      info.protocol = "http";
       const urlPart = ref.substring(7);
-      const pathIndex = urlPart.indexOf('/');
+      const pathIndex = urlPart.indexOf("/");
       if (pathIndex !== -1) {
         info.host = urlPart.substring(0, pathIndex);
         info.path = urlPart.substring(pathIndex);
       } else {
         info.host = urlPart;
-        info.path = '/';
+        info.path = "/";
       }
-    } else if (ref.startsWith('https://')) {
-      info.protocol = 'https';
+    } else if (ref.startsWith("https://")) {
+      info.protocol = "https";
       const urlPart = ref.substring(8);
-      const pathIndex = urlPart.indexOf('/');
+      const pathIndex = urlPart.indexOf("/");
       if (pathIndex !== -1) {
         info.host = urlPart.substring(0, pathIndex);
         info.path = urlPart.substring(pathIndex);
       } else {
         info.host = urlPart;
-        info.path = '/';
+        info.path = "/";
       }
-    } else if (ref.startsWith('file://')) {
-      info.protocol = 'file';
+    } else if (ref.startsWith("file://")) {
+      info.protocol = "file";
       info.path = ref.substring(7);
-    } else if (ref.includes('/')) {
+    } else if (ref.includes("/")) {
       // Relative path reference
       info.isRelativePath = true;
       info.path = ref;
@@ -452,34 +493,40 @@ export class RefResolver {
    */
   private resolveIdReference(ref: string): ResolvedReference {
     const found = this.findSchemaById(this.context.rootSchema, ref);
-    
+
     if (found) {
       return {
         schema: found,
-        resolved: true
+        resolved: true,
       };
     }
-    
+
     return {
       schema: false,
       resolved: false,
-      error: `Schema with $id "${ref}" not found`
+      error: `Schema with $id "${ref}" not found`,
     };
   }
 
   /**
    * Recursively search for a schema with the given $id
    */
-  private findSchemaById(schema: Schema | boolean, targetId: string): Schema | boolean | null {
-    if (typeof schema === 'boolean') {
+  private findSchemaById(
+    schema: Schema | boolean,
+    targetId: string,
+  ): Schema | boolean | null {
+    if (typeof schema === "boolean") {
       return null;
     }
-    
+
     // Check if this schema has the target $id (exact match or ends with target)
-    if (schema.$id === targetId || (schema.$id && schema.$id.endsWith('/' + targetId))) {
+    if (
+      schema.$id === targetId ||
+      (schema.$id && schema.$id.endsWith("/" + targetId))
+    ) {
       return schema;
     }
-    
+
     // Search in $defs
     if (schema.$defs) {
       for (const [, subSchema] of Object.entries(schema.$defs)) {
@@ -487,7 +534,7 @@ export class RefResolver {
         if (found) return found;
       }
     }
-    
+
     // Search in properties
     if (schema.properties) {
       for (const [, subSchema] of Object.entries(schema.properties)) {
@@ -495,9 +542,9 @@ export class RefResolver {
         if (found) return found;
       }
     }
-    
+
     // Search in other schema locations
-    if (schema.items && typeof schema.items === 'object') {
+    if (schema.items && typeof schema.items === "object") {
       if (Array.isArray(schema.items)) {
         for (const subSchema of schema.items) {
           const found = this.findSchemaById(subSchema, targetId);
@@ -508,35 +555,35 @@ export class RefResolver {
         if (found) return found;
       }
     }
-    
+
     if (schema.allOf) {
       for (const subSchema of schema.allOf) {
         const found = this.findSchemaById(subSchema, targetId);
         if (found) return found;
       }
     }
-    
+
     if (schema.anyOf) {
       for (const subSchema of schema.anyOf) {
         const found = this.findSchemaById(subSchema, targetId);
         if (found) return found;
       }
     }
-    
+
     if (schema.oneOf) {
       for (const subSchema of schema.oneOf) {
         const found = this.findSchemaById(subSchema, targetId);
         if (found) return found;
       }
     }
-    
+
     return null;
   }
 
   private isExternalRef(ref: string): boolean {
-    return ref.startsWith('http://') || 
-           ref.startsWith('https://') || 
-           (!ref.startsWith('#') && ref.includes('/'));
+    return ref.startsWith("http://") ||
+      ref.startsWith("https://") ||
+      (!ref.startsWith("#") && ref.includes("/"));
   }
 
   /**
@@ -544,7 +591,10 @@ export class RefResolver {
    * Used when resolving references within resolved schemas
    */
   createSubContext(newBaseUri?: string): RefResolver {
-    return new RefResolver(this.context.rootSchema, newBaseUri || this.context.baseUri);
+    return new RefResolver(
+      this.context.rootSchema,
+      newBaseUri || this.context.baseUri,
+    );
   }
 
   /**
@@ -560,9 +610,9 @@ export class RefResolver {
  * This is the main API that the validator will use
  */
 export function resolveRef(
-  ref: string, 
+  ref: string,
   rootSchema: Schema | boolean,
-  baseUri?: string
+  baseUri?: string,
 ): ResolvedReference {
   const resolver = new RefResolver(rootSchema, baseUri);
   return resolver.resolve(ref);
@@ -573,7 +623,7 @@ export function resolveRef(
  * Useful for optimization - skip ref resolution for schemas without refs
  */
 export function hasRefs(schema: unknown): boolean {
-  if (typeof schema !== 'object' || schema === null) {
+  if (typeof schema !== "object" || schema === null) {
     return false;
   }
 
@@ -582,8 +632,8 @@ export function hasRefs(schema: unknown): boolean {
   }
 
   const obj = schema as Record<string, unknown>;
-  
-  if ('$ref' in obj) {
+
+  if ("$ref" in obj) {
     return true;
   }
 
@@ -592,12 +642,12 @@ export function hasRefs(schema: unknown): boolean {
 
 /**
  * Design notes for future optimization:
- * 
+ *
  * 1. **Caching layer**: Add a Map<string, ResolvedReference> cache
  * 2. **Lazy resolution**: Only resolve refs when validation reaches them
  * 3. **Batch resolution**: Collect all refs first, resolve in parallel
  * 4. **Schema compilation**: Pre-resolve all refs and inline them
  * 5. **External reference loading**: Add HTTP fetching with caching
- * 
+ *
  * The current design supports all these optimizations without API changes.
  */

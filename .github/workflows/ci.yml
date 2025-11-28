@@ -19,25 +19,27 @@ jobs:
         uses: denoland/setup-deno@v2
 
       - name: Check formatting
-        run: |
-          deno fmt --check
-          if [ $? -ne 0 ]; then
-            echo "Code is not properly formatted. Run 'deno fmt' to fix."
-            exit 1
-          fi
-          echo "Code formatting is correct"
+        run: deno fmt --check
 
       - name: Type checking
-        run: |
-          deno check
-          echo "Type checking passed"
+        run: deno check cmd/steady.ts src/**/*.ts packages/**/*.ts
 
       - name: Lint code
-        run: |
-          deno lint
-          echo "Linting passed"
+        run: ./scripts/lint
 
       - name: Check import boundaries
-        run: |
-          deno task check-boundaries
-          echo "Import boundaries respected"
+        run: deno task check-boundaries
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+
+      - name: Run tests
+        run: ./scripts/test
