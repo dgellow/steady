@@ -29,8 +29,8 @@ class Benchmark {
         metadata: {
           created: new Date().toISOString(),
           active: i % 2 === 0,
-          score: Math.random() * 100
-        }
+          score: Math.random() * 100,
+        },
       };
     }
     return obj;
@@ -46,20 +46,20 @@ class Benchmark {
           type: "array",
           items: { type: "string" },
           minItems: 1,
-          uniqueItems: true
+          uniqueItems: true,
         },
         metadata: {
           type: "object",
           properties: {
             created: { type: "string", format: "date-time" },
             active: { type: "boolean" },
-            score: { type: "number", minimum: 0, maximum: 100 }
+            score: { type: "number", minimum: 0, maximum: 100 },
           },
-          required: ["created", "active"]
-        }
+          required: ["created", "active"],
+        },
       },
       required: ["id", "name"],
-      additionalProperties: false
+      additionalProperties: false,
     };
   }
 
@@ -67,7 +67,7 @@ class Benchmark {
     name: string,
     schema: Schema,
     data: unknown,
-    iterations: number = 1000
+    iterations: number = 1000,
   ): BenchmarkResult {
     // Warm up
     for (let i = 0; i < 10; i++) {
@@ -99,14 +99,15 @@ class Benchmark {
       totalTime,
       avgTime,
       opsPerSec,
-      memoryUsed: memAfter - memBefore
+      memoryUsed: memAfter - memBefore,
     };
   }
 
   private getMemoryUsage(): number {
     // Deno-specific memory usage
     try {
-      return (Deno as { memoryUsage?: () => { heapUsed: number } }).memoryUsage?.().heapUsed || 0;
+      return (Deno as { memoryUsage?: () => { heapUsed: number } })
+        .memoryUsage?.().heapUsed || 0;
     } catch {
       return 0;
     }
@@ -120,32 +121,63 @@ class Benchmark {
     // Simple validation
     const simpleSchema: Schema = { type: "string", minLength: 5 };
     const simpleData = "hello world";
-    results.push(this.runBenchmark("Simple string validation", simpleSchema, simpleData, 10000));
+    results.push(
+      this.runBenchmark(
+        "Simple string validation",
+        simpleSchema,
+        simpleData,
+        10000,
+      ),
+    );
 
     // Complex object validation
     const complexSchema = this.generateComplexSchema();
     const complexData = this.generateLargeObject(1);
-    results.push(this.runBenchmark("Complex object validation", complexSchema, complexData, 1000));
+    results.push(
+      this.runBenchmark(
+        "Complex object validation",
+        complexSchema,
+        complexData,
+        1000,
+      ),
+    );
 
     // Large object validation
     const largeSchema: Schema = {
       type: "object",
       patternProperties: {
-        "^prop\\d+$": this.generateComplexSchema()
+        "^prop\\d+$": this.generateComplexSchema(),
       },
-      additionalProperties: false
+      additionalProperties: false,
     };
     const largeData = this.generateLargeObject(100);
-    results.push(this.runBenchmark("Large object (100 props)", largeSchema, largeData, 100));
+    results.push(
+      this.runBenchmark(
+        "Large object (100 props)",
+        largeSchema,
+        largeData,
+        100,
+      ),
+    );
 
     // Array with uniqueItems (expensive)
     const arraySchema: Schema = {
       type: "array",
       items: { type: "object" },
-      uniqueItems: true
+      uniqueItems: true,
     };
-    const arrayData = Array.from({ length: 1000 }, (_, i) => ({ id: i, value: `item${i}` }));
-    results.push(this.runBenchmark("Array uniqueItems (1000 items)", arraySchema, arrayData, 10));
+    const arrayData = Array.from(
+      { length: 1000 },
+      (_, i) => ({ id: i, value: `item${i}` }),
+    );
+    results.push(
+      this.runBenchmark(
+        "Array uniqueItems (1000 items)",
+        arraySchema,
+        arrayData,
+        10,
+      ),
+    );
 
     // Deep nesting
     let deepSchema: Schema = { type: "string" };
@@ -153,14 +185,16 @@ class Benchmark {
       deepSchema = {
         type: "object",
         properties: { nested: deepSchema },
-        required: ["nested"]
+        required: ["nested"],
       };
     }
     let deepData: unknown = "deep value";
     for (let i = 0; i < 50; i++) {
       deepData = { nested: deepData };
     }
-    results.push(this.runBenchmark("Deep nesting (50 levels)", deepSchema, deepData, 100));
+    results.push(
+      this.runBenchmark("Deep nesting (50 levels)", deepSchema, deepData, 100),
+    );
 
     return results;
   }
@@ -173,32 +207,50 @@ class Benchmark {
     for (const result of results) {
       const opsPerSec = result.opsPerSec.toFixed(0).padStart(7);
       const avgTime = `${result.avgTime.toFixed(2)}ms`.padStart(8);
-      const memory = result.memoryUsed ? `${(result.memoryUsed / 1024 / 1024).toFixed(1)}MB` : "N/A";
-      
-      console.log(`| ${result.name.padEnd(35)} | ${opsPerSec} | ${avgTime} | ${memory.padStart(6)} |`);
+      const memory = result.memoryUsed
+        ? `${(result.memoryUsed / 1024 / 1024).toFixed(1)}MB`
+        : "N/A";
+
+      console.log(
+        `| ${result.name.padEnd(35)} | ${opsPerSec} | ${avgTime} | ${
+          memory.padStart(6)
+        } |`,
+      );
     }
 
     console.log("\n🎯 Performance Analysis:");
-    
-    const slowestTest = results.reduce((prev, curr) => 
+
+    const slowestTest = results.reduce((prev, curr) =>
       prev.opsPerSec < curr.opsPerSec ? prev : curr
     );
-    
-    console.log(`🐌 Slowest: ${slowestTest.name} (${slowestTest.opsPerSec.toFixed(0)} ops/sec)`);
-    
-    const fastestTest = results.reduce((prev, curr) => 
+
+    console.log(
+      `🐌 Slowest: ${slowestTest.name} (${
+        slowestTest.opsPerSec.toFixed(0)
+      } ops/sec)`,
+    );
+
+    const fastestTest = results.reduce((prev, curr) =>
       prev.opsPerSec > curr.opsPerSec ? prev : curr
     );
-    
-    console.log(`⚡ Fastest: ${fastestTest.name} (${fastestTest.opsPerSec.toFixed(0)} ops/sec)`);
-    
+
+    console.log(
+      `⚡ Fastest: ${fastestTest.name} (${
+        fastestTest.opsPerSec.toFixed(0)
+      } ops/sec)`,
+    );
+
     // Check for performance issues
-    const uniqueItemsResult = results.find(r => r.name.includes("uniqueItems"));
+    const uniqueItemsResult = results.find((r) =>
+      r.name.includes("uniqueItems")
+    );
     if (uniqueItemsResult && uniqueItemsResult.opsPerSec < 100) {
       console.log("⚠️  uniqueItems validation is slow - consider optimization");
     }
-    
-    const deepNestingResult = results.find(r => r.name.includes("Deep nesting"));
+
+    const deepNestingResult = results.find((r) =>
+      r.name.includes("Deep nesting")
+    );
     if (deepNestingResult && deepNestingResult.opsPerSec < 1000) {
       console.log("⚠️  Deep nesting is slow - consider iterative approach");
     }

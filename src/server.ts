@@ -29,14 +29,24 @@ const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
 /** HTTP methods supported by OpenAPI */
-const HTTP_METHODS = ["get", "post", "put", "delete", "patch", "head", "options"] as const;
+const HTTP_METHODS = [
+  "get",
+  "post",
+  "put",
+  "delete",
+  "patch",
+  "head",
+  "options",
+] as const;
 type HttpMethod = typeof HTTP_METHODS[number];
 
 /** Pre-compiled path pattern for efficient matching */
 interface CompiledPath {
   pattern: string;
   pathItem: PathItemObject;
-  segments: Array<{ type: "literal"; value: string } | { type: "param"; name: string }>;
+  segments: Array<
+    { type: "literal"; value: string } | { type: "param"; name: string }
+  >;
   segmentCount: number;
 }
 
@@ -185,7 +195,10 @@ export class MockServer {
 
     // List available endpoints
     console.log(`\n${BOLD}Available endpoints:${RESET}`);
-    const endpointCount = { exact: this.exactRoutes.size, pattern: this.patternRoutes.length };
+    const endpointCount = {
+      exact: this.exactRoutes.size,
+      pattern: this.patternRoutes.length,
+    };
 
     for (const [path, pathItem] of Object.entries(this.spec.paths)) {
       const methods = this.getMethodsForPath(pathItem);
@@ -198,7 +211,9 @@ export class MockServer {
     console.log(`  ${DIM}GET     /_x-steady/health${RESET}`);
     console.log(`  ${DIM}GET     /_x-steady/spec${RESET}`);
 
-    console.log(`\n${DIM}Routes compiled: ${endpointCount.exact} exact, ${endpointCount.pattern} patterns${RESET}`);
+    console.log(
+      `\n${DIM}Routes compiled: ${endpointCount.exact} exact, ${endpointCount.pattern} patterns${RESET}`,
+    );
     console.log(`${DIM}Press Ctrl+C to stop${RESET}\n`);
   }
 
@@ -222,7 +237,8 @@ export class MockServer {
     }
 
     try {
-      const { operation, statusCode, pathPattern, pathParams } = this.findOperation(path, method);
+      const { operation, statusCode, pathPattern, pathParams } = this
+        .findOperation(path, method);
 
       // Validate request
       const validation = await this.validator.validateRequest(
@@ -252,7 +268,12 @@ export class MockServer {
         );
       }
 
-      const response = await this.generateResponse(operation, statusCode, path, method);
+      const response = await this.generateResponse(
+        operation,
+        statusCode,
+        path,
+        method,
+      );
 
       const timing = Math.round(performance.now() - startTime);
       this.logger.logResponse(parseInt(statusCode), timing, validation);
@@ -351,7 +372,11 @@ export class MockServer {
 
       const params = this.matchCompiledPath(requestSegments, compiled);
       if (params) {
-        const operation = this.getOperationForMethod(compiled.pathItem, method, compiled.pattern);
+        const operation = this.getOperationForMethod(
+          compiled.pathItem,
+          method,
+          compiled.pattern,
+        );
         const statusCode = this.selectStatusCode(operation);
         return {
           operation,
@@ -370,7 +395,9 @@ export class MockServer {
       errorType: "match",
       reason: `No path definition found for "${path}"`,
       suggestion: availablePaths.length > 0
-        ? `Available paths: ${availablePaths.slice(0, 5).join(", ")}${availablePaths.length > 5 ? "..." : ""}`
+        ? `Available paths: ${availablePaths.slice(0, 5).join(", ")}${
+          availablePaths.length > 5 ? "..." : ""
+        }`
         : "No paths defined in the OpenAPI spec",
     });
   }
@@ -408,7 +435,9 @@ export class MockServer {
     method: string,
     pathPattern: string,
   ): OperationObject {
-    const operation = pathItem[method as keyof PathItemObject] as OperationObject | undefined;
+    const operation = pathItem[method as keyof PathItemObject] as
+      | OperationObject
+      | undefined;
 
     if (!operation) {
       const availableMethods = this.getMethodsForPath(pathItem);
@@ -416,8 +445,11 @@ export class MockServer {
         httpPath: pathPattern,
         httpMethod: method.toUpperCase(),
         errorType: "match",
-        reason: `Method ${method.toUpperCase()} not defined for path "${pathPattern}"`,
-        suggestion: `Available methods: ${availableMethods.map((m) => m.toUpperCase()).join(", ")}`,
+        reason:
+          `Method ${method.toUpperCase()} not defined for path "${pathPattern}"`,
+        suggestion: `Available methods: ${
+          availableMethods.map((m) => m.toUpperCase()).join(", ")
+        }`,
       });
     }
 
@@ -447,7 +479,9 @@ export class MockServer {
         httpMethod: method.toUpperCase(),
         errorType: "match",
         reason: `No response defined for status code ${statusCode}`,
-        suggestion: `Available response codes: ${Object.keys(operation.responses).join(", ")}`,
+        suggestion: `Available response codes: ${
+          Object.keys(operation.responses).join(", ")
+        }`,
       });
     }
 

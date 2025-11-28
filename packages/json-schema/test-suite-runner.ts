@@ -39,33 +39,35 @@ export class TestSuiteRunner {
   async runTestFile(filePath: string): Promise<TestResults> {
     const content = await Deno.readTextFile(filePath);
     const testGroups: TestGroup[] = JSON.parse(content);
-    
+
     const results: TestResults = {
       total: 0,
       passed: 0,
       failed: 0,
-      failedTests: []
+      failedTests: [],
     };
 
     for (const group of testGroups) {
       // Process the schema once
       const processResult = await this.processor.process(group.schema);
-      
+
       if (!processResult.valid) {
-        console.error(`Failed to process schema for group: ${group.description}`);
+        console.error(
+          `Failed to process schema for group: ${group.description}`,
+        );
         console.error(processResult.errors);
         continue;
       }
 
       const validator = new SchemaValidator(processResult.schema!);
-      
+
       for (const test of group.tests) {
         results.total++;
-        
+
         try {
           const validationResult = validator.validate(test.data);
           const actual = validationResult.valid;
-          
+
           if (actual === test.valid) {
             results.passed++;
           } else {
@@ -103,14 +105,14 @@ export class TestSuiteRunner {
       total: 0,
       passed: 0,
       failed: 0,
-      failedTests: []
+      failedTests: [],
     };
 
     for await (const entry of Deno.readDir(directory)) {
-      if (entry.isFile && entry.name.endsWith('.json')) {
+      if (entry.isFile && entry.name.endsWith(".json")) {
         const filePath = `${directory}/${entry.name}`;
         const results = await this.runTestFile(filePath);
-        
+
         totals.total += results.total;
         totals.passed += results.passed;
         totals.failed += results.failed;
@@ -126,15 +128,19 @@ export class TestSuiteRunner {
 if (import.meta.main) {
   const runner = new TestSuiteRunner();
   const testDir = Deno.args[0] || "./test-suite/tests/draft2020-12";
-  
+
   console.log(`Running JSON Schema test suite from: ${testDir}`);
   const results = await runner.runAllTests(testDir);
-  
+
   console.log("\n=== Test Results ===");
   console.log(`Total: ${results.total}`);
-  console.log(`Passed: ${results.passed} (${(results.passed / results.total * 100).toFixed(2)}%)`);
+  console.log(
+    `Passed: ${results.passed} (${
+      (results.passed / results.total * 100).toFixed(2)
+    }%)`,
+  );
   console.log(`Failed: ${results.failed}`);
-  
+
   if (results.failed > 0) {
     console.log("\n=== Failed Tests (first 10) ===");
     for (const failed of results.failedTests.slice(0, 10)) {

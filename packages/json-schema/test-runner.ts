@@ -38,20 +38,20 @@ export class TestSuiteRunner {
   async runTestFile(filePath: string): Promise<TestResults> {
     const content = await Deno.readTextFile(filePath);
     const testGroups: TestGroup[] = JSON.parse(content);
-    
+
     const results: TestResults = {
       total: 0,
       passed: 0,
       failed: 0,
-      failedTests: []
+      failedTests: [],
     };
 
     for (const group of testGroups) {
       for (const test of group.tests) {
         results.total++;
-        
+
         const actual = this.validateTest(group.schema, test.data);
-        
+
         if (actual === test.valid) {
           results.passed++;
         } else {
@@ -62,7 +62,7 @@ export class TestSuiteRunner {
             expected: test.valid,
             actual,
             schema: group.schema,
-            data: test.data
+            data: test.data,
           });
         }
       }
@@ -88,9 +88,9 @@ export class TestSuiteRunner {
 
   async runAllTests(testDir: string): Promise<Map<string, TestResults>> {
     const results = new Map<string, TestResults>();
-    
+
     for await (const entry of Deno.readDir(testDir)) {
-      if (entry.isFile && entry.name.endsWith('.json')) {
+      if (entry.isFile && entry.name.endsWith(".json")) {
         const filePath = `${testDir}/${entry.name}`;
         try {
           const result = await this.runTestFile(filePath);
@@ -100,7 +100,7 @@ export class TestSuiteRunner {
         }
       }
     }
-    
+
     return results;
   }
 
@@ -116,17 +116,27 @@ export class TestSuiteRunner {
       totalPassed += result.passed;
       totalFailed += result.failed;
 
-      const passRate = result.total > 0 ? (result.passed / result.total * 100).toFixed(1) : '0.0';
-      
+      const passRate = result.total > 0
+        ? (result.passed / result.total * 100).toFixed(1)
+        : "0.0";
+
       if (result.failed > 0) {
-        console.log(`❌ ${file}: ${result.passed}/${result.total} (${passRate}%) - ${result.failed} failed`);
+        console.log(
+          `❌ ${file}: ${result.passed}/${result.total} (${passRate}%) - ${result.failed} failed`,
+        );
       } else {
-        console.log(`✅ ${file}: ${result.passed}/${result.total} (${passRate}%)`);
+        console.log(
+          `✅ ${file}: ${result.passed}/${result.total} (${passRate}%)`,
+        );
       }
     }
 
-    console.log(`\nOverall: ${totalPassed}/${totalTests} (${(totalPassed/totalTests*100).toFixed(1)}%)`);
-    
+    console.log(
+      `\nOverall: ${totalPassed}/${totalTests} (${
+        (totalPassed / totalTests * 100).toFixed(1)
+      }%)`,
+    );
+
     if (totalFailed > 0) {
       console.log(`\n🔴 ${totalFailed} tests failed`);
     } else {
@@ -136,25 +146,29 @@ export class TestSuiteRunner {
 
   printFailures(results: Map<string, TestResults>, maxFailures = 10): void {
     console.log("\n=== Failed Tests ===\n");
-    
+
     let count = 0;
     for (const [file, result] of results) {
       if (result.failedTests.length === 0) continue;
-      
+
       console.log(`\n--- ${file} ---`);
-      
+
       for (const failure of result.failedTests) {
         if (count >= maxFailures) {
-          console.log(`\n... and ${getTotalFailures(results) - maxFailures} more failures`);
+          console.log(
+            `\n... and ${
+              getTotalFailures(results) - maxFailures
+            } more failures`,
+          );
           return;
         }
-        
+
         console.log(`\n${failure.group} > ${failure.test}`);
         console.log(`  Expected: ${failure.expected}`);
         console.log(`  Actual: ${failure.actual}`);
         console.log(`  Schema: ${JSON.stringify(failure.schema)}`);
         console.log(`  Data: ${JSON.stringify(failure.data)}`);
-        
+
         count++;
       }
     }
@@ -173,10 +187,10 @@ function getTotalFailures(results: Map<string, TestResults>): number {
 if (import.meta.main) {
   const testDir = "./test-suite/tests/draft2020-12";
   const runner = new TestSuiteRunner();
-  
+
   console.log("Running JSON Schema Test Suite...");
   const results = await runner.runAllTests(testDir);
-  
+
   runner.printSummary(results);
   runner.printFailures(results);
 }

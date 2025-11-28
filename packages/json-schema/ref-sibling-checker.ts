@@ -18,11 +18,11 @@ import type { Schema, SchemaWarning } from "./types.ts";
  * Keywords that are allowed as siblings to $ref in JSON Schema 2020-12
  */
 const ALLOWED_REF_SIBLINGS = new Set([
-  "$id",      // Schema identification
-  "$anchor",  // Location-independent identification
+  "$id", // Schema identification
+  "$anchor", // Location-independent identification
   "$comment", // Documentation only
-  "$defs",    // Reusable schema definitions
-  "$ref",     // The ref itself
+  "$defs", // Reusable schema definitions
+  "$ref", // The ref itself
 ]);
 
 /**
@@ -44,13 +44,14 @@ export function checkRefSiblings(
     // Find all keyword siblings
     const keywords = Object.keys(schema);
     const ignoredKeywords = keywords.filter(
-      (key) => !ALLOWED_REF_SIBLINGS.has(key)
+      (key) => !ALLOWED_REF_SIBLINGS.has(key),
     );
 
     if (ignoredKeywords.length > 0) {
       warnings.push({
         type: "compatibility" as const,
-        message: `Schema contains $ref with sibling keywords that will be ignored per JSON Schema 2020-12`,
+        message:
+          `Schema contains $ref with sibling keywords that will be ignored per JSON Schema 2020-12`,
         location: path,
         suggestion: `Remove ignored keywords: ${ignoredKeywords.join(", ")}. ` +
           `In JSON Schema 2020-12, keywords that are siblings to $ref are ignored ` +
@@ -68,18 +69,32 @@ export function checkRefSiblings(
 
   if (schema.properties) {
     for (const [key, subSchema] of Object.entries(schema.properties)) {
-      warnings.push(...checkRefSiblings(subSchema, `${path}/properties/${key}`));
+      warnings.push(
+        ...checkRefSiblings(subSchema, `${path}/properties/${key}`),
+      );
     }
   }
 
   if (schema.patternProperties) {
-    for (const [pattern, subSchema] of Object.entries(schema.patternProperties)) {
-      warnings.push(...checkRefSiblings(subSchema, `${path}/patternProperties/${pattern}`));
+    for (
+      const [pattern, subSchema] of Object.entries(schema.patternProperties)
+    ) {
+      warnings.push(
+        ...checkRefSiblings(subSchema, `${path}/patternProperties/${pattern}`),
+      );
     }
   }
 
-  if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
-    warnings.push(...checkRefSiblings(schema.additionalProperties, `${path}/additionalProperties`));
+  if (
+    schema.additionalProperties &&
+    typeof schema.additionalProperties === "object"
+  ) {
+    warnings.push(
+      ...checkRefSiblings(
+        schema.additionalProperties,
+        `${path}/additionalProperties`,
+      ),
+    );
   }
 
   if (schema.items && !Array.isArray(schema.items)) {
@@ -132,7 +147,9 @@ export function checkRefSiblings(
 
   if (schema.dependentSchemas) {
     for (const [key, subSchema] of Object.entries(schema.dependentSchemas)) {
-      warnings.push(...checkRefSiblings(subSchema, `${path}/dependentSchemas/${key}`));
+      warnings.push(
+        ...checkRefSiblings(subSchema, `${path}/dependentSchemas/${key}`),
+      );
     }
   }
 
@@ -141,15 +158,27 @@ export function checkRefSiblings(
   }
 
   if (schema.propertyNames && typeof schema.propertyNames === "object") {
-    warnings.push(...checkRefSiblings(schema.propertyNames, `${path}/propertyNames`));
+    warnings.push(
+      ...checkRefSiblings(schema.propertyNames, `${path}/propertyNames`),
+    );
   }
 
-  if (schema.unevaluatedProperties && typeof schema.unevaluatedProperties === "object") {
-    warnings.push(...checkRefSiblings(schema.unevaluatedProperties, `${path}/unevaluatedProperties`));
+  if (
+    schema.unevaluatedProperties &&
+    typeof schema.unevaluatedProperties === "object"
+  ) {
+    warnings.push(
+      ...checkRefSiblings(
+        schema.unevaluatedProperties,
+        `${path}/unevaluatedProperties`,
+      ),
+    );
   }
 
   if (schema.unevaluatedItems && typeof schema.unevaluatedItems === "object") {
-    warnings.push(...checkRefSiblings(schema.unevaluatedItems, `${path}/unevaluatedItems`));
+    warnings.push(
+      ...checkRefSiblings(schema.unevaluatedItems, `${path}/unevaluatedItems`),
+    );
   }
 
   return warnings;

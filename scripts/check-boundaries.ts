@@ -38,7 +38,9 @@ const checkImportBoundaries = async () => {
     const content = await Deno.readTextFile(filePath);
 
     // Look for imports from src/
-    const srcImports = content.match(/import\s+.*?\s+from\s+['"](\.\.\/)*(\.\.\/)*src\//g);
+    const srcImports = content.match(
+      /import\s+.*?\s+from\s+['"](\.\.\/)*(\.\.\/)*src\//g,
+    );
     if (srcImports) {
       console.error(`\x1b[31m[ERROR]\x1b[0m ${filePath} imports from src/:`);
       srcImports.forEach((imp) => console.error(`   ${imp}`));
@@ -46,9 +48,13 @@ const checkImportBoundaries = async () => {
     }
 
     // Also check for dynamic imports from src/
-    const dynamicImports = content.match(/import\s*\(\s*['"](\.\.\/)*(\.\.\/)*src\//g);
+    const dynamicImports = content.match(
+      /import\s*\(\s*['"](\.\.\/)*(\.\.\/)*src\//g,
+    );
     if (dynamicImports) {
-      console.error(`\x1b[31m[ERROR]\x1b[0m ${filePath} has dynamic import from src/:`);
+      console.error(
+        `\x1b[31m[ERROR]\x1b[0m ${filePath} has dynamic import from src/:`,
+      );
       dynamicImports.forEach((imp) => console.error(`   ${imp}`));
       violations++;
     }
@@ -62,7 +68,9 @@ const checkImportBoundaries = async () => {
   if (violations === 0) {
     console.log("\x1b[32m[OK]\x1b[0m All packages respect import boundaries");
   } else {
-    console.error(`\x1b[31m[FAIL]\x1b[0m Found ${violations} boundary violations`);
+    console.error(
+      `\x1b[31m[FAIL]\x1b[0m Found ${violations} boundary violations`,
+    );
     Deno.exit(1);
   }
 };

@@ -49,7 +49,11 @@ export class GenerationError extends SteadyError {
 export class MatchError extends SteadyError {
   readonly source: ErrorSource;
 
-  constructor(message: string, context: ErrorContext, source: ErrorSource = "unknown") {
+  constructor(
+    message: string,
+    context: ErrorContext,
+    source: ErrorSource = "unknown",
+  ) {
     super(message, { ...context, errorType: "match" });
     this.name = "MatchError";
     this.source = source;
@@ -63,7 +67,11 @@ export class RequestValidationError extends SteadyError {
   readonly source: ErrorSource = "sdk";
   readonly validationErrors: ValidationError[];
 
-  constructor(message: string, context: ErrorContext, validationErrors: ValidationError[]) {
+  constructor(
+    message: string,
+    context: ErrorContext,
+    validationErrors: ValidationError[],
+  ) {
     super(message, { ...context, errorType: "validation" });
     this.name = "RequestValidationError";
     this.validationErrors = validationErrors;
@@ -77,8 +85,12 @@ export class RequestValidationError extends SteadyError {
       .map((e, i) => {
         const lines = [`  ${i + 1}. ${e.message}`];
         if (e.path) lines.push(`     Path: ${e.path}`);
-        if (e.expected !== undefined) lines.push(`     Expected: ${JSON.stringify(e.expected)}`);
-        if (e.actual !== undefined) lines.push(`     Actual: ${JSON.stringify(e.actual)}`);
+        if (e.expected !== undefined) {
+          lines.push(`     Expected: ${JSON.stringify(e.expected)}`);
+        }
+        if (e.actual !== undefined) {
+          lines.push(`     Actual: ${JSON.stringify(e.actual)}`);
+        }
         return lines.join("\n");
       })
       .join("\n\n");
@@ -147,7 +159,8 @@ export function missingExampleError(
     httpPath: path,
     httpMethod: method.toUpperCase(),
     errorType: "generate",
-    reason: `Your OpenAPI spec defines a ${statusCode} response but doesn't include an example or schema.`,
+    reason:
+      `Your OpenAPI spec defines a ${statusCode} response but doesn't include an example or schema.`,
     suggestion: "Add an example or schema to your spec:",
     examples: [
       "responses:",
@@ -180,13 +193,16 @@ export function sdkValidationError(
     : "Request validation failed";
 
   return new RequestValidationError(
-    `SDK validation failed: ${summary}${errorCount > 1 ? ` (+${errorCount - 1} more)` : ""}`,
+    `SDK validation failed: ${summary}${
+      errorCount > 1 ? ` (+${errorCount - 1} more)` : ""
+    }`,
     {
       specFile,
       httpPath: path,
       httpMethod: method.toUpperCase(),
       errorType: "validation",
-      reason: "The SDK sent a request that doesn't match the OpenAPI specification.",
+      reason:
+        "The SDK sent a request that doesn't match the OpenAPI specification.",
       suggestion: "Check the SDK implementation:\n" +
         "  - Verify required fields are being sent\n" +
         "  - Check field types match the schema\n" +
@@ -228,7 +244,13 @@ export function pathNotFoundError(
 ): MatchError {
   const source: ErrorSource = availablePaths.length === 0 ? "spec" : "sdk";
   const suggestion = availablePaths.length > 0
-    ? `Available paths:\n${availablePaths.slice(0, 10).map((p) => `  - ${p}`).join("\n")}${availablePaths.length > 10 ? `\n  ... and ${availablePaths.length - 10} more` : ""}`
+    ? `Available paths:\n${
+      availablePaths.slice(0, 10).map((p) => `  - ${p}`).join("\n")
+    }${
+      availablePaths.length > 10
+        ? `\n  ... and ${availablePaths.length - 10} more`
+        : ""
+    }`
     : "No paths are defined in the OpenAPI spec.";
 
   return new MatchError(
@@ -264,7 +286,9 @@ export function methodNotAllowedError(
       httpMethod: method.toUpperCase(),
       errorType: "match",
       reason: `The path exists but doesn't support ${method.toUpperCase()}.`,
-      suggestion: `Available methods for this path: ${availableMethods.map((m) => m.toUpperCase()).join(", ")}`,
+      suggestion: `Available methods for this path: ${
+        availableMethods.map((m) => m.toUpperCase()).join(", ")
+      }`,
     },
     "sdk",
   );

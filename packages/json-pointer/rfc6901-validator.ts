@@ -87,7 +87,8 @@ function validateToken(token: string, _position: number): ValidationResult {
         return {
           valid: false,
           error: `Invalid escape sequence "~${nextChar}" in token`,
-          suggestion: `RFC 6901 only allows ~0 (for tilde) and ~1 (for slash). ` +
+          suggestion:
+            `RFC 6901 only allows ~0 (for tilde) and ~1 (for slash). ` +
             `To use a literal tilde, escape it as ~0`,
         };
       }
@@ -168,7 +169,9 @@ export function validateRef(ref: string): ValidationResult {
     return {
       valid: false,
       error: "Backslashes are not valid in JSON Pointers per RFC 6901",
-      suggestion: `Replace backslashes with forward slashes: "${ref}" → "${ref.replace(/\\/g, "/")}"`,
+      suggestion: `Replace backslashes with forward slashes: "${ref}" → "${
+        ref.replace(/\\/g, "/")
+      }"`,
     };
   }
 

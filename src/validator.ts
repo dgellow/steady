@@ -248,7 +248,8 @@ export class RequestValidator {
       if (size > MAX_BODY_SIZE) {
         errors.push({
           path: "body",
-          message: `Request body too large: ${size} bytes exceeds limit of ${MAX_BODY_SIZE} bytes`,
+          message:
+            `Request body too large: ${size} bytes exceeds limit of ${MAX_BODY_SIZE} bytes`,
         });
         return { valid: false, errors, warnings };
       }
@@ -298,7 +299,7 @@ export class RequestValidator {
         totalSize += value.length;
         if (totalSize > MAX_BODY_SIZE) {
           throw new BodyTooLargeError(
-            `Request body exceeds maximum size of ${MAX_BODY_SIZE} bytes`
+            `Request body exceeds maximum size of ${MAX_BODY_SIZE} bytes`,
           );
         }
         chunks.push(value);
@@ -456,7 +457,10 @@ export class RequestValidator {
   /**
    * Cache a validator for a schema
    */
-  private setValidatorInCache(schema: Schema, validator: SchemaValidator): void {
+  private setValidatorInCache(
+    schema: Schema,
+    validator: SchemaValidator,
+  ): void {
     // Use WeakMap for object schemas (automatic GC)
     if (typeof schema === "object" && schema !== null) {
       schemaCache.set(schema, validator);

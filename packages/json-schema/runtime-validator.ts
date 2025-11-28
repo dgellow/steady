@@ -15,8 +15,8 @@ import type {
   ProcessedSchema,
   Schema,
   SchemaType,
-  ValidationError,
   ValidationContext,
+  ValidationError,
 } from "./types.ts";
 
 /** Maximum regex execution time in milliseconds */
@@ -27,7 +27,8 @@ const MAX_REGEX_STRING_LENGTH = 100_000;
 
 /** Format validators for common JSON Schema formats */
 const FORMAT_VALIDATORS: Record<string, (value: string) => boolean> = {
-  "date-time": (v) => !isNaN(Date.parse(v)) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v),
+  "date-time": (v) =>
+    !isNaN(Date.parse(v)) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v),
   "date": (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v)),
   "time": (v) => /^\d{2}:\d{2}:\d{2}/.test(v),
   "email": (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
@@ -47,7 +48,8 @@ const FORMAT_VALIDATORS: Record<string, (value: string) => boolean> = {
       return false;
     }
   },
-  "uuid": (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
+  "uuid": (v) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
   "ipv4": (v) => {
     const parts = v.split(".");
     if (parts.length !== 4) return false;
@@ -62,7 +64,9 @@ const FORMAT_VALIDATORS: Record<string, (value: string) => boolean> = {
     if (parts.length < 3 || parts.length > 8) return false;
     return parts.every((p) => p === "" || /^[0-9a-f]{1,4}$/i.test(p));
   },
-  "hostname": (v) => /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i.test(v),
+  "hostname": (v) =>
+    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i
+      .test(v),
   "json-pointer": (v) => v === "" || /^\/([^~]|~0|~1)*$/.test(v),
   "regex": (v) => {
     try {
@@ -182,7 +186,9 @@ export class RuntimeValidator {
     const dataType = this.getType(data);
 
     if (schema.type && !this.isTypeAllowed(dataType, schema.type)) {
-      const allowedTypes = Array.isArray(schema.type) ? schema.type : [schema.type];
+      const allowedTypes = Array.isArray(schema.type)
+        ? schema.type
+        : [schema.type];
       errors.push(this.createError(
         "type",
         `Must be ${allowedTypes.join(" or ")}`,
@@ -211,7 +217,12 @@ export class RuntimeValidator {
         break;
       case "object":
         if (data !== null) {
-          this.validateObject(schema, data as Record<string, unknown>, context, errors);
+          this.validateObject(
+            schema,
+            data as Record<string, unknown>,
+            context,
+            errors,
+          );
         }
         break;
     }
@@ -283,7 +294,9 @@ export class RuntimeValidator {
   private safeRegexTest(pattern: string, value: string): boolean {
     // Reject extremely long strings to prevent ReDoS
     if (value.length > MAX_REGEX_STRING_LENGTH) {
-      console.warn(`String too long for regex validation: ${value.length} chars`);
+      console.warn(
+        `String too long for regex validation: ${value.length} chars`,
+      );
       return true; // Pass validation for extremely long strings
     }
 
@@ -294,7 +307,11 @@ export class RuntimeValidator {
       const duration = performance.now() - startTime;
 
       if (duration > REGEX_TIMEOUT_MS) {
-        console.warn(`Slow regex pattern detected: "${pattern}" took ${duration.toFixed(2)}ms`);
+        console.warn(
+          `Slow regex pattern detected: "${pattern}" took ${
+            duration.toFixed(2)
+          }ms`,
+        );
       }
 
       return result;
@@ -331,7 +348,9 @@ export class RuntimeValidator {
       ));
     }
 
-    if (schema.exclusiveMinimum !== undefined && data <= schema.exclusiveMinimum) {
+    if (
+      schema.exclusiveMinimum !== undefined && data <= schema.exclusiveMinimum
+    ) {
       errors.push(this.createError(
         "exclusiveMinimum",
         `Must be > ${schema.exclusiveMinimum}`,
@@ -340,7 +359,9 @@ export class RuntimeValidator {
       ));
     }
 
-    if (schema.exclusiveMaximum !== undefined && data >= schema.exclusiveMaximum) {
+    if (
+      schema.exclusiveMaximum !== undefined && data >= schema.exclusiveMaximum
+    ) {
       errors.push(this.createError(
         "exclusiveMaximum",
         `Must be < ${schema.exclusiveMaximum}`,
@@ -479,7 +500,9 @@ export class RuntimeValidator {
         ));
       }
 
-      if (schema.minContains !== undefined && containsCount < schema.minContains) {
+      if (
+        schema.minContains !== undefined && containsCount < schema.minContains
+      ) {
         errors.push(this.createError(
           "minContains",
           `Must contain at least ${schema.minContains} items matching the schema`,
@@ -488,7 +511,9 @@ export class RuntimeValidator {
         ));
       }
 
-      if (schema.maxContains !== undefined && containsCount > schema.maxContains) {
+      if (
+        schema.maxContains !== undefined && containsCount > schema.maxContains
+      ) {
         errors.push(this.createError(
           "maxContains",
           `Must contain at most ${schema.maxContains} items matching the schema`,
@@ -510,7 +535,9 @@ export class RuntimeValidator {
   ): void {
     const keys = Object.keys(data);
 
-    if (schema.minProperties !== undefined && keys.length < schema.minProperties) {
+    if (
+      schema.minProperties !== undefined && keys.length < schema.minProperties
+    ) {
       errors.push(this.createError(
         "minProperties",
         `Must NOT have fewer than ${schema.minProperties} properties`,
@@ -519,7 +546,9 @@ export class RuntimeValidator {
       ));
     }
 
-    if (schema.maxProperties !== undefined && keys.length > schema.maxProperties) {
+    if (
+      schema.maxProperties !== undefined && keys.length > schema.maxProperties
+    ) {
       errors.push(this.createError(
         "maxProperties",
         `Must NOT have more than ${schema.maxProperties} properties`,
@@ -552,8 +581,12 @@ export class RuntimeValidator {
             propSchema,
             {
               ...context,
-              instancePath: `${context.instancePath}/${this.escapeJsonPointer(propName)}`,
-              schemaPath: `${context.schemaPath}/properties/${this.escapeJsonPointer(propName)}`,
+              instancePath: `${context.instancePath}/${
+                this.escapeJsonPointer(propName)
+              }`,
+              schemaPath: `${context.schemaPath}/properties/${
+                this.escapeJsonPointer(propName)
+              }`,
             },
             errors,
           );
@@ -563,7 +596,11 @@ export class RuntimeValidator {
 
     // Pattern properties
     if (schema.patternProperties) {
-      for (const [pattern, patternSchema] of Object.entries(schema.patternProperties)) {
+      for (
+        const [pattern, patternSchema] of Object.entries(
+          schema.patternProperties,
+        )
+      ) {
         for (const propName of keys) {
           if (this.safeRegexTest(pattern, propName)) {
             context.evaluated.properties.add(propName);
@@ -572,8 +609,12 @@ export class RuntimeValidator {
               patternSchema,
               {
                 ...context,
-                instancePath: `${context.instancePath}/${this.escapeJsonPointer(propName)}`,
-                schemaPath: `${context.schemaPath}/patternProperties/${this.escapeJsonPointer(pattern)}`,
+                instancePath: `${context.instancePath}/${
+                  this.escapeJsonPointer(propName)
+                }`,
+                schemaPath: `${context.schemaPath}/patternProperties/${
+                  this.escapeJsonPointer(pattern)
+                }`,
               },
               errors,
             );
@@ -613,7 +654,9 @@ export class RuntimeValidator {
 
     // Additional properties
     if (schema.additionalProperties !== undefined) {
-      const additionalProps = keys.filter((key) => !context.evaluated.properties.has(key));
+      const additionalProps = keys.filter((key) =>
+        !context.evaluated.properties.has(key)
+      );
 
       if (schema.additionalProperties === false && additionalProps.length > 0) {
         for (const prop of additionalProps) {
@@ -622,7 +665,9 @@ export class RuntimeValidator {
             `Must NOT have additional properties`,
             {
               ...context,
-              instancePath: `${context.instancePath}/${this.escapeJsonPointer(prop)}`,
+              instancePath: `${context.instancePath}/${
+                this.escapeJsonPointer(prop)
+              }`,
               schemaPath: `${context.schemaPath}/additionalProperties`,
             },
             { additionalProperty: prop },
@@ -635,7 +680,9 @@ export class RuntimeValidator {
             schema.additionalProperties,
             {
               ...context,
-              instancePath: `${context.instancePath}/${this.escapeJsonPointer(prop)}`,
+              instancePath: `${context.instancePath}/${
+                this.escapeJsonPointer(prop)
+              }`,
               schemaPath: `${context.schemaPath}/additionalProperties`,
             },
             errors,
@@ -646,14 +693,19 @@ export class RuntimeValidator {
 
     // Dependent required
     if (schema.dependentRequired) {
-      for (const [prop, requiredProps] of Object.entries(schema.dependentRequired)) {
+      for (
+        const [prop, requiredProps] of Object.entries(schema.dependentRequired)
+      ) {
         if (Object.prototype.hasOwnProperty.call(data, prop)) {
           for (const requiredProp of requiredProps) {
             if (!Object.prototype.hasOwnProperty.call(data, requiredProp)) {
               errors.push(this.createError(
                 "dependentRequired",
                 `Property '${prop}' requires property '${requiredProp}'`,
-                { ...context, schemaPath: `${context.schemaPath}/dependentRequired` },
+                {
+                  ...context,
+                  schemaPath: `${context.schemaPath}/dependentRequired`,
+                },
                 { property: prop, missingProperty: requiredProp },
               ));
             }
@@ -671,7 +723,9 @@ export class RuntimeValidator {
             depSchema,
             {
               ...context,
-              schemaPath: `${context.schemaPath}/dependentSchemas/${this.escapeJsonPointer(prop)}`,
+              schemaPath: `${context.schemaPath}/dependentSchemas/${
+                this.escapeJsonPointer(prop)
+              }`,
             },
             errors,
           );
@@ -768,7 +822,9 @@ export class RuntimeValidator {
           "oneOf",
           validCount === 0
             ? "Must match exactly one schema in oneOf (matched none)"
-            : `Must match exactly one schema in oneOf (matched ${validCount}: indices ${validIndices.join(", ")})`,
+            : `Must match exactly one schema in oneOf (matched ${validCount}: indices ${
+              validIndices.join(", ")
+            })`,
           { ...context, schemaPath: `${context.schemaPath}/oneOf` },
           { passingSchemas: validCount, validIndices },
         ));
@@ -927,7 +983,10 @@ export class RuntimeValidator {
   /**
    * Get suggestion for fixing an error
    */
-  private getSuggestion(keyword: string, params?: Record<string, unknown>): string {
+  private getSuggestion(
+    keyword: string,
+    params?: Record<string, unknown>,
+  ): string {
     switch (keyword) {
       case "type":
         return `Ensure the value is of the correct type: ${params?.type}`;
@@ -1017,7 +1076,9 @@ export class RuntimeValidator {
   private getStringLength(str: string): number {
     // Use Intl.Segmenter for proper grapheme counting if available
     if (typeof Intl !== "undefined" && Intl.Segmenter) {
-      const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+      const segmenter = new Intl.Segmenter(undefined, {
+        granularity: "grapheme",
+      });
       return [...segmenter.segment(str)].length;
     }
     // Fallback to Array.from for code point counting

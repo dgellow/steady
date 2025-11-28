@@ -1,7 +1,5 @@
 import type { GeminiClient } from "./llm.ts";
-import type {
-  NamingStrategy,
-} from "./naming-strategies.ts";
+import type { NamingStrategy } from "./naming-strategies.ts";
 import type { DeduplicationDecision, SchemaGroup } from "./deduplicator.ts";
 
 /**
