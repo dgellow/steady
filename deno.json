@@ -45,6 +45,9 @@
     "strictNullChecks": true,
     "strictPropertyInitialization": true
   },
+  "fmt": {
+    "exclude": ["packages/json-schema/test-suite/"]
+  },
   "lint": {
     "rules": {
       "tags": ["recommended"],

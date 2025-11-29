@@ -1,3 +1,4 @@
 #!/bin/bash
 set -e
-deno test --allow-read --allow-write --allow-net --allow-env
+
+deno test
