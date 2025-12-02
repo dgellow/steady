@@ -328,7 +328,14 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
 
     if (!validationResult.valid && validationResult.errors.length > 0) {
       const error = validationResult.errors[0]!;
-      throw new ValidationError("OpenAPI spec validation failed", {
+      // Use a more specific error message for reference resolution errors
+      const isRefError = error.type === "ref-not-found" ||
+                         error.keyword === "$ref" ||
+                         error.message.toLowerCase().includes("ref");
+      const message = isRefError
+        ? "Invalid reference in OpenAPI spec"
+        : "OpenAPI spec validation failed";
+      throw new ValidationError(message, {
         specFile: path,
         errorType: "validate",
         schemaPath: error.schemaPath.split("/").slice(1),
