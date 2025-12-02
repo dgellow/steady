@@ -1,15 +1,70 @@
 import { parse as parseYAML } from "@std/yaml";
 import { OpenAPISpec } from "./openapi.ts";
-import { ParseError } from "./errors.ts";
-// import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
-// import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
+import { ParseError, ValidationError, ErrorContext } from "./errors.ts";
+import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
+import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
 
-// const metaschema = metaschemaJson as unknown as Schema;
+const metaschema = metaschemaJson as unknown as Schema;
 
-export async function parseSpec(path: string): Promise<OpenAPISpec> {
-  // Check if file exists
+/**
+ * Options for parsing OpenAPI specs
+ */
+export interface ParseOptions {
+  /** Format hint: 'json', 'yaml', or 'auto' (default: 'auto') */
+  format?: "json" | "yaml" | "auto";
+  /** Base URI for resolving references (optional) */
+  baseUri?: string;
+}
+
+/**
+ * Parse an OpenAPI spec from a string.
+ * This is the core parsing function - no file I/O, just pure parsing and validation.
+ */
+export async function parseSpec(
+  content: string,
+  options: ParseOptions = {},
+): Promise<OpenAPISpec> {
+  const format = options.format ?? "auto";
+
+  // Parse content based on format
+  let spec: unknown;
   try {
-    await Deno.stat(path);
+    if (format === "json") {
+      spec = JSON.parse(content);
+    } else if (format === "yaml") {
+      spec = parseYAML(content);
+    } else {
+      // Auto-detect: try YAML first (superset of JSON), then JSON
+      try {
+        spec = parseYAML(content);
+      } catch {
+        spec = JSON.parse(content);
+      }
+    }
+  } catch (error) {
+    const isJSON = format === "json" || content.trimStart().startsWith("{");
+    throw new ParseError(`Invalid ${isJSON ? "JSON" : "YAML"} syntax`, {
+      errorType: "parse",
+      reason: `Failed to parse content: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      suggestion: `Check that your content is valid ${isJSON ? "JSON" : "YAML"}`,
+    });
+  }
+
+  // Validate and return
+  return validateOpenAPISpec(spec, options.baseUri);
+}
+
+/**
+ * Load and parse an OpenAPI spec from a file.
+ * Convenience function that handles file I/O and adds file context to errors.
+ */
+export async function parseSpecFromFile(path: string): Promise<OpenAPISpec> {
+  // Read file
+  let content: string;
+  try {
+    content = await Deno.readTextFile(path);
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       throw new ParseError("OpenAPI spec file not found", {
@@ -17,21 +72,8 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
         errorType: "parse",
         reason: `The file "${path}" does not exist`,
         suggestion: "Check that the file path is correct and the file exists",
-        examples: [
-          "steady api.yaml",
-          "steady ./specs/openapi.json",
-          "steady ../api/spec.yml",
-        ],
       });
     }
-    throw error;
-  }
-
-  // Read file content
-  let content: string;
-  try {
-    content = await Deno.readTextFile(path);
-  } catch (error) {
     throw new ParseError("Failed to read OpenAPI spec file", {
       specFile: path,
       errorType: "parse",
@@ -42,189 +84,197 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
     });
   }
 
-  // Parse based on file extension
-  let spec: unknown;
+  // Determine format from extension
   const ext = path.toLowerCase();
-
-  try {
-    if (ext.endsWith(".json")) {
-      spec = JSON.parse(content);
-    } else if (ext.endsWith(".yaml") || ext.endsWith(".yml")) {
-      spec = parseYAML(content);
-    } else {
-      // Try to parse as YAML first, then JSON
-      try {
-        spec = parseYAML(content);
-      } catch {
-        spec = JSON.parse(content);
-      }
-    }
-  } catch (error) {
-    const isJSON = ext.endsWith(".json") || content.trimStart().startsWith("{");
-    throw new ParseError(`Invalid ${isJSON ? "JSON" : "YAML"} syntax`, {
-      specFile: path,
-      errorType: "parse",
-      reason: `Failed to parse file: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      suggestion: `Check that your file contains valid ${
-        isJSON ? "JSON" : "YAML"
-      }`,
-      examples: isJSON
-        ? [
-          "{",
-          '  "openapi": "3.0.0",',
-          '  "info": {',
-          '    "title": "My API",',
-          '    "version": "1.0.0"',
-          "  },",
-          '  "paths": {}',
-          "}",
-        ]
-        : [
-          "openapi: 3.1.0",
-          "info:",
-          "  title: My API",
-          "  version: 1.0.0",
-          "paths: {}",
-        ],
-    });
+  let format: "json" | "yaml" | "auto" = "auto";
+  if (ext.endsWith(".json")) {
+    format = "json";
+  } else if (ext.endsWith(".yaml") || ext.endsWith(".yml")) {
+    format = "yaml";
   }
 
-  // TODO: Re-enable metaschema validation once validator_legacy.ts fully supports
-  // unevaluatedProperties/unevaluatedItems (currently 91.6% JSON Schema compliant)
-  // For now, skip metaschema validation to avoid false positives
-  //
-  // const processor = new JsonSchemaProcessor();
-  // const validationResult = await processor.process(spec, {
-  //   metaschema,
-  //   baseUri: `file://${path}`,
-  // });
-  //
-  // if (!validationResult.valid) {
-  //   const error = validationResult.errors[0]!;
-  //   throw new ValidationError("OpenAPI spec validation failed", {
-  //     specFile: path,
-  //     errorType: "validate",
-  //     schemaPath: error.schemaPath.split("/").slice(1),
-  //     reason: error.message,
-  //     suggestion: error.suggestion,
-  //   });
-  // }
+  // Parse with file context
+  try {
+    return await parseSpec(content, {
+      format,
+      baseUri: `file://${path}`,
+    });
+  } catch (error) {
+    // Add file context to errors
+    if (error instanceof ParseError || error instanceof ValidationError) {
+      error.context.specFile = path;
+    }
+    throw error;
+  }
+}
 
-  // Basic structural validation
+/**
+ * Validate a parsed object as an OpenAPI spec.
+ * Performs structural validation and OpenAPI 3.1 metaschema validation.
+ */
+async function validateOpenAPISpec(
+  spec: unknown,
+  baseUri?: string,
+): Promise<OpenAPISpec> {
+  // Basic structural validation - must be an object
   if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
-    throw new ParseError("Invalid OpenAPI spec", {
-      specFile: path,
-      errorType: "parse",
+    throw new ValidationError("Invalid OpenAPI spec structure", {
+      errorType: "validate",
       reason: "OpenAPI spec must be an object, not an array or primitive value",
-      suggestion: "Ensure your spec file contains a valid OpenAPI object",
-      examples: [
-        "openapi: 3.1.0",
-        "info:",
-        "  title: My API",
-        "  version: 1.0.0",
-        "paths: {}",
-      ],
+      suggestion: "Ensure your spec contains a valid OpenAPI object",
     });
   }
 
   const s = spec as Record<string, unknown>;
+  const errors: ValidationError[] = [];
 
-  // Validate openapi version field
-  if (typeof s.openapi !== "string") {
-    throw new ParseError("Missing 'openapi' version field", {
-      specFile: path,
-      errorType: "parse",
-      reason:
-        "Every OpenAPI spec must have an 'openapi' field specifying the version",
-      suggestion: "Add the 'openapi' field at the top of your spec",
-      examples: [
-        'openapi: "3.1.0"  # For OpenAPI 3.1',
-        'openapi: "3.0.3"  # For OpenAPI 3.0',
-      ],
-    });
+  // Helper to collect validation errors
+  function addError(message: string, context: Omit<ErrorContext, "errorType">) {
+    errors.push(new ValidationError(message, { ...context, errorType: "validate" }));
   }
 
-  const version = s.openapi;
-  if (!version.startsWith("3.0.") && !version.startsWith("3.1.")) {
-    throw new ParseError(`Unsupported OpenAPI version: ${version}`, {
-      specFile: path,
-      errorType: "parse",
-      reason: "Steady only supports OpenAPI 3.0.x and 3.1.x specifications",
-      suggestion: version.startsWith("2.")
-        ? "Convert your Swagger 2.0 spec to OpenAPI 3.0+ using a migration tool"
-        : `Update your spec to use a supported OpenAPI version (found: ${version})`,
-      examples: [
-        'openapi: "3.1.0"',
-        'openapi: "3.0.3"',
-      ],
+  // Validate openapi version field
+  let version: string | null = null;
+  if (typeof s.openapi !== "string") {
+    addError("Missing or invalid OpenAPI version", {
+      reason: "Every OpenAPI spec must have an 'openapi' field specifying the version as a string",
+      suggestion: "Add the 'openapi' field at the top of your spec",
     });
+  } else {
+    version = s.openapi;
+    if (!version.startsWith("3.0.") && !version.startsWith("3.1.")) {
+      addError(`Unsupported OpenAPI version: ${version}`, {
+        reason: "Steady only supports OpenAPI 3.0.x and 3.1.x specifications",
+        suggestion: version.startsWith("2.")
+          ? "Convert your Swagger 2.0 spec to OpenAPI 3.0+ using a migration tool"
+          : `Update your spec to use a supported OpenAPI version (found: ${version})`,
+      });
+    }
   }
 
   // Validate info object
+  let info: Record<string, unknown> | null = null;
   if (!s.info || typeof s.info !== "object" || Array.isArray(s.info)) {
-    throw new ParseError("Missing or invalid 'info' object", {
-      specFile: path,
-      errorType: "parse",
+    addError("Missing or invalid info object", {
       reason: "OpenAPI spec must have an 'info' object with API metadata",
       suggestion: "Add an 'info' object with title and version",
-      examples: [
-        "info:",
-        "  title: My API",
-        "  version: 1.0.0",
-        "  description: A description of my API",
-      ],
     });
-  }
+  } else {
+    info = s.info as Record<string, unknown>;
 
-  const info = s.info as Record<string, unknown>;
-  if (typeof info.title !== "string") {
-    throw new ParseError("Missing 'info.title' field", {
-      specFile: path,
-      errorType: "parse",
-      reason: "The info object must have a 'title' field describing the API",
-      suggestion: "Add a title to your info object",
-      examples: [
-        "info:",
-        "  title: My API",
-        "  version: 1.0.0",
-      ],
-    });
-  }
+    if (typeof info.title !== "string") {
+      addError("Missing API title", {
+        reason: "The info object must have a 'title' field describing the API",
+        suggestion: "Add a title to your info object",
+      });
+    }
 
-  if (typeof info.version !== "string") {
-    throw new ParseError("Missing 'info.version' field", {
-      specFile: path,
-      errorType: "parse",
-      reason:
-        "The info object must have a 'version' field indicating the API version",
-      suggestion: "Add a version to your info object",
-      examples: [
-        "info:",
-        "  title: My API",
-        "  version: 1.0.0",
-      ],
-    });
+    if (typeof info.version !== "string") {
+      addError("Missing API version", {
+        reason: "The info object must have a 'version' field indicating the API version",
+        suggestion: "Add a version to your info object",
+      });
+    }
   }
 
   // Validate paths object
   if (!s.paths || typeof s.paths !== "object" || Array.isArray(s.paths)) {
-    throw new ParseError("Missing or invalid 'paths' object", {
-      specFile: path,
-      errorType: "parse",
-      reason:
-        "OpenAPI spec must have a 'paths' object defining the API endpoints",
+    addError("Missing paths object", {
+      reason: "OpenAPI spec must have a 'paths' object defining the API endpoints",
       suggestion: "Add a 'paths' object with your API endpoints",
-      examples: [
-        "paths:",
-        "  /users:",
-        "    get:",
-        "      responses:",
-        "        200:",
-        "          description: Success",
-      ],
     });
+  }
+
+  // OpenAPI 3.1-specific field validation
+  const is31 = version?.startsWith("3.1.") ?? false;
+  const has31Fields = s.jsonSchemaDialect !== undefined ||
+                      s.webhooks !== undefined ||
+                      (s.components && typeof s.components === "object" &&
+                       (s.components as Record<string, unknown>).pathItems !== undefined);
+
+  if (is31 || has31Fields) {
+    // Validate info.summary
+    if (info && info.summary !== undefined && typeof info.summary !== "string") {
+      addError("Invalid info summary", {
+        reason: "The info.summary field must be a string",
+        suggestion: "Change info.summary to a string value",
+      });
+    }
+
+    // Validate jsonSchemaDialect
+    if (s.jsonSchemaDialect !== undefined) {
+      if (typeof s.jsonSchemaDialect !== "string") {
+        addError("Invalid jsonSchemaDialect", {
+          reason: "The jsonSchemaDialect field must be a string",
+          suggestion: "Provide a valid URI for jsonSchemaDialect",
+        });
+      } else {
+        const dialect = s.jsonSchemaDialect;
+        if (!dialect.startsWith("http://") && !dialect.startsWith("https://")) {
+          addError("Invalid jsonSchemaDialect URI", {
+            reason: "The jsonSchemaDialect must be a valid URI starting with http:// or https://",
+            suggestion: "Provide a valid URI for jsonSchemaDialect",
+          });
+        }
+      }
+    }
+
+    // Validate webhooks
+    if (s.webhooks !== undefined && (typeof s.webhooks !== "object" || s.webhooks === null || Array.isArray(s.webhooks))) {
+      addError("Invalid webhooks object", {
+        reason: "The webhooks field must be an object",
+        suggestion: "Define webhooks as an object with webhook definitions",
+      });
+    }
+
+    // Validate components.pathItems
+    if (s.components && typeof s.components === "object" && !Array.isArray(s.components)) {
+      const components = s.components as Record<string, unknown>;
+      if (components.pathItems !== undefined && (typeof components.pathItems !== "object" || components.pathItems === null || Array.isArray(components.pathItems))) {
+        addError("Invalid components.pathItems", {
+          reason: "The components.pathItems field must be an object",
+          suggestion: "Define pathItems as an object with reusable path item definitions",
+        });
+      }
+    }
+  }
+
+  // Throw collected errors
+  if (errors.length > 0) {
+    if (errors.length === 1) {
+      throw errors[0]!;
+    } else {
+      throw new ValidationError(`Found ${errors.length} validation errors`, {
+        errorType: "validate",
+        reason: errors.map(e => e.message).join("; "),
+        allErrors: errors,
+      });
+    }
+  }
+
+  // Metaschema validation for OpenAPI 3.1.x
+  if (version?.startsWith("3.1.")) {
+    const processor = new JsonSchemaProcessor();
+    const validationResult = await processor.process(spec, {
+      metaschema,
+      baseUri,
+    });
+
+    if (!validationResult.valid && validationResult.errors.length > 0) {
+      const error = validationResult.errors[0]!;
+      const isRefError = error.type === "ref-not-found" ||
+                         error.keyword === "$ref" ||
+                         error.message.toLowerCase().includes("ref");
+      throw new ValidationError(
+        isRefError ? "Invalid reference in OpenAPI spec" : "OpenAPI spec validation failed",
+        {
+          errorType: "validate",
+          schemaPath: error.schemaPath.split("/").slice(1),
+          reason: error.message,
+          suggestion: error.suggestion,
+        },
+      );
+    }
   }
 
   return spec as OpenAPISpec;

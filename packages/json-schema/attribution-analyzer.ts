@@ -19,7 +19,11 @@ interface ErrorPattern {
 }
 
 export class AttributionAnalyzer {
-  constructor(private readonly schema: ProcessedSchema) {}
+  // Schema stored for potential future use in enhanced attribution
+  constructor(_schema: ProcessedSchema) {
+    // Currently unused, but will be needed for schema-aware attribution
+    void _schema;
+  }
 
   /**
    * Analyze validation errors to determine SDK vs spec issues
@@ -237,7 +241,7 @@ export class AttributionAnalyzer {
     // Type errors
     if (errorsByKeyword.has("type")) {
       const typeErrors = errorsByKeyword.get("type")!;
-      if (typeErrors.length > errors.length * 0.5) {
+      if (typeErrors.length > errors.length * 0.5 && typeErrors[0]) {
         // More than half are type errors
         return this.createAttribution(
           "sdk-error",
@@ -252,7 +256,7 @@ export class AttributionAnalyzer {
     // Required field errors
     if (errorsByKeyword.has("required")) {
       const requiredErrors = errorsByKeyword.get("required")!;
-      if (requiredErrors.length > 3) {
+      if (requiredErrors.length > 3 && requiredErrors[0]) {
         return this.createAttribution(
           "sdk-error",
           0.75,
@@ -265,13 +269,16 @@ export class AttributionAnalyzer {
 
     // Enum errors might indicate spec issues
     if (errorsByKeyword.has("enum")) {
-      return this.createAttribution(
-        "ambiguous",
-        0.6,
-        "Enum validation failures could be SDK or spec issue",
-        errorsByKeyword.get("enum")![0],
-        "Verify both that the SDK sends correct values and that the enum in the spec is complete.",
-      );
+      const enumErrors = errorsByKeyword.get("enum")!;
+      if (enumErrors[0]) {
+        return this.createAttribution(
+          "ambiguous",
+          0.6,
+          "Enum validation failures could be SDK or spec issue",
+          enumErrors[0],
+          "Verify both that the SDK sends correct values and that the enum in the spec is complete.",
+        );
+      }
     }
 
     return null;

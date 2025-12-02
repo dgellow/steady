@@ -1,4 +1,60 @@
 #!/bin/bash
 set -e
 
+# Update git submodules
 git submodule update --init --recursive --remote
+
+# Create fixtures directory
+FIXTURES_DIR="tests/fixtures"
+mkdir -p "$FIXTURES_DIR"
+
+echo "Fetching OpenAPI test fixtures from Stainless SDK repos..."
+echo ""
+
+# Function to fetch spec from a GitHub repo's .stats.yml
+fetch_spec() {
+  local name="$1"
+  local repo="$2"
+  local output="$FIXTURES_DIR/${name}-openapi.yml"
+
+  echo "Fetching $name..."
+  local stats_url="https://raw.githubusercontent.com/$repo/main/.stats.yml"
+  local spec_url=$(curl -sL "$stats_url" 2>/dev/null | grep "openapi_spec_url:" | sed 's/.*: //' | tr -d '"' | head -1)
+
+  if [ -n "$spec_url" ]; then
+    curl -sL "$spec_url" -o "$output" 2>/dev/null
+    if [ -f "$output" ] && [ -s "$output" ]; then
+      local size=$(ls -lh "$output" | awk '{print $5}')
+      echo "  ✓ $output ($size)"
+    else
+      echo "  ✗ Failed to download"
+      rm -f "$output"
+    fi
+  else
+    echo "  ✗ No spec URL found in .stats.yml"
+  fi
+}
+
+# Enterprise-scale specs (large, complex)
+fetch_spec "cloudflare" "cloudflare/cloudflare-python"
+fetch_spec "openai" "openai/openai-python"
+
+# Medium-scale specs (good variety)
+fetch_spec "anthropic" "anthropics/anthropic-sdk-python"
+fetch_spec "lithic" "lithic-com/lithic-python"
+fetch_spec "finch" "Finch-API/finch-api-python"
+fetch_spec "modern-treasury" "Modern-Treasury/modern-treasury-python"
+fetch_spec "orb" "orbcorp/orb-python"
+fetch_spec "increase" "increase/increase-python"
+
+# Smaller specs (quick tests)
+fetch_spec "braintrust" "braintrustdata/braintrust-api-py"
+fetch_spec "retell" "RetellAI/retell-python-sdk"
+fetch_spec "writer" "writer/writer-python"
+
+echo ""
+echo "Fixture summary:"
+ls -lhS "$FIXTURES_DIR"/*.yml 2>/dev/null | awk '{print "  " $5 "\t" $9}' || echo "  No fixtures downloaded"
+
+echo ""
+echo "Bootstrap complete!"

@@ -88,7 +88,7 @@ Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
 
 Deno.test({
   name: "EDGE: Deeply nested allOf (100 levels)",
-  timeout: 10000, // 10 second timeout
+  
   async fn() {
     // Create deeply nested allOf schema
     let schema: Schema = { type: "object" };
@@ -298,12 +298,13 @@ Deno.test("EDGE: allOf with empty schemas", async () => {
 });
 
 Deno.test("EDGE: allOf with boolean schemas", async () => {
-  const schema: Schema = {
+  // Boolean schemas are valid in JSON Schema 2020-12 but our type doesn't include them
+  const schema = {
     allOf: [
       true, // Allows anything
       { type: "object" },
     ],
-  };
+  } as unknown as Schema;
 
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
@@ -313,12 +314,13 @@ Deno.test("EDGE: allOf with boolean schemas", async () => {
 });
 
 Deno.test("EDGE: allOf with false schema (impossible)", async () => {
-  const schema: Schema = {
+  // Boolean schemas are valid in JSON Schema 2020-12 but our type doesn't include them
+  const schema = {
     allOf: [
       false, // Rejects everything
       { type: "object" },
     ],
-  };
+  } as unknown as Schema;
 
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);
@@ -506,7 +508,7 @@ Deno.test("EDGE: allOf with unevaluatedProperties", async () => {
 
 Deno.test({
   name: "EDGE: Performance - allOf with many schemas",
-  timeout: 10000, // 10 second timeout
+  
   async fn() {
     // Create allOf with 100 schemas
     const schemas: Schema[] = [];

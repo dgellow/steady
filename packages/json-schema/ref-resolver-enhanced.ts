@@ -346,10 +346,11 @@ export class ScaleAwareRefResolver extends RefResolver {
     while (resolved.size < refsToResolve.length) {
       const batch: string[] = [];
 
-      // Find all nodes with no dependencies
-      for (const [node, degree] of inDegree) {
-        if (degree === 0 && !resolved.has(node)) {
-          batch.push(node);
+      // Find all nodes with no dependencies - only look at refs we need to resolve
+      for (const ref of refsToResolve) {
+        const degree = inDegree.get(ref) || 0;
+        if (degree === 0 && !resolved.has(ref)) {
+          batch.push(ref);
         }
       }
 
@@ -375,7 +376,10 @@ export class ScaleAwareRefResolver extends RefResolver {
           resolved.add(node);
           const edges = this.dependencyGraph.edges.get(node) || new Set();
           for (const target of edges) {
-            inDegree.set(target, (inDegree.get(target) || 1) - 1);
+            // Only update degree for refs we're tracking
+            if (refSet.has(target)) {
+              inDegree.set(target, (inDegree.get(target) || 1) - 1);
+            }
           }
         }
       } else {

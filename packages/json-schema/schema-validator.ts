@@ -10,15 +10,24 @@ import type {
   ValidationError,
   ValidationResult,
 } from "./types.ts";
-import { RuntimeValidator } from "./runtime-validator.ts";
+import {
+  RuntimeValidator,
+  RuntimeValidatorOptions,
+} from "./runtime-validator.ts";
 import { AttributionAnalyzer } from "./attribution-analyzer.ts";
+
+/** Options for SchemaValidator */
+export interface SchemaValidatorOptions extends RuntimeValidatorOptions {}
 
 export class SchemaValidator {
   private runtimeValidator: RuntimeValidator;
   private attributionAnalyzer: AttributionAnalyzer;
 
-  constructor(private processedSchema: ProcessedSchema) {
-    this.runtimeValidator = new RuntimeValidator(processedSchema);
+  constructor(
+    private processedSchema: ProcessedSchema,
+    options?: SchemaValidatorOptions,
+  ) {
+    this.runtimeValidator = new RuntimeValidator(processedSchema, options);
     this.attributionAnalyzer = new AttributionAnalyzer(processedSchema);
   }
 

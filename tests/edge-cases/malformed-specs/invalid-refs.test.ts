@@ -358,7 +358,8 @@ Deno.test("EDGE: $ref pointing to non-existent deep path", async () => {
 });
 
 Deno.test("EDGE: $ref with array index syntax", async () => {
-  const schema: Schema = {
+  // Intentionally malformed: $defs should be Record<string, Schema>, not array
+  const schema = {
     $defs: [
       { type: "string" },
       { type: "number" },
@@ -366,7 +367,7 @@ Deno.test("EDGE: $ref with array index syntax", async () => {
     properties: {
       user: { $ref: "#/$defs/0" }, // Array index
     },
-  };
+  } as unknown as Schema;
 
   const processor = new JsonSchemaProcessor();
   const result = await processor.process(schema);

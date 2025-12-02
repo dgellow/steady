@@ -91,7 +91,7 @@ export class TestSuiteRunner {
             actual: false,
             schema: group.schema,
             data: test.data,
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           });
         }
       }

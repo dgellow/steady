@@ -9,6 +9,7 @@
  * - O(n) uniqueItems validation
  * - ReDoS-safe regex execution with timeout
  * - Rich error context with suggestions
+ * - Full unevaluatedProperties/unevaluatedItems support (JSON Schema 2020-12)
  */
 
 import type {
@@ -24,6 +25,29 @@ const REGEX_TIMEOUT_MS = 100;
 
 /** Maximum string length for regex matching to prevent ReDoS */
 const MAX_REGEX_STRING_LENGTH = 100_000;
+
+/**
+ * Create a canonical JSON string with sorted object keys.
+ * This ensures that objects with the same content but different key order
+ * produce identical strings for comparison.
+ */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+
+  // Object: sort keys and recursively canonicalize values
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  const pairs = keys.map((k) =>
+    JSON.stringify(k) + ":" +
+    canonicalJson((value as Record<string, unknown>)[k])
+  );
+  return "{" + pairs.join(",") + "}";
+}
 
 /** Format validators for common JSON Schema formats */
 const FORMAT_VALIDATORS: Record<string, (value: string) => boolean> = {
@@ -78,14 +102,54 @@ const FORMAT_VALIDATORS: Record<string, (value: string) => boolean> = {
   },
 };
 
+/**
+ * Internal result type that tracks both errors and what was evaluated.
+ * This is essential for unevaluatedProperties/unevaluatedItems support.
+ *
+ * Key insight from JSON Schema 2020-12 spec:
+ * - Parent schemas CAN see what child schemas evaluated (hierarchical)
+ * - Sibling schemas (cousins in allOf) CANNOT see each other's evaluations
+ */
+interface EvaluationResult {
+  errors: ValidationError[];
+  /** Properties evaluated at the current instance path */
+  evaluatedProperties: Set<string>;
+  /** Array items evaluated at the current instance path */
+  evaluatedItems: Set<number>;
+}
+
+/** Create an empty evaluation result */
+function emptyResult(): EvaluationResult {
+  return {
+    errors: [],
+    evaluatedProperties: new Set(),
+    evaluatedItems: new Set(),
+  };
+}
+
+/** Options for RuntimeValidator */
+export interface RuntimeValidatorOptions {
+  /**
+   * Enable format validation. By default, format is annotation-only
+   * per JSON Schema 2020-12 spec. Set to true to validate format.
+   */
+  validateFormats?: boolean;
+}
+
 export class RuntimeValidator {
-  constructor(private schema: ProcessedSchema) {}
+  private readonly validateFormats: boolean;
+
+  constructor(
+    private schema: ProcessedSchema,
+    options?: RuntimeValidatorOptions,
+  ) {
+    this.validateFormats = options?.validateFormats ?? false;
+  }
 
   /**
    * Validate data against the processed schema
    */
   validate(data: unknown): ValidationError[] {
-    const errors: ValidationError[] = [];
     const context: ValidationContext = {
       root: data,
       instancePath: "",
@@ -96,36 +160,39 @@ export class RuntimeValidator {
       },
     };
 
-    this.validateWithSchema(
+    const result = this.validateWithSchema(
       data,
       this.schema.root,
       context,
-      errors,
     );
 
-    return this.enrichErrors(errors);
+    return this.enrichErrors(result.errors);
   }
 
   /**
-   * Core validation logic
+   * Core validation logic - returns both errors AND what was evaluated
    */
   private validateWithSchema(
     data: unknown,
     schema: Schema | boolean,
     context: ValidationContext,
-    errors: ValidationError[],
-  ): void {
+  ): EvaluationResult {
+    const result = emptyResult();
+
     // Fast path for boolean schemas
     if (typeof schema === "boolean") {
       if (!schema) {
-        errors.push(this.createError(
+        result.errors.push(this.createError(
           "false",
           "Schema is false",
           context,
           { schema: false },
         ));
       }
-      return;
+      // Boolean true schema accepts all values but does NOT evaluate properties/items
+      // It's a "pass through" that doesn't contribute to evaluated sets
+      // This is important for unevaluatedProperties/unevaluatedItems
+      return result;
     }
 
     // Handle $ref - use pre-resolved reference
@@ -136,9 +203,19 @@ export class RuntimeValidator {
           ...context,
           schemaPath: `${context.schemaPath}/$ref`,
         };
-        this.validateWithSchema(data, resolved, refContext, errors);
+        const refResult = this.validateWithSchema(data, resolved, refContext);
+        // $ref evaluation is visible to parent (merge into result)
+        for (const prop of refResult.evaluatedProperties) {
+          result.evaluatedProperties.add(prop);
+        }
+        for (const item of refResult.evaluatedItems) {
+          result.evaluatedItems.add(item);
+        }
+        for (const error of refResult.errors) {
+          result.errors.push(error);
+        }
       } else {
-        errors.push(this.createError(
+        result.errors.push(this.createError(
           "$ref",
           `Unresolved reference: ${schema.$ref}`,
           context,
@@ -149,19 +226,19 @@ export class RuntimeValidator {
 
     // Handle undefined (not valid JSON)
     if (data === undefined) {
-      errors.push(this.createError(
+      result.errors.push(this.createError(
         "type",
         "Value is undefined, which is not a valid JSON value",
         context,
         {},
       ));
-      return;
+      return result;
     }
 
     // Const validation
     if (schema.const !== undefined) {
       if (!this.deepEqual(data, schema.const)) {
-        errors.push(this.createError(
+        result.errors.push(this.createError(
           "const",
           `Must be equal to constant`,
           { ...context, schemaPath: `${context.schemaPath}/const` },
@@ -173,7 +250,7 @@ export class RuntimeValidator {
     // Enum validation
     if (schema.enum !== undefined) {
       if (!schema.enum.some((value) => this.deepEqual(data, value))) {
-        errors.push(this.createError(
+        result.errors.push(this.createError(
           "enum",
           `Must be equal to one of the allowed values`,
           { ...context, schemaPath: `${context.schemaPath}/enum` },
@@ -189,7 +266,7 @@ export class RuntimeValidator {
       const allowedTypes = Array.isArray(schema.type)
         ? schema.type
         : [schema.type];
-      errors.push(this.createError(
+      result.errors.push(this.createError(
         "type",
         `Must be ${allowedTypes.join(" or ")}`,
         { ...context, schemaPath: `${context.schemaPath}/type` },
@@ -200,11 +277,11 @@ export class RuntimeValidator {
     // Type-specific validation
     switch (dataType) {
       case "string":
-        this.validateString(schema, data as string, context, errors);
+        this.validateString(schema, data as string, context, result.errors);
         break;
       case "number":
       case "integer":
-        this.validateNumber(schema, data as number, context, errors);
+        this.validateNumber(schema, data as number, context, result.errors);
         break;
       case "boolean":
         // No additional validation needed for booleans
@@ -212,26 +289,95 @@ export class RuntimeValidator {
       case "null":
         // No additional validation needed for null
         break;
-      case "array":
-        this.validateArray(schema, data as unknown[], context, errors);
+      case "array": {
+        // First pass: validate array WITHOUT unevaluatedItems
+        const arrayResult = this.validateArrayCore(
+          schema,
+          data as unknown[],
+          context,
+        );
+        for (const error of arrayResult.errors) {
+          result.errors.push(error);
+        }
+        for (const item of arrayResult.evaluatedItems) {
+          result.evaluatedItems.add(item);
+        }
         break;
+      }
       case "object":
         if (data !== null) {
-          this.validateObject(
+          // First pass: validate object WITHOUT unevaluatedProperties
+          const objectResult = this.validateObjectCore(
             schema,
             data as Record<string, unknown>,
             context,
-            errors,
           );
+          for (const error of objectResult.errors) {
+            result.errors.push(error);
+          }
+          for (const prop of objectResult.evaluatedProperties) {
+            result.evaluatedProperties.add(prop);
+          }
         }
         break;
     }
 
-    // Composition validation
-    this.validateComposition(schema, data, context, errors);
+    // Composition validation - must run BEFORE unevaluated* checks
+    const compositionResult = this.validateComposition(schema, data, context);
+    for (const error of compositionResult.errors) {
+      result.errors.push(error);
+    }
+    for (const prop of compositionResult.evaluatedProperties) {
+      result.evaluatedProperties.add(prop);
+    }
+    for (const item of compositionResult.evaluatedItems) {
+      result.evaluatedItems.add(item);
+    }
 
-    // Conditional validation
-    this.validateConditional(schema, data, context, errors);
+    // Conditional validation - must run BEFORE unevaluated* checks
+    const conditionalResult = this.validateConditional(schema, data, context);
+    for (const error of conditionalResult.errors) {
+      result.errors.push(error);
+    }
+    for (const prop of conditionalResult.evaluatedProperties) {
+      result.evaluatedProperties.add(prop);
+    }
+    for (const item of conditionalResult.evaluatedItems) {
+      result.evaluatedItems.add(item);
+    }
+
+    // NOW apply unevaluated* checks after ALL evaluations are collected
+    if (dataType === "object" && data !== null) {
+      const unevalPropsResult = this.validateUnevaluatedProperties(
+        schema,
+        data as Record<string, unknown>,
+        result.evaluatedProperties,
+        context,
+      );
+      for (const error of unevalPropsResult.errors) {
+        result.errors.push(error);
+      }
+      for (const prop of unevalPropsResult.evaluatedProperties) {
+        result.evaluatedProperties.add(prop);
+      }
+    }
+
+    if (dataType === "array") {
+      const unevalItemsResult = this.validateUnevaluatedItems(
+        schema,
+        data as unknown[],
+        result.evaluatedItems,
+        context,
+      );
+      for (const error of unevalItemsResult.errors) {
+        result.errors.push(error);
+      }
+      for (const item of unevalItemsResult.evaluatedItems) {
+        result.evaluatedItems.add(item);
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -274,8 +420,8 @@ export class RuntimeValidator {
       }
     }
 
-    // Format validation
-    if (schema.format !== undefined) {
+    // Format validation (only if enabled - format is annotation-only by default)
+    if (schema.format !== undefined && this.validateFormats) {
       const validator = FORMAT_VALIDATORS[schema.format];
       if (validator && !validator(data)) {
         errors.push(this.createError(
@@ -388,16 +534,18 @@ export class RuntimeValidator {
   }
 
   /**
-   * Array validation with O(n) uniqueItems check
+   * Array validation with O(n) uniqueItems check (without unevaluatedItems)
+   * unevaluatedItems is handled separately in validateUnevaluatedItems
    */
-  private validateArray(
+  private validateArrayCore(
     schema: Schema,
     data: unknown[],
     context: ValidationContext,
-    errors: ValidationError[],
-  ): void {
+  ): EvaluationResult {
+    const result = emptyResult();
+
     if (schema.minItems !== undefined && data.length < schema.minItems) {
-      errors.push(this.createError(
+      result.errors.push(this.createError(
         "minItems",
         `Must NOT have fewer than ${schema.minItems} items`,
         { ...context, schemaPath: `${context.schemaPath}/minItems` },
@@ -406,7 +554,7 @@ export class RuntimeValidator {
     }
 
     if (schema.maxItems !== undefined && data.length > schema.maxItems) {
-      errors.push(this.createError(
+      result.errors.push(this.createError(
         "maxItems",
         `Must NOT have more than ${schema.maxItems} items`,
         { ...context, schemaPath: `${context.schemaPath}/maxItems` },
@@ -414,14 +562,15 @@ export class RuntimeValidator {
       ));
     }
 
-    // O(n) uniqueItems validation using JSON serialization
+    // O(n) uniqueItems validation using canonical JSON serialization
+    // Canonical JSON ensures objects with same content but different key order compare equal
     if (schema.uniqueItems === true) {
       const seen = new Map<string, number>();
       for (let i = 0; i < data.length; i++) {
-        const key = JSON.stringify(data[i]);
+        const key = canonicalJson(data[i]);
         const firstIndex = seen.get(key);
         if (firstIndex !== undefined) {
-          errors.push(this.createError(
+          result.errors.push(this.createError(
             "uniqueItems",
             `Must NOT have duplicate items (items ## ${firstIndex} and ${i} are identical)`,
             {
@@ -437,11 +586,11 @@ export class RuntimeValidator {
       }
     }
 
-    // Validate items
+    // Validate prefixItems
     if (schema.prefixItems) {
       for (let i = 0; i < schema.prefixItems.length && i < data.length; i++) {
-        context.evaluated.items.add(i);
-        this.validateWithSchema(
+        result.evaluatedItems.add(i);
+        const itemResult = this.validateWithSchema(
           data[i],
           schema.prefixItems[i]!,
           {
@@ -449,16 +598,19 @@ export class RuntimeValidator {
             instancePath: `${context.instancePath}/${i}`,
             schemaPath: `${context.schemaPath}/prefixItems/${i}`,
           },
-          errors,
         );
+        for (const error of itemResult.errors) {
+          result.errors.push(error);
+        }
       }
     }
 
+    // Validate items
     if (schema.items !== undefined) {
       const startIndex = schema.prefixItems ? schema.prefixItems.length : 0;
       for (let i = startIndex; i < data.length; i++) {
-        context.evaluated.items.add(i);
-        this.validateWithSchema(
+        result.evaluatedItems.add(i);
+        const itemResult = this.validateWithSchema(
           data[i],
           schema.items as Schema,
           {
@@ -466,8 +618,10 @@ export class RuntimeValidator {
             instancePath: `${context.instancePath}/${i}`,
             schemaPath: `${context.schemaPath}/items`,
           },
-          errors,
         );
+        for (const error of itemResult.errors) {
+          result.errors.push(error);
+        }
       }
     }
 
@@ -475,8 +629,7 @@ export class RuntimeValidator {
     if (schema.contains !== undefined) {
       let containsCount = 0;
       for (let i = 0; i < data.length; i++) {
-        const tempErrors: ValidationError[] = [];
-        this.validateWithSchema(
+        const containsResult = this.validateWithSchema(
           data[i],
           schema.contains,
           {
@@ -484,37 +637,38 @@ export class RuntimeValidator {
             instancePath: `${context.instancePath}/${i}`,
             schemaPath: `${context.schemaPath}/contains`,
           },
-          tempErrors,
         );
-        if (tempErrors.length === 0) {
+        if (containsResult.errors.length === 0) {
           containsCount++;
+          // Items that match contains are considered evaluated
+          result.evaluatedItems.add(i);
         }
       }
 
-      if (containsCount === 0) {
-        errors.push(this.createError(
-          "contains",
-          "Must contain at least one item matching the schema",
-          { ...context, schemaPath: `${context.schemaPath}/contains` },
-          {},
-        ));
-      }
+      // Default minimum is 1, but can be overridden by minContains
+      // When minContains = 0, contains always passes (even with 0 matches)
+      const effectiveMinContains = schema.minContains ?? 1;
 
-      if (
-        schema.minContains !== undefined && containsCount < schema.minContains
-      ) {
-        errors.push(this.createError(
-          "minContains",
-          `Must contain at least ${schema.minContains} items matching the schema`,
-          { ...context, schemaPath: `${context.schemaPath}/minContains` },
-          { limit: schema.minContains, actual: containsCount },
+      if (containsCount < effectiveMinContains) {
+        result.errors.push(this.createError(
+          effectiveMinContains === 1 ? "contains" : "minContains",
+          `Must contain at least ${effectiveMinContains} item${
+            effectiveMinContains === 1 ? "" : "s"
+          } matching the schema`,
+          {
+            ...context,
+            schemaPath: `${context.schemaPath}/${
+              effectiveMinContains === 1 ? "contains" : "minContains"
+            }`,
+          },
+          { limit: effectiveMinContains, actual: containsCount },
         ));
       }
 
       if (
         schema.maxContains !== undefined && containsCount > schema.maxContains
       ) {
-        errors.push(this.createError(
+        result.errors.push(this.createError(
           "maxContains",
           `Must contain at most ${schema.maxContains} items matching the schema`,
           { ...context, schemaPath: `${context.schemaPath}/maxContains` },
@@ -522,23 +676,76 @@ export class RuntimeValidator {
         ));
       }
     }
+
+    // Note: unevaluatedItems is handled separately after composition keywords
+
+    return result;
   }
 
   /**
-   * Object validation
+   * Validate unevaluatedItems after ALL item evaluations have been collected
    */
-  private validateObject(
+  private validateUnevaluatedItems(
+    schema: Schema,
+    data: unknown[],
+    evaluatedItems: Set<number>,
+    context: ValidationContext,
+  ): EvaluationResult {
+    const result = emptyResult();
+
+    if (schema.unevaluatedItems !== undefined) {
+      for (let i = 0; i < data.length; i++) {
+        if (!evaluatedItems.has(i)) {
+          if (schema.unevaluatedItems === false) {
+            result.errors.push(this.createError(
+              "unevaluatedItems",
+              `Must NOT have unevaluated items`,
+              {
+                ...context,
+                instancePath: `${context.instancePath}/${i}`,
+                schemaPath: `${context.schemaPath}/unevaluatedItems`,
+              },
+              { unevaluatedItem: i },
+            ));
+          } else if (typeof schema.unevaluatedItems === "object") {
+            const unevalResult = this.validateWithSchema(
+              data[i],
+              schema.unevaluatedItems,
+              {
+                ...context,
+                instancePath: `${context.instancePath}/${i}`,
+                schemaPath: `${context.schemaPath}/unevaluatedItems`,
+              },
+            );
+            for (const error of unevalResult.errors) {
+              result.errors.push(error);
+            }
+          }
+          // Mark as evaluated (true or schema both mark as evaluated)
+          result.evaluatedItems.add(i);
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Object validation (without unevaluatedProperties)
+   * unevaluatedProperties is handled separately in validateUnevaluatedProperties
+   */
+  private validateObjectCore(
     schema: Schema,
     data: Record<string, unknown>,
     context: ValidationContext,
-    errors: ValidationError[],
-  ): void {
+  ): EvaluationResult {
+    const result = emptyResult();
     const keys = Object.keys(data);
 
     if (
       schema.minProperties !== undefined && keys.length < schema.minProperties
     ) {
-      errors.push(this.createError(
+      result.errors.push(this.createError(
         "minProperties",
         `Must NOT have fewer than ${schema.minProperties} properties`,
         { ...context, schemaPath: `${context.schemaPath}/minProperties` },
@@ -549,7 +756,7 @@ export class RuntimeValidator {
     if (
       schema.maxProperties !== undefined && keys.length > schema.maxProperties
     ) {
-      errors.push(this.createError(
+      result.errors.push(this.createError(
         "maxProperties",
         `Must NOT have more than ${schema.maxProperties} properties`,
         { ...context, schemaPath: `${context.schemaPath}/maxProperties` },
@@ -561,7 +768,7 @@ export class RuntimeValidator {
     if (schema.required) {
       for (const requiredProp of schema.required) {
         if (!Object.prototype.hasOwnProperty.call(data, requiredProp)) {
-          errors.push(this.createError(
+          result.errors.push(this.createError(
             "required",
             `Must have required property '${requiredProp}'`,
             { ...context, schemaPath: `${context.schemaPath}/required` },
@@ -575,8 +782,8 @@ export class RuntimeValidator {
     if (schema.properties) {
       for (const [propName, propSchema] of Object.entries(schema.properties)) {
         if (Object.prototype.hasOwnProperty.call(data, propName)) {
-          context.evaluated.properties.add(propName);
-          this.validateWithSchema(
+          result.evaluatedProperties.add(propName);
+          const propResult = this.validateWithSchema(
             data[propName],
             propSchema,
             {
@@ -588,8 +795,10 @@ export class RuntimeValidator {
                 this.escapeJsonPointer(propName)
               }`,
             },
-            errors,
           );
+          for (const error of propResult.errors) {
+            result.errors.push(error);
+          }
         }
       }
     }
@@ -603,8 +812,8 @@ export class RuntimeValidator {
       ) {
         for (const propName of keys) {
           if (this.safeRegexTest(pattern, propName)) {
-            context.evaluated.properties.add(propName);
-            this.validateWithSchema(
+            result.evaluatedProperties.add(propName);
+            const propResult = this.validateWithSchema(
               data[propName],
               patternSchema,
               {
@@ -616,8 +825,10 @@ export class RuntimeValidator {
                   this.escapeJsonPointer(pattern)
                 }`,
               },
-              errors,
             );
+            for (const error of propResult.errors) {
+              result.errors.push(error);
+            }
           }
         }
       }
@@ -626,8 +837,7 @@ export class RuntimeValidator {
     // Property names validation
     if (schema.propertyNames !== undefined) {
       for (const propName of keys) {
-        const nameErrors: ValidationError[] = [];
-        this.validateWithSchema(
+        const nameResult = this.validateWithSchema(
           propName,
           schema.propertyNames,
           {
@@ -635,10 +845,9 @@ export class RuntimeValidator {
             instancePath: `${context.instancePath}`,
             schemaPath: `${context.schemaPath}/propertyNames`,
           },
-          nameErrors,
         );
-        if (nameErrors.length > 0) {
-          errors.push(this.createError(
+        if (nameResult.errors.length > 0) {
+          result.errors.push(this.createError(
             "propertyNames",
             `Property name '${propName}' is invalid`,
             {
@@ -655,12 +864,12 @@ export class RuntimeValidator {
     // Additional properties
     if (schema.additionalProperties !== undefined) {
       const additionalProps = keys.filter((key) =>
-        !context.evaluated.properties.has(key)
+        !result.evaluatedProperties.has(key)
       );
 
       if (schema.additionalProperties === false && additionalProps.length > 0) {
         for (const prop of additionalProps) {
-          errors.push(this.createError(
+          result.errors.push(this.createError(
             "additionalProperties",
             `Must NOT have additional properties`,
             {
@@ -673,20 +882,29 @@ export class RuntimeValidator {
             { additionalProperty: prop },
           ));
         }
-      } else if (typeof schema.additionalProperties === "object") {
+      } else if (
+        schema.additionalProperties === true ||
+        typeof schema.additionalProperties === "object"
+      ) {
+        // additionalProperties: true or schema marks all additional properties as evaluated
         for (const prop of additionalProps) {
-          this.validateWithSchema(
-            data[prop],
-            schema.additionalProperties,
-            {
-              ...context,
-              instancePath: `${context.instancePath}/${
-                this.escapeJsonPointer(prop)
-              }`,
-              schemaPath: `${context.schemaPath}/additionalProperties`,
-            },
-            errors,
-          );
+          result.evaluatedProperties.add(prop);
+          if (typeof schema.additionalProperties === "object") {
+            const propResult = this.validateWithSchema(
+              data[prop],
+              schema.additionalProperties,
+              {
+                ...context,
+                instancePath: `${context.instancePath}/${
+                  this.escapeJsonPointer(prop)
+                }`,
+                schemaPath: `${context.schemaPath}/additionalProperties`,
+              },
+            );
+            for (const error of propResult.errors) {
+              result.errors.push(error);
+            }
+          }
         }
       }
     }
@@ -699,7 +917,7 @@ export class RuntimeValidator {
         if (Object.prototype.hasOwnProperty.call(data, prop)) {
           for (const requiredProp of requiredProps) {
             if (!Object.prototype.hasOwnProperty.call(data, requiredProp)) {
-              errors.push(this.createError(
+              result.errors.push(this.createError(
                 "dependentRequired",
                 `Property '${prop}' requires property '${requiredProp}'`,
                 {
@@ -718,7 +936,7 @@ export class RuntimeValidator {
     if (schema.dependentSchemas) {
       for (const [prop, depSchema] of Object.entries(schema.dependentSchemas)) {
         if (Object.prototype.hasOwnProperty.call(data, prop)) {
-          this.validateWithSchema(
+          const depResult = this.validateWithSchema(
             data,
             depSchema,
             {
@@ -727,11 +945,85 @@ export class RuntimeValidator {
                 this.escapeJsonPointer(prop)
               }`,
             },
-            errors,
           );
+          for (const error of depResult.errors) {
+            result.errors.push(error);
+          }
+          // Merge evaluated properties from dependent schema
+          for (const evalProp of depResult.evaluatedProperties) {
+            result.evaluatedProperties.add(evalProp);
+          }
         }
       }
     }
+
+    // Note: unevaluatedProperties is handled separately after composition keywords
+
+    return result;
+  }
+
+  /**
+   * Validate unevaluatedProperties after ALL property evaluations have been collected
+   */
+  private validateUnevaluatedProperties(
+    schema: Schema,
+    data: Record<string, unknown>,
+    evaluatedProperties: Set<string>,
+    context: ValidationContext,
+  ): EvaluationResult {
+    const result = emptyResult();
+    const keys = Object.keys(data);
+
+    if (schema.unevaluatedProperties !== undefined) {
+      const unevaluatedProps = keys.filter((key) =>
+        !evaluatedProperties.has(key)
+      );
+
+      if (
+        schema.unevaluatedProperties === false && unevaluatedProps.length > 0
+      ) {
+        for (const prop of unevaluatedProps) {
+          result.errors.push(this.createError(
+            "unevaluatedProperties",
+            `Must NOT have unevaluated properties`,
+            {
+              ...context,
+              instancePath: `${context.instancePath}/${
+                this.escapeJsonPointer(prop)
+              }`,
+              schemaPath: `${context.schemaPath}/unevaluatedProperties`,
+            },
+            { unevaluatedProperty: prop },
+          ));
+        }
+      } else if (
+        schema.unevaluatedProperties === true ||
+        typeof schema.unevaluatedProperties === "object"
+      ) {
+        // unevaluatedProperties: true or schema marks all unevaluated properties as evaluated
+        for (const prop of unevaluatedProps) {
+          result.evaluatedProperties.add(prop);
+          if (typeof schema.unevaluatedProperties === "object") {
+            const propResult = this.validateWithSchema(
+              data[prop],
+              schema.unevaluatedProperties,
+              {
+                ...context,
+                instancePath: `${context.instancePath}/${
+                  this.escapeJsonPointer(prop)
+                }`,
+                schemaPath: `${context.schemaPath}/unevaluatedProperties`,
+              },
+            );
+            for (const error of propResult.errors) {
+              result.errors.push(error);
+            }
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -743,162 +1035,238 @@ export class RuntimeValidator {
 
   /**
    * Composition validation (allOf, anyOf, oneOf, not)
+   * Critical: Properly tracks evaluated properties for unevaluatedProperties support
    */
   private validateComposition(
     schema: Schema,
     data: unknown,
     context: ValidationContext,
-    errors: ValidationError[],
-  ): void {
+  ): EvaluationResult {
+    const result = emptyResult();
+
+    // allOf: All subschemas must pass, ALL evaluations are visible to parent
     if (schema.allOf) {
-      schema.allOf.forEach((subSchema, index) => {
-        this.validateWithSchema(
+      for (let index = 0; index < schema.allOf.length; index++) {
+        const subSchema = schema.allOf[index]!;
+        const subResult = this.validateWithSchema(
           data,
           subSchema,
           {
             ...context,
             schemaPath: `${context.schemaPath}/allOf/${index}`,
           },
-          errors,
         );
-      });
+        // Collect all errors
+        for (const error of subResult.errors) {
+          result.errors.push(error);
+        }
+        // Merge ALL evaluated properties from ALL subschemas
+        for (const prop of subResult.evaluatedProperties) {
+          result.evaluatedProperties.add(prop);
+        }
+        for (const item of subResult.evaluatedItems) {
+          result.evaluatedItems.add(item);
+        }
+      }
     }
 
+    // anyOf: At least one must pass, only PASSING evaluations are visible
     if (schema.anyOf) {
-      let anyValid = false;
+      const passingResults: EvaluationResult[] = [];
 
       for (let i = 0; i < schema.anyOf.length; i++) {
-        const tempErrors: ValidationError[] = [];
-        this.validateWithSchema(
+        const subResult = this.validateWithSchema(
           data,
           schema.anyOf[i]!,
           {
             ...context,
             schemaPath: `${context.schemaPath}/anyOf/${i}`,
           },
-          tempErrors,
         );
 
-        if (tempErrors.length === 0) {
-          anyValid = true;
-          break;
+        if (subResult.errors.length === 0) {
+          passingResults.push(subResult);
         }
       }
 
-      if (!anyValid) {
-        errors.push(this.createError(
+      if (passingResults.length === 0) {
+        result.errors.push(this.createError(
           "anyOf",
           `Must match at least one schema in anyOf`,
           { ...context, schemaPath: `${context.schemaPath}/anyOf` },
           {},
         ));
+      } else {
+        // Merge evaluations from ALL passing subschemas
+        for (const passingResult of passingResults) {
+          for (const prop of passingResult.evaluatedProperties) {
+            result.evaluatedProperties.add(prop);
+          }
+          for (const item of passingResult.evaluatedItems) {
+            result.evaluatedItems.add(item);
+          }
+        }
       }
     }
 
+    // oneOf: Exactly one must pass, only that ONE's evaluations are visible
     if (schema.oneOf) {
-      let validCount = 0;
-      const validIndices: number[] = [];
+      const passingResults: Array<{ index: number; result: EvaluationResult }> =
+        [];
 
       for (let i = 0; i < schema.oneOf.length; i++) {
-        const tempErrors: ValidationError[] = [];
-        this.validateWithSchema(
+        const subResult = this.validateWithSchema(
           data,
           schema.oneOf[i]!,
           {
             ...context,
             schemaPath: `${context.schemaPath}/oneOf/${i}`,
           },
-          tempErrors,
         );
 
-        if (tempErrors.length === 0) {
-          validCount++;
-          validIndices.push(i);
+        if (subResult.errors.length === 0) {
+          passingResults.push({ index: i, result: subResult });
         }
       }
 
-      if (validCount !== 1) {
-        errors.push(this.createError(
+      if (passingResults.length !== 1) {
+        result.errors.push(this.createError(
           "oneOf",
-          validCount === 0
+          passingResults.length === 0
             ? "Must match exactly one schema in oneOf (matched none)"
-            : `Must match exactly one schema in oneOf (matched ${validCount}: indices ${
-              validIndices.join(", ")
+            : `Must match exactly one schema in oneOf (matched ${passingResults.length}: indices ${
+              passingResults.map((r) => r.index).join(", ")
             })`,
           { ...context, schemaPath: `${context.schemaPath}/oneOf` },
-          { passingSchemas: validCount, validIndices },
+          {
+            passingSchemas: passingResults.length,
+            validIndices: passingResults.map((r) => r.index),
+          },
         ));
+      } else {
+        // Merge evaluations from the ONE passing subschema
+        const passingResult = passingResults[0]!.result;
+        for (const prop of passingResult.evaluatedProperties) {
+          result.evaluatedProperties.add(prop);
+        }
+        for (const item of passingResult.evaluatedItems) {
+          result.evaluatedItems.add(item);
+        }
       }
     }
 
+    // not: Must NOT pass - no evaluations are merged (spec requirement)
     if (schema.not) {
-      const tempErrors: ValidationError[] = [];
-      this.validateWithSchema(
+      const notResult = this.validateWithSchema(
         data,
         schema.not,
         {
           ...context,
           schemaPath: `${context.schemaPath}/not`,
         },
-        tempErrors,
       );
 
-      if (tempErrors.length === 0) {
-        errors.push(this.createError(
+      if (notResult.errors.length === 0) {
+        result.errors.push(this.createError(
           "not",
           `Must NOT be valid`,
           { ...context, schemaPath: `${context.schemaPath}/not` },
           {},
         ));
       }
+      // Per JSON Schema spec: "not" does NOT contribute to evaluated properties
+      // Even if it fails (meaning data matched), we don't merge those evaluations
     }
+
+    return result;
   }
 
   /**
    * Conditional validation (if/then/else)
+   * Critical: Properly tracks evaluated properties for unevaluatedProperties support
+   *
+   * Key insight from JSON Schema 2020-12:
+   * - When "if" passes: "if" + "then" contribute evaluated properties
+   * - When "if" fails: ONLY "else" contributes (NOT "if")
+   * - When "if" exists alone (no then/else): "if" always contributes
    */
   private validateConditional(
     schema: Schema,
     data: unknown,
     context: ValidationContext,
-    errors: ValidationError[],
-  ): void {
+  ): EvaluationResult {
+    const result = emptyResult();
+
     if (schema.if !== undefined) {
-      const ifErrors: ValidationError[] = [];
-      this.validateWithSchema(
+      const ifResult = this.validateWithSchema(
         data,
         schema.if,
         {
           ...context,
           schemaPath: `${context.schemaPath}/if`,
         },
-        ifErrors,
       );
 
-      const ifPassed = ifErrors.length === 0;
+      const ifPassed = ifResult.errors.length === 0;
+      const hasThen = schema.then !== undefined;
+      const hasElse = schema.else !== undefined;
 
-      if (ifPassed && schema.then) {
-        this.validateWithSchema(
-          data,
-          schema.then,
-          {
-            ...context,
-            schemaPath: `${context.schemaPath}/then`,
-          },
-          errors,
-        );
-      } else if (!ifPassed && schema.else) {
-        this.validateWithSchema(
-          data,
-          schema.else,
-          {
-            ...context,
-            schemaPath: `${context.schemaPath}/else`,
-          },
-          errors,
-        );
+      if (ifPassed) {
+        // When "if" passes: merge "if" annotations + "then" annotations
+        for (const prop of ifResult.evaluatedProperties) {
+          result.evaluatedProperties.add(prop);
+        }
+        for (const item of ifResult.evaluatedItems) {
+          result.evaluatedItems.add(item);
+        }
+
+        if (hasThen) {
+          const thenResult = this.validateWithSchema(
+            data,
+            schema.then!,
+            {
+              ...context,
+              schemaPath: `${context.schemaPath}/then`,
+            },
+          );
+          for (const error of thenResult.errors) {
+            result.errors.push(error);
+          }
+          for (const prop of thenResult.evaluatedProperties) {
+            result.evaluatedProperties.add(prop);
+          }
+          for (const item of thenResult.evaluatedItems) {
+            result.evaluatedItems.add(item);
+          }
+        }
+      } else {
+        // When "if" fails: ONLY merge "else" annotations (NOT "if")
+        // The "if" annotations are discarded because that path wasn't taken
+        // This applies even when there's no "then" or "else" - if "if" fails, nothing is contributed
+        if (hasElse) {
+          const elseResult = this.validateWithSchema(
+            data,
+            schema.else!,
+            {
+              ...context,
+              schemaPath: `${context.schemaPath}/else`,
+            },
+          );
+          for (const error of elseResult.errors) {
+            result.errors.push(error);
+          }
+          for (const prop of elseResult.evaluatedProperties) {
+            result.evaluatedProperties.add(prop);
+          }
+          for (const item of elseResult.evaluatedItems) {
+            result.evaluatedItems.add(item);
+          }
+        }
+        // If "if" fails and there's no "else": nothing contributes
       }
     }
+
+    return result;
   }
 
   /**
@@ -994,6 +1362,10 @@ export class RuntimeValidator {
         return `Add the missing property: ${params?.missingProperty}`;
       case "additionalProperties":
         return `Remove the unexpected property: ${params?.additionalProperty}`;
+      case "unevaluatedProperties":
+        return `Remove the unevaluated property: ${params?.unevaluatedProperty}`;
+      case "unevaluatedItems":
+        return `Remove the unevaluated item at index: ${params?.unevaluatedItem}`;
       case "minimum":
       case "maximum":
         return `Adjust the value to be ${params?.comparison} ${params?.limit}`;

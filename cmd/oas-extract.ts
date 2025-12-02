@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env
 
-import { parseArgs } from "@std/cli/parse_args";
+import { parseArgs } from "@std/cli/parse-args";
 import { FastExtractor } from "../packages/oas-extract/src/fast-extractor.ts";
 import { SpecTransformer } from "../packages/oas-extract/src/transformer.ts";
 import { FastAnalyzer } from "../packages/oas-extract/src/fast-analyzer.ts";
