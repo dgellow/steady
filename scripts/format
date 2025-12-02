@@ -1,4 +1,5 @@
 #!/bin/bash
 set -e
 
+# Format all TypeScript files
 deno fmt

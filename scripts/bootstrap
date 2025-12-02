@@ -1,4 +1,15 @@
 #!/bin/bash
 set -e
 
-git submodule update --init --recursive --remote
+# Bootstrap the Steady project
+# Caches all dependencies and initializes submodules
+
+echo "Bootstrapping Steady..."
+
+# Initialize git submodules (JSON Schema test suite)
+git submodule update --init --recursive
+
+# Cache Deno dependencies
+deno cache cmd/steady.ts
+
+echo "Bootstrap complete!"
