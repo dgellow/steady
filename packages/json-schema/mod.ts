@@ -85,8 +85,7 @@ export type {
   ValidatorOptions,
 } from "./types.ts";
 
-// Legacy exports for compatibility during migration
-// TODO: Remove these after full migration
+// Core processing components
 export { JsonSchemaProcessor } from "./processor.ts";
 export { SchemaValidator, type SchemaValidatorOptions } from "./schema-validator.ts";
 export { ResponseGenerator } from "./response-generator.ts";
