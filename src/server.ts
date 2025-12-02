@@ -2,8 +2,9 @@
  * Steady Mock Server - Enterprise-grade OpenAPI mock server
  *
  * Features:
+ * - Document-centric architecture for proper $ref resolution
  * - Pre-compiled path patterns for O(1) route matching
- * - Efficient schema processing with caching
+ * - Lazy schema processing with caching
  * - Graceful shutdown handling
  * - Interactive and standard logging modes
  */
@@ -16,7 +17,7 @@ import type {
   PathItemObject,
 } from "@steady/parser";
 import { MatchError, missingExampleError } from "./errors.ts";
-import { ServerSchemaProcessor } from "./schema-processor.ts";
+import { OpenAPIDocument, RegistryResponseGenerator } from "@steady/json-schema";
 import {
   InkSimpleLogger,
   RequestLogger,
@@ -52,11 +53,11 @@ interface CompiledPath {
 }
 
 export class MockServer {
-  private schemaProcessor: ServerSchemaProcessor;
+  /** Document-centric OpenAPI processing */
+  private document: OpenAPIDocument;
   private abortController: AbortController;
   private logger: RequestLogger;
   private validator: RequestValidator;
-  private initialized = false;
 
   // Pre-compiled routes for O(1) exact matches and efficient pattern matching
   private exactRoutes = new Map<string, PathItemObject>();
@@ -66,7 +67,9 @@ export class MockServer {
     private spec: OpenAPISpec,
     private config: ServerConfig,
   ) {
-    this.schemaProcessor = new ServerSchemaProcessor(spec);
+    // Create document-centric processor - all $refs will resolve correctly
+    this.document = new OpenAPIDocument(spec);
+
     this.abortController = new AbortController();
 
     // Use interactive logger if requested
@@ -118,24 +121,17 @@ export class MockServer {
   }
 
   /**
-   * Initialize the server by processing all schemas
-   * Must be called before start()
+   * Initialize the server
+   * With the document-centric architecture, initialization is lightweight -
+   * schemas are processed lazily on first access
    */
   async init(): Promise<void> {
-    if (this.initialized) return;
-
-    // Process all component schemas upfront for performance
-    await this.schemaProcessor.processComponentSchemas();
-    this.initialized = true;
+    // Document is already created in constructor
+    // Ref graph is built, schemas will be processed lazily
+    // Optionally, we could warm up the cache here for all component schemas
   }
 
   start(): void {
-    if (!this.initialized) {
-      throw new Error(
-        "Server must be initialized before starting. Call await server.init() first.",
-      );
-    }
-
     // Start interactive logger if enabled
     if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
       startInkSimpleLogger(this.logger);
@@ -172,6 +168,8 @@ export class MockServer {
       return;
     }
 
+    const stats = this.document.getStats();
+
     console.log(`\n${BOLD}Steady Mock Server v1.0.0${RESET}`);
     console.log(
       `Loaded spec: ${this.spec.info.title} v${this.spec.info.version}`,
@@ -192,6 +190,14 @@ export class MockServer {
     }
     if (this.config.interactive) {
       console.log(`  Interactive: enabled`);
+    }
+
+    // Show ref graph stats
+    console.log(`\n${BOLD}Schema Analysis:${RESET}`);
+    console.log(`  Total refs: ${stats.totalRefs}`);
+    console.log(`  Cyclic refs: ${stats.cyclicRefs}`);
+    if (stats.cycles > 0) {
+      console.log(`  ${DIM}(cycles handled gracefully)${RESET}`);
     }
 
     // List available endpoints
@@ -274,6 +280,7 @@ export class MockServer {
         statusCode,
         path,
         method,
+        pathPattern,
       );
 
       const timing = Math.round(performance.now() - startTime);
@@ -315,6 +322,7 @@ export class MockServer {
   }
 
   private handleHealth(): Response {
+    const stats = this.document.getStats();
     return new Response(
       JSON.stringify({
         status: "healthy",
@@ -322,6 +330,11 @@ export class MockServer {
         spec: {
           title: this.spec.info.title,
           version: this.spec.info.version,
+        },
+        schemas: {
+          totalRefs: stats.totalRefs,
+          cached: stats.cachedSchemas,
+          cyclicRefs: stats.cyclicRefs,
         },
       }),
       {
@@ -467,11 +480,15 @@ export class MockServer {
     return Object.keys(operation.responses)[0] || "200";
   }
 
+  /**
+   * Generate response using the document-centric architecture
+   */
   private async generateResponse(
     operation: OperationObject,
     statusCode: string,
     path: string,
     method: string,
+    pathPattern: string,
   ): Promise<Response> {
     const responseObjOrRef = operation.responses[statusCode];
     if (!responseObjOrRef) {
@@ -486,18 +503,47 @@ export class MockServer {
       });
     }
 
-    // Handle $ref - we don't resolve here, just indicate the issue
+    // Handle $ref in response - resolve via document
     if (isReference(responseObjOrRef)) {
-      throw new MatchError("Unresolved response reference", {
-        httpPath: path,
-        httpMethod: method.toUpperCase(),
-        errorType: "match",
-        reason: `Response for status ${statusCode} is a $ref that needs resolution: ${responseObjOrRef.$ref}`,
-        suggestion: "Ensure references are resolved before server start",
-      });
+      const resolved = this.document.resolveRef(responseObjOrRef.$ref);
+      if (!resolved) {
+        throw new MatchError("Unresolved response reference", {
+          httpPath: path,
+          httpMethod: method.toUpperCase(),
+          errorType: "match",
+          reason: `Response reference not found: ${responseObjOrRef.$ref}`,
+          suggestion: "Check that the referenced response exists in components/responses",
+        });
+      }
+      // Use resolved response
+      return this.generateResponseFromObject(
+        resolved.raw as ResponseObject,
+        statusCode,
+        path,
+        method,
+        pathPattern,
+      );
     }
 
-    const responseObj = responseObjOrRef as ResponseObject;
+    return this.generateResponseFromObject(
+      responseObjOrRef as ResponseObject,
+      statusCode,
+      path,
+      method,
+      pathPattern,
+    );
+  }
+
+  /**
+   * Generate response from a resolved ResponseObject
+   */
+  private generateResponseFromObject(
+    responseObj: ResponseObject,
+    statusCode: string,
+    path: string,
+    method: string,
+    pathPattern: string,
+  ): Response {
     let body: unknown = null;
     let contentType = "application/json";
 
@@ -511,9 +557,26 @@ export class MockServer {
           ? "application/json"
           : Object.keys(responseObj.content)[0] || "application/json";
 
-        try {
-          body = await this.schemaProcessor.generateFromMediaType(mediaType);
-        } catch {
+        // Priority 1: Explicit example
+        if (mediaType.example !== undefined) {
+          body = mediaType.example;
+        }
+        // Priority 2: First example from examples map
+        else if (mediaType.examples && Object.keys(mediaType.examples).length > 0) {
+          const firstExampleOrRef = Object.values(mediaType.examples)[0];
+          if (firstExampleOrRef && !isReference(firstExampleOrRef)) {
+            const example = firstExampleOrRef as { value?: unknown };
+            if (example.value !== undefined) {
+              body = example.value;
+            }
+          }
+        }
+        // Priority 3: Generate from schema using document-centric approach
+        else if (mediaType.schema) {
+          body = this.generateFromSchemaObject(mediaType.schema, pathPattern, method, statusCode);
+        }
+
+        if (body === null && mediaType.schema) {
           throw missingExampleError(path, method, statusCode);
         }
       }
@@ -521,7 +584,7 @@ export class MockServer {
 
     const headers = new Headers({
       "Content-Type": contentType,
-      "X-Steady-Matched-Path": path,
+      "X-Steady-Matched-Path": pathPattern,
       "X-Steady-Example-Source": body !== null ? "generated" : "none",
     });
 
@@ -532,5 +595,36 @@ export class MockServer {
         headers,
       },
     );
+  }
+
+  /**
+   * Generate data from a schema object using the document-centric approach
+   */
+  private generateFromSchemaObject(
+    schema: unknown,
+    pathPattern: string,
+    method: string,
+    statusCode: string,
+  ): unknown {
+    // If schema is a reference, use the document to resolve and generate
+    if (typeof schema === "object" && schema !== null && "$ref" in schema) {
+      const ref = (schema as { $ref: string }).$ref;
+      return this.document.generateResponse(ref);
+    }
+
+    // For inline schemas, create a generator with document access
+    const generator = new RegistryResponseGenerator(this.document.schemas);
+    return generator.generateFromSchema(
+      schema as Parameters<RegistryResponseGenerator["generateFromSchema"]>[0],
+      `#/paths/${this.escapePointer(pathPattern)}/${method}/responses/${statusCode}/content/application~1json/schema`,
+      0,
+    );
+  }
+
+  /**
+   * Escape a path segment for JSON Pointer
+   */
+  private escapePointer(path: string): string {
+    return path.replace(/~/g, "~0").replace(/\//g, "~1");
   }
 }

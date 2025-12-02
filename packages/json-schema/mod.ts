@@ -1,23 +1,23 @@
 /**
- * JSON Schema validation utilities for OpenAPI
+ * JSON Schema - Document-Centric Architecture
  *
  * This package provides a complete JSON Schema processor with:
- * - Schema validation against metaschema
- * - Enterprise-scale reference resolution
- * - Fast runtime validation
- * - Mock data generation
- * - Error attribution (SDK vs spec)
+ * - Document-centric ref resolution (the document IS the root)
+ * - Complete ref topology analysis upfront
+ * - Lazy schema processing with caching
+ * - Response generation with cross-ref support
+ * - Validation with cross-ref support
  */
 
-// Legacy validator removed - use JsonSchemaProcessor instead
+// Main entry point - document-centric architecture
+export { OpenAPIDocument } from "./openapi-document.ts";
 
-// New processor architecture
-export { JsonSchemaProcessor } from "./processor.ts";
-export {
-  SchemaValidator,
-  type SchemaValidatorOptions,
-} from "./schema-validator.ts";
-export { ResponseGenerator } from "./response-generator.ts";
+// Core components
+export { SchemaRegistry, RegistryResponseGenerator, RegistryValidator } from "./schema-registry.ts";
+export type { RegistrySchema, SchemaRegistryOptions } from "./schema-registry.ts";
+
+// Reference graph
+export { RefGraph } from "./ref-graph.ts";
 
 // Types
 export type {
@@ -25,10 +25,8 @@ export type {
   ErrorAttribution,
   GenerateContext,
   GenerateOptions,
-  // Core types
   JsonSchemaDialect,
   JsonSchemaDialects,
-  // New processor types
   ProcessedSchema,
   Schema,
   SchemaError,
@@ -41,3 +39,9 @@ export type {
   ValidationResult,
   ValidatorOptions,
 } from "./types.ts";
+
+// Legacy exports for compatibility during migration
+// TODO: Remove these after full migration
+export { JsonSchemaProcessor } from "./processor.ts";
+export { SchemaValidator, type SchemaValidatorOptions } from "./schema-validator.ts";
+export { ResponseGenerator } from "./response-generator.ts";
