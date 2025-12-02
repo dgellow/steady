@@ -3,12 +3,13 @@
  *
  * The main entry point for the document-centric architecture.
  * Wraps an OpenAPI spec and provides access to all schemas with
- * proper cross-reference resolution.
+ * proper cross-reference resolution and comprehensive diagnostics.
  *
  * Usage:
  *   const doc = new OpenAPIDocument(spec);
- *   const generator = doc.getGenerator("#/components/schemas/User");
- *   const response = generator.generate();
+ *   const diagnostics = doc.getDiagnostics();
+ *   const generator = doc.getGenerator();
+ *   const response = generator.generate("#/components/schemas/User");
  */
 
 import {
@@ -19,10 +20,15 @@ import {
 } from "./schema-registry.ts";
 import { RefGraph } from "./ref-graph.ts";
 import type { GenerateOptions, ValidationResult } from "./types.ts";
+import { DocumentAnalyzer, type DocumentAnalyzerConfig } from "./document-analyzer.ts";
+import type { Diagnostic, DiagnosticSeverity, DiagnosticSummary } from "./diagnostics/types.ts";
+import { filterBySeverity, summarizeDiagnostics } from "./diagnostics/types.ts";
 
 export interface OpenAPIDocumentOptions {
   /** Base URI for the document */
   baseUri?: string;
+  /** Configuration for document analysis */
+  analyzerConfig?: DocumentAnalyzerConfig;
 }
 
 export class OpenAPIDocument {
@@ -33,10 +39,63 @@ export class OpenAPIDocument {
   /** Reference graph for the entire document */
   readonly refGraph: RefGraph;
 
+  /** Cached diagnostics (lazy evaluated) */
+  private _diagnostics?: Diagnostic[];
+  /** Analyzer configuration */
+  private analyzerConfig?: DocumentAnalyzerConfig;
+
   constructor(spec: unknown, options: OpenAPIDocumentOptions = {}) {
     this.spec = spec;
     this.schemas = new SchemaRegistry(spec, options);
     this.refGraph = this.schemas.refGraph;
+    this.analyzerConfig = options.analyzerConfig;
+  }
+
+  /**
+   * Get all diagnostics for this document.
+   * Computed lazily on first access and cached.
+   */
+  getDiagnostics(): Diagnostic[] {
+    if (!this._diagnostics) {
+      const analyzer = new DocumentAnalyzer(this.analyzerConfig);
+      this._diagnostics = analyzer.analyze(this.schemas);
+    }
+    return this._diagnostics;
+  }
+
+  /**
+   * Get diagnostics filtered by minimum severity
+   */
+  getDiagnosticsFiltered(minSeverity: DiagnosticSeverity): Diagnostic[] {
+    return filterBySeverity(this.getDiagnostics(), minSeverity);
+  }
+
+  /**
+   * Get diagnostic summary
+   */
+  getDiagnosticSummary(): DiagnosticSummary {
+    return summarizeDiagnostics(this.getDiagnostics());
+  }
+
+  /**
+   * Get only errors
+   */
+  getErrors(): Diagnostic[] {
+    return this.getDiagnostics().filter((d) => d.severity === "error");
+  }
+
+  /**
+   * Get only warnings
+   */
+  getWarnings(): Diagnostic[] {
+    return this.getDiagnostics().filter((d) => d.severity === "warning");
+  }
+
+  /**
+   * Check if document has any errors
+   */
+  hasErrors(): boolean {
+    return this.getErrors().length > 0;
   }
 
   /**

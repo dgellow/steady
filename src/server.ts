@@ -17,13 +17,19 @@ import type {
   PathItemObject,
 } from "@steady/parser";
 import { MatchError, missingExampleError } from "./errors.ts";
-import { OpenAPIDocument, RegistryResponseGenerator } from "@steady/json-schema";
+import {
+  OpenAPIDocument,
+  RegistryResponseGenerator,
+  formatStartupDiagnostics,
+  formatSessionSummary,
+} from "@steady/json-schema";
 import {
   InkSimpleLogger,
   RequestLogger,
   startInkSimpleLogger,
 } from "@steady/shared";
 import { RequestValidator } from "./validator.ts";
+import { DiagnosticCollector } from "./diagnostics/collector.ts";
 
 // ANSI colors for startup message
 const BOLD = "\x1b[1m";
@@ -58,6 +64,7 @@ export class MockServer {
   private abortController: AbortController;
   private logger: RequestLogger;
   private validator: RequestValidator;
+  private diagnosticCollector: DiagnosticCollector;
 
   // Pre-compiled routes for O(1) exact matches and efficient pattern matching
   private exactRoutes = new Map<string, PathItemObject>();
@@ -71,6 +78,7 @@ export class MockServer {
     this.document = new OpenAPIDocument(spec);
 
     this.abortController = new AbortController();
+    this.diagnosticCollector = new DiagnosticCollector();
 
     // Use interactive logger if requested
     if (config.interactive) {
@@ -83,6 +91,9 @@ export class MockServer {
 
     // Pre-compile all path patterns at construction time
     this.compileRoutes();
+
+    // Collect static diagnostics
+    this.diagnosticCollector.setStaticDiagnostics(this.document.getDiagnostics());
   }
 
   /**
@@ -150,6 +161,7 @@ export class MockServer {
     if (!this.config.interactive) {
       Deno.addSignalListener("SIGINT", () => {
         console.log("\n\nShutting down gracefully...");
+        this.printSessionSummary();
         this.stop();
         Deno.exit(0);
       });
@@ -163,12 +175,28 @@ export class MockServer {
     }
   }
 
+  private printSessionSummary(): void {
+    const staticDiagnostics = this.diagnosticCollector.getStaticDiagnostics();
+    const runtimeDiagnostics = this.diagnosticCollector.getRuntimeDiagnostics();
+    const stats = this.diagnosticCollector.getStats();
+
+    if (stats.requestCount > 0 || runtimeDiagnostics.length > 0) {
+      console.log("\n" + formatSessionSummary(
+        staticDiagnostics,
+        runtimeDiagnostics,
+        stats.requestCount,
+        true,
+      ));
+    }
+  }
+
   private printStartupMessage(): void {
     if (this.config.interactive) {
       return;
     }
 
     const stats = this.document.getStats();
+    const diagnostics = this.diagnosticCollector.getStaticDiagnostics();
 
     console.log(`\n${BOLD}Steady Mock Server v1.0.0${RESET}`);
     console.log(
@@ -198,6 +226,14 @@ export class MockServer {
     console.log(`  Cyclic refs: ${stats.cyclicRefs}`);
     if (stats.cycles > 0) {
       console.log(`  ${DIM}(cycles handled gracefully)${RESET}`);
+    }
+
+    // Show diagnostics
+    if (diagnostics.length > 0) {
+      console.log(`\n${BOLD}Diagnostics:${RESET}`);
+      console.log(formatStartupDiagnostics(diagnostics, true));
+    } else {
+      console.log(`\n${DIM}✓ No diagnostic issues found${RESET}`);
     }
 
     // List available endpoints
