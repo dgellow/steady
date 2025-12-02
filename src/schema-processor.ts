@@ -15,10 +15,12 @@ import {
   type Schema,
 } from "@steady/json-schema";
 import type {
+  ExampleObject,
   MediaTypeObject,
   OpenAPISpec,
   SchemaObject,
 } from "@steady/parser";
+import { isReference } from "./types.ts";
 
 interface SchemaProcessorOptions {
   /**
@@ -109,9 +111,13 @@ export class ServerSchemaProcessor {
 
     // Priority 2: Use first example from examples
     if (mediaType.examples && Object.keys(mediaType.examples).length > 0) {
-      const firstExample = Object.values(mediaType.examples)[0];
-      if (firstExample && firstExample.value !== undefined) {
-        return firstExample.value;
+      const firstExampleOrRef = Object.values(mediaType.examples)[0];
+      // Skip $ref examples - we don't resolve them here
+      if (firstExampleOrRef && !isReference(firstExampleOrRef)) {
+        const firstExample = firstExampleOrRef as ExampleObject;
+        if (firstExample.value !== undefined) {
+          return firstExample.value;
+        }
       }
     }
 

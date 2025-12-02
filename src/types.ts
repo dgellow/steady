@@ -62,8 +62,23 @@ export type {
   ParameterObject,
   PathItemObject,
   PathsObject,
+  ReferenceObject,
   RequestBodyObject,
   ResponseObject,
   ResponsesObject,
   SchemaObject,
 } from "@steady/parser";
+
+import type { ReferenceObject } from "@steady/parser";
+
+/**
+ * Type guard to check if a value is a ReferenceObject
+ */
+export function isReference(value: unknown): value is ReferenceObject {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "$ref" in value &&
+    typeof (value as ReferenceObject).$ref === "string"
+  );
+}

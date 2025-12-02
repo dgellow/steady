@@ -72,7 +72,7 @@ export class RequestValidationError extends SteadyError {
     context: ErrorContext,
     validationErrors: ValidationError[],
   ) {
-    super(message, { ...context, errorType: "validation" });
+    super(message, { ...context, errorType: "validate" });
     this.name = "RequestValidationError";
     this.validationErrors = validationErrors;
   }
@@ -106,7 +106,7 @@ export class SchemaError extends SteadyError {
   readonly source: ErrorSource = "spec";
 
   constructor(message: string, context: ErrorContext) {
-    super(message, { ...context, errorType: "schema" });
+    super(message, { ...context, errorType: "validate" });
     this.name = "SchemaError";
   }
 }
@@ -200,7 +200,7 @@ export function sdkValidationError(
       specFile,
       httpPath: path,
       httpMethod: method.toUpperCase(),
-      errorType: "validation",
+      errorType: "validate",
       reason:
         "The SDK sent a request that doesn't match the OpenAPI specification.",
       suggestion: "Check the SDK implementation:\n" +
@@ -224,7 +224,7 @@ export function invalidSchemaError(
   return new SchemaError(`Invalid schema at ${schemaPath}`, {
     specFile,
     schemaPath: [schemaPath],
-    errorType: "schema",
+    errorType: "validate",
     reason,
     suggestion: "Fix the schema in your OpenAPI specification:\n" +
       "  - Check for valid JSON Schema keywords\n" +

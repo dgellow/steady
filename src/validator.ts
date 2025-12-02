@@ -10,10 +10,13 @@
  */
 
 import type { ValidationError } from "./types.ts";
+import { isReference } from "./types.ts";
 import type { ValidationResult } from "@steady/shared";
 import type {
   OperationObject,
   ParameterObject,
+  ReferenceObject,
+  RequestBodyObject,
   SchemaObject,
 } from "@steady/parser";
 import {
@@ -21,6 +24,40 @@ import {
   type Schema,
   SchemaValidator,
 } from "@steady/json-schema";
+
+/**
+ * Filter parameters to only include resolved ParameterObject (not $refs)
+ * In the future, we should resolve $refs before validation
+ */
+function filterResolvedParams(
+  params: (ParameterObject | ReferenceObject)[] | undefined,
+  location: "query" | "path" | "header" | "cookie",
+): ParameterObject[] {
+  if (!params) return [];
+  return params.filter(
+    (p): p is ParameterObject => !isReference(p) && p.in === location,
+  );
+}
+
+/**
+ * Get resolved request body (not $ref)
+ */
+function getResolvedRequestBody(
+  body: RequestBodyObject | ReferenceObject | undefined,
+): RequestBodyObject | null {
+  if (!body || isReference(body)) return null;
+  return body;
+}
+
+/**
+ * Safely get the type from a schema that might be a reference
+ */
+function getSchemaType(
+  schema: SchemaObject | ReferenceObject | undefined,
+): SchemaObject["type"] | undefined {
+  if (!schema || isReference(schema)) return undefined;
+  return schema.type;
+}
 
 /** Maximum request body size (10MB) to prevent DoS attacks */
 const MAX_BODY_SIZE = 10 * 1024 * 1024;
@@ -50,8 +87,8 @@ export class RequestValidator {
     const url = new URL(req.url);
 
     // Validate query parameters
-    if (operation.parameters) {
-      const queryParams = operation.parameters.filter((p) => p.in === "query");
+    const queryParams = filterResolvedParams(operation.parameters, "query");
+    if (queryParams.length > 0) {
       const queryValidation = await this.validateQueryParams(
         url.searchParams,
         queryParams,
@@ -61,10 +98,8 @@ export class RequestValidator {
     }
 
     // Validate path parameters
-    if (operation.parameters) {
-      const pathParamSpecs = operation.parameters.filter((p) =>
-        p.in === "path"
-      );
+    const pathParamSpecs = filterResolvedParams(operation.parameters, "path");
+    if (pathParamSpecs.length > 0) {
       const pathValidation = await this.validatePathParams(
         pathParams,
         pathParamSpecs,
@@ -74,10 +109,8 @@ export class RequestValidator {
     }
 
     // Validate headers
-    if (operation.parameters) {
-      const headerParams = operation.parameters.filter((p) =>
-        p.in === "header"
-      );
+    const headerParams = filterResolvedParams(operation.parameters, "header");
+    if (headerParams.length > 0) {
       const headerValidation = await this.validateHeaders(
         req.headers,
         headerParams,
@@ -87,12 +120,11 @@ export class RequestValidator {
     }
 
     // Validate request body
-    if (
-      operation.requestBody && req.method !== "GET" && req.method !== "HEAD"
-    ) {
+    const requestBody = getResolvedRequestBody(operation.requestBody);
+    if (requestBody && req.method !== "GET" && req.method !== "HEAD") {
       const bodyValidation = await this.validateRequestBodyFromRequest(
         req,
-        operation.requestBody,
+        requestBody,
       );
       errors.push(...bodyValidation.errors);
       warnings.push(...bodyValidation.warnings);
@@ -126,7 +158,7 @@ export class RequestValidator {
         errors.push({
           path: `query.${spec.name}`,
           message: "Required parameter missing",
-          expected: spec.schema?.type || "string",
+          expected: getSchemaType(spec.schema) || "string",
           actual: undefined,
         });
       } else if (hasValue && spec.schema) {
@@ -179,7 +211,7 @@ export class RequestValidator {
         errors.push({
           path: `path.${spec.name}`,
           message: "Required path parameter missing",
-          expected: spec.schema?.type || "string",
+          expected: getSchemaType(spec.schema) || "string",
           actual: undefined,
         });
       } else if (value !== undefined && spec.schema) {
@@ -212,7 +244,7 @@ export class RequestValidator {
         errors.push({
           path: `header.${spec.name}`,
           message: "Required header missing",
-          expected: spec.schema?.type || "string",
+          expected: getSchemaType(spec.schema) || "string",
           actual: undefined,
         });
       } else if (value !== null && spec.schema) {

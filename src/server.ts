@@ -8,7 +8,8 @@
  * - Interactive and standard logging modes
  */
 
-import type { ServerConfig } from "./types.ts";
+import type { ServerConfig, ResponseObject } from "./types.ts";
+import { isReference } from "./types.ts";
 import type {
   OpenAPISpec,
   OperationObject,
@@ -472,8 +473,8 @@ export class MockServer {
     path: string,
     method: string,
   ): Promise<Response> {
-    const responseObj = operation.responses[statusCode];
-    if (!responseObj) {
+    const responseObjOrRef = operation.responses[statusCode];
+    if (!responseObjOrRef) {
       throw new MatchError("Response not defined", {
         httpPath: path,
         httpMethod: method.toUpperCase(),
@@ -485,6 +486,18 @@ export class MockServer {
       });
     }
 
+    // Handle $ref - we don't resolve here, just indicate the issue
+    if (isReference(responseObjOrRef)) {
+      throw new MatchError("Unresolved response reference", {
+        httpPath: path,
+        httpMethod: method.toUpperCase(),
+        errorType: "match",
+        reason: `Response for status ${statusCode} is a $ref that needs resolution: ${responseObjOrRef.$ref}`,
+        suggestion: "Ensure references are resolved before server start",
+      });
+    }
+
+    const responseObj = responseObjOrRef as ResponseObject;
     let body: unknown = null;
     let contentType = "application/json";
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-read --allow-net --allow-env
 
-import { parseSpec, SteadyError } from "@steady/parser";
+import { parseSpecFromFile, SteadyError } from "@steady/parser";
 import { LogLevel } from "@steady/shared";
 import { ServerConfig } from "../src/types.ts";
 
@@ -122,7 +122,7 @@ async function startServer(
   // Lazy import to avoid loading server code for validate command
   const { MockServer } = await import("../src/server.ts");
   // Parse the OpenAPI spec
-  const spec = await parseSpec(specPath);
+  const spec = await parseSpecFromFile(specPath);
 
   // Determine port from spec or use default
   let port = 3000;
@@ -244,7 +244,7 @@ Examples:
 
   try {
     // Parse the spec - this will throw if invalid
-    await parseSpec(specPath);
+    await parseSpecFromFile(specPath);
 
     // If we get here, spec is valid
     console.log(`${GREEN}✓${RESET} All good`);

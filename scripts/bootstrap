@@ -1,4 +1,29 @@
 #!/bin/bash
 set -e
 
+# Update git submodules
 git submodule update --init --recursive --remote
+
+# Create fixtures directory
+FIXTURES_DIR="tests/fixtures"
+mkdir -p "$FIXTURES_DIR"
+
+# Fetch Cloudflare OpenAPI spec (enterprise-scale test fixture)
+# We parse the spec URL from Cloudflare's Python SDK stats file
+echo "Fetching Cloudflare OpenAPI spec..."
+STATS_URL="https://raw.githubusercontent.com/cloudflare/cloudflare-python/main/.stats.yml"
+SPEC_URL=$(curl -sL "$STATS_URL" | grep "openapi_spec_url:" | sed 's/.*: //' | tr -d '"')
+
+if [ -n "$SPEC_URL" ]; then
+  CLOUDFLARE_SPEC="$FIXTURES_DIR/cloudflare-openapi.yml"
+  echo "  Downloading from: $SPEC_URL"
+  curl -sL "$SPEC_URL" -o "$CLOUDFLARE_SPEC"
+
+  # Show file size for verification
+  SIZE=$(ls -lh "$CLOUDFLARE_SPEC" | awk '{print $5}')
+  echo "  Saved to: $CLOUDFLARE_SPEC ($SIZE)"
+else
+  echo "  Warning: Could not extract spec URL from $STATS_URL"
+fi
+
+echo "Bootstrap complete!"

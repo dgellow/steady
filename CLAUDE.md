@@ -752,7 +752,144 @@ enterprise-scale processor
 This plan ensures Steady becomes the definitive OpenAPI mock server that
 enterprises choose when they need something that actually works at scale.
 
-# important-instruction-reminders
+# Engineering Standards
+
+## The Excellence Mandate
+
+We are building software that enterprises will depend on. Mediocre work is not
+acceptable. Every line of code, every design decision, every commit must meet
+the highest standard. This is not about perfectionism - it's about
+professionalism and respect for the users who will trust this software.
+
+**Excellence means:**
+
+- Code that works correctly in all cases, not just the happy path
+- Designs that are intentional and justified, not accidental
+- Tests that verify behavior, not just cover lines
+- Error messages that help users solve problems, not just report them
+- Documentation that reflects reality, not aspirations
+
+## Radical Honesty
+
+**Honesty is not optional. It is the foundation of everything we build.**
+
+### Why Honesty Matters
+
+1. **Bad information leads to bad decisions.** If we lie about the state of the
+   code, we make wrong choices about what to work on next.
+
+2. **Hidden problems grow.** A bug you hide today becomes a crisis next month. A
+   shortcut you don't admit becomes technical debt that compounds.
+
+3. **Trust is earned through accuracy.** Users trust software that behaves as
+   documented. Teams trust engineers who report reality.
+
+4. **Debugging requires truth.** You cannot fix what you cannot see. Masking
+   errors makes them unfixable.
+
+### What Honesty Looks Like
+
+- **Report what IS, not what you wish it was.** If tests are failing, say so.
+  If you don't know something, admit it.
+- **Distinguish verified facts from assumptions.** "I tested this" vs "I think
+  this should work" are very different statements.
+- **Acknowledge uncertainty.** "I haven't verified this with the 12MB spec" is
+  more useful than "This handles enterprise scale."
+- **Surface problems early.** A problem reported today is easier to fix than one
+  discovered in production.
+
+### What Dishonesty Looks Like (Don't Do These)
+
+- Saying "tests pass" when you didn't run them
+- Claiming code "handles" something you haven't verified
+- Hiding errors behind fallbacks that silently produce wrong results
+- Making assumptions and presenting them as facts
+- Overstating confidence to avoid appearing uncertain
+
+## No Shortcuts. No Hacks. No Exceptions.
+
+### Why Shortcuts Fail
+
+Shortcuts are borrowed time at predatory interest rates. Every hack you add:
+
+- Makes the code harder to understand
+- Creates edge cases you haven't considered
+- Adds maintenance burden for everyone who follows
+- Erodes trust in the codebase
+- Often takes MORE time when you include the eventual fix
+
+### What "No Shortcuts" Means
+
+**Type System:**
+
+- NEVER use `as` or `!` to silence TypeScript - fix the actual type issue
+- If types don't align, unify them properly or design correct interfaces
+- Type errors are information - they tell you something is wrong
+
+**Error Handling:**
+
+- NEVER swallow errors or replace them with fake success
+- NEVER create fallback data when real data isn't available
+- If something fails, report the failure clearly
+- Fail loudly so problems are visible
+
+**Testing:**
+
+- NEVER skip tests because they're inconvenient
+- NEVER write tests that pass without verifying behavior
+- If you can't test something, admit that gap exists
+
+**Understanding:**
+
+- NEVER make changes to code you haven't read
+- NEVER assume you know what code does - verify it
+- NEVER guess at fixes - understand the root cause first
+
+**Design:**
+
+- NEVER add complexity without justification
+- NEVER copy-paste without understanding
+- NEVER leave "temporary" code without a plan to fix it
+
+### The Right Way Takes the Same Time
+
+When you feel tempted to take a shortcut, remember:
+
+1. Understanding the problem properly often reveals a simpler solution
+2. Fixing the root cause prevents repeated debugging of symptoms
+3. Clean code is easier to modify than hacky code
+4. The "quick fix" usually creates more work downstream
+
+## No Guesses. No Assumptions. Facts Only.
+
+### Ground Every Claim in Evidence
+
+Before stating something as true, ask: "How do I know this?"
+
+- **Verified by test:** "The parser handles this case - test X proves it"
+- **Verified by reading code:** "The function does Y - I read it at file:line"
+- **Verified by running:** "The server starts in 50ms - I measured it"
+- **Not verified:** "I think this should work" / "This probably handles it"
+
+### Mark Uncertainty Explicitly
+
+When you don't know something, say so clearly:
+
+- "I haven't tested this with large specs"
+- "I don't know how this interacts with X"
+- "This is my assumption, not verified: ..."
+- "Unknown: whether this handles edge case Y"
+
+### Assumptions Are Technical Debt
+
+Every assumption is a risk. Track them:
+
+- What did you assume?
+- Why did you assume it?
+- How could it be verified?
+- What breaks if the assumption is wrong?
+
+## Practical Guidelines
 
 Do what has been asked; nothing more, nothing less. NEVER create files unless
 they're absolutely necessary for achieving your goal. ALWAYS prefer editing an
@@ -760,31 +897,28 @@ existing file to creating a new one. NEVER proactively create documentation
 files (*.md) or README files. Only create documentation files if explicitly
 requested by the User.
 
-## Code Quality Standards
+### Code Quality Checklist
 
-- NEVER TAKE SHORTCUTS FOR ANYTHING. PERIOD.
-- NEVER use type assertions (as, !) as shortcuts for type incompatibilities
-- NEVER take shortcuts when fixing TypeScript errors - fix the root cause
-- NEVER take shortcuts when refactoring - do it properly
-- NEVER take shortcuts when debugging - understand the actual problem
-- Fix type system issues properly by unifying types or using correct interfaces
-- Don't rush - take time to understand and properly resolve issues at their
-  source
-- When there are type conflicts between packages, align the types properly
-  rather than casting
-- Do the work correctly the first time instead of patching over problems
+Before committing any change:
 
-# CRITICAL: NO FALLBACKS OR FAKE DATA
+- [ ] I have read the code I'm modifying
+- [ ] I understand why the change is needed
+- [ ] I have tested the change (not just assumed it works)
+- [ ] I have not used type assertions to hide problems
+- [ ] I have not swallowed errors or created fake fallbacks
+- [ ] I can explain what this code does to someone else
+- [ ] I have not left TODOs without tracking them
 
-- NEVER create fallback results when operations fail
-- NEVER fake test data or make up results
-- NEVER silently substitute one result for another
-- When something fails, report the actual error - don't mask it with fake
-  success
-- When LLM analysis fails, don't create fake "KEEP_SEPARATE" decisions
-- When naming fails, don't fall back to auto-generated names - use the actual
-  LLM suggestions
-- Fail loudly and clearly rather than producing incorrect results
-- If you can't get real data, say so explicitly - don't fabricate alternatives
-- ALWAYS preserve and use LLM-provided semantic names, never override with
-  location-based names
+### When You Don't Know
+
+1. **Say so.** "I don't know" is a valid answer.
+2. **Investigate.** Read the code, run tests, gather evidence.
+3. **Ask.** If you need information, request it.
+4. **Document gaps.** Track what remains unknown.
+
+### When Something Fails
+
+1. **Report it clearly.** What failed? What was expected? What happened?
+2. **Don't mask it.** No fake data, no silent fallbacks.
+3. **Find the cause.** Symptoms are clues, not conclusions.
+4. **Fix the root.** Patches create more patches.
