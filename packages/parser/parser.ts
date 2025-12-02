@@ -1,10 +1,10 @@
 import { parse as parseYAML } from "@std/yaml";
 import { OpenAPISpec } from "./openapi.ts";
-import { ParseError } from "./errors.ts";
-// import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
-// import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
+import { ParseError, ValidationError } from "./errors.ts";
+import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
+import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
 
-// const metaschema = metaschemaJson as unknown as Schema;
+const metaschema = metaschemaJson as unknown as Schema;
 
 export async function parseSpec(path: string): Promise<OpenAPISpec> {
   // Check if file exists
@@ -91,27 +91,6 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
     });
   }
 
-  // TODO: Re-enable metaschema validation once validator_legacy.ts fully supports
-  // unevaluatedProperties/unevaluatedItems (currently 91.6% JSON Schema compliant)
-  // For now, skip metaschema validation to avoid false positives
-  //
-  // const processor = new JsonSchemaProcessor();
-  // const validationResult = await processor.process(spec, {
-  //   metaschema,
-  //   baseUri: `file://${path}`,
-  // });
-  //
-  // if (!validationResult.valid) {
-  //   const error = validationResult.errors[0]!;
-  //   throw new ValidationError("OpenAPI spec validation failed", {
-  //     specFile: path,
-  //     errorType: "validate",
-  //     schemaPath: error.schemaPath.split("/").slice(1),
-  //     reason: error.message,
-  //     suggestion: error.suggestion,
-  //   });
-  // }
-
   // Basic structural validation
   if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
     throw new ParseError("Invalid OpenAPI spec", {
@@ -160,6 +139,28 @@ export async function parseSpec(path: string): Promise<OpenAPISpec> {
         'openapi: "3.0.3"',
       ],
     });
+  }
+
+  // Validate OpenAPI 3.1.x specs against the metaschema
+  // Note: OpenAPI 3.0.x uses a different JSON Schema dialect (draft-05), so we skip metaschema
+  // validation for 3.0.x specs since our validator is tuned for JSON Schema 2020-12
+  if (version.startsWith("3.1.")) {
+    const processor = new JsonSchemaProcessor();
+    const validationResult = await processor.process(spec, {
+      metaschema,
+      baseUri: `file://${path}`,
+    });
+
+    if (!validationResult.valid && validationResult.errors.length > 0) {
+      const error = validationResult.errors[0]!;
+      throw new ValidationError("OpenAPI spec validation failed", {
+        specFile: path,
+        errorType: "validate",
+        schemaPath: error.schemaPath.split("/").slice(1),
+        reason: error.message,
+        suggestion: error.suggestion,
+      });
+    }
   }
 
   // Validate info object
