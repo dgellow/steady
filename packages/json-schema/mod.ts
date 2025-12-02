@@ -13,7 +13,10 @@
 
 // New processor architecture
 export { JsonSchemaProcessor } from "./processor.ts";
-export { SchemaValidator } from "./schema-validator.ts";
+export {
+  SchemaValidator,
+  type SchemaValidatorOptions,
+} from "./schema-validator.ts";
 export { ResponseGenerator } from "./response-generator.ts";
 
 // Types

@@ -26,6 +26,29 @@ const REGEX_TIMEOUT_MS = 100;
 /** Maximum string length for regex matching to prevent ReDoS */
 const MAX_REGEX_STRING_LENGTH = 100_000;
 
+/**
+ * Create a canonical JSON string with sorted object keys.
+ * This ensures that objects with the same content but different key order
+ * produce identical strings for comparison.
+ */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+
+  // Object: sort keys and recursively canonicalize values
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  const pairs = keys.map((k) =>
+    JSON.stringify(k) + ":" +
+    canonicalJson((value as Record<string, unknown>)[k])
+  );
+  return "{" + pairs.join(",") + "}";
+}
+
 /** Format validators for common JSON Schema formats */
 const FORMAT_VALIDATORS: Record<string, (value: string) => boolean> = {
   "date-time": (v) =>
@@ -104,8 +127,24 @@ function emptyResult(): EvaluationResult {
   };
 }
 
+/** Options for RuntimeValidator */
+export interface RuntimeValidatorOptions {
+  /**
+   * Enable format validation. By default, format is annotation-only
+   * per JSON Schema 2020-12 spec. Set to true to validate format.
+   */
+  validateFormats?: boolean;
+}
+
 export class RuntimeValidator {
-  constructor(private schema: ProcessedSchema) {}
+  private readonly validateFormats: boolean;
+
+  constructor(
+    private schema: ProcessedSchema,
+    options?: RuntimeValidatorOptions,
+  ) {
+    this.validateFormats = options?.validateFormats ?? false;
+  }
 
   /**
    * Validate data against the processed schema
@@ -381,8 +420,8 @@ export class RuntimeValidator {
       }
     }
 
-    // Format validation
-    if (schema.format !== undefined) {
+    // Format validation (only if enabled - format is annotation-only by default)
+    if (schema.format !== undefined && this.validateFormats) {
       const validator = FORMAT_VALIDATORS[schema.format];
       if (validator && !validator(data)) {
         errors.push(this.createError(
@@ -523,11 +562,12 @@ export class RuntimeValidator {
       ));
     }
 
-    // O(n) uniqueItems validation using JSON serialization
+    // O(n) uniqueItems validation using canonical JSON serialization
+    // Canonical JSON ensures objects with same content but different key order compare equal
     if (schema.uniqueItems === true) {
       const seen = new Map<string, number>();
       for (let i = 0; i < data.length; i++) {
-        const key = JSON.stringify(data[i]);
+        const key = canonicalJson(data[i]);
         const firstIndex = seen.get(key);
         if (firstIndex !== undefined) {
           result.errors.push(this.createError(
@@ -605,23 +645,23 @@ export class RuntimeValidator {
         }
       }
 
-      if (containsCount === 0) {
-        result.errors.push(this.createError(
-          "contains",
-          "Must contain at least one item matching the schema",
-          { ...context, schemaPath: `${context.schemaPath}/contains` },
-          {},
-        ));
-      }
+      // Default minimum is 1, but can be overridden by minContains
+      // When minContains = 0, contains always passes (even with 0 matches)
+      const effectiveMinContains = schema.minContains ?? 1;
 
-      if (
-        schema.minContains !== undefined && containsCount < schema.minContains
-      ) {
+      if (containsCount < effectiveMinContains) {
         result.errors.push(this.createError(
-          "minContains",
-          `Must contain at least ${schema.minContains} items matching the schema`,
-          { ...context, schemaPath: `${context.schemaPath}/minContains` },
-          { limit: schema.minContains, actual: containsCount },
+          effectiveMinContains === 1 ? "contains" : "minContains",
+          `Must contain at least ${effectiveMinContains} item${
+            effectiveMinContains === 1 ? "" : "s"
+          } matching the schema`,
+          {
+            ...context,
+            schemaPath: `${context.schemaPath}/${
+              effectiveMinContains === 1 ? "contains" : "minContains"
+            }`,
+          },
+          { limit: effectiveMinContains, actual: containsCount },
         ));
       }
 
@@ -1202,6 +1242,7 @@ export class RuntimeValidator {
       } else {
         // When "if" fails: ONLY merge "else" annotations (NOT "if")
         // The "if" annotations are discarded because that path wasn't taken
+        // This applies even when there's no "then" or "else" - if "if" fails, nothing is contributed
         if (hasElse) {
           const elseResult = this.validateWithSchema(
             data,
@@ -1220,17 +1261,8 @@ export class RuntimeValidator {
           for (const item of elseResult.evaluatedItems) {
             result.evaluatedItems.add(item);
           }
-        } else if (!hasThen) {
-          // Special case: "if" alone without "then" or "else"
-          // In this case, "if" always contributes (it's evaluated unconditionally)
-          for (const prop of ifResult.evaluatedProperties) {
-            result.evaluatedProperties.add(prop);
-          }
-          for (const item of ifResult.evaluatedItems) {
-            result.evaluatedItems.add(item);
-          }
         }
-        // If there's "then" but no "else", and "if" fails: nothing contributes
+        // If "if" fails and there's no "else": nothing contributes
       }
     }
 
