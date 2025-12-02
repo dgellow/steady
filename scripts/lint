@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
 
-# Run linter
-deno lint "$@"
+deno fmt --check
+deno lint
+deno check
