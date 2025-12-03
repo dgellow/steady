@@ -311,7 +311,7 @@ export class MockServer {
         );
       }
 
-      const response = await this.generateResponse(
+      const response = this.generateResponse(
         operation,
         statusCode,
         path,
@@ -519,13 +519,13 @@ export class MockServer {
   /**
    * Generate response using the document-centric architecture
    */
-  private async generateResponse(
+  private generateResponse(
     operation: OperationObject,
     statusCode: string,
     path: string,
     method: string,
     pathPattern: string,
-  ): Promise<Response> {
+  ): Response {
     const responseObjOrRef = operation.responses[statusCode];
     if (!responseObjOrRef) {
       throw new MatchError("Response not defined", {

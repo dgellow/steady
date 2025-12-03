@@ -20,7 +20,7 @@ export interface ParseOptions {
  * Parse an OpenAPI spec from a string.
  * This is the core parsing function - no file I/O, just pure parsing and validation.
  */
-export async function parseSpec(
+export function parseSpec(
   content: string,
   options: ParseOptions = {},
 ): Promise<OpenAPISpec> {

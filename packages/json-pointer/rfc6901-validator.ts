@@ -108,8 +108,8 @@ function validateToken(token: string, _position: number): ValidationResult {
  *
  * Examples:
  * - "#/definitions/User" ✓
+ * - "#/definitions/" ✓ (trailing slash = empty string key per RFC 6901)
  * - "##/definitions/User" ✗ (double hash)
- * - "#/definitions/" ✗ (trailing slash with no token)
  * - "#components/schemas/User" ✗ (missing slash after #)
  */
 export function validateRef(ref: string): ValidationResult {
@@ -194,14 +194,10 @@ export function validateRef(ref: string): ValidationResult {
     };
   }
 
-  // Check for trailing slash with no token after it
-  if (ref.endsWith("/") && ref !== "#/") {
-    return {
-      valid: false,
-      error: "Trailing slash in reference (empty token)",
-      suggestion: `Remove trailing slash: "${ref}" → "${ref.slice(0, -1)}"`,
-    };
-  }
+  // NOTE: Trailing slashes are VALID per RFC 6901!
+  // A trailing slash indicates an empty string token.
+  // For example: "#/$defs/" references the key "" (empty string) within $defs.
+  // See RFC 6901 Section 4: "/" evaluates to the empty string key.
 
   // Check for unencoded spaces
   if (ref.includes(" ")) {
