@@ -145,6 +145,12 @@ export class RefResolver {
 
   /**
    * Resolve JSON Pointer reference (#/path/to/schema)
+   *
+   * Per RFC 6901 Section 6, when a JSON Pointer is embedded in a URI fragment:
+   * 1. The fragment must be percent-decoded first (URI layer per RFC 3986)
+   * 2. Then parsed as a JSON Pointer (which only has ~0 and ~1 escaping)
+   *
+   * This allows $refs like "#/$defs/User%20Name" to reference keys with spaces.
    */
   private resolvePointer(ref: string): ResolvedReference {
     // Check for circular references
@@ -157,7 +163,16 @@ export class RefResolver {
     }
 
     // JSON Pointer reference (#/path)
-    const pointer = ref.slice(1); // Remove '#'
+    // Step 1: Remove '#'
+    // Step 2: Percent-decode the URI fragment (RFC 3986)
+    // Step 3: The result is then a JSON Pointer (RFC 6901)
+    let pointer = ref.slice(1);
+    try {
+      pointer = decodeURIComponent(pointer);
+    } catch {
+      // If decoding fails, use the original (might have invalid sequences)
+      // The JSON Pointer resolution will handle any errors
+    }
 
     try {
       // Add to visited set for circular detection

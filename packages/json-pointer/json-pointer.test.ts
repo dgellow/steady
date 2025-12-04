@@ -290,3 +290,98 @@ Deno.test("RFC 6901 examples", () => {
   assertEquals(resolve(doc, "/ "), 7);
   assertEquals(resolve(doc, "/m~0n"), 8);
 });
+
+// =============================================================================
+// RFC 6901 COMPLIANCE TESTS - Percent encoding is NOT part of RFC 6901
+// =============================================================================
+
+Deno.test("RFC 6901: percent sequences are NOT decoded (they are literal characters)", () => {
+  // RFC 6901 only defines ~0 (tilde) and ~1 (slash) escaping.
+  // Percent-encoding like %20 is NOT part of RFC 6901.
+  // A key with literal "%20" in it should be accessed with "/foo%20bar", not "/ ".
+
+  const doc = {
+    "foo%20bar": "value with literal percent sequence",
+    "foo bar": "value with actual space",
+  };
+
+  // Accessing "/foo%20bar" should find the key "foo%20bar" (literal percent)
+  // NOT decode it to "foo bar"
+  assertEquals(resolve(doc, "/foo%20bar"), "value with literal percent sequence");
+
+  // Accessing the space key requires the literal space (which RFC 6901 allows)
+  assertEquals(resolve(doc, "/foo bar"), "value with actual space");
+});
+
+Deno.test("RFC 6901: escapeSegment and unescapeSegment are symmetric", () => {
+  // Any segment that goes through escape -> unescape should come back identical
+  const testCases = [
+    "simple",
+    "with/slash",
+    "with~tilde",
+    "with~/both",
+    "with%20percent",     // Literal percent sequence - should NOT be decoded
+    "with%2Fslash",       // Literal %2F - should NOT become /
+    "complex%20~0~1test", // Mixed cases
+    "",
+  ];
+
+  for (const original of testCases) {
+    const escaped = escapeSegment(original);
+    const unescaped = unescapeSegment(escaped);
+    assertEquals(
+      unescaped,
+      original,
+      `Roundtrip failed for segment: "${original}" -> escaped: "${escaped}" -> unescaped: "${unescaped}"`,
+    );
+  }
+});
+
+Deno.test("RFC 6901: array index must be exact non-negative integer string", () => {
+  const doc = { arr: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"] };
+
+  // Valid indices should work
+  assertEquals(resolve(doc, "/arr/0"), "a");
+  assertEquals(resolve(doc, "/arr/1"), "b");
+  assertEquals(resolve(doc, "/arr/10"), "k");
+
+  // Leading zeros should be rejected (per RFC 6901, indices are integers without leading zeros)
+  assertThrows(
+    () => resolve(doc, "/arr/01"),
+    JsonPointerError,
+    "Invalid array index",
+  );
+
+  assertThrows(
+    () => resolve(doc, "/arr/00"),
+    JsonPointerError,
+    "Invalid array index",
+  );
+
+  // Decimal numbers should be rejected
+  assertThrows(
+    () => resolve(doc, "/arr/1.5"),
+    JsonPointerError,
+    "Invalid array index",
+  );
+
+  // Negative with leading zero
+  assertThrows(
+    () => resolve(doc, "/arr/-1"),
+    JsonPointerError,
+    "Invalid array index",
+  );
+
+  // Spaces should be rejected
+  assertThrows(
+    () => resolve(doc, "/arr/ 1"),
+    JsonPointerError,
+    "Invalid array index",
+  );
+
+  assertThrows(
+    () => resolve(doc, "/arr/1 "),
+    JsonPointerError,
+    "Invalid array index",
+  );
+});

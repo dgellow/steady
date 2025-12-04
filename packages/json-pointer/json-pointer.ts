@@ -11,6 +11,17 @@ export class JsonPointerError extends Error {
 }
 
 /**
+ * Validate that a string is a valid RFC 6901 array index.
+ * Valid indices: "0", "1", "12", "123", etc.
+ * Invalid: "01" (leading zero), "1.5" (decimal), "-1" (negative), " 1" (spaces)
+ */
+function isValidArrayIndex(segment: string): boolean {
+  // Must be either "0" or a number starting with non-zero digit
+  // This regex matches: "0" or "[1-9][0-9]*"
+  return /^(0|[1-9][0-9]*)$/.test(segment);
+}
+
+/**
  * Parse a JSON Pointer string into an array of path segments
  */
 export function parsePointer(pointer: string): string[] {
@@ -40,21 +51,18 @@ export function escapeSegment(segment: string): string {
 
 /**
  * Unescape a path segment according to RFC 6901
- * Handles both JSON Pointer escaping (~0, ~1) and percent encoding (%25, etc.)
+ *
+ * RFC 6901 ONLY defines two escape sequences:
+ * - ~0 represents ~ (tilde)
+ * - ~1 represents / (slash)
+ *
+ * Percent-encoding (like %20 for space) is NOT part of RFC 6901.
+ * JSON Pointer treats percent sequences as literal characters.
  */
 export function unescapeSegment(segment: string): string {
-  // First decode percent encoding, then JSON Pointer escaping
-  let result = segment;
-
-  // Decode percent encoding
-  try {
-    result = decodeURIComponent(result);
-  } catch {
-    // If decoding fails, continue with the original string
-  }
-
-  // Apply JSON Pointer unescaping
-  return result.replace(/~1/g, "/").replace(/~0/g, "~");
+  // Apply JSON Pointer unescaping ONLY (~1 -> /, ~0 -> ~)
+  // Order matters: ~1 must be replaced before ~0
+  return segment.replace(/~1/g, "/").replace(/~0/g, "~");
 }
 
 /**
@@ -100,13 +108,17 @@ export function resolve(document: unknown, pointer: string): unknown {
         );
       }
 
-      const index = parseInt(segment, 10);
-      if (isNaN(index) || index < 0 || !Number.isInteger(index)) {
+      // RFC 6901: Array indices must be non-negative integers without leading zeros.
+      // Valid: "0", "1", "12", "123"
+      // Invalid: "01", "1.5", "-1", " 1", "1 ", "1a"
+      if (!isValidArrayIndex(segment)) {
         throw new JsonPointerError(
-          `Invalid array index '${segment}': must be non-negative integer`,
+          `Invalid array index '${segment}': must be non-negative integer without leading zeros`,
           formatPointer(segments.slice(0, i + 1)),
         );
       }
+
+      const index = parseInt(segment, 10);
 
       if (index >= current.length) {
         throw new JsonPointerError(
@@ -204,13 +216,13 @@ export function set(
     }
 
     if (Array.isArray(current)) {
-      const index = parseInt(segment, 10);
-      if (isNaN(index) || index < 0 || !Number.isInteger(index)) {
+      if (!isValidArrayIndex(segment)) {
         throw new JsonPointerError(
-          `Invalid array index '${segment}': must be non-negative integer`,
+          `Invalid array index '${segment}': must be non-negative integer without leading zeros`,
           formatPointer(segments.slice(0, i + 1)),
         );
       }
+      const index = parseInt(segment, 10);
       if (index >= current.length) {
         throw new JsonPointerError(
           `Array index ${index} out of bounds (array length: ${current.length})`,
@@ -241,13 +253,13 @@ export function set(
       // Special case: append to array
       current.push(value);
     } else {
-      const index = parseInt(lastSegment, 10);
-      if (isNaN(index) || index < 0 || !Number.isInteger(index)) {
+      if (!isValidArrayIndex(lastSegment)) {
         throw new JsonPointerError(
-          `Invalid array index '${lastSegment}': must be non-negative integer`,
+          `Invalid array index '${lastSegment}': must be non-negative integer without leading zeros`,
           pointer,
         );
       }
+      const index = parseInt(lastSegment, 10);
       if (index > current.length) {
         throw new JsonPointerError(
           `Array index ${index} out of bounds for assignment (array length: ${current.length})`,

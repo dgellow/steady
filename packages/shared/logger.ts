@@ -182,6 +182,12 @@ export class RequestLogger {
     const filtered: string[] = [];
     const sensitive = ["authorization", "cookie", "x-api-key"];
 
+    // Count total headers first (Headers doesn't have a size property)
+    let totalHeaderCount = 0;
+    headers.forEach(() => {
+      totalHeaderCount++;
+    });
+
     headers.forEach((value, key) => {
       if (sensitive.includes(key.toLowerCase())) {
         filtered.push(`${key}: ${DIM}(hidden)${RESET}`);
@@ -193,9 +199,11 @@ export class RequestLogger {
       }
     });
 
-    if (headers.forEach.length > filtered.length && this.logLevel !== "full") {
+    // BUG FIX: headers.forEach.length was returning 1 (function arity),
+    // not the actual header count. Now using totalHeaderCount.
+    if (totalHeaderCount > filtered.length && this.logLevel !== "full") {
       filtered.push(
-        `${DIM}...and ${headers.forEach.length - filtered.length} more${RESET}`,
+        `${DIM}...and ${totalHeaderCount - filtered.length} more${RESET}`,
       );
     }
 
