@@ -49,8 +49,14 @@ export class SchemaAnalyzer implements Analyzer {
   analyze(registry: SchemaRegistry): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
-    // Check all schemas for ref siblings
-    diagnostics.push(...this.checkRefSiblings(registry));
+    // Check OpenAPI version - in 3.1.x, $ref siblings ARE processed (not ignored)
+    const openapiVersion = this.getOpenAPIVersion(registry);
+    const is31 = openapiVersion?.startsWith("3.1.") ?? false;
+
+    // Check all schemas for ref siblings (only warn for 3.0.x where they're ignored)
+    if (!is31) {
+      diagnostics.push(...this.checkRefSiblings(registry));
+    }
 
     // Check complexity and nesting
     const { complexity, maxNesting } = this.analyzeComplexity(registry);
@@ -177,6 +183,20 @@ export class SchemaAnalyzer implements Analyzer {
     analyze(document, 0);
 
     return { complexity, maxNesting };
+  }
+
+  /**
+   * Get the OpenAPI version from the document
+   */
+  private getOpenAPIVersion(registry: SchemaRegistry): string | undefined {
+    const doc = registry.document;
+    if (typeof doc === "object" && doc !== null && "openapi" in doc) {
+      const version = (doc as Record<string, unknown>).openapi;
+      if (typeof version === "string") {
+        return version;
+      }
+    }
+    return undefined;
   }
 }
 
