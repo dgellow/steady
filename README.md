@@ -100,6 +100,20 @@ In `--strict` mode (default), requests are validated against:
 
 Invalid requests return 400 with validation errors. In `--relaxed` mode, validation errors are logged but responses are still returned.
 
+### Per-Request Mode Override
+
+Use the `X-Steady-Mode` header to override the server's validation mode for individual requests:
+
+```bash
+# Force strict validation on a relaxed server
+curl -H "X-Steady-Mode: strict" http://localhost:3000/users
+
+# Force relaxed validation on a strict server
+curl -H "X-Steady-Mode: relaxed" http://localhost:3000/users
+```
+
+The response includes `X-Steady-Mode` header confirming which mode was used.
+
 ## Special Endpoints
 
 - `GET /_x-steady/health` - Health check with schema stats

@@ -279,6 +279,9 @@ export class MockServer {
       return this.handleSpec();
     }
 
+    // Determine effective mode: header override or server default
+    const effectiveMode = this.getEffectiveMode(req);
+
     try {
       const { operation, statusCode, pathPattern, pathParams } = this
         .findOperation(path, method);
@@ -295,7 +298,7 @@ export class MockServer {
       this.logger.logRequest(req, path, method, validation);
 
       // If validation failed in strict mode, return error
-      if (!validation.valid && this.config.mode === "strict") {
+      if (!validation.valid && effectiveMode === "strict") {
         const timing = Math.round(performance.now() - startTime);
         this.logger.logResponse(400, timing, validation);
 
@@ -306,7 +309,10 @@ export class MockServer {
           }),
           {
             status: 400,
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "X-Steady-Mode": effectiveMode,
+            },
           },
         );
       }
@@ -322,7 +328,8 @@ export class MockServer {
       const timing = Math.round(performance.now() - startTime);
       this.logger.logResponse(parseInt(statusCode), timing, validation);
 
-      return response;
+      // Add mode header to response
+      return this.addModeHeader(response, effectiveMode);
     } catch (error) {
       const timing = Math.round(performance.now() - startTime);
 
@@ -680,5 +687,31 @@ export class MockServer {
    */
   private escapePointer(path: string): string {
     return path.replace(/~/g, "~0").replace(/\//g, "~1");
+  }
+
+  /**
+   * Get effective validation mode for a request.
+   * X-Steady-Mode header overrides server default.
+   */
+  private getEffectiveMode(req: Request): "strict" | "relaxed" {
+    const headerValue = req.headers.get("X-Steady-Mode");
+    if (headerValue === "strict" || headerValue === "relaxed") {
+      return headerValue;
+    }
+    return this.config.mode;
+  }
+
+  /**
+   * Add X-Steady-Mode header to a response.
+   * Creates a new Response since headers are immutable.
+   */
+  private addModeHeader(response: Response, mode: "strict" | "relaxed"): Response {
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set("X-Steady-Mode", mode);
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    });
   }
 }
