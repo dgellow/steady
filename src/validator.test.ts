@@ -428,37 +428,47 @@ Deno.test("Validator: rejects invalid content-length header", async () => {
 });
 
 // =============================================================================
-// GET/HEAD should not validate body
+// GET/HEAD with body (validate if spec defines it)
 // =============================================================================
 
-Deno.test("Validator: ignores body for GET requests", async () => {
+Deno.test("Validator: validates body for GET if spec defines it", async () => {
   const validator = new RequestValidator("strict");
   const operation = operationWithBody({
-    required: true, // Even though required, GET should ignore
-    schema: { type: "object" },
+    required: true,
+    schema: {
+      type: "object",
+      required: ["query"],
+      properties: { query: { type: "string" } },
+    },
   });
 
-  const req = mockRequest("http://localhost/test", {
+  // Missing required body
+  const req1 = mockRequest("http://localhost/test", { method: "GET" });
+  const result1 = await validator.validateRequest(req1, operation, "/test", {});
+  assertEquals(result1.valid, false);
+
+  // Valid body
+  const req2 = mockRequest("http://localhost/test", {
     method: "GET",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: "search term" }),
   });
-  const result = await validator.validateRequest(req, operation, "/test", {});
-
-  assertEquals(result.valid, true);
+  const result2 = await validator.validateRequest(req2, operation, "/test", {});
+  assertEquals(result2.valid, true);
 });
 
-Deno.test("Validator: ignores body for HEAD requests", async () => {
+Deno.test("Validator: validates body for HEAD if spec defines it", async () => {
   const validator = new RequestValidator("strict");
   const operation = operationWithBody({
     required: true,
     schema: { type: "object" },
   });
 
-  const req = mockRequest("http://localhost/test", {
-    method: "HEAD",
-  });
+  // Missing required body
+  const req = mockRequest("http://localhost/test", { method: "HEAD" });
   const result = await validator.validateRequest(req, operation, "/test", {});
 
-  assertEquals(result.valid, true);
+  assertEquals(result.valid, false);
 });
 
 // =============================================================================

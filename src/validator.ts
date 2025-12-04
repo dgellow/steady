@@ -119,9 +119,9 @@ export class RequestValidator {
       warnings.push(...headerValidation.warnings);
     }
 
-    // Validate request body
+    // Validate request body (if spec defines one, validate it regardless of HTTP method)
     const requestBody = getResolvedRequestBody(operation.requestBody);
-    if (requestBody && req.method !== "GET" && req.method !== "HEAD") {
+    if (requestBody) {
       const bodyValidation = await this.validateRequestBodyFromRequest(
         req,
         requestBody,
