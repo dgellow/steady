@@ -312,11 +312,3 @@ Steady is built to be the world's best OpenAPI mock server:
 - **Zero crashes** - Bulletproof reliability in CI and production environments
 - **Developer experience** - Error messages so good they eliminate debugging
   time
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details
-
-## Acknowledgments
-
-Built with [Deno](https://deno.land/) for a modern, secure runtime experience.
