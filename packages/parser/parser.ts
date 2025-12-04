@@ -169,11 +169,18 @@ async function validateOpenAPISpec(
       });
     }
 
-    if (typeof info.version !== "string") {
+    // Handle version - YAML may parse date-like versions (e.g., "2022-11-15") as Date objects
+    if (info.version === undefined || info.version === null) {
       addError("Missing API version", {
         reason: "The info object must have a 'version' field indicating the API version",
         suggestion: "Add a version to your info object",
       });
+    } else if (info.version instanceof Date) {
+      // Coerce Date to ISO date string (common for date-based API versions)
+      info.version = info.version.toISOString().split("T")[0];
+    } else if (typeof info.version !== "string") {
+      // Convert other types to string
+      info.version = String(info.version);
     }
   }
 

@@ -1,3 +1,6 @@
 [submodule "packages/json-schema/test-suite"]
 	path = packages/json-schema/test-suite
 	url = https://github.com/json-schema-org/JSON-Schema-Test-Suite.git
+[submodule "test-fixtures/openapi-directory"]
+	path = test-fixtures/openapi-directory
+	url = https://github.com/APIs-guru/openapi-directory.git
