@@ -7,11 +7,12 @@ clear error attribution (SDK bug vs spec issue).
 
 ```bash
 # ALWAYS use deno task, never raw deno commands
-deno task test              # Run all tests (189 tests)
+deno task test              # Run all tests (195 tests)
 deno task test:watch        # Watch mode
 deno task test:json-schema  # JSON Schema package only
 deno task test:parser       # Parser package only
 deno task test:json-pointer # JSON Pointer package only
+deno task test:specs        # Test against 1970 real-world OpenAPI specs
 deno task check             # Type check
 deno task lint              # Lint
 deno task fmt               # Format
@@ -44,8 +45,12 @@ steady/
 │   │   └── parser.ts          # YAML/JSON parsing
 │   └── shared/                # Common utilities
 │       └── logger.ts          # Request logging
-└── tests/edge-cases/          # Edge case tests
+├── tests/edge-cases/          # Edge case tests
+└── test-fixtures/
+    └── openapi-directory/     # Git submodule: 1970 real-world specs (99.5% pass)
 ```
+
+**Submodule**: Run `git submodule update --init` to fetch test fixtures.
 
 ## Key Technical Details
 
