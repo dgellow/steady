@@ -72,9 +72,8 @@ const schemaKeyCache = new Map<string, SchemaValidator>();
 const MAX_KEY_CACHE_SIZE = 1000;
 
 export class RequestValidator {
-  constructor(
-    private mode: "strict" | "relaxed",
-  ) {}
+  // Mode is not used here - the server decides whether to reject based on effective mode
+  // (which can be overridden per-request via X-Steady-Mode header)
 
   async validateRequest(
     req: Request,
@@ -175,19 +174,14 @@ export class RequestValidator {
       }
     }
 
-    // Check for unknown parameters in strict mode
+    // Check for unknown parameters - reported as errors, server decides based on effective mode
     const knownParams = new Set(paramSpecs.map((p) => p.name));
     for (const [key] of params) {
       if (!knownParams.has(key)) {
-        const error: ValidationError = {
+        errors.push({
           path: `query.${key}`,
           message: "Unknown parameter",
-        };
-        if (this.mode === "strict") {
-          errors.push(error);
-        } else {
-          warnings.push(error);
-        }
+        });
       }
     }
 
@@ -519,19 +513,16 @@ export class RequestValidator {
   }
 
   /**
-   * Collect validation errors based on mode
+   * Collect validation errors - always as errors, not warnings.
+   * The server decides whether to reject based on effective mode (including per-request override).
    */
   private collectErrors(
     validation: ValidationResult,
     errors: ValidationError[],
-    warnings: ValidationError[],
+    _warnings: ValidationError[],
   ): void {
     if (!validation.valid) {
-      if (this.mode === "strict") {
-        errors.push(...validation.errors);
-      } else {
-        warnings.push(...validation.errors);
-      }
+      errors.push(...validation.errors);
     }
   }
 

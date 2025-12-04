@@ -87,7 +87,7 @@ export class MockServer {
       this.logger = new RequestLogger(config.logLevel, config.logBodies);
     }
 
-    this.validator = new RequestValidator(config.mode);
+    this.validator = new RequestValidator();
 
     // Pre-compile all path patterns at construction time
     this.compileRoutes();
