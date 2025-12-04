@@ -53,6 +53,68 @@ Deno.test("resolveReference - throws for non-existent references", () => {
   );
 });
 
+Deno.test("resolveReference - handles percent-encoded URI fragments", () => {
+  // OpenAPI specs may have paths with special characters like {id}
+  // When these are used in $ref values, they may be percent-encoded
+  const doc = {
+    paths: {
+      "/users/{userId}": {
+        get: {
+          responses: {
+            200: { description: "OK", schema: { type: "object" } },
+          },
+        },
+      },
+    },
+  };
+
+  // Reference using percent-encoded braces: %7B = { and %7D = }
+  const resolved = resolveReference(
+    doc,
+    "#/paths/~1users~1%7BuserId%7D/get/responses/200",
+  );
+
+  assertEquals(resolved, { description: "OK", schema: { type: "object" } });
+});
+
+Deno.test("resolveReference - handles multiple percent-encoded characters", () => {
+  const doc = {
+    paths: {
+      "/api/v1/{country}/{name}": {
+        get: {
+          summary: "Search by country and name",
+        },
+      },
+    },
+  };
+
+  // Full percent-encoding of the path
+  const resolved = resolveReference(
+    doc,
+    "#/paths/~1api~1v1~1%7Bcountry%7D~1%7Bname%7D/get",
+  );
+
+  assertEquals(resolved, { summary: "Search by country and name" });
+});
+
+Deno.test("resolveReference - handles spaces in percent-encoded paths", () => {
+  const doc = {
+    components: {
+      schemas: {
+        "User Profile": { type: "object" },
+      },
+    },
+  };
+
+  // Space encoded as %20
+  const resolved = resolveReference(
+    doc,
+    "#/components/schemas/User%20Profile",
+  );
+
+  assertEquals(resolved, { type: "object" });
+});
+
 Deno.test("resolveReference - detects circular references", () => {
   const doc = {
     definitions: {
