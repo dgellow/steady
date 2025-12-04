@@ -48,15 +48,36 @@ attribution.
 
 ```
 steady/
-├── cli.ts           # CLI entry point
-├── server.ts        # HTTP server implementation
-├── parser.ts        # OpenAPI spec parser
-├── matcher.ts       # Request/route matcher
-├── responder.ts     # Response generator
-├── validator.ts     # Request/response validator
-├── errors.ts        # Custom error types with helpful messages
-├── types.ts         # TypeScript type definitions
-└── tests/           # Comprehensive test suite
+├── cmd/                    # CLI entry points
+│   └── steady.ts           # Main CLI
+├── src/                    # Main server implementation
+│   ├── server.ts           # HTTP server and request handling
+│   ├── validator.ts        # Request/response validation
+│   ├── errors.ts           # Error types with helpful messages
+│   ├── types.ts            # TypeScript type definitions
+│   └── diagnostics/        # Diagnostic collection
+├── packages/
+│   ├── json-pointer/       # RFC 6901 JSON Pointer implementation
+│   │   ├── json-pointer.ts # Core pointer operations (resolve, set, escape)
+│   │   ├── rfc6901-validator.ts # Strict RFC 6901 syntax validation
+│   │   └── resolver.ts     # Document-centric reference resolver
+│   ├── json-schema/        # JSON Schema 2020-12 processor
+│   │   ├── processor.ts    # Schema analysis and indexing
+│   │   ├── runtime-validator.ts # Fast runtime data validation
+│   │   ├── response-generator.ts # Mock response generation
+│   │   ├── ref-resolver.ts # $ref resolution with URI fragment support
+│   │   └── types.ts        # Schema type definitions
+│   ├── parser/             # OpenAPI 3.x spec parser
+│   │   ├── parser.ts       # YAML/JSON parsing with error context
+│   │   └── openapi.ts      # OpenAPI structure validation
+│   └── shared/             # Common utilities
+│       ├── logger.ts       # Request/response logging
+│       └── types.ts        # Shared type definitions
+├── tests/                  # Integration and edge-case tests
+│   └── edge-cases/         # Malformed specs, infinite loops, etc.
+├── scripts/                # Development scripts
+│   └── bootstrap           # Project setup script
+└── deno.json               # Deno configuration and tasks
 ```
 
 ## Core Features
@@ -257,6 +278,50 @@ export class SteadyError extends Error {
 - Integration tests for common scenarios
 - Property-based tests for parser
 - Benchmarks for performance-critical paths
+
+## Development Commands
+
+**IMPORTANT**: Always use `deno task` commands, not raw `deno` commands. The task
+commands include necessary permissions (`--allow-read --allow-write --allow-net
+--allow-env`).
+
+```bash
+# Run all tests (CORRECT way)
+deno task test
+
+# Run tests with watch mode
+deno task test:watch
+
+# Run specific package tests
+deno task test:json-schema
+deno task test:parser
+deno task test:json-pointer
+
+# Run integration/edge-case tests
+deno task test:integration
+deno task test:edge-cases
+
+# Run JSON Schema test suite
+deno task test:suite
+
+# Start development server with auto-reload
+deno task dev
+
+# Start production server
+deno task start
+
+# Type checking
+deno task check
+
+# Linting
+deno task lint
+
+# Format code
+deno task fmt
+```
+
+**WARNING**: Running `deno test` directly (without `deno task`) will fail because
+it lacks the required permissions. Always use `deno task test`.
 
 ## Example Usage
 
