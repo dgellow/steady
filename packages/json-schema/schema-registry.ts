@@ -56,6 +56,10 @@ export class SchemaRegistry {
   /**
    * Resolve a JSON Pointer against the document.
    * This ALWAYS works for valid pointers because document is the root.
+   *
+   * Handles URI fragment percent-encoding per RFC 3986.
+   * When JSON Pointers are used as URI fragments (e.g., #/paths/~1users~1%7Bid%7D),
+   * they may be percent-encoded. We decode before applying JSON Pointer resolution.
    */
   resolve(pointer: string): unknown {
     if (pointer === "#" || pointer === "") {
@@ -63,7 +67,10 @@ export class SchemaRegistry {
     }
 
     // Handle #/path/to/schema format
-    const path = pointer.startsWith("#") ? pointer.slice(1) : pointer;
+    // Percent-decode for URI fragment compatibility (RFC 3986)
+    const path = pointer.startsWith("#")
+      ? decodeURIComponent(pointer.slice(1))
+      : decodeURIComponent(pointer);
 
     try {
       return resolvePointer(this.document, path);

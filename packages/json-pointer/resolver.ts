@@ -12,6 +12,10 @@ export interface ReferenceContext {
 
 /**
  * Resolve an OpenAPI reference object
+ *
+ * Handles URI fragment percent-encoding per RFC 3986.
+ * When JSON Pointers are used as URI fragments (e.g., #/paths/~1users~1%7Bid%7D),
+ * they may be percent-encoded. We decode before applying JSON Pointer resolution.
  */
 export function resolveReference(
   document: unknown,
@@ -19,14 +23,16 @@ export function resolveReference(
   context?: ReferenceContext,
 ): unknown {
   // For now, only handle internal references (JSON Pointers)
-  if (!ref.startsWith("#/")) {
+  if (!ref.startsWith("#/") && ref !== "#") {
     throw new JsonPointerError(
       "External references not supported yet",
       ref,
     );
   }
 
-  const pointer = ref.slice(1); // Remove "#"
+  // Remove "#" and percent-decode the URI fragment
+  // Per RFC 3986, URI fragments may be percent-encoded
+  const pointer = decodeURIComponent(ref.slice(1));
 
   if (!exists(document, pointer)) {
     throw new JsonPointerError(
