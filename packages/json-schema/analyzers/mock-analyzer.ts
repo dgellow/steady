@@ -12,6 +12,37 @@ import type { Diagnostic, DiagnosticCode } from "../diagnostics/types.ts";
 import { getAttribution } from "../diagnostics/attribution.ts";
 
 /**
+ * Content types that typically don't have schemas (binary, non-JSON)
+ */
+const BINARY_CONTENT_TYPES = new Set([
+  "application/octet-stream",
+  "application/pdf",
+  "application/zip",
+  "application/gzip",
+  "application/x-tar",
+  "application/x-protobuf",
+  "application/x-protobuffer",
+  "application/graphql",
+  "application/xml",
+  "text/xml",
+  "text/plain",
+  "text/html",
+  "text/csv",
+]);
+
+/**
+ * Check if content type is binary/non-structured
+ */
+function isBinaryContentType(contentType: string): boolean {
+  if (BINARY_CONTENT_TYPES.has(contentType)) return true;
+  if (contentType.startsWith("image/")) return true;
+  if (contentType.startsWith("audio/")) return true;
+  if (contentType.startsWith("video/")) return true;
+  if (contentType.startsWith("font/")) return true;
+  return false;
+}
+
+/**
  * Analyzes mock server readiness
  */
 export class MockAnalyzer implements Analyzer {
@@ -67,6 +98,11 @@ export class MockAnalyzer implements Analyzer {
 
             // Check for schema
             if (!mediaObj.schema) {
+              // Skip binary content types - they typically don't have schemas
+              if (isBinaryContentType(contentType)) {
+                continue;
+              }
+
               diagnostics.push({
                 code: "mock-no-schema",
                 severity: "warning",
@@ -78,28 +114,31 @@ export class MockAnalyzer implements Analyzer {
               continue;
             }
 
-            // Check for example/examples
-            const hasExample = mediaObj.example !== undefined;
-            const hasExamples = mediaObj.examples &&
-              typeof mediaObj.examples === "object" &&
-              Object.keys(mediaObj.examples as object).length > 0;
+            // Check for example/examples (only for JSON-like content)
+            // Use hint severity - missing examples are very common and not critical
+            if (!isBinaryContentType(contentType)) {
+              const hasExample = mediaObj.example !== undefined;
+              const hasExamples = mediaObj.examples &&
+                typeof mediaObj.examples === "object" &&
+                Object.keys(mediaObj.examples as object).length > 0;
 
-            // Also check schema-level example
-            const schema = mediaObj.schema as Record<string, unknown> | undefined;
-            const schemaHasExample = schema && (
-              schema.example !== undefined ||
-              (Array.isArray(schema.examples) && schema.examples.length > 0)
-            );
+              // Also check schema-level example
+              const schema = mediaObj.schema as Record<string, unknown> | undefined;
+              const schemaHasExample = schema && (
+                schema.example !== undefined ||
+                (Array.isArray(schema.examples) && schema.examples.length > 0)
+              );
 
-            if (!hasExample && !hasExamples && !schemaHasExample) {
-              diagnostics.push({
-                code: "mock-no-example",
-                severity: "info",
-                pointer,
-                message: `No example provided - will generate from schema`,
-                attribution: getAttribution("mock-no-example"),
-                suggestion: "Add an example for more realistic mock responses",
-              });
+              if (!hasExample && !hasExamples && !schemaHasExample) {
+                diagnostics.push({
+                  code: "mock-no-example",
+                  severity: "hint",
+                  pointer,
+                  message: `No example provided - will generate from schema`,
+                  attribution: getAttribution("mock-no-example"),
+                  suggestion: "Add an example for more realistic mock responses",
+                });
+              }
             }
           }
         }
