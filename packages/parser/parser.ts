@@ -181,16 +181,33 @@ async function validateOpenAPISpec(
     }
   }
 
-  // Validate paths object
-  if (!s.paths || typeof s.paths !== "object" || Array.isArray(s.paths)) {
-    addError("Missing paths object", {
-      reason: "OpenAPI spec must have a 'paths' object defining the API endpoints",
-      suggestion: "Add a 'paths' object with your API endpoints",
-    });
-  }
-
   // OpenAPI 3.1-specific field validation
   const is31 = version?.startsWith("3.1.") ?? false;
+
+  // Validate paths object
+  // In 3.0.x: paths is required
+  // In 3.1.x: paths is optional if webhooks or components exists
+  const hasPaths = s.paths && typeof s.paths === "object" && !Array.isArray(s.paths);
+  const hasWebhooks = s.webhooks && typeof s.webhooks === "object" && !Array.isArray(s.webhooks);
+  const hasComponents = s.components && typeof s.components === "object" && !Array.isArray(s.components);
+
+  if (!hasPaths) {
+    if (is31) {
+      // OpenAPI 3.1: need at least one of paths, webhooks, or components
+      if (!hasWebhooks && !hasComponents) {
+        addError("Missing paths, webhooks, or components", {
+          reason: "OpenAPI 3.1 spec must have at least one of: paths, webhooks, or components",
+          suggestion: "Add a 'paths' object with your API endpoints, or 'webhooks' for webhook definitions",
+        });
+      }
+    } else {
+      // OpenAPI 3.0.x: paths is required
+      addError("Missing paths object", {
+        reason: "OpenAPI 3.0.x spec must have a 'paths' object defining the API endpoints",
+        suggestion: "Add a 'paths' object with your API endpoints",
+      });
+    }
+  }
   const has31Fields = s.jsonSchemaDialect !== undefined ||
                       s.webhooks !== undefined ||
                       (s.components && typeof s.components === "object" &&
