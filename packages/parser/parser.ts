@@ -27,16 +27,18 @@ export function parseSpec(
   const format = options.format ?? "auto";
 
   // Parse content based on format
+  // Use "json" schema to prevent YAML from auto-converting date-like strings to Date objects
+  // This ensures "2022-11-15" stays as a string, not a Date
   let spec: unknown;
   try {
     if (format === "json") {
       spec = JSON.parse(content);
     } else if (format === "yaml") {
-      spec = parseYAML(content);
+      spec = parseYAML(content, { schema: "json" });
     } else {
       // Auto-detect: try YAML first (superset of JSON), then JSON
       try {
-        spec = parseYAML(content);
+        spec = parseYAML(content, { schema: "json" });
       } catch {
         spec = JSON.parse(content);
       }
@@ -169,18 +171,13 @@ async function validateOpenAPISpec(
       });
     }
 
-    // Handle version - YAML may parse date-like versions (e.g., "2022-11-15") as Date objects
-    if (info.version === undefined || info.version === null) {
+    // Validate version field
+    // Note: Using schema:"json" in YAML parser prevents date-like strings from being converted to Date
+    if (typeof info.version !== "string") {
       addError("Missing API version", {
         reason: "The info object must have a 'version' field indicating the API version",
         suggestion: "Add a version to your info object",
       });
-    } else if (info.version instanceof Date) {
-      // Coerce Date to ISO date string (common for date-based API versions)
-      info.version = info.version.toISOString().split("T")[0];
-    } else if (typeof info.version !== "string") {
-      // Convert other types to string
-      info.version = String(info.version);
     }
   }
 
