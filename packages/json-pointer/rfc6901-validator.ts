@@ -122,6 +122,18 @@ export function validateRef(ref: string): ValidationResult {
     };
   }
 
+  // Check for backslashes (Windows path separator) - do this early
+  // Applies to all refs including anchor references
+  if (ref.includes("\\")) {
+    return {
+      valid: false,
+      error: "Backslashes are not valid in JSON Pointers per RFC 6901",
+      suggestion: `Replace backslashes with forward slashes: "${ref}" → "${
+        ref.replace(/\\/g, "/")
+      }"`,
+    };
+  }
+
   // Check for missing hash (external refs are different)
   if (!ref.startsWith("#") && !ref.includes("://") && !ref.includes("/")) {
     return {
@@ -161,17 +173,6 @@ export function validateRef(ref: string): ValidationResult {
       valid: false,
       error: "Relative file path references are not supported",
       suggestion: "Include the schema directly in your document using $defs",
-    };
-  }
-
-  // Check for backslashes (Windows path separator)
-  if (ref.includes("\\")) {
-    return {
-      valid: false,
-      error: "Backslashes are not valid in JSON Pointers per RFC 6901",
-      suggestion: `Replace backslashes with forward slashes: "${ref}" → "${
-        ref.replace(/\\/g, "/")
-      }"`,
     };
   }
 

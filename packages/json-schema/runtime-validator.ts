@@ -436,14 +436,23 @@ export class RuntimeValidator {
 
   /**
    * Safe regex test with timeout protection
+   *
+   * Security principles:
+   * - Invalid regex patterns MUST fail validation (not silently pass)
+   * - Strings too long for safe testing MUST fail validation (not silently pass)
+   * - Slow patterns are logged but still executed (performance monitoring only)
+   *
+   * Per the "fail loudly" principle: When in doubt, reject.
+   * Silent acceptance of invalid patterns is a security vulnerability.
    */
   private safeRegexTest(pattern: string, value: string): boolean {
     // Reject extremely long strings to prevent ReDoS
+    // IMPORTANT: Fail validation (return false), don't silently pass
     if (value.length > MAX_REGEX_STRING_LENGTH) {
       console.warn(
-        `String too long for regex validation: ${value.length} chars`,
+        `String too long for regex validation: ${value.length} chars exceeds limit of ${MAX_REGEX_STRING_LENGTH}. Failing validation.`,
       );
-      return true; // Pass validation for extremely long strings
+      return false; // FAIL validation for extremely long strings
     }
 
     try {
@@ -461,9 +470,15 @@ export class RuntimeValidator {
       }
 
       return result;
-    } catch {
-      // Invalid regex - should be caught during schema processing
-      return true;
+    } catch (error) {
+      // Invalid regex pattern - this is a schema error
+      // IMPORTANT: Fail validation (return false), don't silently pass
+      console.warn(
+        `Invalid regex pattern "${pattern}": ${
+          error instanceof Error ? error.message : String(error)
+        }. Failing validation.`,
+      );
+      return false; // FAIL validation for invalid regex patterns
     }
   }
 

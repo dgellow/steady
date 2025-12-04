@@ -277,6 +277,14 @@ export class RequestValidator {
     const contentLength = req.headers.get("content-length");
     if (contentLength) {
       const size = parseInt(contentLength, 10);
+      // Check for NaN (malformed header), negative values, and exceeding limit
+      if (isNaN(size) || size < 0) {
+        errors.push({
+          path: "body",
+          message: `Invalid Content-Length header: "${contentLength}" is not a valid non-negative integer`,
+        });
+        return { valid: false, errors, warnings };
+      }
       if (size > MAX_BODY_SIZE) {
         errors.push({
           path: "body",

@@ -624,8 +624,26 @@ export class MockServer {
       "X-Steady-Example-Source": body !== null ? "generated" : "none",
     });
 
+    // Safely stringify body - handle circular references and non-serializable values
+    let bodyString: string | null = null;
+    if (body !== null) {
+      try {
+        bodyString = JSON.stringify(body, null, 2);
+      } catch (error) {
+        // Handle non-serializable values (circular refs, BigInt, etc.)
+        const errorMessage = error instanceof Error ? error.message : "Unknown serialization error";
+        console.error(`[Steady] Failed to serialize response body: ${errorMessage}`);
+        bodyString = JSON.stringify({
+          error: "Response serialization failed",
+          reason: errorMessage,
+          hint: "The generated response contains non-serializable values (circular references, BigInt, etc.)",
+        }, null, 2);
+        headers.set("X-Steady-Serialization-Error", "true");
+      }
+    }
+
     return new Response(
-      body !== null ? JSON.stringify(body, null, 2) : null,
+      bodyString,
       {
         status: parseInt(statusCode),
         headers,
