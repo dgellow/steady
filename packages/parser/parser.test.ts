@@ -206,8 +206,8 @@ Deno.test("parseSpec - info validation", async (t) => {
 });
 
 Deno.test("parseSpec - paths validation", async (t) => {
-  await t.step("throws when paths is missing", async () => {
-    const spec = { openapi: "3.1.0", info: { title: "Test", version: "1.0.0" } };
+  await t.step("throws when paths is missing in OpenAPI 3.0", async () => {
+    const spec = { openapi: "3.0.0", info: { title: "Test", version: "1.0.0" } };
     await assertRejects(
       async () => await parseSpec(json(spec)),
       ValidationError,
@@ -215,8 +215,43 @@ Deno.test("parseSpec - paths validation", async (t) => {
     );
   });
 
+  await t.step("throws when paths is missing in OpenAPI 3.1 without webhooks", async () => {
+    const spec = { openapi: "3.1.0", info: { title: "Test", version: "1.0.0" } };
+    await assertRejects(
+      async () => await parseSpec(json(spec)),
+      ValidationError,
+      "Missing paths, webhooks, or components",
+    );
+  });
+
+  await t.step("accepts OpenAPI 3.1 with webhooks but no paths", async () => {
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "Test", version: "1.0.0" },
+      webhooks: {
+        newOrder: {
+          post: { summary: "New order webhook" },
+        },
+      },
+    };
+    const result = await parseSpec(json(spec));
+    assertEquals(result.webhooks?.newOrder?.post?.summary, "New order webhook");
+  });
+
+  await t.step("accepts OpenAPI 3.1 with components but no paths", async () => {
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "Test", version: "1.0.0" },
+      components: {
+        schemas: { User: { type: "object" } },
+      },
+    };
+    const result = await parseSpec(json(spec));
+    assertEquals(result.components?.schemas?.User?.type, "object");
+  });
+
   await t.step("throws when paths is not an object", async () => {
-    const spec = { openapi: "3.1.0", info: { title: "Test", version: "1.0.0" }, paths: [] };
+    const spec = { openapi: "3.0.0", info: { title: "Test", version: "1.0.0" }, paths: [] };
     await assertRejects(
       async () => await parseSpec(json(spec)),
       ValidationError,
