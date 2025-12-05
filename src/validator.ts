@@ -1,12 +1,11 @@
 /**
- * Request Validator - Enterprise-scale validation using JSON Schema processor
+ * Request Validator - Document-aware validation using SchemaRegistry
  *
- * Integrates the @steady/json-schema processor to provide:
- * - Complete JSON Schema 2020-12 validation
- * - Error attribution (SDK vs spec issues)
+ * Uses the document-centric architecture for proper $ref resolution:
+ * - All $refs resolve against the full OpenAPI document
+ * - No isolated schema processing
  * - Request body validation with size limits
  * - Path parameter extraction and validation
- * - Enterprise-scale performance with schema caching
  */
 
 import type { ValidationIssue } from "./types.ts";
@@ -21,9 +20,9 @@ import type {
   SchemaObject,
 } from "@steady/parser";
 import {
-  JsonSchemaProcessor,
+  RegistryValidator,
   type Schema,
-  SchemaValidator,
+  type SchemaRegistry,
 } from "@steady/json-schema";
 
 /**
@@ -63,23 +62,20 @@ function getSchemaType(
 /** Maximum request body size (10MB) to prevent DoS attacks */
 const MAX_BODY_SIZE = 10 * 1024 * 1024;
 
-/** Cache for processed schemas using schema identity */
-const schemaCache = new WeakMap<object, SchemaValidator>();
-
-/** Cache for schemas by JSON key (for primitive schemas) */
-const schemaKeyCache = new Map<string, SchemaValidator>();
-
-/** Maximum entries in key cache to prevent memory leaks */
-const MAX_KEY_CACHE_SIZE = 1000;
-
 /**
  * Validates incoming requests against OpenAPI operation specifications.
  *
+ * Uses the document-centric SchemaRegistry for proper $ref resolution.
  * The validator always reports all issues found as errors. The server decides
  * whether to reject requests based on the effective mode (strict/relaxed),
  * which can be overridden per-request via the X-Steady-Mode header.
  */
 export class RequestValidator {
+  private validator: RegistryValidator;
+
+  constructor(registry: SchemaRegistry) {
+    this.validator = new RegistryValidator(registry);
+  }
 
   async validateRequest(
     req: Request,
@@ -171,7 +167,7 @@ export class RequestValidator {
           ? values.map((v) => this.parseParamValue(v!, spec.schema!))
           : this.parseParamValue(values[0]!, spec.schema);
 
-        const validation = await this.validateValue(
+        const validation = this.validateValue(
           parsedValue,
           spec.schema as Schema,
           `query.${spec.name}`,
@@ -215,7 +211,7 @@ export class RequestValidator {
           actual: undefined,
         });
       } else if (value !== undefined && spec.schema) {
-        const validation = await this.validateValue(
+        const validation = this.validateValue(
           this.parseParamValue(value, spec.schema),
           spec.schema as Schema,
           `path.${spec.name}`,
@@ -248,7 +244,7 @@ export class RequestValidator {
           actual: undefined,
         });
       } else if (value !== null && spec.schema) {
-        const validation = await this.validateValue(
+        const validation = this.validateValue(
           this.parseParamValue(value, spec.schema),
           spec.schema as Schema,
           `header.${spec.name}`,
@@ -408,7 +404,7 @@ export class RequestValidator {
       return { valid: false, errors, warnings };
     }
 
-    const validation = await this.validateValue(
+    const validation = this.validateValue(
       parsedBody,
       mediaTypeSpec.schema as Schema,
       "body",
@@ -419,57 +415,22 @@ export class RequestValidator {
   }
 
   /**
-   * Validate a value against a JSON Schema using cached processors
+   * Validate a value against a JSON Schema using the document-aware validator
    */
-  private async validateValue(
+  private validateValue(
     value: unknown,
     schema: Schema,
     path: string,
-  ): Promise<ValidationResult> {
-    let validator = this.getValidatorFromCache(schema);
+  ): ValidationResult {
+    // validateData will use path as the base instancePath
+    const result = this.validator.validateData(schema, value, path);
 
-    if (!validator) {
-      try {
-        const processor = new JsonSchemaProcessor();
-        const processResult = await processor.process(schema, {
-          baseUri: "steady://internal/validation",
-        });
-
-        if (!processResult.valid || !processResult.schema) {
-          return {
-            valid: false,
-            errors: processResult.errors.map((err) => ({
-              path,
-              message: `Invalid schema in OpenAPI spec: ${err.message}`,
-              expected: "Valid JSON Schema",
-              actual: schema,
-            })),
-            warnings: [],
-          };
-        }
-
-        validator = new SchemaValidator(processResult.schema);
-        this.setValidatorInCache(schema, validator);
-      } catch (error) {
-        return {
-          valid: false,
-          errors: [{
-            path,
-            message: `Schema processing failed: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          }],
-          warnings: [],
-        };
-      }
-    }
-
-    const result = validator.validate(value);
     const errors: ValidationIssue[] = result.errors.map((err) => ({
-      path: err.instancePath ? `${path}${err.instancePath}` : path,
+      // instancePath already includes the base path, use it directly
+      path: err.instancePath || path,
       message: err.message,
-      expected: err.schema,
-      actual: err.data,
+      expected: err.schemaPath,
+      actual: value,
     }));
 
     return {
@@ -477,45 +438,6 @@ export class RequestValidator {
       errors,
       warnings: [],
     };
-  }
-
-  /**
-   * Get a cached validator for a schema
-   */
-  private getValidatorFromCache(schema: Schema): SchemaValidator | undefined {
-    // Try WeakMap first (for object schemas)
-    if (typeof schema === "object" && schema !== null) {
-      const cached = schemaCache.get(schema);
-      if (cached) return cached;
-    }
-
-    // Fall back to key cache for simple schemas
-    const key = JSON.stringify(schema);
-    return schemaKeyCache.get(key);
-  }
-
-  /**
-   * Cache a validator for a schema
-   */
-  private setValidatorInCache(
-    schema: Schema,
-    validator: SchemaValidator,
-  ): void {
-    // Use WeakMap for object schemas (automatic GC)
-    if (typeof schema === "object" && schema !== null) {
-      schemaCache.set(schema, validator);
-    }
-
-    // Also store in key cache for lookup by equivalent schemas
-    const key = JSON.stringify(schema);
-
-    // Evict oldest entries if cache is full
-    if (schemaKeyCache.size >= MAX_KEY_CACHE_SIZE) {
-      const firstKey = schemaKeyCache.keys().next().value;
-      if (firstKey) schemaKeyCache.delete(firstKey);
-    }
-
-    schemaKeyCache.set(key, validator);
   }
 
   /**

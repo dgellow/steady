@@ -575,8 +575,21 @@ export class RegistryValidator {
     }
 
     this.visited.clear();
-    const errors = this.validateSchema(schema.raw, data, "", pointer);
+    const errors = this.validateSchemaInternal(schema.raw, data, "", pointer);
 
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  }
+
+  /**
+   * Validate data against an inline schema object.
+   * Use this for schemas embedded in parameters/bodies that may contain $refs.
+   */
+  validateData(schema: Schema | boolean, data: unknown, basePath = ""): ValidationResult {
+    this.visited.clear();
+    const errors = this.validateSchemaInternal(schema, data, basePath, "#");
     return {
       valid: errors.length === 0,
       errors,
@@ -586,7 +599,7 @@ export class RegistryValidator {
   /**
    * Validate data against a schema
    */
-  private validateSchema(
+  private validateSchemaInternal(
     schema: Schema | boolean,
     data: unknown,
     instancePath: string,
@@ -628,7 +641,7 @@ export class RegistryValidator {
       }
 
       this.visited.add(ref);
-      const refErrors = this.validateSchema(resolved.raw, data, instancePath, ref);
+      const refErrors = this.validateSchemaInternal(resolved.raw, data, instancePath, ref);
       this.visited.delete(ref);
       errors.push(...refErrors);
 
@@ -775,7 +788,7 @@ export class RegistryValidator {
       // Validate items
       if (schema.items && typeof schema.items === "object" && !Array.isArray(schema.items)) {
         data.forEach((item, index) => {
-          errors.push(...this.validateSchema(
+          errors.push(...this.validateSchemaInternal(
             schema.items as Schema,
             item,
             `${instancePath}/${index}`,
@@ -788,7 +801,7 @@ export class RegistryValidator {
       if (schema.prefixItems) {
         schema.prefixItems.forEach((itemSchema, index) => {
           if (index < data.length) {
-            errors.push(...this.validateSchema(
+            errors.push(...this.validateSchemaInternal(
               itemSchema,
               data[index],
               `${instancePath}/${index}`,
@@ -839,7 +852,7 @@ export class RegistryValidator {
       if (schema.properties) {
         for (const [prop, propSchema] of Object.entries(schema.properties)) {
           if (prop in obj) {
-            errors.push(...this.validateSchema(
+            errors.push(...this.validateSchemaInternal(
               propSchema,
               obj[prop],
               `${instancePath}/${prop}`,
@@ -873,7 +886,7 @@ export class RegistryValidator {
 
         for (const key of keys) {
           if (!defined.has(key)) {
-            errors.push(...this.validateSchema(
+            errors.push(...this.validateSchemaInternal(
               schema.additionalProperties,
               obj[key],
               `${instancePath}/${key}`,
@@ -887,7 +900,7 @@ export class RegistryValidator {
     // Composition: allOf
     if (schema.allOf) {
       for (let i = 0; i < schema.allOf.length; i++) {
-        errors.push(...this.validateSchema(
+        errors.push(...this.validateSchemaInternal(
           schema.allOf[i]!,
           data,
           instancePath,
@@ -899,7 +912,7 @@ export class RegistryValidator {
     // Composition: anyOf
     if (schema.anyOf) {
       const anyOfValid = schema.anyOf.some((subSchema, i) => {
-        const subErrors = this.validateSchema(subSchema, data, instancePath, `${schemaPath}/anyOf/${i}`);
+        const subErrors = this.validateSchemaInternal(subSchema, data, instancePath, `${schemaPath}/anyOf/${i}`);
         return subErrors.length === 0;
       });
       if (!anyOfValid) {
@@ -915,7 +928,7 @@ export class RegistryValidator {
     // Composition: oneOf
     if (schema.oneOf) {
       const matchCount = schema.oneOf.filter((subSchema, i) => {
-        const subErrors = this.validateSchema(subSchema, data, instancePath, `${schemaPath}/oneOf/${i}`);
+        const subErrors = this.validateSchemaInternal(subSchema, data, instancePath, `${schemaPath}/oneOf/${i}`);
         return subErrors.length === 0;
       }).length;
       if (matchCount !== 1) {
@@ -930,7 +943,7 @@ export class RegistryValidator {
 
     // Composition: not
     if (schema.not) {
-      const notErrors = this.validateSchema(schema.not, data, instancePath, `${schemaPath}/not`);
+      const notErrors = this.validateSchemaInternal(schema.not, data, instancePath, `${schemaPath}/not`);
       if (notErrors.length === 0) {
         errors.push({
           instancePath,

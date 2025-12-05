@@ -13,6 +13,18 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { RequestValidator } from "./validator.ts";
 import type { OperationObject } from "@steady/parser";
+import { SchemaRegistry } from "@steady/json-schema";
+
+/** Create a minimal schema registry for unit tests */
+function createTestRegistry(): SchemaRegistry {
+  // For unit tests with inline schemas (no $refs), we just need an empty document
+  return new SchemaRegistry({});
+}
+
+/** Create a validator with a test registry */
+function createValidator(): RequestValidator {
+  return new RequestValidator(createTestRegistry());
+}
 
 type SchemaType = "string" | "number" | "integer" | "boolean" | "object" | "array" | "null";
 
@@ -114,7 +126,7 @@ function mockRequest(
 // =============================================================================
 
 Deno.test("Validator: accepts valid query parameters", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithQueryParams([
     { name: "page", schema: { type: "integer" } },
     { name: "limit", schema: { type: "integer" } },
@@ -128,7 +140,7 @@ Deno.test("Validator: accepts valid query parameters", async () => {
 });
 
 Deno.test("Validator: rejects missing required query parameter", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithQueryParams([
     { name: "page", required: true, schema: { type: "integer" } },
   ]);
@@ -142,7 +154,7 @@ Deno.test("Validator: rejects missing required query parameter", async () => {
 });
 
 Deno.test("Validator: rejects invalid query parameter type", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithQueryParams([
     { name: "page", schema: { type: "integer" } },
   ]);
@@ -155,7 +167,7 @@ Deno.test("Validator: rejects invalid query parameter type", async () => {
 });
 
 Deno.test("Validator: validates query parameter constraints", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithQueryParams([
     { name: "limit", schema: { type: "integer", minimum: 1, maximum: 100 } },
   ]);
@@ -177,7 +189,7 @@ Deno.test("Validator: validates query parameter constraints", async () => {
 });
 
 Deno.test("Validator: strict mode rejects unknown query parameters", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithQueryParams([
     { name: "page", schema: { type: "integer" } },
   ]);
@@ -191,7 +203,7 @@ Deno.test("Validator: strict mode rejects unknown query parameters", async () =>
 
 Deno.test("Validator: unknown query parameters are reported as errors", async () => {
   // Validator always reports issues as errors - server decides whether to reject
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithQueryParams([
     { name: "page", schema: { type: "integer" } },
   ]);
@@ -208,7 +220,7 @@ Deno.test("Validator: unknown query parameters are reported as errors", async ()
 // =============================================================================
 
 Deno.test("Validator: accepts valid path parameters", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithPathParams([
     { name: "id", schema: { type: "integer" } },
   ]);
@@ -222,7 +234,7 @@ Deno.test("Validator: accepts valid path parameters", async () => {
 });
 
 Deno.test("Validator: rejects invalid path parameter type", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithPathParams([
     { name: "id", schema: { type: "integer" } },
   ]);
@@ -237,7 +249,7 @@ Deno.test("Validator: rejects invalid path parameter type", async () => {
 });
 
 Deno.test("Validator: handles string path parameters", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithPathParams([
     { name: "slug", schema: { type: "string" } },
   ]);
@@ -258,7 +270,7 @@ Deno.test("Validator: handles string path parameters", async () => {
 // =============================================================================
 
 Deno.test("Validator: accepts valid headers", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithHeaders([
     { name: "X-API-Key", required: true },
   ]);
@@ -272,7 +284,7 @@ Deno.test("Validator: accepts valid headers", async () => {
 });
 
 Deno.test("Validator: rejects missing required header", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithHeaders([
     { name: "X-API-Key", required: true },
   ]);
@@ -285,7 +297,7 @@ Deno.test("Validator: rejects missing required header", async () => {
 });
 
 Deno.test("Validator: optional header not required", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithHeaders([
     { name: "X-Request-ID", required: false },
   ]);
@@ -301,7 +313,7 @@ Deno.test("Validator: optional header not required", async () => {
 // =============================================================================
 
 Deno.test("Validator: accepts valid request body", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithBody({
     required: true,
     schema: {
@@ -325,7 +337,7 @@ Deno.test("Validator: accepts valid request body", async () => {
 });
 
 Deno.test("Validator: rejects invalid request body", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithBody({
     required: true,
     schema: {
@@ -350,7 +362,7 @@ Deno.test("Validator: rejects invalid request body", async () => {
 });
 
 Deno.test("Validator: rejects wrong content-type", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithBody({
     required: true,
     schema: { type: "object" },
@@ -367,7 +379,7 @@ Deno.test("Validator: rejects wrong content-type", async () => {
 });
 
 Deno.test("Validator: rejects malformed JSON body", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithBody({
     required: true,
     schema: { type: "object" },
@@ -389,7 +401,7 @@ Deno.test("Validator: rejects malformed JSON body", async () => {
 // =============================================================================
 
 Deno.test("Validator: rejects oversized content-length", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithBody({
     required: true,
     schema: { type: "object" },
@@ -410,7 +422,7 @@ Deno.test("Validator: rejects oversized content-length", async () => {
 });
 
 Deno.test("Validator: rejects invalid content-length header", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithBody({
     required: true,
     schema: { type: "object" },
@@ -435,7 +447,7 @@ Deno.test("Validator: rejects invalid content-length header", async () => {
 // =============================================================================
 
 Deno.test("Validator: validates body for GET if spec defines it (missing body)", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithBody({
     required: true,
     schema: {
@@ -453,7 +465,7 @@ Deno.test("Validator: validates body for GET if spec defines it (missing body)",
 });
 
 Deno.test("Validator: validates body for HEAD if spec defines it", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation = operationWithBody({
     required: true,
     schema: { type: "object" },
@@ -471,7 +483,7 @@ Deno.test("Validator: validates body for HEAD if spec defines it", async () => {
 // =============================================================================
 
 Deno.test("Validator: handles operation with no parameters", async () => {
-  const validator = new RequestValidator();
+  const validator = createValidator();
   const operation: OperationObject = { responses: {} };
 
   const req = mockRequest("http://localhost/test");
