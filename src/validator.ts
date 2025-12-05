@@ -26,20 +26,6 @@ import {
 } from "@steady/json-schema";
 
 /**
- * Filter parameters to only include resolved ParameterObject (not $refs)
- * In the future, we should resolve $refs before validation
- */
-function filterResolvedParams(
-  params: (ParameterObject | ReferenceObject)[] | undefined,
-  location: "query" | "path" | "header" | "cookie",
-): ParameterObject[] {
-  if (!params) return [];
-  return params.filter(
-    (p): p is ParameterObject => !isReference(p) && p.in === location,
-  );
-}
-
-/**
  * Get resolved request body (not $ref)
  */
 function getResolvedRequestBody(
@@ -72,9 +58,40 @@ const MAX_BODY_SIZE = 10 * 1024 * 1024;
  */
 export class RequestValidator {
   private validator: RegistryValidator;
+  private registry: SchemaRegistry;
 
   constructor(registry: SchemaRegistry) {
+    this.registry = registry;
     this.validator = new RegistryValidator(registry);
+  }
+
+  /**
+   * Resolve parameters from an operation, including $ref resolution.
+   * Returns only ParameterObject for the specified location.
+   */
+  private resolveParams(
+    params: (ParameterObject | ReferenceObject)[] | undefined,
+    location: "query" | "path" | "header" | "cookie",
+  ): ParameterObject[] {
+    if (!params) return [];
+
+    const resolved: ParameterObject[] = [];
+    for (const param of params) {
+      if (isReference(param)) {
+        // Resolve $ref using registry
+        const refResult = this.registry.resolveRef(param.$ref);
+        if (refResult) {
+          const resolvedParam = refResult.raw as ParameterObject;
+          if (resolvedParam.in === location) {
+            resolved.push(resolvedParam);
+          }
+        }
+        // If resolution fails, skip the ref (legacy behavior)
+      } else if (param.in === location) {
+        resolved.push(param);
+      }
+    }
+    return resolved;
   }
 
   async validateRequest(
@@ -88,7 +105,7 @@ export class RequestValidator {
     const url = new URL(req.url);
 
     // Validate query parameters
-    const queryParams = filterResolvedParams(operation.parameters, "query");
+    const queryParams = this.resolveParams(operation.parameters, "query");
     if (queryParams.length > 0) {
       const queryValidation = await this.validateQueryParams(
         url.searchParams,
@@ -99,7 +116,7 @@ export class RequestValidator {
     }
 
     // Validate path parameters
-    const pathParamSpecs = filterResolvedParams(operation.parameters, "path");
+    const pathParamSpecs = this.resolveParams(operation.parameters, "path");
     if (pathParamSpecs.length > 0) {
       const pathValidation = await this.validatePathParams(
         pathParams,
@@ -110,7 +127,7 @@ export class RequestValidator {
     }
 
     // Validate headers
-    const headerParams = filterResolvedParams(operation.parameters, "header");
+    const headerParams = this.resolveParams(operation.parameters, "header");
     if (headerParams.length > 0) {
       const headerValidation = await this.validateHeaders(
         req.headers,

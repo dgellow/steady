@@ -491,3 +491,63 @@ Deno.test("Validator: handles operation with no parameters", async () => {
 
   assertEquals(result.valid, true);
 });
+
+// =============================================================================
+// Parameter $ref Resolution
+// =============================================================================
+
+Deno.test("Validator: resolves $ref parameters and validates them", async () => {
+  // This is the Lithic SDK failure pattern: parameters defined via $ref
+  // The bug: $ref parameters were filtered out, reported as "Unknown parameter"
+  const spec = {
+    openapi: "3.1.0",
+    info: { title: "Test", version: "1.0.0" },
+    paths: {
+      "/transactions": {
+        get: {
+          responses: { "200": { description: "OK" } },
+          parameters: [
+            { name: "status", in: "query", schema: { type: "string" } },
+            { $ref: "#/components/parameters/beginTime" },
+            { $ref: "#/components/parameters/pageSize" },
+          ],
+        },
+      },
+    },
+    components: {
+      parameters: {
+        beginTime: {
+          name: "begin",
+          in: "query",
+          schema: { type: "string", format: "date-time" },
+        },
+        pageSize: {
+          name: "page_size",
+          in: "query",
+          schema: { type: "integer", minimum: 1, maximum: 100 },
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(spec);
+  const validator = new RequestValidator(registry);
+  const operation = spec.paths["/transactions"].get as OperationObject;
+
+  // Request with $ref-defined parameters should be valid
+  const req = mockRequest(
+    "http://localhost/transactions?status=active&begin=2024-01-01T00:00:00Z&page_size=10",
+  );
+  const result = await validator.validateRequest(req, operation, "/transactions", {});
+
+  // Should NOT report "begin" or "page_size" as unknown parameters
+  const unknownParamErrors = result.errors.filter(
+    (e) => e.message === "Unknown parameter",
+  );
+  assertEquals(
+    unknownParamErrors.length,
+    0,
+    `Should not have unknown parameter errors, got: ${JSON.stringify(unknownParamErrors)}`,
+  );
+  assertEquals(result.valid, true);
+});
