@@ -90,9 +90,11 @@ async function testSpec(path: string): Promise<TestResult> {
 async function main() {
   const args = Deno.args;
   const limitIdx = args.indexOf("--limit");
-  const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) : Infinity;
+  const limitArg = limitIdx !== -1 ? args[limitIdx + 1] : undefined;
+  const limit = limitArg ? parseInt(limitArg) : Infinity;
   const filterIdx = args.indexOf("--filter");
-  const filter = filterIdx !== -1 ? args[filterIdx + 1].toLowerCase() : null;
+  const filterArg = filterIdx !== -1 ? args[filterIdx + 1] : undefined;
+  const filter = filterArg ? filterArg.toLowerCase() : null;
   const verbose = args.includes("--verbose") || args.includes("-v");
 
   console.log("🔍 Finding OpenAPI specs...");
@@ -116,6 +118,7 @@ async function main() {
 
   for (let i = 0; i < specs.length; i++) {
     const spec = specs[i];
+    if (!spec) continue;
     const shortPath = spec.replace(OPENAPI_DIR + "/", "");
 
     const result = await testSpec(spec);
@@ -194,8 +197,9 @@ async function main() {
 
     const errorCounts = new Map<string, number>();
     for (const r of results.filter((r) => !r.success)) {
-      const errorType = r.error?.split("\n")[0].slice(0, 80) || "Unknown";
-      errorCounts.set(errorType, (errorCounts.get(errorType) || 0) + 1);
+      const firstLine = r.error?.split("\n")[0];
+      const errorType = firstLine?.slice(0, 80) ?? "Unknown";
+      errorCounts.set(errorType, (errorCounts.get(errorType) ?? 0) + 1);
     }
 
     const sorted = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]).slice(

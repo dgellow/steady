@@ -117,7 +117,8 @@ function formatDiagnostic(d: Diagnostic, specName: string): string {
 async function main() {
   const args = Deno.args;
   const limitIdx = args.indexOf("--limit");
-  const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) : 50;
+  const limitArg = limitIdx !== -1 ? args[limitIdx + 1] : undefined;
+  const limit = limitArg ? parseInt(limitArg) : 50;
   const filterIdx = args.indexOf("--filter");
   const filter = filterIdx !== -1 ? args[filterIdx + 1] : undefined;
 

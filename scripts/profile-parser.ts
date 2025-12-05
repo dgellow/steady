@@ -27,12 +27,6 @@ interface TimingResult {
   validateMs: number;
 }
 
-interface PhaseTimings {
-  read: number;
-  parseYaml: number;
-  validate: number;
-}
-
 async function findSpecs(dir: string, limit = 50): Promise<string[]> {
   const specs: string[] = [];
 
@@ -70,8 +64,7 @@ async function profileSpec(path: string): Promise<TimingResult> {
 
   const sizeKB = new TextEncoder().encode(content).length / 1024;
 
-  // Phase 2: Parse YAML (we'll measure this separately)
-  const _parseStart = performance.now();
+  // Phase 2: Parse YAML
   const format = path.endsWith(".yaml") || path.endsWith(".yml")
     ? "yaml"
     : "json";
