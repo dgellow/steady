@@ -180,20 +180,35 @@ echo
 mkdir -p "$SDK_DIR"
 cd "$SDK_DIR"
 
+# Format: "github_org/repo_name:local_name" (local_name optional, defaults to repo_name)
 SDKS=(
+  # AI/LLM providers
   "openai/openai-python"
   "anthropics/anthropic-sdk-python"
+  "groq/groq-python"
+  "Cerebras/cerebras-cloud-sdk-python"
+  "meta-llama/llama-stack-client-python"
+  "perplexityai/perplexity-py"
+  # Infrastructure
   "cloudflare/cloudflare-python"
+  "browserbase/sdk-python:browserbase-python"
+  # Fintech
   "lithic-com/lithic-python"
   "Modern-Treasury/modern-treasury-python"
   "Finch-API/finch-api-python"
+  "orbcorp/orb-python"
+  # Other
+  "writer/writer-python"
+  "knocklabs/knock-python"
 )
 
-for repo in "${SDKS[@]}"; do
-  name=$(basename "$repo")
-  if [ ! -d "$name" ]; then
-    log "Cloning $repo..."
-    git clone --depth 1 "https://github.com/$repo.git" 2>/dev/null || warn "Failed to clone $repo"
+for entry in "${SDKS[@]}"; do
+  repo="${entry%%:*}"
+  local_name="${entry##*:}"
+  [ "$local_name" = "$entry" ] && local_name=$(basename "$repo")
+  if [ ! -d "$local_name" ]; then
+    log "Cloning $repo as $local_name..."
+    git clone --depth 1 "https://github.com/$repo.git" "$local_name" 2>/dev/null || warn "Failed to clone $repo"
   fi
 done
 
@@ -202,7 +217,28 @@ log "Running tests..."
 echo
 
 # Test each SDK
-for sdk in openai-python anthropic-sdk-python cloudflare-python lithic-python modern-treasury-python finch-api-python; do
+SDK_NAMES=(
+  # AI/LLM providers
+  openai-python
+  anthropic-sdk-python
+  groq-python
+  cerebras-cloud-sdk-python
+  llama-stack-client-python
+  perplexity-py
+  # Infrastructure
+  cloudflare-python
+  browserbase-python
+  # Fintech
+  lithic-python
+  modern-treasury-python
+  finch-api-python
+  orb-python
+  # Other
+  writer-python
+  knock-python
+)
+
+for sdk in "${SDK_NAMES[@]}"; do
   test_sdk "$sdk" || true
   echo
 done
