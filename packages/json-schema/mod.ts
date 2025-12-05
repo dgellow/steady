@@ -91,4 +91,3 @@ export type { SchemaValidationError as ValidationError } from "./types.ts";
 // Core processing components
 export { JsonSchemaProcessor } from "./processor.ts";
 export { SchemaValidator, type SchemaValidatorOptions } from "./schema-validator.ts";
-export { ResponseGenerator } from "./response-generator.ts";

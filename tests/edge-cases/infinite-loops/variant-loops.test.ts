@@ -9,7 +9,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
-import { ResponseGenerator } from "../../../packages/json-schema/response-generator.ts";
+import { RegistryResponseGenerator, SchemaRegistry } from "../../../packages/json-schema/schema-registry.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
 Deno.test({
@@ -37,8 +37,9 @@ Deno.test({
     );
 
     // Should generate response without infinite loop (with timeout protection)
-    const generator = new ResponseGenerator(result.schema);
-    const response = generator.generate();
+    const registry = new SchemaRegistry(schema);
+    const generator = new RegistryResponseGenerator(registry);
+    const response = generator.generateFromSchema(schema, "#", 0);
 
     // Generated response should be finite
     const responseStr = JSON.stringify(response);
@@ -149,8 +150,9 @@ Deno.test({
     );
 
     // Response generation should not loop infinitely
-    const generator = new ResponseGenerator(result.schema);
-    const response = generator.generate();
+    const registry = new SchemaRegistry(schema);
+    const generator = new RegistryResponseGenerator(registry);
+    const response = generator.generateFromSchema(schema, "#", 0);
     const responseStr = JSON.stringify(response);
 
     assertEquals(
@@ -399,11 +401,12 @@ Deno.test({
     assertExists(result.schema, "Should return processed schema");
 
     // Generate response 10 times - should never hang
-    const generator = new ResponseGenerator(result.schema);
+    const registry = new SchemaRegistry(schema);
+    const generator = new RegistryResponseGenerator(registry);
 
     for (let i = 0; i < 10; i++) {
       const start = performance.now();
-      const response = generator.generate();
+      const response = generator.generateFromSchema(schema, "#", 0);
       const duration = performance.now() - start;
 
       // Each generation should complete quickly

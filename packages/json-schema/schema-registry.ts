@@ -317,7 +317,41 @@ export class RegistryResponseGenerator {
       return this.pick(schema.enum);
     }
 
-    // Priority 6: Generate based on type
+    // Priority 6: Handle composition keywords (anyOf, oneOf, allOf)
+    if (schema.anyOf?.length) {
+      // Pick first non-null option, or null if only null available
+      const nonNullOptions = schema.anyOf.filter(
+        (s) => typeof s !== "boolean" && s.type !== "null",
+      );
+      const optionToUse = nonNullOptions.length > 0
+        ? nonNullOptions[0]!
+        : schema.anyOf[0]!;
+      return this.generateFromSchema(optionToUse, `${pointer}/anyOf/0`, depth + 1);
+    }
+
+    if (schema.oneOf?.length) {
+      return this.generateFromSchema(schema.oneOf[0]!, `${pointer}/oneOf/0`, depth + 1);
+    }
+
+    if (schema.allOf?.length) {
+      const merged: Record<string, unknown> = {};
+      for (let i = 0; i < schema.allOf.length; i++) {
+        const subSchema = schema.allOf[i]!;
+        if (typeof subSchema === "boolean") continue;
+        if (subSchema.properties) {
+          for (const [prop, propSchema] of Object.entries(subSchema.properties)) {
+            merged[prop] = this.generateFromSchema(
+              propSchema,
+              `${pointer}/allOf/${i}/properties/${prop}`,
+              depth + 1,
+            );
+          }
+        }
+      }
+      return merged;
+    }
+
+    // Priority 7: Generate based on type
     const type = this.inferType(schema);
 
     switch (type) {
