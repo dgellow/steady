@@ -221,5 +221,3 @@ deno task lint              # Lint
 deno task fmt               # Format
 deno task check-boundaries  # Verify package dependencies
 ```
-
-- **Developer experience** - Error messages so good they eliminate debugging

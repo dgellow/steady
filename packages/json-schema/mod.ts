@@ -1,16 +1,4 @@
-/**
- * JSON Schema - Document-Centric Architecture
- *
- * This package provides a complete JSON Schema processor with:
- * - Document-centric ref resolution (the document IS the root)
- * - Complete ref topology analysis upfront
- * - Lazy schema processing with caching
- * - Response generation with cross-ref support
- * - Validation with cross-ref support
- * - Comprehensive diagnostics with attribution
- */
-
-// Main entry point - document-centric architecture
+// Main entry point
 export { OpenAPIDocument } from "./openapi-document.ts";
 export type { OpenAPIDocumentOptions } from "./openapi-document.ts";
 

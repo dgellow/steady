@@ -1,4 +1,29 @@
 {
+  "name": "@steady/cli",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./mod.ts",
+    "./cli": "./cmd/steady.ts"
+  },
+  "publish": {
+    "include": [
+      "mod.ts",
+      "cmd/steady.ts",
+      "src/**/*.ts",
+      "packages/**/*.ts",
+      "README.md",
+      "LICENSE"
+    ],
+    "exclude": [
+      "**/*.test.ts",
+      "**/test-suite/**",
+      "**/fixtures/**",
+      "test-fixtures/**",
+      "tests/**",
+      "scripts/**",
+      "docs/**"
+    ]
+  },
   "workspace": [
     "./packages/*"
   ],
@@ -32,7 +57,10 @@
     "test:specs": "deno run --allow-read --allow-write scripts/test-openapi-directory.ts",
     "analyze": "deno run --allow-read --allow-write scripts/analyze-specs.ts",
     "test-all": "deno fmt && deno check cmd/steady.ts && deno lint --quiet && deno task check-boundaries && deno task test",
-    "extract": "deno run --allow-read --allow-write --allow-net --allow-env cmd/oas-extract.ts extract"
+    "extract": "deno run --allow-read --allow-write --allow-net --allow-env cmd/oas-extract.ts extract",
+    "publish": "deno publish",
+    "publish:dry": "deno publish --dry-run",
+    "build:npm": "deno run -A scripts/build-npm.ts"
   },
   "compilerOptions": {
     "noFallthroughCasesInSwitch": true,

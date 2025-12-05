@@ -1,14 +1,7 @@
 # OAS Extract
 
-A reliable tool for extracting inline schemas from OpenAPI 3.0 specifications
-with AI-powered semantic naming.
-
-## Overview
-
-OAS Extract analyzes OpenAPI specs and extracts inline schemas into reusable
-components with meaningful names. Unlike simple extraction tools that produce
-generic names like "response0", this tool uses Gemini Flash LLM to generate
-semantic, domain-aware names.
+Extracts inline schemas from OpenAPI 3.0 specs into reusable components. Uses
+Gemini Flash for semantic naming.
 
 ## Key Features
 
