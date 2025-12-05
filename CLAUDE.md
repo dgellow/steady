@@ -57,15 +57,17 @@ steady/
 **Stack**: Deno 2.x, TypeScript strict mode, no frameworks
 
 **JSON Pointer (RFC 6901)**:
+
 - Only `~0` (tilde) and `~1` (slash) escaping - NO percent encoding
 - Percent-decoding happens at URI fragment layer (ref-resolver.ts:171)
 - Array indices must be exact: "0", "1", "10" - reject "01", "1.5", "-1"
 
-**JSON Schema**: 91.6% compliance (1151/1257 tests). Missing: unevaluatedProperties,
-unevaluatedItems, dynamicRef.
+**JSON Schema**: 91.6% compliance (1151/1257 tests). Missing:
+unevaluatedProperties, unevaluatedItems, dynamicRef.
 
-**$ref Resolution**: Handles URI fragment encoding. `#/$defs/User%20Name` resolves
-to key `"User Name"` (percent-decoded before JSON Pointer parsing).
+**$ref Resolution**: Handles URI fragment encoding. `#/$defs/User%20Name`resolves
+to key`"User
+Name"` (percent-decoded before JSON Pointer parsing).
 
 ## Code Rules
 
@@ -74,7 +76,8 @@ to key `"User Name"` (percent-decoded before JSON Pointer parsing).
 3. **No silent failures** - Never swallow errors or return fake success
 4. **Test with red-green** - Write failing test first, then fix
 5. **Fail loudly** - Invalid input = error, not silent pass
-6. **No hacky solutions** - Use standard libraries (e.g., `@std/cli` for arg parsing), don't reinvent the wheel with brittle manual implementations
+6. **No hacky solutions** - Use standard libraries (e.g., `@std/cli` for arg
+   parsing), don't reinvent the wheel with brittle manual implementations
 
 ## Testing Approach
 
@@ -91,6 +94,7 @@ Tests must pass before committing. Use `deno task test` to verify.
 ## Error Messages
 
 Errors must include:
+
 - WHAT failed (specific validation/parsing error)
 - WHERE (file:line or JSON path)
 - WHY (root cause)
@@ -109,6 +113,7 @@ refactor: Code restructuring
 ## Current Status
 
 Working:
+
 - HTTP server with path matching
 - JSON Schema validation (runtime-validator.ts)
 - Response generation from schemas/examples
@@ -116,6 +121,7 @@ Working:
 - OpenAPI 3.x parsing
 
 Test coverage gaps:
+
 - schema-validator.ts (no tests)
 - response-generator.ts (no tests)
 - src/validator.ts (no tests)

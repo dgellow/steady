@@ -53,11 +53,11 @@ async function main() {
       const doc = new OpenAPIDocument(spec);
       const diagnostics = doc.getDiagnostics();
 
-      const refErrors = diagnostics.filter(d => d.code === "ref-unresolved");
+      const refErrors = diagnostics.filter((d) => d.code === "ref-unresolved");
       if (refErrors.length > 0) {
         specsWithErrors.push({
           spec: shortName,
-          errors: refErrors.map(e => `${e.pointer}: ${e.message}`),
+          errors: refErrors.map((e) => `${e.pointer}: ${e.message}`),
         });
       }
     } catch {
@@ -65,7 +65,9 @@ async function main() {
     }
   }
 
-  console.log(`Found ${specsWithErrors.length} specs with ref-unresolved errors:\n`);
+  console.log(
+    `Found ${specsWithErrors.length} specs with ref-unresolved errors:\n`,
+  );
 
   for (const { spec, errors } of specsWithErrors) {
     console.log(`📄 ${spec} (${errors.length} errors)`);
@@ -79,14 +81,20 @@ async function main() {
   }
 
   // Summary by pattern
-  const allErrors = specsWithErrors.flatMap(s => s.errors);
+  const allErrors = specsWithErrors.flatMap((s) => s.errors);
   const patterns = new Map<string, number>();
 
   for (const error of allErrors) {
     if (error.includes("%7B")) {
-      patterns.set("percent-encoded-braces", (patterns.get("percent-encoded-braces") ?? 0) + 1);
+      patterns.set(
+        "percent-encoded-braces",
+        (patterns.get("percent-encoded-braces") ?? 0) + 1,
+      );
     } else if (error.includes("components")) {
-      patterns.set("missing-component", (patterns.get("missing-component") ?? 0) + 1);
+      patterns.set(
+        "missing-component",
+        (patterns.get("missing-component") ?? 0) + 1,
+      );
     } else {
       patterns.set("other", (patterns.get("other") ?? 0) + 1);
     }

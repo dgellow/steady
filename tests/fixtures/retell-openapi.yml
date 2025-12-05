@@ -125,7 +125,7 @@ components:
             What's up?\nUser: I don't have anything in particular.\nAgent: Got
             it, just checking in!\nUser: Alright. See you.\nAgent: have a nice
             day\n
-            "
+"
           description: Transcription of the call. Available after call ends.
         transcript_object:
           type: array
@@ -1310,7 +1310,7 @@ components:
             `call-center`: Call center work noise. [Listen to
             Ambience](https://retell-utils-public.s3.us-west-2.amazonaws.com/call-center.wav)\n\n
             Set to `null` to remove ambient sound from this agent.
-            "
+"
           nullable: true
         ambient_sound_volume:
           type: number
@@ -1493,11 +1493,10 @@ components:
             null to disable voicemail detection.
           example:
             {
-              "action":
-                {
-                  "type": "static_text",
-                  "text": "Please give us a callback tomorrow at 10am.",
-                },
+              "action": {
+                "type": "static_text",
+                "text": "Please give us a callback tomorrow at 10am.",
+              },
             }
           nullable: true
         post_call_analysis_data:
@@ -2705,12 +2704,10 @@ components:
               {
                 "id": "collect_info",
                 "type": "conversation",
-                "instruction":
-                  {
-                    "type": "prompt",
-                    "text":
-                      "Ask the customer for their name and contact information.",
-                  },
+                "instruction": {
+                  "type": "prompt",
+                  "text": "Ask the customer for their name and contact information.",
+                },
               },
             ]
         start_node_id:
@@ -2882,24 +2879,20 @@ components:
                   {
                     "id": "start",
                     "type": "conversation",
-                    "instruction":
+                    "instruction": {
+                      "type": "prompt",
+                      "text": "Greet the customer and ask how you can help them.",
+                    },
+                    "edges": [
                       {
-                        "type": "prompt",
-                        "text":
-                          "Greet the customer and ask how you can help them.",
-                      },
-                    "edges":
-                      [
-                        {
-                          "id": "edge_1",
-                          "transition_condition":
-                            {
-                              "type": "prompt",
-                              "prompt": "Customer wants to book appointment",
-                            },
-                          "destination_node_id": "book_appointment",
+                        "id": "edge_1",
+                        "transition_condition": {
+                          "type": "prompt",
+                          "prompt": "Customer wants to book appointment",
                         },
-                      ],
+                        "destination_node_id": "book_appointment",
+                      },
+                    ],
                   },
                 ]
 
@@ -3039,50 +3032,43 @@ components:
                 [
                   {
                     "name": "information_collection",
-                    "state_prompt":
-                      "You will follow the steps below to collect information...",
-                    "edges":
-                      [
-                        {
-                          "destination_state_name": "appointment_booking",
-                          "description": "Transition to book an appointment.",
+                    "state_prompt": "You will follow the steps below to collect information...",
+                    "edges": [
+                      {
+                        "destination_state_name": "appointment_booking",
+                        "description": "Transition to book an appointment.",
+                      },
+                    ],
+                    "tools": [
+                      {
+                        "type": "transfer_call",
+                        "name": "transfer_to_support",
+                        "description": "Transfer to the support team.",
+                        "transfer_destination": {
+                          "type": "predefined",
+                          "number": "16175551212",
+                          "ignore_e164_validation": false,
                         },
-                      ],
-                    "tools":
-                      [
-                        {
-                          "type": "transfer_call",
-                          "name": "transfer_to_support",
-                          "description": "Transfer to the support team.",
-                          "transfer_destination":
-                            {
-                              "type": "predefined",
-                              "number": "16175551212",
-                              "ignore_e164_validation": false,
-                            },
-                          "transfer_option":
-                            {
-                              "type": "cold_transfer",
-                              "show_transferee_as_caller": false,
-                            },
+                        "transfer_option": {
+                          "type": "cold_transfer",
+                          "show_transferee_as_caller": false,
                         },
-                      ],
+                      },
+                    ],
                   },
                   {
                     "name": "appointment_booking",
-                    "state_prompt":
-                      "You will follow the steps below to book an appointment...",
-                    "tools":
-                      [
-                        {
-                          "type": "book_appointment_cal",
-                          "name": "book_appointment",
-                          "description": "Book an annual check up.",
-                          "cal_api_key": "cal_live_xxxxxxxxxxxx",
-                          "event_type_id": 60444,
-                          "timezone": "America/Los_Angeles",
-                        },
-                      ],
+                    "state_prompt": "You will follow the steps below to book an appointment...",
+                    "tools": [
+                      {
+                        "type": "book_appointment_cal",
+                        "name": "book_appointment",
+                        "description": "Book an annual check up.",
+                        "cal_api_key": "cal_live_xxxxxxxxxxxx",
+                        "event_type_id": 60444,
+                        "timezone": "America/Los_Angeles",
+                      },
+                    ],
                   },
                 ]
               nullable: true
@@ -4754,11 +4740,10 @@ paths:
                       "direction": ["inbound"],
                       "user_sentiment": ["Positive"],
                       "call_successful": [true],
-                      "start_timestamp":
-                        {
-                          "upper_threshold": 1738475421000,
-                          "lower_threshold": 1738475411000,
-                        },
+                      "start_timestamp": {
+                        "upper_threshold": 1738475421000,
+                        "lower_threshold": 1738475411000,
+                      },
                     }
                   properties:
                     agent_id:

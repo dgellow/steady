@@ -5,10 +5,10 @@ import {
   FastAnalyzer,
   FastExtractor,
   GeminiClient,
+  type OpenAPISpec,
   parseStrategy,
   SemanticDeduplicator,
   SpecTransformer,
-  type OpenAPISpec,
 } from "@steady/oas-extract";
 import { parseSpec } from "@steady/parser";
 

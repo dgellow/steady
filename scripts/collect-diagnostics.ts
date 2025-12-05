@@ -24,7 +24,11 @@ interface SpecDiagnostics {
   diagnostics: Diagnostic[];
 }
 
-async function findSpecs(dir: string, limit = Infinity, filter?: string): Promise<string[]> {
+async function findSpecs(
+  dir: string,
+  limit = Infinity,
+  filter?: string,
+): Promise<string[]> {
   const specs: string[] = [];
 
   async function walk(path: string) {
@@ -39,7 +43,9 @@ async function findSpecs(dir: string, limit = Infinity, filter?: string): Promis
           (entry.name.endsWith(".yaml") || entry.name.endsWith(".json")) &&
           !entry.name.includes("swagger")
         ) {
-          if (!filter || fullPath.toLowerCase().includes(filter.toLowerCase())) {
+          if (
+            !filter || fullPath.toLowerCase().includes(filter.toLowerCase())
+          ) {
             specs.push(fullPath);
           }
         }
@@ -58,7 +64,9 @@ async function analyzeSpec(path: string): Promise<SpecDiagnostics | null> {
 
   try {
     const content = await Deno.readTextFile(path);
-    const format = path.endsWith(".yaml") || path.endsWith(".yml") ? "yaml" : "json";
+    const format = path.endsWith(".yaml") || path.endsWith(".yml")
+      ? "yaml"
+      : "json";
     const spec = await parseSpec(content, { format });
 
     const doc = new OpenAPIDocument(spec);
@@ -71,7 +79,11 @@ async function analyzeSpec(path: string): Promise<SpecDiagnostics | null> {
     };
   } catch (error) {
     // Parse errors are expected for some specs
-    console.error(`Failed to parse ${shortPath}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Failed to parse ${shortPath}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
     return null;
   }
 }
@@ -89,7 +101,11 @@ function formatDiagnostic(d: Diagnostic, specName: string): string {
   lines.push(`   Spec: ${specName}`);
   lines.push(`   Location: ${d.pointer}`);
   lines.push(`   Message: ${d.message}`);
-  lines.push(`   Attribution: ${d.attribution.type} (${Math.round(d.attribution.confidence * 100)}% confidence)`);
+  lines.push(
+    `   Attribution: ${d.attribution.type} (${
+      Math.round(d.attribution.confidence * 100)
+    }% confidence)`,
+  );
   lines.push(`   Reasoning: ${d.attribution.reasoning}`);
   if (d.suggestion) {
     lines.push(`   Suggestion: ${d.suggestion}`);
@@ -119,7 +135,10 @@ async function main() {
   }
 
   // Group diagnostics by code
-  const byCode = new Map<string, { diagnostic: Diagnostic; specName: string }[]>();
+  const byCode = new Map<
+    string,
+    { diagnostic: Diagnostic; specName: string }[]
+  >();
 
   for (const spec of allDiagnostics) {
     for (const d of spec.diagnostics) {
@@ -130,13 +149,15 @@ async function main() {
   }
 
   // Print summary
-  console.log("=" .repeat(80));
+  console.log("=".repeat(80));
   console.log("DIAGNOSTIC SUMMARY");
   console.log("=".repeat(80));
   console.log("");
 
   let totalDiagnostics = 0;
-  const sortedCodes = Array.from(byCode.entries()).sort((a, b) => b[1].length - a[1].length);
+  const sortedCodes = Array.from(byCode.entries()).sort((a, b) =>
+    b[1].length - a[1].length
+  );
 
   for (const [code, items] of sortedCodes) {
     totalDiagnostics += items.length;
@@ -147,7 +168,9 @@ async function main() {
     console.log("");
   }
 
-  console.log(`Total: ${totalDiagnostics} diagnostics across ${allDiagnostics.length} specs\n`);
+  console.log(
+    `Total: ${totalDiagnostics} diagnostics across ${allDiagnostics.length} specs\n`,
+  );
 
   // Print detailed diagnostics (first few of each type)
   console.log("=".repeat(80));

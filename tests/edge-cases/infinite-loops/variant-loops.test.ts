@@ -9,12 +9,15 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
-import { RegistryResponseGenerator, SchemaRegistry } from "../../../packages/json-schema/schema-registry.ts";
+import {
+  RegistryResponseGenerator,
+  SchemaRegistry,
+} from "../../../packages/json-schema/schema-registry.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
 Deno.test({
   name: "EDGE: oneOf with recursive array items",
-  
+
   async fn() {
     // This pattern causes infinite expansion in many tools
     const schema: Schema = {
@@ -118,7 +121,7 @@ Deno.test("EDGE: Complex variant nesting with recursion", async () => {
 
 Deno.test({
   name: "EDGE: anyOf with multiple recursive branches",
-  
+
   async fn() {
     const schema: Schema = {
       type: "object",
@@ -254,7 +257,7 @@ Deno.test("EDGE: oneOf with all branches recursive", async () => {
 
 Deno.test({
   name: "EDGE: Performance - oneOf with many recursive variants",
-  
+
   async fn() {
     // Create oneOf with 50 recursive variants
     const variants: Schema[] = [];
@@ -381,7 +384,7 @@ Deno.test("EDGE: anyOf with if/then/else and recursion", async () => {
 
 Deno.test({
   name: "EDGE: Response generation does not loop infinitely",
-  
+
   async fn() {
     const schema: Schema = {
       oneOf: [
@@ -458,7 +461,7 @@ Deno.test("EDGE: Variant with unevaluatedProperties recursion", async () => {
 
 Deno.test({
   name: "EDGE: Deep variant stack without recursion",
-  
+
   async fn() {
     // Not all deep nesting is recursive - this should be fast
     let schema: Schema = { type: "string" };

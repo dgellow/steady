@@ -6,8 +6,8 @@ import {
   compareStrategies,
   evaluateStability,
   formatStabilityReport,
-  parseStrategy,
   type NamingStrategy,
+  parseStrategy,
 } from "@steady/oas-extract";
 
 function printHelp() {

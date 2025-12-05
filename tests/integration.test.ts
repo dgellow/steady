@@ -123,7 +123,9 @@ Deno.test({
   sanitizeOps: false, // Server uses async ops that may not complete
   sanitizeResources: false, // Server holds resources
   fn: async () => {
-    const spec = await parseSpecFromFile("./tests/specs/test-spec-with-body.yaml");
+    const spec = await parseSpecFromFile(
+      "./tests/specs/test-spec-with-body.yaml",
+    );
 
     const server = new MockServer(spec, {
       port: 3001,
@@ -194,7 +196,9 @@ Deno.test({
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    const spec = await parseSpecFromFile("./tests/specs/test-spec-with-body.yaml");
+    const spec = await parseSpecFromFile(
+      "./tests/specs/test-spec-with-body.yaml",
+    );
 
     const server = new MockServer(spec, {
       port: 3002,
@@ -233,7 +237,9 @@ Deno.test({
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    const spec = await parseSpecFromFile("./tests/fixtures/datadog-openapi.json");
+    const spec = await parseSpecFromFile(
+      "./tests/fixtures/datadog-openapi.json",
+    );
 
     const server = new MockServer(spec, {
       port: 3003,
@@ -286,7 +292,9 @@ Deno.test({
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    const spec = await parseSpecFromFile("./tests/fixtures/datadog-openapi.json");
+    const spec = await parseSpecFromFile(
+      "./tests/fixtures/datadog-openapi.json",
+    );
 
     const server = new MockServer(spec, {
       port: 3005,

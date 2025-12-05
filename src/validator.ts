@@ -8,7 +8,11 @@
  * - Path parameter extraction and validation
  */
 
-import type { QueryArrayFormat, QueryNestedFormat, ValidationIssue } from "./types.ts";
+import type {
+  QueryArrayFormat,
+  QueryNestedFormat,
+  ValidationIssue,
+} from "./types.ts";
 import { isReference } from "./types.ts";
 import { BodyTooLargeError } from "./errors.ts";
 import type { ValidationResult } from "@steady/shared";
@@ -188,7 +192,12 @@ export class RequestValidator {
   /**
    * Check if a parameter has a value based on configured format
    */
-  private hasParamValue(params: URLSearchParams, name: string, isArray: boolean, isObject: boolean): boolean {
+  private hasParamValue(
+    params: URLSearchParams,
+    name: string,
+    isArray: boolean,
+    isObject: boolean,
+  ): boolean {
     if (isObject && this.queryNestedFormat === "brackets") {
       // Check for any key starting with name[
       const prefix = `${name}[`;
@@ -208,7 +217,11 @@ export class RequestValidator {
   /**
    * Parse nested object from brackets notation: user[name]=sam&user[age]=123 -> { name: "sam", age: "123" }
    */
-  private parseNestedObject(params: URLSearchParams, name: string, schema: SchemaObject): unknown {
+  private parseNestedObject(
+    params: URLSearchParams,
+    name: string,
+    schema: SchemaObject,
+  ): unknown {
     const result: Record<string, unknown> = {};
     const prefix = `${name}[`;
 
@@ -244,7 +257,10 @@ export class RequestValidator {
         known.add(`${spec.name}[]`);
       }
 
-      if (isObject && this.queryNestedFormat === "brackets" && spec.schema && !isReference(spec.schema)) {
+      if (
+        isObject && this.queryNestedFormat === "brackets" && spec.schema &&
+        !isReference(spec.schema)
+      ) {
         const schema = spec.schema as SchemaObject;
         if (schema.properties) {
           // Add all bracket-notation keys for known properties
@@ -279,7 +295,12 @@ export class RequestValidator {
     for (const spec of paramSpecs) {
       const isArrayType = this.isArraySchema(spec.schema);
       const isObjectType = this.isObjectSchema(spec.schema);
-      const hasValue = this.hasParamValue(params, spec.name, isArrayType, isObjectType);
+      const hasValue = this.hasParamValue(
+        params,
+        spec.name,
+        isArrayType,
+        isObjectType,
+      );
 
       if (spec.required && !hasValue) {
         errors.push({
@@ -297,10 +318,15 @@ export class RequestValidator {
         } else if (isArrayType) {
           // Parse array values
           const values = this.getArrayValues(params, spec.name);
-          parsedValue = values.map((v) => this.parseParamValue(v, spec.schema!));
+          parsedValue = values.map((v) =>
+            this.parseParamValue(v, spec.schema!)
+          );
         } else {
           // Parse single value
-          parsedValue = this.parseParamValue(params.get(spec.name)!, spec.schema);
+          parsedValue = this.parseParamValue(
+            params.get(spec.name)!,
+            spec.schema,
+          );
         }
 
         const validation = this.validateValue(
@@ -320,7 +346,9 @@ export class RequestValidator {
         const baseName = key.includes("[") ? key.split("[")[0] : key;
         errors.push({
           path: `query.${baseName}`,
-          message: key.includes("[") ? `Unknown parameter: ${key}` : "Unknown parameter",
+          message: key.includes("[")
+            ? `Unknown parameter: ${key}`
+            : "Unknown parameter",
         });
       }
     }
@@ -415,7 +443,8 @@ export class RequestValidator {
       if (isNaN(size) || size < 0) {
         errors.push({
           path: "body",
-          message: `Invalid Content-Length header: "${contentLength}" is not a valid non-negative integer`,
+          message:
+            `Invalid Content-Length header: "${contentLength}" is not a valid non-negative integer`,
         });
         return { valid: false, errors, warnings };
       }

@@ -64,7 +64,9 @@ interface AnalysisReport {
   versionDistribution: Record<string, number>;
 
   // Performance outliers
-  slowestSpecs: Array<{ name: string; parseMs: number; analyzeMs: number; size: number }>;
+  slowestSpecs: Array<
+    { name: string; parseMs: number; analyzeMs: number; size: number }
+  >;
   largestSpecs: Array<{ name: string; size: number; diagnosticCount: number }>;
 }
 
@@ -74,13 +76,21 @@ interface AnalysisReport {
 
 function categorizeError(error: string): string {
   if (error.includes("Missing paths")) return "missing-paths";
-  if (error.includes("Missing or invalid OpenAPI version")) return "invalid-version";
+  if (error.includes("Missing or invalid OpenAPI version")) {
+    return "invalid-version";
+  }
   if (error.includes("Missing or invalid info")) return "invalid-info";
   if (error.includes("Missing API title")) return "missing-title";
   if (error.includes("Missing API version")) return "missing-api-version";
-  if (error.includes("Unsupported OpenAPI version")) return "unsupported-version";
-  if (error.includes("Invalid YAML") || error.includes("YAMLError")) return "yaml-parse-error";
-  if (error.includes("Invalid JSON") || error.includes("SyntaxError")) return "json-parse-error";
+  if (error.includes("Unsupported OpenAPI version")) {
+    return "unsupported-version";
+  }
+  if (error.includes("Invalid YAML") || error.includes("YAMLError")) {
+    return "yaml-parse-error";
+  }
+  if (error.includes("Invalid JSON") || error.includes("SyntaxError")) {
+    return "json-parse-error";
+  }
   if (error.includes("not an object")) return "invalid-structure";
   if (error.includes("$ref")) return "ref-error";
   if (error.includes("circular")) return "circular-ref";
@@ -122,11 +132,16 @@ async function findSpecs(dir: string, limit = Infinity): Promise<string[]> {
 // Spec Processing
 // ============================================================================
 
-async function processSpec(path: string, verbose: boolean): Promise<SpecResult> {
+async function processSpec(
+  path: string,
+  verbose: boolean,
+): Promise<SpecResult> {
   const shortName = path.replace(OPENAPI_DIR + "/", "");
   const content = await Deno.readTextFile(path);
   const size = new TextEncoder().encode(content).length;
-  const format = path.endsWith(".yaml") || path.endsWith(".yml") ? "yaml" : "json";
+  const format = path.endsWith(".yaml") || path.endsWith(".yml")
+    ? "yaml"
+    : "json";
 
   const result: SpecResult = {
     path,
@@ -156,7 +171,11 @@ async function processSpec(path: string, verbose: boolean): Promise<SpecResult> 
     result.error = error instanceof Error ? error.message : String(error);
     result.errorCategory = categorizeError(result.error);
     if (verbose) {
-      console.error(`  ❌ Parse error [${result.errorCategory}]: ${result.error.slice(0, 100)}`);
+      console.error(
+        `  ❌ Parse error [${result.errorCategory}]: ${
+          result.error.slice(0, 100)
+        }`,
+      );
     }
     return result;
   }
@@ -173,7 +192,11 @@ async function processSpec(path: string, verbose: boolean): Promise<SpecResult> 
     result.error = error instanceof Error ? error.message : String(error);
     result.errorCategory = categorizeError(result.error);
     if (verbose) {
-      console.error(`  ❌ Analyze error [${result.errorCategory}]: ${result.error.slice(0, 100)}`);
+      console.error(
+        `  ❌ Analyze error [${result.errorCategory}]: ${
+          result.error.slice(0, 100)
+        }`,
+      );
     }
     return result;
   }
@@ -190,12 +213,15 @@ async function processSpec(path: string, verbose: boolean): Promise<SpecResult> 
 // ============================================================================
 
 function generateReport(results: SpecResult[]): AnalysisReport {
-  const successResults = results.filter(r => r.status === "success");
-  const parseErrors = results.filter(r => r.status === "parse-error");
-  const analyzeErrors = results.filter(r => r.status === "analyze-error");
+  const successResults = results.filter((r) => r.status === "success");
+  const parseErrors = results.filter((r) => r.status === "parse-error");
+  const analyzeErrors = results.filter((r) => r.status === "analyze-error");
 
   // Error categorization
-  const errorsByCategory: Record<string, { count: number; examples: string[] }> = {};
+  const errorsByCategory: Record<
+    string,
+    { count: number; examples: string[] }
+  > = {};
   for (const r of [...parseErrors, ...analyzeErrors]) {
     const cat = r.errorCategory ?? "unknown";
     if (!errorsByCategory[cat]) {
@@ -203,7 +229,9 @@ function generateReport(results: SpecResult[]): AnalysisReport {
     }
     errorsByCategory[cat].count++;
     if (errorsByCategory[cat].examples.length < 3) {
-      errorsByCategory[cat].examples.push(`${r.name}: ${r.error?.slice(0, 80)}`);
+      errorsByCategory[cat].examples.push(
+        `${r.name}: ${r.error?.slice(0, 80)}`,
+      );
     }
   }
 
@@ -245,9 +273,10 @@ function generateReport(results: SpecResult[]): AnalysisReport {
 
   // Performance outliers
   const sortedByTime = [...successResults].sort(
-    (a, b) => (b.parseTimeMs + b.analyzeTimeMs) - (a.parseTimeMs + a.analyzeTimeMs)
+    (a, b) =>
+      (b.parseTimeMs + b.analyzeTimeMs) - (a.parseTimeMs + a.analyzeTimeMs),
   );
-  const slowestSpecs = sortedByTime.slice(0, 10).map(r => ({
+  const slowestSpecs = sortedByTime.slice(0, 10).map((r) => ({
     name: r.name,
     parseMs: Math.round(r.parseTimeMs),
     analyzeMs: Math.round(r.analyzeTimeMs),
@@ -255,16 +284,22 @@ function generateReport(results: SpecResult[]): AnalysisReport {
   }));
 
   const sortedBySize = [...successResults].sort((a, b) => b.size - a.size);
-  const largestSpecs = sortedBySize.slice(0, 10).map(r => ({
+  const largestSpecs = sortedBySize.slice(0, 10).map((r) => ({
     name: r.name,
     size: r.size,
     diagnosticCount: r.diagnostics.length,
   }));
 
   // Totals
-  const totalDiagnostics = successResults.reduce((sum, r) => sum + r.diagnostics.length, 0);
+  const totalDiagnostics = successResults.reduce(
+    (sum, r) => sum + r.diagnostics.length,
+    0,
+  );
   const totalParseTime = results.reduce((sum, r) => sum + r.parseTimeMs, 0);
-  const totalAnalyzeTime = successResults.reduce((sum, r) => sum + r.analyzeTimeMs, 0);
+  const totalAnalyzeTime = successResults.reduce(
+    (sum, r) => sum + r.analyzeTimeMs,
+    0,
+  );
 
   return {
     timestamp: new Date().toISOString(),
@@ -306,7 +341,11 @@ function printReport(report: AnalysisReport): void {
   console.log("📊 OVERVIEW");
   console.log("─".repeat(40));
   console.log(`  Total specs:     ${report.totalSpecs}`);
-  console.log(`  Successful:      ${report.successCount} (${(report.successCount / report.totalSpecs * 100).toFixed(1)}%)`);
+  console.log(
+    `  Successful:      ${report.successCount} (${
+      (report.successCount / report.totalSpecs * 100).toFixed(1)
+    }%)`,
+  );
   console.log(`  Parse errors:    ${report.parseErrorCount}`);
   console.log(`  Analyze errors:  ${report.analyzeErrorCount}`);
   console.log(`  Total diagnostics: ${report.totalDiagnostics}`);
@@ -322,7 +361,9 @@ function printReport(report: AnalysisReport): void {
     .sort((a, b) => b[1] - a[1]);
   for (const [version, count] of versions) {
     const pct = (count / report.successCount * 100).toFixed(1);
-    console.log(`  ${version.padEnd(12)} ${count.toString().padStart(5)} (${pct}%)`);
+    console.log(
+      `  ${version.padEnd(12)} ${count.toString().padStart(5)} (${pct}%)`,
+    );
   }
   console.log("");
 
@@ -347,9 +388,13 @@ function printReport(report: AnalysisReport): void {
   const diagnostics = Object.entries(report.diagnosticsByCode)
     .sort((a, b) => b[1].count - a[1].count);
   for (const [code, data] of diagnostics) {
-    const icon = data.severity === "error" ? "❌" :
-                 data.severity === "warning" ? "⚠️" :
-                 data.severity === "info" ? "ℹ️" : "💡";
+    const icon = data.severity === "error"
+      ? "❌"
+      : data.severity === "warning"
+      ? "⚠️"
+      : data.severity === "info"
+      ? "ℹ️"
+      : "💡";
     console.log(`  ${icon} ${code}: ${data.count} (${data.attribution})`);
     // Show a sample
     if (data.examples.length > 0) {
@@ -365,7 +410,11 @@ function printReport(report: AnalysisReport): void {
   console.log("─".repeat(40));
   for (const spec of report.slowestSpecs.slice(0, 5)) {
     console.log(`  ${spec.name}`);
-    console.log(`     Parse: ${spec.parseMs}ms, Analyze: ${spec.analyzeMs}ms, Size: ${formatBytes(spec.size)}`);
+    console.log(
+      `     Parse: ${spec.parseMs}ms, Analyze: ${spec.analyzeMs}ms, Size: ${
+        formatBytes(spec.size)
+      }`,
+    );
   }
   console.log("");
 
@@ -373,7 +422,11 @@ function printReport(report: AnalysisReport): void {
   console.log("─".repeat(40));
   for (const spec of report.largestSpecs.slice(0, 5)) {
     console.log(`  ${spec.name}`);
-    console.log(`     Size: ${formatBytes(spec.size)}, Diagnostics: ${spec.diagnosticCount}`);
+    console.log(
+      `     Size: ${
+        formatBytes(spec.size)
+      }, Diagnostics: ${spec.diagnosticCount}`,
+    );
   }
   console.log("");
 
@@ -426,7 +479,8 @@ async function main() {
   }
 
   // Save report to file
-  const reportPath = new URL("../analysis-report.json", import.meta.url).pathname;
+  const reportPath =
+    new URL("../analysis-report.json", import.meta.url).pathname;
   await Deno.writeTextFile(reportPath, JSON.stringify(report, null, 2));
   console.log(`📄 Full report saved to: analysis-report.json\n`);
 }
