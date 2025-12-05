@@ -38,3 +38,7 @@ ink-logger-debug.log
 
 massive-real-life-spec.json
 analysis-report.json
+
+# SDK test directories (cloned for testing)
+openai-python/
+sdk-tests/
