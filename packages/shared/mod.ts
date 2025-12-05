@@ -6,7 +6,7 @@ export { SimpleLogger } from "./simple-logger.ts";
 export {
   InkSimpleLogger,
   startInkSimpleLogger,
-} from "./ink-simple-logger-v2.tsx";
+} from "./ink-logger.tsx";
 
 // Types
 export type { LogLevel } from "./types.ts";
