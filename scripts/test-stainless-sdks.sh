@@ -14,6 +14,9 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Source rye
+source "$HOME/.rye/env" 2>/dev/null || true
+
 cleanup() {
   lsof -ti:$PORT 2>/dev/null | xargs -r kill 2>/dev/null || true
 }
@@ -82,21 +85,16 @@ test_sdk() {
 
   success "  Steady running"
 
-  # Setup Python venv if needed
+  # Setup Python venv using SDK's bootstrap script
   cd "$sdk_path"
-  if [ ! -d ".venv" ]; then
-    log "  Setting up Python venv..."
-    uv sync --quiet 2>/dev/null || { warn "  Failed to setup venv"; }
-  fi
-
-  # Install test deps
-  if [ -d ".venv" ]; then
-    uv pip install pytest pytest-xdist pytest-asyncio httpx respx dirty-equals inline-snapshot --quiet 2>/dev/null || true
+  if [ ! -d ".venv" ] && [ -x "./scripts/bootstrap" ]; then
+    log "  Running bootstrap..."
+    ./scripts/bootstrap 2>&1 | tail -5 || { warn "  Bootstrap failed"; }
   fi
 
   # Run a quick test
   local test_result=0
-  if [ -d ".venv" ] && [ -d "tests/api_resources" ]; then
+  if [ -d "tests/api_resources" ]; then
     log "  Running tests..."
 
     # Find a simple test file (prefer test_models.py as it's usually simple)
@@ -109,7 +107,7 @@ test_sdk() {
 
     if [ -n "$test_file" ]; then
       log "  Running: $test_file"
-      if .venv/bin/pytest "$test_file" -x -q --tb=line 2>&1 | tee "$sdk_path/.test-output.log" | tail -10; then
+      if rye run pytest "$test_file" -x -q --tb=line 2>&1 | tee "$sdk_path/.test-output.log" | tail -10; then
         # Check if there were actual passes
         if grep -q "passed" "$sdk_path/.test-output.log"; then
           test_result=0
@@ -123,7 +121,7 @@ test_sdk() {
       warn "  No test files found"
     fi
   else
-    warn "  Skipping tests (no venv or test files)"
+    warn "  Skipping tests (no test files)"
   fi
 
   # Cleanup
