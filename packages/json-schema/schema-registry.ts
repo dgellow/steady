@@ -337,15 +337,15 @@ export class RegistryResponseGenerator {
       const merged: Record<string, unknown> = {};
       for (let i = 0; i < schema.allOf.length; i++) {
         const subSchema = schema.allOf[i]!;
-        if (typeof subSchema === "boolean") continue;
-        if (subSchema.properties) {
-          for (const [prop, propSchema] of Object.entries(subSchema.properties)) {
-            merged[prop] = this.generateFromSchema(
-              propSchema,
-              `${pointer}/allOf/${i}/properties/${prop}`,
-              depth + 1,
-            );
-          }
+        // Generate from each subschema - this handles $ref, inline schemas, etc.
+        const generated = this.generateFromSchema(
+          subSchema,
+          `${pointer}/allOf/${i}`,
+          depth + 1,
+        );
+        // Merge if it's an object
+        if (generated && typeof generated === "object" && !Array.isArray(generated)) {
+          Object.assign(merged, generated);
         }
       }
       return merged;
