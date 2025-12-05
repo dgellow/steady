@@ -57,33 +57,10 @@ test_sdk() {
     return 1
   fi
 
-  # Kill any existing server
+  success "  Spec ready"
+
+  # Kill any existing server on the port
   cleanup
-
-  # Start Steady
-  log "  Starting Steady..."
-  cd "$STEADY_DIR"
-  deno task start --no-log --port $PORT "$spec" > "$sdk_path/.steady-test.log" 2>&1 &
-  local steady_pid=$!
-
-  # Wait for server
-  local ready=0
-  for i in $(seq 1 30); do
-    if curl -s "http://localhost:$PORT" >/dev/null 2>&1; then
-      ready=1
-      break
-    fi
-    sleep 0.5
-  done
-
-  if [ $ready -eq 0 ]; then
-    fail "  Steady failed to start"
-    cat "$sdk_path/.steady-test.log" | head -20
-    kill $steady_pid 2>/dev/null || true
-    return 1
-  fi
-
-  success "  Steady running"
 
   # Setup Python venv using SDK's bootstrap script
   cd "$sdk_path"
@@ -92,23 +69,25 @@ test_sdk() {
     ./scripts/bootstrap 2>&1 | tail -5 || { warn "  Bootstrap failed"; }
   fi
 
-  # Run a quick test
-  local test_result=0
-  if [ -d "tests/api_resources" ]; then
-    log "  Running tests..."
+  # Copy our mock script to use Steady
+  if [ -f "$STEADY_DIR/openai-python/scripts/mock" ]; then
+    cp "$STEADY_DIR/openai-python/scripts/mock" "./scripts/mock"
+  fi
 
-    # Find a simple test file (prefer test_models.py as it's usually simple)
-    local test_file=""
-    if [ -f "tests/api_resources/test_models.py" ]; then
-      test_file="tests/api_resources/test_models.py"
-    else
+  # Run tests using SDK's test script
+  local test_result=0
+  if [ -x "./scripts/test" ]; then
+    log "  Running ./scripts/test..."
+
+    # Find a simple test file
+    local test_file="tests/api_resources/test_models.py"
+    if [ ! -f "$test_file" ]; then
       test_file=$(ls tests/api_resources/test_*.py 2>/dev/null | head -1)
     fi
 
     if [ -n "$test_file" ]; then
-      log "  Running: $test_file"
-      if rye run pytest "$test_file" -x -q --tb=line 2>&1 | tee "$sdk_path/.test-output.log" | tail -10; then
-        # Check if there were actual passes
+      log "  Test file: $test_file"
+      if ./scripts/test "$test_file" -x -q --tb=line 2>&1 | tee "$sdk_path/.test-output.log" | tail -15; then
         if grep -q "passed" "$sdk_path/.test-output.log"; then
           test_result=0
         elif grep -q "failed\|error" "$sdk_path/.test-output.log"; then
@@ -121,17 +100,11 @@ test_sdk() {
       warn "  No test files found"
     fi
   else
-    warn "  Skipping tests (no test files)"
+    warn "  No ./scripts/test found"
   fi
 
-  # Cleanup
-  kill $steady_pid 2>/dev/null || true
-
-  # Check Steady logs for errors
-  if grep -q "ERROR\|FATAL" "$sdk_path/.steady-test.log" 2>/dev/null; then
-    warn "  Steady had errors:"
-    grep "ERROR\|FATAL" "$sdk_path/.steady-test.log" | head -5
-  fi
+  # Cleanup any remaining mock server
+  cleanup
 
   if [ $test_result -eq 0 ]; then
     success "  $sdk_name passed"
