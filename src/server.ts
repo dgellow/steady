@@ -30,6 +30,11 @@ import {
 } from "@steady/shared";
 import { RequestValidator } from "./validator.ts";
 import { DiagnosticCollector } from "./diagnostics/collector.ts";
+import {
+  compilePathPattern,
+  matchCompiledPath,
+  type PathSegment,
+} from "./path-matcher.ts";
 
 // ANSI colors for startup message
 const BOLD = "\x1b[1m";
@@ -48,13 +53,11 @@ const HTTP_METHODS = [
 ] as const;
 type HttpMethod = typeof HTTP_METHODS[number];
 
-/** Pre-compiled path pattern for efficient matching */
+/** Pre-compiled path pattern with associated path item */
 interface CompiledPath {
   pattern: string;
   pathItem: PathItemObject;
-  segments: Array<
-    { type: "literal"; value: string } | { type: "param"; name: string }
-  >;
+  segments: PathSegment[];
   segmentCount: number;
 }
 
@@ -105,20 +108,11 @@ export class MockServer {
       if (!pattern.includes("{")) {
         this.exactRoutes.set(pattern, pathItem);
       } else {
-        // Compile the pattern
-        const segments = pattern.split("/").filter((s) => s.length > 0);
-        const compiledSegments = segments.map((seg) => {
-          if (seg.startsWith("{") && seg.endsWith("}")) {
-            return { type: "param" as const, name: seg.slice(1, -1) };
-          }
-          return { type: "literal" as const, value: seg };
-        });
-
+        // Compile the pattern using shared utility
+        const compiled = compilePathPattern(pattern);
         this.patternRoutes.push({
-          pattern,
+          ...compiled,
           pathItem,
-          segments: compiledSegments,
-          segmentCount: segments.length,
         });
       }
     }
@@ -417,17 +411,9 @@ export class MockServer {
       return { operation, statusCode, pathPattern: path, pathParams: {} };
     }
 
-    // Try pattern matching with pre-compiled routes
-    const requestSegments = path.split("/").filter((s) => s.length > 0);
-    const segmentCount = requestSegments.length;
-
+    // Try pattern matching with pre-compiled routes using shared utility
     for (const compiled of this.patternRoutes) {
-      // Quick check: segment count must match
-      if (compiled.segmentCount !== segmentCount) {
-        continue;
-      }
-
-      const params = this.matchCompiledPath(requestSegments, compiled);
+      const params = matchCompiledPath(path, compiled);
       if (params) {
         const operation = this.getOperationForMethod(
           compiled.pathItem,
@@ -457,31 +443,6 @@ export class MockServer {
         }`
         : "No paths defined in the OpenAPI spec",
     });
-  }
-
-  /**
-   * Match request segments against a compiled path pattern
-   */
-  private matchCompiledPath(
-    requestSegments: string[],
-    compiled: CompiledPath,
-  ): Record<string, string> | null {
-    const params: Record<string, string> = {};
-
-    for (let i = 0; i < compiled.segments.length; i++) {
-      const compiledSeg = compiled.segments[i]!;
-      const requestSeg = requestSegments[i];
-
-      if (!requestSeg) return null;
-
-      if (compiledSeg.type === "param") {
-        params[compiledSeg.name] = decodeURIComponent(requestSeg);
-      } else if (compiledSeg.value !== requestSeg) {
-        return null;
-      }
-    }
-
-    return params;
   }
 
   /**
