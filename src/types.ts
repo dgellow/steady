@@ -32,6 +32,15 @@ export interface ResolvedSchema extends Omit<SchemaObject, "$ref"> {
   resolvedFrom?: string; // Track where this was resolved from
 }
 
+export interface ValidatorConfig {
+  /**
+   * Enable strict oneOf validation per JSON Schema semantics.
+   * When false (default), oneOf passes if ANY variant matches (union-like).
+   * When true, oneOf requires EXACTLY one variant to match.
+   */
+  strictOneOf?: boolean;
+}
+
 export interface ServerConfig {
   port: number;
   host: string;
@@ -41,6 +50,7 @@ export interface ServerConfig {
   logBodies?: boolean;
   showValidation?: boolean;
   interactive?: boolean;
+  validator?: ValidatorConfig;
 }
 
 // Validation types

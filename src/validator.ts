@@ -21,6 +21,7 @@ import type {
 } from "@steady/parser";
 import {
   RegistryValidator,
+  type RegistryValidatorOptions,
   type Schema,
   type SchemaRegistry,
 } from "@steady/json-schema";
@@ -56,13 +57,15 @@ const MAX_BODY_SIZE = 10 * 1024 * 1024;
  * whether to reject requests based on the effective mode (strict/relaxed),
  * which can be overridden per-request via the X-Steady-Mode header.
  */
+export interface RequestValidatorOptions extends RegistryValidatorOptions {}
+
 export class RequestValidator {
   private validator: RegistryValidator;
   private registry: SchemaRegistry;
 
-  constructor(registry: SchemaRegistry) {
+  constructor(registry: SchemaRegistry, options?: RequestValidatorOptions) {
     this.registry = registry;
-    this.validator = new RegistryValidator(registry);
+    this.validator = new RegistryValidator(registry, options);
   }
 
   /**

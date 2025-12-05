@@ -16,7 +16,7 @@ export type { OpenAPIDocumentOptions } from "./openapi-document.ts";
 
 // Core components
 export { SchemaRegistry, RegistryResponseGenerator, RegistryValidator } from "./schema-registry.ts";
-export type { RegistrySchema, SchemaRegistryOptions } from "./schema-registry.ts";
+export type { RegistrySchema, SchemaRegistryOptions, RegistryValidatorOptions } from "./schema-registry.ts";
 
 // Reference graph
 export { RefGraph } from "./ref-graph.ts";

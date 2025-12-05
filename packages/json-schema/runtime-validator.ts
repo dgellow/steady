@@ -134,16 +134,24 @@ export interface RuntimeValidatorOptions {
    * per JSON Schema 2020-12 spec. Set to true to validate format.
    */
   validateFormats?: boolean;
+  /**
+   * Enable strict oneOf validation per JSON Schema semantics.
+   * When false (default), oneOf passes if ANY variant matches (union-like).
+   * When true, oneOf requires EXACTLY one variant to match.
+   */
+  strictOneOf?: boolean;
 }
 
 export class RuntimeValidator {
   private readonly validateFormats: boolean;
+  private readonly strictOneOf: boolean;
 
   constructor(
     private schema: ProcessedSchema,
     options?: RuntimeValidatorOptions,
   ) {
     this.validateFormats = options?.validateFormats ?? false;
+    this.strictOneOf = options?.strictOneOf ?? false;
   }
 
   /**
@@ -1124,9 +1132,9 @@ export class RuntimeValidator {
       }
     }
 
-    // oneOf: Treat as union - pass if ANY variant matches
-    // Note: This differs from strict JSON Schema semantics (exactly one must match)
-    // but matches real-world SDK needs where discriminated unions may overlap
+    // oneOf validation - behavior controlled by strictOneOf option
+    // Default (strictOneOf=false): pass if ANY variant matches (union-like)
+    // Strict (strictOneOf=true): require EXACTLY one variant to match per JSON Schema
     if (schema.oneOf) {
       const passingResults: Array<{ index: number; result: EvaluationResult }> =
         [];
@@ -1146,15 +1154,25 @@ export class RuntimeValidator {
         }
       }
 
-      if (passingResults.length === 0) {
+      const isValid = this.strictOneOf
+        ? passingResults.length === 1
+        : passingResults.length >= 1;
+
+      if (!isValid) {
+        const message = this.strictOneOf
+          ? passingResults.length === 0
+            ? "Must match exactly one schema in oneOf (matched none)"
+            : `Must match exactly one schema in oneOf (matched ${passingResults.length})`
+          : "Must match at least one schema in oneOf";
+
         result.errors.push(this.createError(
           "oneOf",
-          "Must match at least one schema in oneOf",
+          message,
           { ...context, schemaPath: `${context.schemaPath}/oneOf` },
-          { passingSchemas: 0 },
+          { passingSchemas: passingResults.length },
         ));
       } else {
-        // Merge evaluations from ALL passing subschemas
+        // Merge evaluations from passing subschemas
         for (const { result: passingResult } of passingResults) {
           for (const prop of passingResult.evaluatedProperties) {
             result.evaluatedProperties.add(prop);

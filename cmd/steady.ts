@@ -12,7 +12,7 @@ const RESET = "\x1b[0m";
 
 async function main() {
   const args = parseArgs(Deno.args, {
-    boolean: ["help", "auto-reload", "log-bodies", "no-log", "strict", "relaxed", "interactive"],
+    boolean: ["help", "auto-reload", "log-bodies", "no-log", "strict", "relaxed", "interactive", "validator-strict-oneof"],
     string: ["port", "log-level"],
     alias: {
       h: "help",
@@ -54,6 +54,9 @@ async function main() {
     mode,
     interactive: args.interactive,
     portOverride,
+    validator: {
+      strictOneOf: args["validator-strict-oneof"],
+    },
   };
 
   try {
@@ -88,6 +91,7 @@ async function startServer(
     mode: "strict" | "relaxed";
     interactive: boolean;
     portOverride?: number;
+    validator?: { strictOneOf?: boolean };
   },
 ): Promise<{ start: () => void; stop: () => void }> {
   // Lazy import to avoid loading server code for validate command
@@ -114,6 +118,7 @@ async function startServer(
     logBodies: options.logBodies,
     showValidation: true,
     interactive: options.interactive,
+    validator: options.validator,
   };
 
   // Create and start server
@@ -132,6 +137,7 @@ async function startWithWatch(
     mode: "strict" | "relaxed";
     interactive: boolean;
     portOverride?: number;
+    validator?: { strictOneOf?: boolean };
   },
 ) {
   let server: { start: () => void; stop: () => void } | null = null;
@@ -257,6 +263,10 @@ Options:
   --strict                 Strict validation mode (default)
   --relaxed                Relaxed validation mode
   -h, --help               Show this help message
+
+Validator Options:
+  --validator-strict-oneof   Require exactly one oneOf variant to match (strict JSON Schema)
+                             Default: false (union-like, any variant matching is OK)
 
 Examples:
   steady api.yaml                          # Start with default settings
