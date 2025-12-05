@@ -64,15 +64,55 @@ test_sdk() {
 
   # Setup Python venv using SDK's bootstrap script
   cd "$sdk_path"
-  if [ ! -d ".venv" ] && [ -x "./scripts/bootstrap" ]; then
+  if [ -x "./scripts/bootstrap" ]; then
     log "  Running bootstrap..."
     ./scripts/bootstrap 2>&1 | tail -5 || { warn "  Bootstrap failed"; }
   fi
 
-  # Copy our mock script to use Steady
-  if [ -f "$STEADY_DIR/openai-python/scripts/mock" ]; then
-    cp "$STEADY_DIR/openai-python/scripts/mock" "./scripts/mock"
-  fi
+  # Create mock script that uses Steady
+  cat > "./scripts/mock" << MOCK_EOF
+#!/usr/bin/env bash
+set -e
+cd "\$(dirname "\$0")/.."
+
+# Get spec from argument, local file, or .stats.yml URL
+if [[ -n "\$1" && "\$1" != '--'* ]]; then
+  SPEC="\$1"
+  shift
+elif [ -f "openapi-spec.yml" ]; then
+  SPEC="\$PWD/openapi-spec.yml"
+else
+  SPEC="\$(grep 'openapi_spec_url' .stats.yml | cut -d' ' -f2)"
+fi
+
+if [ -z "\$SPEC" ]; then
+  echo "Error: No OpenAPI spec found"
+  exit 1
+fi
+
+echo "==> Starting Steady mock server with spec \${SPEC}"
+
+# Run steady mock server on port 4010
+if [ "\$1" == "--daemon" ]; then
+  deno task --cwd "$STEADY_DIR" start --port 4010 "\$SPEC" &> .steady.log &
+  echo -n "Waiting for server"
+  for i in {1..50}; do
+    if curl --silent "http://localhost:4010" >/dev/null 2>&1; then
+      echo " ready!"
+      exit 0
+    fi
+    echo -n "."
+    sleep 0.2
+  done
+  echo
+  echo "Timeout waiting for server. Log:"
+  cat .steady.log
+  exit 1
+else
+  deno task --cwd "$STEADY_DIR" start --port 4010 "\$SPEC"
+fi
+MOCK_EOF
+  chmod +x "./scripts/mock"
 
   # Run tests using SDK's test script
   local test_result=0
@@ -87,17 +127,32 @@ test_sdk() {
 
     if [ -n "$test_file" ]; then
       log "  Test file: $test_file"
-      if ./scripts/test "$test_file" -x -q --tb=line 2>&1 | tee "$sdk_path/.test-output.log" | tail -15; then
-        if grep -q "passed" "$sdk_path/.test-output.log"; then
-          test_result=0
-        elif grep -q "failed\|error" "$sdk_path/.test-output.log"; then
-          test_result=1
-        fi
+      ./scripts/test "$test_file" -x -q --tb=line 2>&1 | tee "$sdk_path/.test-output.log" | tail -20
+
+      # Check for failures in order of priority
+      if grep -qi "ModuleNotFoundError\|ImportError" "$sdk_path/.test-output.log"; then
+        test_result=1
+      elif grep -q " failed" "$sdk_path/.test-output.log"; then
+        test_result=1
+      elif grep -q " passed" "$sdk_path/.test-output.log" && ! grep -q " failed" "$sdk_path/.test-output.log"; then
+        test_result=0
       else
         test_result=1
       fi
+
+      # Review Steady logs for any issues
+      if [ -f "$sdk_path/.steady.log" ]; then
+        log "  Steady server log:"
+        # Show errors or last few lines
+        if grep -q "ERROR\|Error\|error:" "$sdk_path/.steady.log"; then
+          grep -i "error" "$sdk_path/.steady.log" | head -10
+        else
+          tail -5 "$sdk_path/.steady.log"
+        fi
+      fi
     else
       warn "  No test files found"
+      test_result=1
     fi
   else
     warn "  No ./scripts/test found"
