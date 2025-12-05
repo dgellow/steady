@@ -328,7 +328,9 @@ Deno.test("composition: anyOf", async () => {
   assertEquals(validator.validate(true)[0]?.keyword, "anyOf");
 });
 
-Deno.test("composition: oneOf", async () => {
+Deno.test("composition: oneOf validates like union (not strict)", async () => {
+  // oneOf should behave like a union - pass if ANY variant matches
+  // This differs from strict JSON Schema semantics but matches real-world SDK needs
   const schema = {
     oneOf: [
       { type: "integer", multipleOf: 2 },  // even integers
@@ -337,10 +339,52 @@ Deno.test("composition: oneOf", async () => {
   };
   const validator = await createValidator(schema);
 
-  assertEquals(validator.validate(2).length, 0);  // matches only first
-  assertEquals(validator.validate(3).length, 0);  // matches only second
-  assertEquals(validator.validate(6).length, 1);  // matches both - error!
-  assertEquals(validator.validate(5).length, 1);  // matches neither - error!
+  assertEquals(validator.validate(2).length, 0);  // matches first
+  assertEquals(validator.validate(3).length, 0);  // matches second
+  assertEquals(validator.validate(6).length, 0);  // matches BOTH - should pass!
+  assertEquals(validator.validate(5).length, 1);  // matches neither - error
+});
+
+Deno.test("composition: oneOf with overlapping object schemas", async () => {
+  // Real SDK scenario: discriminated unions where schemas may overlap
+  const schema = {
+    oneOf: [
+      {
+        type: "object",
+        properties: {
+          type: { const: "text" },
+          content: { type: "string" },
+        },
+        required: ["type", "content"],
+      },
+      {
+        type: "object",
+        properties: {
+          type: { const: "image" },
+          url: { type: "string" },
+        },
+        required: ["type", "url"],
+      },
+      {
+        type: "object",
+        // Generic fallback that could match anything with a type
+        properties: {
+          type: { type: "string" },
+        },
+        required: ["type"],
+      },
+    ],
+  };
+  const validator = await createValidator(schema);
+
+  // Text block matches first AND third variant - should pass
+  assertEquals(validator.validate({ type: "text", content: "hello" }).length, 0);
+  // Image block matches second AND third variant - should pass
+  assertEquals(validator.validate({ type: "image", url: "http://example.com" }).length, 0);
+  // Unknown type matches only third variant - should pass
+  assertEquals(validator.validate({ type: "unknown" }).length, 0);
+  // Missing type matches none - should fail
+  assertEquals(validator.validate({ content: "no type" }).length, 1);
 });
 
 Deno.test("composition: not", async () => {

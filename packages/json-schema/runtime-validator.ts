@@ -1124,7 +1124,9 @@ export class RuntimeValidator {
       }
     }
 
-    // oneOf: Exactly one must pass, only that ONE's evaluations are visible
+    // oneOf: Treat as union - pass if ANY variant matches
+    // Note: This differs from strict JSON Schema semantics (exactly one must match)
+    // but matches real-world SDK needs where discriminated unions may overlap
     if (schema.oneOf) {
       const passingResults: Array<{ index: number; result: EvaluationResult }> =
         [];
@@ -1144,28 +1146,22 @@ export class RuntimeValidator {
         }
       }
 
-      if (passingResults.length !== 1) {
+      if (passingResults.length === 0) {
         result.errors.push(this.createError(
           "oneOf",
-          passingResults.length === 0
-            ? "Must match exactly one schema in oneOf (matched none)"
-            : `Must match exactly one schema in oneOf (matched ${passingResults.length}: indices ${
-              passingResults.map((r) => r.index).join(", ")
-            })`,
+          "Must match at least one schema in oneOf",
           { ...context, schemaPath: `${context.schemaPath}/oneOf` },
-          {
-            passingSchemas: passingResults.length,
-            validIndices: passingResults.map((r) => r.index),
-          },
+          { passingSchemas: 0 },
         ));
       } else {
-        // Merge evaluations from the ONE passing subschema
-        const passingResult = passingResults[0]!.result;
-        for (const prop of passingResult.evaluatedProperties) {
-          result.evaluatedProperties.add(prop);
-        }
-        for (const item of passingResult.evaluatedItems) {
-          result.evaluatedItems.add(item);
+        // Merge evaluations from ALL passing subschemas
+        for (const { result: passingResult } of passingResults) {
+          for (const prop of passingResult.evaluatedProperties) {
+            result.evaluatedProperties.add(prop);
+          }
+          for (const item of passingResult.evaluatedItems) {
+            result.evaluatedItems.add(item);
+          }
         }
       }
     }
