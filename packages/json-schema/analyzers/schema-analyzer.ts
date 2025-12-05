@@ -67,9 +67,12 @@ export class SchemaAnalyzer implements Analyzer {
         code: "schema-complexity",
         severity: "info",
         pointer: "#",
-        message: `Schema complexity score is ${complexity} (threshold: ${this.config.maxComplexity ?? 1000})`,
+        message: `Schema complexity score is ${complexity} (threshold: ${
+          this.config.maxComplexity ?? 1000
+        })`,
         attribution: getAttribution("schema-complexity"),
-        suggestion: "Consider simplifying schemas or splitting into smaller documents",
+        suggestion:
+          "Consider simplifying schemas or splitting into smaller documents",
       });
     }
 
@@ -78,7 +81,9 @@ export class SchemaAnalyzer implements Analyzer {
         code: "schema-nesting",
         severity: "info",
         pointer: "#",
-        message: `Maximum schema nesting is ${maxNesting} levels (threshold: ${this.config.maxNesting ?? 20})`,
+        message: `Maximum schema nesting is ${maxNesting} levels (threshold: ${
+          this.config.maxNesting ?? 20
+        })`,
         attribution: getAttribution("schema-nesting"),
         suggestion: "Deep nesting can impact validation performance",
       });
@@ -121,12 +126,15 @@ export class SchemaAnalyzer implements Analyzer {
             code: "schema-ref-siblings",
             severity: "warning",
             pointer,
-            message: `$ref has sibling keywords that will be ignored: ${ignoredKeywords.join(", ")}`,
+            message: `$ref has sibling keywords that will be ignored: ${
+              ignoredKeywords.join(", ")
+            }`,
             attribution: getAttribution("schema-ref-siblings"),
             suggestion:
               "Per JSON Schema 2020-12, keywords alongside $ref are ignored. " +
               "Move these keywords into the referenced schema or remove them.",
-            documentation: "https://json-schema.org/draft/2020-12/json-schema-core.html#name-the-ref-keyword",
+            documentation:
+              "https://json-schema.org/draft/2020-12/json-schema-core.html#name-the-ref-keyword",
           });
         }
       }
@@ -200,4 +208,3 @@ export class SchemaAnalyzer implements Analyzer {
     return undefined;
   }
 }
-

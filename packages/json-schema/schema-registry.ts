@@ -326,11 +326,19 @@ export class RegistryResponseGenerator {
       const optionToUse = nonNullOptions.length > 0
         ? nonNullOptions[0]!
         : schema.anyOf[0]!;
-      return this.generateFromSchema(optionToUse, `${pointer}/anyOf/0`, depth + 1);
+      return this.generateFromSchema(
+        optionToUse,
+        `${pointer}/anyOf/0`,
+        depth + 1,
+      );
     }
 
     if (schema.oneOf?.length) {
-      return this.generateFromSchema(schema.oneOf[0]!, `${pointer}/oneOf/0`, depth + 1);
+      return this.generateFromSchema(
+        schema.oneOf[0]!,
+        `${pointer}/oneOf/0`,
+        depth + 1,
+      );
     }
 
     if (schema.allOf?.length) {
@@ -344,7 +352,10 @@ export class RegistryResponseGenerator {
           depth + 1,
         );
         // Merge if it's an object
-        if (generated && typeof generated === "object" && !Array.isArray(generated)) {
+        if (
+          generated && typeof generated === "object" &&
+          !Array.isArray(generated)
+        ) {
           Object.assign(merged, generated);
         }
       }
@@ -389,16 +400,25 @@ export class RegistryResponseGenerator {
       }
       return schema.type;
     }
-    if (schema.properties || schema.patternProperties || schema.additionalProperties) {
+    if (
+      schema.properties || schema.patternProperties ||
+      schema.additionalProperties
+    ) {
       return "object";
     }
     if (schema.items || schema.prefixItems || schema.contains) {
       return "array";
     }
-    if (schema.pattern || schema.minLength !== undefined || schema.maxLength !== undefined) {
+    if (
+      schema.pattern || schema.minLength !== undefined ||
+      schema.maxLength !== undefined
+    ) {
       return "string";
     }
-    if (schema.minimum !== undefined || schema.maximum !== undefined || schema.multipleOf !== undefined) {
+    if (
+      schema.minimum !== undefined || schema.maximum !== undefined ||
+      schema.multipleOf !== undefined
+    ) {
       return "number";
     }
     return null;
@@ -441,16 +461,21 @@ export class RegistryResponseGenerator {
 
     const minLength = schema.minLength ?? 1;
     const maxLength = schema.maxLength ?? 10;
-    const length = minLength + Math.floor(this.random() * (maxLength - minLength + 1));
+    const length = minLength +
+      Math.floor(this.random() * (maxLength - minLength + 1));
     return this.randomString(length);
   }
 
   private generateFormat(format: string): string | null {
     switch (format) {
       case "date-time":
-        return new Date(Date.now() - Math.floor(this.random() * 365 * 24 * 60 * 60 * 1000)).toISOString();
+        return new Date(
+          Date.now() - Math.floor(this.random() * 365 * 24 * 60 * 60 * 1000),
+        ).toISOString();
       case "date":
-        return new Date(Date.now() - Math.floor(this.random() * 365 * 24 * 60 * 60 * 1000)).toISOString().split("T")[0]!;
+        return new Date(
+          Date.now() - Math.floor(this.random() * 365 * 24 * 60 * 60 * 1000),
+        ).toISOString().split("T")[0]!;
       case "time": {
         const h = Math.floor(this.random() * 24).toString().padStart(2, "0");
         const m = Math.floor(this.random() * 60).toString().padStart(2, "0");
@@ -462,9 +487,13 @@ export class RegistryResponseGenerator {
       case "hostname":
         return `host${Math.floor(this.random() * 1000)}.example.com`;
       case "ipv4":
-        return Array(4).fill(0).map(() => Math.floor(this.random() * 256)).join(".");
+        return Array(4).fill(0).map(() => Math.floor(this.random() * 256)).join(
+          ".",
+        );
       case "ipv6":
-        return Array(8).fill(0).map(() => Math.floor(this.random() * 65536).toString(16).padStart(4, "0")).join(":");
+        return Array(8).fill(0).map(() =>
+          Math.floor(this.random() * 65536).toString(16).padStart(4, "0")
+        ).join(":");
       case "uri":
         return `https://example.com/path${Math.floor(this.random() * 1000)}`;
       case "uuid":
@@ -478,17 +507,28 @@ export class RegistryResponseGenerator {
     }
   }
 
-  private generateArray(schema: Schema, pointer: string, depth: number): unknown[] {
+  private generateArray(
+    schema: Schema,
+    pointer: string,
+    depth: number,
+  ): unknown[] {
     const minItems = schema.minItems ?? 0;
     const maxItems = schema.maxItems ?? 3;
-    const length = minItems + Math.floor(this.random() * (maxItems - minItems + 1));
+    const length = minItems +
+      Math.floor(this.random() * (maxItems - minItems + 1));
 
     const array: unknown[] = [];
 
     // Generate prefix items first
     if (schema.prefixItems) {
       for (let i = 0; i < schema.prefixItems.length && i < length; i++) {
-        array.push(this.generateFromSchema(schema.prefixItems[i]!, `${pointer}/prefixItems/${i}`, depth + 1));
+        array.push(
+          this.generateFromSchema(
+            schema.prefixItems[i]!,
+            `${pointer}/prefixItems/${i}`,
+            depth + 1,
+          ),
+        );
       }
     }
 
@@ -496,21 +536,31 @@ export class RegistryResponseGenerator {
     if (schema.items && array.length < length) {
       const itemSchema = schema.items as Schema;
       for (let i = array.length; i < length; i++) {
-        array.push(this.generateFromSchema(itemSchema, `${pointer}/items`, depth + 1));
+        array.push(
+          this.generateFromSchema(itemSchema, `${pointer}/items`, depth + 1),
+        );
       }
     }
 
     return array;
   }
 
-  private generateObject(schema: Schema, pointer: string, depth: number): Record<string, unknown> {
+  private generateObject(
+    schema: Schema,
+    pointer: string,
+    depth: number,
+  ): Record<string, unknown> {
     const obj: Record<string, unknown> = {};
 
     // Generate required properties
     if (schema.required) {
       for (const prop of schema.required) {
         if (schema.properties?.[prop]) {
-          obj[prop] = this.generateFromSchema(schema.properties[prop]!, `${pointer}/properties/${prop}`, depth + 1);
+          obj[prop] = this.generateFromSchema(
+            schema.properties[prop]!,
+            `${pointer}/properties/${prop}`,
+            depth + 1,
+          );
         } else {
           obj[prop] = this.pick(["value", 123, true, null]);
         }
@@ -521,7 +571,11 @@ export class RegistryResponseGenerator {
     if (schema.properties) {
       for (const [prop, propSchema] of Object.entries(schema.properties)) {
         if (!(prop in obj) && this.random() > 0.5) {
-          obj[prop] = this.generateFromSchema(propSchema, `${pointer}/properties/${prop}`, depth + 1);
+          obj[prop] = this.generateFromSchema(
+            propSchema,
+            `${pointer}/properties/${prop}`,
+            depth + 1,
+          );
         }
       }
     }
@@ -536,7 +590,8 @@ export class RegistryResponseGenerator {
   }
 
   private randomString(length: number): string {
-    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const chars =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let result = "";
     for (let i = 0; i < length; i++) {
       result += chars[Math.floor(this.random() * chars.length)];
@@ -602,7 +657,11 @@ export class RegistryValidator {
    * Validate data against an inline schema object.
    * Use this for schemas embedded in parameters/bodies that may contain $refs.
    */
-  validateData(schema: Schema | boolean, data: unknown, basePath = ""): ValidationResult {
+  validateData(
+    schema: Schema | boolean,
+    data: unknown,
+    basePath = "",
+  ): ValidationResult {
     this.visited.clear();
     const errors = this.validateSchemaInternal(schema, data, basePath, "#");
     return {
@@ -619,8 +678,22 @@ export class RegistryValidator {
     data: unknown,
     instancePath: string,
     schemaPath: string,
-  ): Array<{ instancePath: string; schemaPath: string; keyword: string; message: string }> {
-    const errors: Array<{ instancePath: string; schemaPath: string; keyword: string; message: string }> = [];
+  ): Array<
+    {
+      instancePath: string;
+      schemaPath: string;
+      keyword: string;
+      message: string;
+    }
+  > {
+    const errors: Array<
+      {
+        instancePath: string;
+        schemaPath: string;
+        keyword: string;
+        message: string;
+      }
+    > = [];
 
     // Boolean schemas
     if (typeof schema === "boolean") {
@@ -656,7 +729,12 @@ export class RegistryValidator {
       }
 
       this.visited.add(ref);
-      const refErrors = this.validateSchemaInternal(resolved.raw, data, instancePath, ref);
+      const refErrors = this.validateSchemaInternal(
+        resolved.raw,
+        data,
+        instancePath,
+        ref,
+      );
       this.visited.delete(ref);
       errors.push(...refErrors);
 
@@ -755,7 +833,9 @@ export class RegistryValidator {
           message: `Number must be <= ${schema.maximum}`,
         });
       }
-      if (schema.exclusiveMinimum !== undefined && data <= schema.exclusiveMinimum) {
+      if (
+        schema.exclusiveMinimum !== undefined && data <= schema.exclusiveMinimum
+      ) {
         errors.push({
           instancePath,
           schemaPath: `${schemaPath}/exclusiveMinimum`,
@@ -763,7 +843,9 @@ export class RegistryValidator {
           message: `Number must be > ${schema.exclusiveMinimum}`,
         });
       }
-      if (schema.exclusiveMaximum !== undefined && data >= schema.exclusiveMaximum) {
+      if (
+        schema.exclusiveMaximum !== undefined && data >= schema.exclusiveMaximum
+      ) {
         errors.push({
           instancePath,
           schemaPath: `${schemaPath}/exclusiveMaximum`,
@@ -801,7 +883,10 @@ export class RegistryValidator {
       }
 
       // Validate items
-      if (schema.items && typeof schema.items === "object" && !Array.isArray(schema.items)) {
+      if (
+        schema.items && typeof schema.items === "object" &&
+        !Array.isArray(schema.items)
+      ) {
         data.forEach((item, index) => {
           errors.push(...this.validateSchemaInternal(
             schema.items as Schema,
@@ -832,20 +917,26 @@ export class RegistryValidator {
       const obj = data as Record<string, unknown>;
       const keys = Object.keys(obj);
 
-      if (schema.minProperties !== undefined && keys.length < schema.minProperties) {
+      if (
+        schema.minProperties !== undefined && keys.length < schema.minProperties
+      ) {
         errors.push({
           instancePath,
           schemaPath: `${schemaPath}/minProperties`,
           keyword: "minProperties",
-          message: `Object must have at least ${schema.minProperties} properties`,
+          message:
+            `Object must have at least ${schema.minProperties} properties`,
         });
       }
-      if (schema.maxProperties !== undefined && keys.length > schema.maxProperties) {
+      if (
+        schema.maxProperties !== undefined && keys.length > schema.maxProperties
+      ) {
         errors.push({
           instancePath,
           schemaPath: `${schemaPath}/maxProperties`,
           keyword: "maxProperties",
-          message: `Object must have at most ${schema.maxProperties} properties`,
+          message:
+            `Object must have at most ${schema.maxProperties} properties`,
         });
       }
 
@@ -885,7 +976,9 @@ export class RegistryValidator {
         for (const key of keys) {
           if (!defined.has(key)) {
             // Check pattern properties
-            const matchesPattern = patternProps.some((pattern) => new RegExp(pattern).test(key));
+            const matchesPattern = patternProps.some((pattern) =>
+              new RegExp(pattern).test(key)
+            );
             if (!matchesPattern) {
               errors.push({
                 instancePath: `${instancePath}/${key}`,
@@ -927,7 +1020,12 @@ export class RegistryValidator {
     // Composition: anyOf
     if (schema.anyOf) {
       const anyOfValid = schema.anyOf.some((subSchema, i) => {
-        const subErrors = this.validateSchemaInternal(subSchema, data, instancePath, `${schemaPath}/anyOf/${i}`);
+        const subErrors = this.validateSchemaInternal(
+          subSchema,
+          data,
+          instancePath,
+          `${schemaPath}/anyOf/${i}`,
+        );
         return subErrors.length === 0;
       });
       if (!anyOfValid) {
@@ -943,13 +1041,16 @@ export class RegistryValidator {
     // Composition: oneOf - behavior controlled by strictOneOf option
     if (schema.oneOf) {
       const matchCount = schema.oneOf.filter((subSchema, i) => {
-        const subErrors = this.validateSchemaInternal(subSchema, data, instancePath, `${schemaPath}/oneOf/${i}`);
+        const subErrors = this.validateSchemaInternal(
+          subSchema,
+          data,
+          instancePath,
+          `${schemaPath}/oneOf/${i}`,
+        );
         return subErrors.length === 0;
       }).length;
 
-      const isValid = this.strictOneOf
-        ? matchCount === 1
-        : matchCount >= 1;
+      const isValid = this.strictOneOf ? matchCount === 1 : matchCount >= 1;
 
       if (!isValid) {
         const message = this.strictOneOf
@@ -969,7 +1070,12 @@ export class RegistryValidator {
 
     // Composition: not
     if (schema.not) {
-      const notErrors = this.validateSchemaInternal(schema.not, data, instancePath, `${schemaPath}/not`);
+      const notErrors = this.validateSchemaInternal(
+        schema.not,
+        data,
+        instancePath,
+        `${schemaPath}/not`,
+      );
       if (notErrors.length === 0) {
         errors.push({
           instancePath,

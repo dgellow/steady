@@ -1354,7 +1354,9 @@ export class RuntimeValidator {
   /**
    * Enrich errors with additional context
    */
-  private enrichErrors(errors: SchemaValidationError[]): SchemaValidationError[] {
+  private enrichErrors(
+    errors: SchemaValidationError[],
+  ): SchemaValidationError[] {
     return errors.map((error) => {
       const enriched = { ...error };
 

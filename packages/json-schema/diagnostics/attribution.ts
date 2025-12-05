@@ -26,7 +26,8 @@ const ATTRIBUTION_RULES: Record<DiagnosticCode, AttributionRule> = {
   "ref-cycle": {
     type: "spec-issue",
     confidence: 0.9,
-    reasoning: "Circular reference detected - handled gracefully but indicates spec complexity",
+    reasoning:
+      "Circular reference detected - handled gracefully but indicates spec complexity",
   },
   "ref-deep-chain": {
     type: "spec-issue",
@@ -96,7 +97,8 @@ const ATTRIBUTION_RULES: Record<DiagnosticCode, AttributionRule> = {
   "request-invalid-body": {
     type: "sdk-issue",
     confidence: 0.8,
-    reasoning: "Request body doesn't match schema - likely SDK serialization bug",
+    reasoning:
+      "Request body doesn't match schema - likely SDK serialization bug",
   },
   "request-wrong-content-type": {
     type: "sdk-issue",

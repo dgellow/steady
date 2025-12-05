@@ -49,7 +49,7 @@
     "strictPropertyInitialization": true
   },
   "fmt": {
-    "exclude": ["packages/json-schema/test-suite/"]
+    "exclude": ["packages/json-schema/test-suite/", "tests/fixtures/"]
   },
   "lint": {
     "rules": {

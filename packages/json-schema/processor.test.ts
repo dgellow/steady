@@ -85,7 +85,10 @@ Deno.test("JsonSchemaProcessor - detect circular references", async () => {
   assertEquals(result.valid, true);
   assertEquals(result.warnings.length >= 0, true); // May or may not have warnings
 
-  assertEquals(result.schema !== undefined && result.schema.refs.cyclic.size > 0, true);
+  assertEquals(
+    result.schema !== undefined && result.schema.refs.cyclic.size > 0,
+    true,
+  );
 });
 
 Deno.test("JsonSchemaProcessor - process boolean schema", async () => {

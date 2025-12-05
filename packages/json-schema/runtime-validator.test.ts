@@ -26,7 +26,9 @@ async function createValidator(
 
   if (!result.valid || !result.schema) {
     throw new Error(
-      `Failed to process schema: ${result.errors.map((e) => e.message).join(", ")}`,
+      `Failed to process schema: ${
+        result.errors.map((e) => e.message).join(", ")
+      }`,
     );
   }
 
@@ -41,7 +43,7 @@ Deno.test("safeRegexTest: invalid regex pattern should FAIL validation", async (
   // Schema with an invalid regex pattern (unbalanced parenthesis)
   const schema = {
     type: "string",
-    pattern: "(((",  // Invalid regex - unbalanced parentheses
+    pattern: "(((", // Invalid regex - unbalanced parentheses
   };
 
   const validator = await createValidator(schema);
@@ -63,14 +65,14 @@ Deno.test("safeRegexTest: invalid regex pattern should FAIL validation", async (
 Deno.test("safeRegexTest: extremely long string should FAIL pattern validation", async () => {
   const schema = {
     type: "string",
-    pattern: "^[a-z]+$",  // Pattern that requires lowercase letters only
+    pattern: "^[a-z]+$", // Pattern that requires lowercase letters only
   };
 
   const validator = await createValidator(schema);
 
   // Create a string that's too long for safe regex testing (> 100000 chars)
   // but does NOT match the pattern (contains uppercase)
-  const longInvalidString = "A".repeat(150_000);  // All uppercase, doesn't match pattern
+  const longInvalidString = "A".repeat(150_000); // All uppercase, doesn't match pattern
 
   const errors = validator.validate(longInvalidString);
 
@@ -302,15 +304,23 @@ Deno.test("object validation: additionalProperties false", async () => {
 Deno.test("composition: allOf", async () => {
   const schema = {
     allOf: [
-      { type: "object", properties: { a: { type: "string" } }, required: ["a"] },
-      { type: "object", properties: { b: { type: "number" } }, required: ["b"] },
+      {
+        type: "object",
+        properties: { a: { type: "string" } },
+        required: ["a"],
+      },
+      {
+        type: "object",
+        properties: { b: { type: "number" } },
+        required: ["b"],
+      },
     ],
   };
   const validator = await createValidator(schema);
 
   assertEquals(validator.validate({ a: "hello", b: 42 }).length, 0);
-  assertEquals(validator.validate({ a: "hello" }).length, 1);  // missing b
-  assertEquals(validator.validate({ b: 42 }).length, 1);  // missing a
+  assertEquals(validator.validate({ a: "hello" }).length, 1); // missing b
+  assertEquals(validator.validate({ b: 42 }).length, 1); // missing a
 });
 
 Deno.test("composition: anyOf", async () => {
@@ -333,16 +343,16 @@ Deno.test("composition: oneOf validates like union (not strict)", async () => {
   // This differs from strict JSON Schema semantics but matches real-world SDK needs
   const schema = {
     oneOf: [
-      { type: "integer", multipleOf: 2 },  // even integers
-      { type: "integer", multipleOf: 3 },  // multiples of 3
+      { type: "integer", multipleOf: 2 }, // even integers
+      { type: "integer", multipleOf: 3 }, // multiples of 3
     ],
   };
   const validator = await createValidator(schema);
 
-  assertEquals(validator.validate(2).length, 0);  // matches first
-  assertEquals(validator.validate(3).length, 0);  // matches second
-  assertEquals(validator.validate(6).length, 0);  // matches BOTH - should pass!
-  assertEquals(validator.validate(5).length, 1);  // matches neither - error
+  assertEquals(validator.validate(2).length, 0); // matches first
+  assertEquals(validator.validate(3).length, 0); // matches second
+  assertEquals(validator.validate(6).length, 0); // matches BOTH - should pass!
+  assertEquals(validator.validate(5).length, 1); // matches neither - error
 });
 
 Deno.test("composition: oneOf with overlapping object schemas", async () => {
@@ -378,9 +388,15 @@ Deno.test("composition: oneOf with overlapping object schemas", async () => {
   const validator = await createValidator(schema);
 
   // Text block matches first AND third variant - should pass
-  assertEquals(validator.validate({ type: "text", content: "hello" }).length, 0);
+  assertEquals(
+    validator.validate({ type: "text", content: "hello" }).length,
+    0,
+  );
   // Image block matches second AND third variant - should pass
-  assertEquals(validator.validate({ type: "image", url: "http://example.com" }).length, 0);
+  assertEquals(
+    validator.validate({ type: "image", url: "http://example.com" }).length,
+    0,
+  );
   // Unknown type matches only third variant - should pass
   assertEquals(validator.validate({ type: "unknown" }).length, 0);
   // Missing type matches none - should fail
@@ -431,7 +447,7 @@ Deno.test("format validation: uuid (when enabled)", async () => {
 
 Deno.test("format validation: disabled by default", async () => {
   const schema = { type: "string", format: "email" };
-  const validator = await createValidator(schema);  // validateFormats not set
+  const validator = await createValidator(schema); // validateFormats not set
 
   // Should pass because format validation is disabled by default
   assertEquals(validator.validate("not-an-email").length, 0);
@@ -511,7 +527,7 @@ Deno.test("conditional: if/then/else", async () => {
   );
   assertEquals(
     validator.validate({ type: "business" }).length,
-    1,  // missing businessId
+    1, // missing businessId
   );
 
   // Personal type requires personalId
@@ -521,6 +537,6 @@ Deno.test("conditional: if/then/else", async () => {
   );
   assertEquals(
     validator.validate({ type: "personal" }).length,
-    1,  // missing personalId
+    1, // missing personalId
   );
 });

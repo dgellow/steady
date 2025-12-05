@@ -15,46 +15,54 @@ export { OpenAPIDocument } from "./openapi-document.ts";
 export type { OpenAPIDocumentOptions } from "./openapi-document.ts";
 
 // Core components
-export { SchemaRegistry, RegistryResponseGenerator, RegistryValidator } from "./schema-registry.ts";
-export type { RegistrySchema, SchemaRegistryOptions, RegistryValidatorOptions } from "./schema-registry.ts";
+export {
+  RegistryResponseGenerator,
+  RegistryValidator,
+  SchemaRegistry,
+} from "./schema-registry.ts";
+export type {
+  RegistrySchema,
+  RegistryValidatorOptions,
+  SchemaRegistryOptions,
+} from "./schema-registry.ts";
 
 // Reference graph
 export { RefGraph } from "./ref-graph.ts";
 
 // Document analysis
-export { DocumentAnalyzer, analyzeDocument } from "./document-analyzer.ts";
+export { analyzeDocument, DocumentAnalyzer } from "./document-analyzer.ts";
 export type { DocumentAnalyzerConfig } from "./document-analyzer.ts";
 
 // Diagnostics
 export type {
+  Attribution,
+  AttributionType,
   Diagnostic,
   DiagnosticCode,
   DiagnosticContext,
   DiagnosticPhase,
   DiagnosticSeverity,
   DiagnosticSummary,
-  Attribution,
-  AttributionType,
   RelatedDiagnostic,
 } from "./diagnostics/types.ts";
 export {
-  summarizeDiagnostics,
   filterBySeverity,
   groupByCode,
+  summarizeDiagnostics,
 } from "./diagnostics/types.ts";
 export {
-  getAttribution,
-  createAttribution,
   adjustConfidence,
+  createAttribution,
+  getAttribution,
   getAttributionLabel,
 } from "./diagnostics/attribution.ts";
 export {
   formatDiagnostic,
   formatDiagnosticsGrouped,
-  formatSummary,
   formatForResponse,
-  formatStartupDiagnostics,
   formatSessionSummary,
+  formatStartupDiagnostics,
+  formatSummary,
 } from "./diagnostics/formatter.ts";
 
 // Analyzers
@@ -90,4 +98,7 @@ export type { SchemaValidationError as ValidationError } from "./types.ts";
 
 // Core processing components
 export { JsonSchemaProcessor } from "./processor.ts";
-export { SchemaValidator, type SchemaValidatorOptions } from "./schema-validator.ts";
+export {
+  SchemaValidator,
+  type SchemaValidatorOptions,
+} from "./schema-validator.ts";

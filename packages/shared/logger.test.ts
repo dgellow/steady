@@ -51,7 +51,7 @@ Deno.test("formatHeaders: correctly counts headers", () => {
 
   // Should NOT contain negative numbers (like "-2" or "-1")
   // Note: the string contains "...and" which has a hyphen-like character
-  const negativePattern = /-\d+/;  // matches negative numbers like -1, -2
+  const negativePattern = /-\d+/; // matches negative numbers like -1, -2
   assertEquals(
     negativePattern.test(result),
     false,
