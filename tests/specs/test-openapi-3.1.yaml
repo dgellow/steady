@@ -1,0 +1,136 @@
+openapi: 3.1.0
+info:
+  title: OpenAPI 3.1 Test API
+  version: 1.0.0
+  summary: Test API showcasing OpenAPI 3.1 features
+  description: |
+    This API demonstrates new features in OpenAPI 3.1 including:
+    - JSON Schema 2020-12 compatibility
+    - Type arrays for nullable replacement
+    - Webhooks support
+    - New info fields
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+paths:
+  /users/{id}:
+    get:
+      operationId: getUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  email:
+                    type: ["string", "null"] # OpenAPI 3.1 style nullable
+                  metadata:
+                    type: ["object", "null"]
+                    properties:
+                      lastLogin:
+                        type: string
+                        format: date-time
+                required: ["id", "name"]
+              examples:
+                - id: 123
+                  name: "John Doe"
+                  email: "john@example.com"
+                  metadata:
+                    lastLogin: "2024-01-15T10:30:00Z"
+                - id: 456
+                  name: "Jane Smith"
+                  email: null
+                  metadata: null
+  /products:
+    post:
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                price:
+                  type: number
+                  minimum: 0
+                  exclusiveMinimum: true # JSON Schema 2020-12 feature
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                status:
+                  const: "active" # OpenAPI 3.1 const keyword
+              required: ["name", "price"]
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        price:
+          type: number
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+      examples:
+        - id: "550e8400-e29b-41d4-a716-446655440000"
+          name: "Widget"
+          price: 29.99
+          tags: ["hardware", "tools"]
+          createdAt: "2024-01-15T10:00:00Z"
+webhooks:
+  productUpdated:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  const: "product.updated"
+                productId:
+                  type: string
+                  format: uuid
+                changes:
+                  type: object
+      responses:
+        "200":
+          description: Webhook processed successfully
