@@ -8,7 +8,7 @@
  * - Path parameter extraction and validation
  */
 
-import type { ValidationIssue } from "./types.ts";
+import type { QueryArrayFormat, QueryNestedFormat, ValidationIssue } from "./types.ts";
 import { isReference } from "./types.ts";
 import { BodyTooLargeError } from "./errors.ts";
 import type { ValidationResult } from "@steady/shared";
@@ -57,15 +57,22 @@ const MAX_BODY_SIZE = 10 * 1024 * 1024;
  * whether to reject requests based on the effective mode (strict/relaxed),
  * which can be overridden per-request via the X-Steady-Mode header.
  */
-export interface RequestValidatorOptions extends RegistryValidatorOptions {}
+export interface RequestValidatorOptions extends RegistryValidatorOptions {
+  queryArrayFormat?: QueryArrayFormat;
+  queryNestedFormat?: QueryNestedFormat;
+}
 
 export class RequestValidator {
   private validator: RegistryValidator;
   private registry: SchemaRegistry;
+  private queryArrayFormat: QueryArrayFormat;
+  private queryNestedFormat: QueryNestedFormat;
 
   constructor(registry: SchemaRegistry, options?: RequestValidatorOptions) {
     this.registry = registry;
     this.validator = new RegistryValidator(registry, options);
+    this.queryArrayFormat = options?.queryArrayFormat ?? "repeat";
+    this.queryNestedFormat = options?.queryNestedFormat ?? "none";
   }
 
   /**
@@ -159,6 +166,107 @@ export class RequestValidator {
   }
 
   /**
+   * Get array values from query params based on configured format
+   */
+  private getArrayValues(params: URLSearchParams, name: string): string[] {
+    switch (this.queryArrayFormat) {
+      case "repeat":
+        // colors=red&colors=green
+        return params.getAll(name);
+      case "comma": {
+        // colors=red,green,blue
+        const value = params.get(name);
+        return value ? value.split(",") : [];
+      }
+      case "brackets": {
+        // colors[]=red&colors[]=green
+        return params.getAll(`${name}[]`);
+      }
+    }
+  }
+
+  /**
+   * Check if a parameter has a value based on configured format
+   */
+  private hasParamValue(params: URLSearchParams, name: string, isArray: boolean, isObject: boolean): boolean {
+    if (isObject && this.queryNestedFormat === "brackets") {
+      // Check for any key starting with name[
+      const prefix = `${name}[`;
+      for (const [key] of params) {
+        if (key.startsWith(prefix)) return true;
+      }
+      return false;
+    }
+
+    if (isArray) {
+      return this.getArrayValues(params, name).length > 0;
+    }
+
+    return params.get(name) !== null;
+  }
+
+  /**
+   * Parse nested object from brackets notation: user[name]=sam&user[age]=123 -> { name: "sam", age: "123" }
+   */
+  private parseNestedObject(params: URLSearchParams, name: string, schema: SchemaObject): unknown {
+    const result: Record<string, unknown> = {};
+    const prefix = `${name}[`;
+
+    for (const [key, value] of params) {
+      if (key.startsWith(prefix) && key.endsWith("]")) {
+        const propName = key.slice(prefix.length, -1);
+        // Get the property schema for type coercion
+        const propSchema = schema.properties?.[propName];
+        result[propName] = propSchema
+          ? this.parseParamValue(value, propSchema as SchemaObject)
+          : value;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Get the set of known parameter keys based on format
+   */
+  private getKnownParamKeys(paramSpecs: ParameterObject[]): Set<string> {
+    const known = new Set<string>();
+
+    for (const spec of paramSpecs) {
+      const isArray = this.isArraySchema(spec.schema);
+      const isObject = this.isObjectSchema(spec.schema);
+
+      // Add the base name
+      known.add(spec.name);
+
+      // Add format-specific variants
+      if (isArray && this.queryArrayFormat === "brackets") {
+        known.add(`${spec.name}[]`);
+      }
+
+      if (isObject && this.queryNestedFormat === "brackets" && spec.schema && !isReference(spec.schema)) {
+        const schema = spec.schema as SchemaObject;
+        if (schema.properties) {
+          // Add all bracket-notation keys for known properties
+          for (const propName of Object.keys(schema.properties)) {
+            known.add(`${spec.name}[${propName}]`);
+          }
+        }
+      }
+    }
+
+    return known;
+  }
+
+  /**
+   * Check if schema is an object type
+   */
+  private isObjectSchema(schema: SchemaObject | undefined): boolean {
+    if (!schema) return false;
+    return schema.type === "object" || !!schema.properties;
+  }
+
+  /**
    * Validate query parameters using JSON Schema processor
    */
   private async validateQueryParams(
@@ -170,10 +278,8 @@ export class RequestValidator {
 
     for (const spec of paramSpecs) {
       const isArrayType = this.isArraySchema(spec.schema);
-      const values = isArrayType
-        ? params.getAll(spec.name)
-        : [params.get(spec.name)];
-      const hasValue = values.length > 0 && values[0] !== null;
+      const isObjectType = this.isObjectSchema(spec.schema);
+      const hasValue = this.hasParamValue(params, spec.name, isArrayType, isObjectType);
 
       if (spec.required && !hasValue) {
         errors.push({
@@ -183,9 +289,19 @@ export class RequestValidator {
           actual: undefined,
         });
       } else if (hasValue && spec.schema) {
-        const parsedValue = isArrayType
-          ? values.map((v) => this.parseParamValue(v!, spec.schema!))
-          : this.parseParamValue(values[0]!, spec.schema);
+        let parsedValue: unknown;
+
+        if (isObjectType && this.queryNestedFormat === "brackets") {
+          // Parse nested object from brackets notation
+          parsedValue = this.parseNestedObject(params, spec.name, spec.schema);
+        } else if (isArrayType) {
+          // Parse array values
+          const values = this.getArrayValues(params, spec.name);
+          parsedValue = values.map((v) => this.parseParamValue(v, spec.schema!));
+        } else {
+          // Parse single value
+          parsedValue = this.parseParamValue(params.get(spec.name)!, spec.schema);
+        }
 
         const validation = this.validateValue(
           parsedValue,
@@ -197,12 +313,14 @@ export class RequestValidator {
     }
 
     // Check for unknown parameters - reported as errors, server decides based on effective mode
-    const knownParams = new Set(paramSpecs.map((p) => p.name));
+    const knownParams = this.getKnownParamKeys(paramSpecs);
     for (const [key] of params) {
       if (!knownParams.has(key)) {
+        // For bracket notation, extract base name for error message
+        const baseName = key.includes("[") ? key.split("[")[0] : key;
         errors.push({
-          path: `query.${key}`,
-          message: "Unknown parameter",
+          path: `query.${baseName}`,
+          message: key.includes("[") ? `Unknown parameter: ${key}` : "Unknown parameter",
         });
       }
     }

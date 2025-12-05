@@ -216,6 +216,146 @@ Deno.test("Validator: unknown query parameters are reported as errors", async ()
 });
 
 // =============================================================================
+// Query Parameter Array Format Tests
+// =============================================================================
+
+Deno.test("Validator: queryArrayFormat=repeat parses repeated keys", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, { queryArrayFormat: "repeat" });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      { name: "colors", in: "query", schema: { type: "array", items: { type: "string" } } },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?colors=red&colors=green&colors=blue");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryArrayFormat=comma parses comma-separated values", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, { queryArrayFormat: "comma" });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      { name: "colors", in: "query", schema: { type: "array", items: { type: "string" } } },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?colors=red,green,blue");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryArrayFormat=brackets parses bracket notation", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, { queryArrayFormat: "brackets" });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      { name: "colors", in: "query", schema: { type: "array", items: { type: "string" } } },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?colors[]=red&colors[]=green&colors[]=blue");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  assertEquals(result.valid, true);
+});
+
+// =============================================================================
+// Query Parameter Nested Format Tests
+// =============================================================================
+
+Deno.test("Validator: queryNestedFormat=brackets parses deepObject notation", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "user",
+        in: "query",
+        schema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            age: { type: "integer" },
+          },
+          required: ["name"],
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?user[name]=sam&user[age]=30");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryNestedFormat=brackets validates nested object schema", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "user",
+        in: "query",
+        required: true,
+        schema: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            age: { type: "integer" },
+          },
+          required: ["name"],
+        },
+      },
+    ],
+  };
+
+  // Missing required 'name' property
+  const req = mockRequest("http://localhost/test?user[age]=30");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  // Should fail because 'name' is required
+  assertEquals(result.valid, false);
+  assertExists(result.errors.find((e) => e.message.includes("required")));
+});
+
+Deno.test("Validator: queryNestedFormat=brackets coerces property types", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "filter",
+        in: "query",
+        schema: {
+          type: "object",
+          properties: {
+            limit: { type: "integer" },
+            active: { type: "boolean" },
+          },
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?filter[limit]=10&filter[active]=true");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  assertEquals(result.valid, true);
+});
+
+// =============================================================================
 // Path Parameter Validation
 // =============================================================================
 

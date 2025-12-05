@@ -13,7 +13,7 @@ const RESET = "\x1b[0m";
 async function main() {
   const args = parseArgs(Deno.args, {
     boolean: ["help", "auto-reload", "log-bodies", "no-log", "strict", "relaxed", "interactive", "validator-strict-oneof"],
-    string: ["port", "log-level"],
+    string: ["port", "log-level", "validator-query-array-format", "validator-query-nested-format"],
     alias: {
       h: "help",
       r: "auto-reload",
@@ -47,6 +47,22 @@ async function main() {
   if (args.relaxed) mode = "relaxed";
   if (args.strict) mode = "strict"; // strict takes precedence
 
+  // Validate query format args
+  const queryArrayFormat = args["validator-query-array-format"] as "repeat" | "comma" | "brackets" | undefined;
+  const queryNestedFormat = args["validator-query-nested-format"] as "none" | "brackets" | undefined;
+
+  if (queryArrayFormat && !["repeat", "comma", "brackets"].includes(queryArrayFormat)) {
+    console.error(`${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-array-format: ${queryArrayFormat}`);
+    console.error("Valid values: repeat, comma, brackets");
+    Deno.exit(1);
+  }
+
+  if (queryNestedFormat && !["none", "brackets"].includes(queryNestedFormat)) {
+    console.error(`${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-nested-format: ${queryNestedFormat}`);
+    console.error("Valid values: none, brackets");
+    Deno.exit(1);
+  }
+
   const options = {
     logLevel,
     logBodies: args["log-bodies"],
@@ -56,6 +72,8 @@ async function main() {
     portOverride,
     validator: {
       strictOneOf: args["validator-strict-oneof"],
+      queryArrayFormat,
+      queryNestedFormat,
     },
   };
 
@@ -91,7 +109,11 @@ async function startServer(
     mode: "strict" | "relaxed";
     interactive: boolean;
     portOverride?: number;
-    validator?: { strictOneOf?: boolean };
+    validator?: {
+      strictOneOf?: boolean;
+      queryArrayFormat?: "repeat" | "comma" | "brackets";
+      queryNestedFormat?: "none" | "brackets";
+    };
   },
 ): Promise<{ start: () => void; stop: () => void }> {
   // Lazy import to avoid loading server code for validate command
@@ -137,7 +159,11 @@ async function startWithWatch(
     mode: "strict" | "relaxed";
     interactive: boolean;
     portOverride?: number;
-    validator?: { strictOneOf?: boolean };
+    validator?: {
+      strictOneOf?: boolean;
+      queryArrayFormat?: "repeat" | "comma" | "brackets";
+      queryNestedFormat?: "none" | "brackets";
+    };
   },
 ) {
   let server: { start: () => void; stop: () => void } | null = null;
@@ -267,6 +293,15 @@ Options:
 Validator Options:
   --validator-strict-oneof   Require exactly one oneOf variant to match (strict JSON Schema)
                              Default: false (union-like, any variant matching is OK)
+  --validator-query-array-format=<format>
+                             How array query params are serialized:
+                             - repeat: colors=red&colors=green (default)
+                             - comma:  colors=red,green,blue
+                             - brackets: colors[]=red&colors[]=green
+  --validator-query-nested-format=<format>
+                             How nested object query params are serialized:
+                             - none: flat keys (default)
+                             - brackets: user[name]=sam&user[age]=123 (deepObject)
 
 Examples:
   steady api.yaml                          # Start with default settings

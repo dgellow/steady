@@ -32,6 +32,21 @@ export interface ResolvedSchema extends Omit<SchemaObject, "$ref"> {
   resolvedFrom?: string; // Track where this was resolved from
 }
 
+/**
+ * How array query parameters are serialized
+ * - 'repeat': colors=red&colors=green (explode=true, default)
+ * - 'comma': colors=red,green,blue (explode=false)
+ * - 'brackets': colors[]=red&colors[]=green (PHP/Rails style)
+ */
+export type QueryArrayFormat = "repeat" | "comma" | "brackets";
+
+/**
+ * How nested object query parameters are serialized
+ * - 'none': flat keys, no nesting support (default)
+ * - 'brackets': user[name]=sam&user[age]=123 (deepObject style)
+ */
+export type QueryNestedFormat = "none" | "brackets";
+
 export interface ValidatorConfig {
   /**
    * Enable strict oneOf validation per JSON Schema semantics.
@@ -39,6 +54,18 @@ export interface ValidatorConfig {
    * When true, oneOf requires EXACTLY one variant to match.
    */
   strictOneOf?: boolean;
+
+  /**
+   * How to parse array query parameters.
+   * Default: 'repeat' (colors=red&colors=green)
+   */
+  queryArrayFormat?: QueryArrayFormat;
+
+  /**
+   * How to parse nested object query parameters.
+   * Default: 'none' (flat keys)
+   */
+  queryNestedFormat?: QueryNestedFormat;
 }
 
 export interface ServerConfig {
