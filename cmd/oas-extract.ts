@@ -1,14 +1,16 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env
 
 import { parseArgs } from "@std/cli/parse-args";
-import { FastExtractor } from "../packages/oas-extract/src/fast-extractor.ts";
-import { SpecTransformer } from "../packages/oas-extract/src/transformer.ts";
-import { FastAnalyzer } from "../packages/oas-extract/src/fast-analyzer.ts";
-import { GeminiClient } from "../packages/oas-extract/src/llm.ts";
-import { SemanticDeduplicator } from "../packages/oas-extract/src/deduplicator.ts";
-import { parseSpec } from "../packages/parser/mod.ts";
-import { parseStrategy } from "../packages/oas-extract/src/naming-strategies.ts";
-import type { OpenAPISpec } from "../packages/oas-extract/src/types.ts";
+import {
+  FastAnalyzer,
+  FastExtractor,
+  GeminiClient,
+  parseStrategy,
+  SemanticDeduplicator,
+  SpecTransformer,
+  type OpenAPISpec,
+} from "@steady/oas-extract";
+import { parseSpec } from "@steady/parser";
 
 const VERSION = "0.1.0";
 
