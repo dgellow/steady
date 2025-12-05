@@ -142,3 +142,69 @@ Deno.test("RegistryResponseGenerator - nested anyOf in object property", () => {
     );
   }
 });
+
+Deno.test("RegistryResponseGenerator - allOf with $ref resolves referenced schema properties", () => {
+  // This is the Lithic SDK failure pattern: allOf with $ref to base schema
+  // The bug: $ref schemas have no direct .properties, so they get skipped
+  const document = {
+    components: {
+      schemas: {
+        BaseTransaction: {
+          type: "object",
+          properties: {
+            token: { type: "string" },
+            status: { type: "string" },
+            created: { type: "string", format: "date-time" },
+          },
+          required: ["token", "status", "created"],
+        },
+        FinancialTransaction: {
+          allOf: [
+            { $ref: "#/components/schemas/BaseTransaction" },
+            {
+              type: "object",
+              properties: {
+                family: { type: "string" },
+                category: { type: "string" },
+              },
+              required: ["family"],
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(document);
+  const generator = new RegistryResponseGenerator(registry);
+
+  const result = generator.generate(
+    "#/components/schemas/FinancialTransaction",
+  ) as Record<string, unknown>;
+
+  assertEquals(typeof result, "object", "Result should be an object");
+
+  // Properties from the $ref'd BaseTransaction should be included
+  assertEquals(
+    "token" in result,
+    true,
+    `Should include 'token' from BaseTransaction, got: ${JSON.stringify(result)}`,
+  );
+  assertEquals(
+    "status" in result,
+    true,
+    `Should include 'status' from BaseTransaction, got: ${JSON.stringify(result)}`,
+  );
+  assertEquals(
+    "created" in result,
+    true,
+    `Should include 'created' from BaseTransaction, got: ${JSON.stringify(result)}`,
+  );
+
+  // Properties from the inline schema should also be included
+  assertEquals(
+    "family" in result,
+    true,
+    `Should include 'family' from inline schema, got: ${JSON.stringify(result)}`,
+  );
+});
