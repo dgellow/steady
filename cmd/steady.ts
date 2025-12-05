@@ -1,5 +1,6 @@
 #!/usr/bin/env -S deno run --allow-read --allow-net --allow-env
 
+import { parseArgs } from "@std/cli/parse-args";
 import { parseSpecFromFile, SteadyError } from "@steady/parser";
 import { LogLevel } from "@steady/shared";
 import { ServerConfig } from "../src/types.ts";
@@ -9,85 +10,54 @@ const BOLD = "\x1b[1m";
 const RED = "\x1b[31m";
 const RESET = "\x1b[0m";
 
-// Helper to extract flag values
-function extractFlag(
-  args: string[],
-  flag: string,
-  defaultValue: string,
-): string {
-  const index = args.indexOf(flag);
-  if (index !== -1 && index + 1 < args.length) {
-    const value = args[index + 1];
-    if (value !== undefined) {
-      return value;
-    }
-  }
-  // Also check for --flag=value syntax
-  const prefix = `${flag}=`;
-  const found = args.find((arg) => arg.startsWith(prefix));
-  if (found) {
-    return found.substring(prefix.length);
-  }
-  return defaultValue;
-}
-
 async function main() {
-  // Parse command line arguments
-  const args = Deno.args;
+  const args = parseArgs(Deno.args, {
+    boolean: ["help", "auto-reload", "log-bodies", "no-log", "strict", "relaxed", "interactive"],
+    string: ["port", "log-level"],
+    alias: {
+      h: "help",
+      r: "auto-reload",
+      i: "interactive",
+      p: "port",
+    },
+    default: {
+      "log-level": "summary",
+    },
+  });
 
-  if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
+  if (args.help || args._.length === 0) {
     printHelp();
     Deno.exit(0);
   }
 
   // Check for validate command
-  if (args[0] === "validate") {
-    await validateCommand(args.slice(1));
+  const firstArg = String(args._[0]);
+  if (firstArg === "validate") {
+    await validateCommand(args._.slice(1).map(String));
     return;
   }
 
-  // Parse flags
-  const autoReload = args.includes("--auto-reload") || args.includes("-r");
-  const logLevel = extractFlag(args, "--log-level", "summary") as
-    | "summary"
-    | "details"
-    | "full";
-  const logBodies = args.includes("--log-bodies");
-  const noLog = args.includes("--no-log");
-  const strictMode = args.includes("--strict");
-  const relaxedMode = args.includes("--relaxed");
-  const interactive = args.includes("--interactive") || args.includes("-i");
-
-  // Filter out all flags to get the spec path
-  const filteredArgs = args.filter((arg) =>
-    !arg.startsWith("--") &&
-    !arg.startsWith("-") &&
-    arg !== "summary" &&
-    arg !== "details" &&
-    arg !== "full"
-  );
-
-  const specPath = filteredArgs[0];
-  if (!specPath) {
-    console.error(`${RED}${BOLD}ERROR:${RESET} No spec file provided`);
-    Deno.exit(1);
-  }
+  // Parse options
+  const specPath = firstArg;
+  const logLevel = args["log-level"] as "summary" | "details" | "full";
+  const portOverride = args.port ? parseInt(args.port, 10) : undefined;
 
   // Determine mode
   let mode: "strict" | "relaxed" = "strict";
-  if (relaxedMode) mode = "relaxed";
-  if (strictMode) mode = "strict"; // strict takes precedence
+  if (args.relaxed) mode = "relaxed";
+  if (args.strict) mode = "strict"; // strict takes precedence
 
   const options = {
     logLevel,
-    logBodies,
-    noLog,
+    logBodies: args["log-bodies"],
+    noLog: args["no-log"],
     mode,
-    interactive,
+    interactive: args.interactive,
+    portOverride,
   };
 
   try {
-    if (autoReload) {
+    if (args["auto-reload"]) {
       console.log(
         `🔄 ${BOLD}Auto-reload enabled${RESET} - restarting on changes to ${specPath}\n`,
       );
@@ -117,6 +87,7 @@ async function startServer(
     noLog: boolean;
     mode: "strict" | "relaxed";
     interactive: boolean;
+    portOverride?: number;
   },
 ): Promise<{ start: () => void; stop: () => void }> {
   // Lazy import to avoid loading server code for validate command
@@ -124,9 +95,9 @@ async function startServer(
   // Parse the OpenAPI spec
   const spec = await parseSpecFromFile(specPath);
 
-  // Determine port from spec or use default
-  let port = 3000;
-  if (spec.servers && spec.servers.length > 0 && spec.servers[0]) {
+  // Determine port: CLI flag > spec > default
+  let port = options.portOverride ?? 3000;
+  if (!options.portOverride && spec.servers && spec.servers.length > 0 && spec.servers[0]) {
     const serverUrl = new URL(spec.servers[0].url);
     if (serverUrl.port) {
       port = parseInt(serverUrl.port);
@@ -160,6 +131,7 @@ async function startWithWatch(
     noLog: boolean;
     mode: "strict" | "relaxed";
     interactive: boolean;
+    portOverride?: number;
   },
 ) {
   let server: { start: () => void; stop: () => void } | null = null;
@@ -276,6 +248,7 @@ Arguments:
   <openapi-spec>    Path to OpenAPI 3.0/3.1 specification file (YAML or JSON)
 
 Options:
+  -p, --port <port>        Override server port (default: from spec or 3000)
   -r, --auto-reload        Auto-reload on spec file changes
   -i, --interactive        Interactive mode with expandable logs
   --log-level <level>      Set logging detail: summary|details|full (default: summary)
@@ -287,6 +260,7 @@ Options:
 
 Examples:
   steady api.yaml                          # Start with default settings
+  steady -p 4010 api.yaml                  # Start on port 4010
   steady validate api.yaml                 # Validate specification
   steady --log-level=details api.yaml      # Show detailed logs
   steady --log-bodies api.yaml             # Show bodies in summary mode

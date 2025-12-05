@@ -74,6 +74,7 @@ to key `"User Name"` (percent-decoded before JSON Pointer parsing).
 3. **No silent failures** - Never swallow errors or return fake success
 4. **Test with red-green** - Write failing test first, then fix
 5. **Fail loudly** - Invalid input = error, not silent pass
+6. **No hacky solutions** - Use standard libraries (e.g., `@std/cli` for arg parsing), don't reinvent the wheel with brittle manual implementations
 
 ## Testing Approach
 
