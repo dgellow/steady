@@ -4,8 +4,8 @@ import React, { useEffect, useState } from "npm:react@18";
 import { Box, render, Text, useApp, useInput, useStdout } from "npm:ink@5";
 // import fullscreen from "npm:fullscreen-ink"; // Not used currently
 import process from "node:process";
-import { LogLevel } from "./types.ts";
-import { RequestLogger, ValidationResult } from "./logger.ts";
+import type { LogLevel, StoredRequest } from "./types.ts";
+import { RequestLogger, type ValidationResult } from "./logger.ts";
 
 // Debug logging to file
 const debugLog = (message: string) => {
@@ -26,22 +26,6 @@ const LIGHT_PINK = "\x1b[38;5;217m";
 const YELLOW = "\x1b[33m";
 const RED = "\x1b[31m";
 const RESET = "\x1b[0m";
-
-interface StoredRequest {
-  id: string;
-  timestamp: Date;
-  method: string;
-  path: string;
-  query: string;
-  headers: Headers;
-  body?: unknown;
-  statusCode: number;
-  statusText: string;
-  responseHeaders?: Headers;
-  responseBody?: unknown;
-  timing: number;
-  validation?: ValidationResult;
-}
 
 export class InkSimpleLogger extends RequestLogger {
   private entries: StoredRequest[] = [];

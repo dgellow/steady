@@ -9,5 +9,6 @@ export {
 } from "./ink-logger.tsx";
 
 // Types
-export type { LogLevel } from "./types.ts";
+export type { LogLevel, LogValidationResult, StoredRequest } from "./types.ts";
+// Re-export ValidationResult alias for backwards compatibility
 export type { ValidationResult } from "./logger.ts";

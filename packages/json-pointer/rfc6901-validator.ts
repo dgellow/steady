@@ -6,11 +6,17 @@
  * The validation catches common errors that break interoperability.
  */
 
-export interface ValidationResult {
+/**
+ * Result of JSON Pointer syntax validation.
+ */
+export interface PointerValidationResult {
   valid: boolean;
   error?: string;
   suggestion?: string;
 }
+
+// Backwards compatibility alias
+export type ValidationResult = PointerValidationResult;
 
 /**
  * Validate a JSON Pointer string according to RFC 6901
@@ -23,7 +29,7 @@ export interface ValidationResult {
  * - Spaces SHOULD be percent-encoded as %20
  * - Other special characters CAN be percent-encoded
  */
-export function validatePointer(pointer: string): ValidationResult {
+export function validatePointer(pointer: string): PointerValidationResult {
   // Empty string is valid per RFC 6901
   if (pointer === "") {
     return { valid: true };
@@ -61,7 +67,7 @@ export function validatePointer(pointer: string): ValidationResult {
 /**
  * Validate a single JSON Pointer token (segment between slashes)
  */
-function validateToken(token: string, _position: number): ValidationResult {
+function validateToken(token: string, _position: number): PointerValidationResult {
   // Check for invalid escape sequences
   // RFC 6901: Only ~0 (tilde) and ~1 (slash) are valid escape sequences
 
@@ -112,7 +118,7 @@ function validateToken(token: string, _position: number): ValidationResult {
  * - "##/definitions/User" ✗ (double hash)
  * - "#components/schemas/User" ✗ (missing slash after #)
  */
-export function validateRef(ref: string): ValidationResult {
+export function validateRef(ref: string): PointerValidationResult {
   // Check for double hash (common typo)
   if (ref.startsWith("##")) {
     return {

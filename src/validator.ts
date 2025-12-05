@@ -11,6 +11,7 @@
 
 import type { ValidationIssue } from "./types.ts";
 import { isReference } from "./types.ts";
+import { BodyTooLargeError } from "./errors.ts";
 import type { ValidationResult } from "@steady/shared";
 import type {
   OperationObject,
@@ -571,15 +572,5 @@ export class RequestValidator {
       default:
         return value;
     }
-  }
-}
-
-/**
- * Error thrown when request body exceeds size limit
- */
-class BodyTooLargeError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BodyTooLargeError";
   }
 }

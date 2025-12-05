@@ -293,3 +293,14 @@ export function methodNotAllowedError(
     "sdk",
   );
 }
+
+/**
+ * Error thrown when request body exceeds size limit.
+ * This is an internal error used by the validator - not exposed to users.
+ */
+export class BodyTooLargeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BodyTooLargeError";
+  }
+}

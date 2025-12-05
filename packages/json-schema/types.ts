@@ -156,11 +156,17 @@ export interface SchemaValidationError {
   relatedErrors?: string[];
 }
 
-export interface ValidationResult {
+/**
+ * Result of validating data against a JSON Schema.
+ */
+export interface SchemaValidationResult {
   valid: boolean;
   errors: SchemaValidationError[];
   attribution?: ErrorAttribution;
 }
+
+// Backwards compatibility alias
+export type ValidationResult = SchemaValidationResult;
 
 export interface ValidatorOptions {
   dialect?: JsonSchemaDialect;

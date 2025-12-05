@@ -19,7 +19,7 @@ export interface ErrorContext {
   examples?: string[];
 
   // Multiple errors (for comprehensive validation)
-  allErrors?: ValidationError[];
+  allErrors?: SpecValidationError[];
 }
 
 export class SteadyError extends Error {
