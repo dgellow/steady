@@ -59,34 +59,61 @@ export function parseSpec(
 }
 
 /**
- * Load and parse an OpenAPI spec from a file.
- * Convenience function that handles file I/O and adds file context to errors.
+ * Load and parse an OpenAPI spec from a file or URL.
+ * Convenience function that handles file/URL I/O and adds context to errors.
  */
 export async function parseSpecFromFile(path: string): Promise<OpenAPISpec> {
-  // Read file
+  const isUrl = path.startsWith("http://") || path.startsWith("https://");
+
+  // Read content from file or URL
   let content: string;
-  try {
-    content = await Deno.readTextFile(path);
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      throw new ParseError("OpenAPI spec file not found", {
+  if (isUrl) {
+    try {
+      const response = await fetch(path);
+      if (!response.ok) {
+        throw new ParseError("Failed to fetch OpenAPI spec", {
+          specFile: path,
+          errorType: "parse",
+          reason: `HTTP ${response.status}: ${response.statusText}`,
+          suggestion: "Check that the URL is correct and accessible",
+        });
+      }
+      content = await response.text();
+    } catch (error) {
+      if (error instanceof ParseError) throw error;
+      throw new ParseError("Failed to fetch OpenAPI spec", {
         specFile: path,
         errorType: "parse",
-        reason: `The file "${path}" does not exist`,
-        suggestion: "Check that the file path is correct and the file exists",
+        reason: `Could not fetch URL: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        suggestion: "Check that the URL is correct and you have network access",
       });
     }
-    throw new ParseError("Failed to read OpenAPI spec file", {
-      specFile: path,
-      errorType: "parse",
-      reason: `Could not read file: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      suggestion: "Check that you have permission to read the file",
-    });
+  } else {
+    try {
+      content = await Deno.readTextFile(path);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        throw new ParseError("OpenAPI spec file not found", {
+          specFile: path,
+          errorType: "parse",
+          reason: `The file "${path}" does not exist`,
+          suggestion: "Check that the file path is correct and the file exists",
+        });
+      }
+      throw new ParseError("Failed to read OpenAPI spec file", {
+        specFile: path,
+        errorType: "parse",
+        reason: `Could not read file: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        suggestion: "Check that you have permission to read the file",
+      });
+    }
   }
 
-  // Determine format from extension
+  // Determine format from extension/URL
   const ext = path.toLowerCase();
   let format: "json" | "yaml" | "auto" = "auto";
   if (ext.endsWith(".json")) {
@@ -95,11 +122,12 @@ export async function parseSpecFromFile(path: string): Promise<OpenAPISpec> {
     format = "yaml";
   }
 
-  // Parse with file context
+  // Parse with context
+  const baseUri = isUrl ? path : `file://${path}`;
   try {
     return await parseSpec(content, {
       format,
-      baseUri: `file://${path}`,
+      baseUri,
     });
   } catch (error) {
     // Add file context to errors
