@@ -245,17 +245,19 @@ function generateReport(results: SpecResult[]): AnalysisReport {
 
   for (const r of successResults) {
     for (const d of r.diagnostics) {
-      if (!diagnosticsByCode[d.code]) {
-        diagnosticsByCode[d.code] = {
+      let entry = diagnosticsByCode[d.code];
+      if (!entry) {
+        entry = {
           count: 0,
           severity: d.severity,
           attribution: d.attribution.type,
           examples: [],
         };
+        diagnosticsByCode[d.code] = entry;
       }
-      diagnosticsByCode[d.code].count++;
-      if (diagnosticsByCode[d.code].examples.length < 5) {
-        diagnosticsByCode[d.code].examples.push({
+      entry.count++;
+      if (entry.examples.length < 5) {
+        entry.examples.push({
           spec: r.name,
           pointer: d.pointer,
           message: d.message.slice(0, 100),
@@ -397,8 +399,8 @@ function printReport(report: AnalysisReport): void {
       : "💡";
     console.log(`  ${icon} ${code}: ${data.count} (${data.attribution})`);
     // Show a sample
-    if (data.examples.length > 0) {
-      const ex = data.examples[0];
+    const ex = data.examples[0];
+    if (ex) {
       console.log(`     Sample: ${ex.spec}`);
       console.log(`     At: ${ex.pointer}`);
     }
@@ -440,7 +442,8 @@ function printReport(report: AnalysisReport): void {
 async function main() {
   const args = Deno.args;
   const limitIdx = args.indexOf("--limit");
-  const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) : Infinity;
+  const limitArg = limitIdx !== -1 ? args[limitIdx + 1] : undefined;
+  const limit = limitArg ? parseInt(limitArg) : Infinity;
   const verbose = args.includes("--verbose") || args.includes("-v");
   const jsonOutput = args.includes("--json");
 
@@ -457,6 +460,7 @@ async function main() {
 
   for (let i = 0; i < specPaths.length; i++) {
     const path = specPaths[i];
+    if (!path) continue;
     const shortName = path.replace(OPENAPI_DIR + "/", "");
 
     if (verbose) {
