@@ -25,7 +25,6 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
-tests/fixtures/
 
 # Misc
 .env

@@ -1,11 +1,6 @@
 /**
  * Integration tests for Steady with enterprise-scale specs
  *
- * NOTE: Some tests require test fixtures that are not in version control:
- * - tests/fixtures/datadog-openapi.json (8.4MB Datadog API spec)
- *
- * Download from: https://github.com/DataDog/datadog-api-spec
- *
  * Tests:
  * 1. Massive spec loading (8.4MB datadog-openapi.json)
  * 2. Path parameter extraction and matching
@@ -105,22 +100,18 @@ Deno.test("Integration: Path matching edge cases", () => {
 // Spec Loading Tests
 // =============================================================================
 
-Deno.test({
-  name: "Integration: Load massive Datadog spec (8.4MB, 323 endpoints)",
-  ignore: !await fileExists("./tests/fixtures/datadog-openapi.json"),
-  fn: async () => {
-    const spec = await parseSpecFromFile("./tests/fixtures/datadog-openapi.json");
+Deno.test("Integration: Load massive Datadog spec (8.4MB, 323 endpoints)", async () => {
+  const spec = await parseSpecFromFile("./tests/fixtures/datadog-openapi.json");
 
-    // Verify basic structure
-    assertEquals(spec.openapi, "3.0.3");
-    assertEquals(spec.info.title, "Datadog API Collection");
+  // Verify basic structure
+  assertEquals(spec.openapi, "3.0.3");
+  assertEquals(spec.info.title, "Datadog API Collection");
 
-    // Verify paths loaded
-    const pathCount = Object.keys(spec.paths).length;
-    assertEquals(pathCount, 323);
+  // Verify paths loaded
+  const pathCount = Object.keys(spec.paths).length;
+  assertEquals(pathCount, 323);
 
-    console.log(`✅ Successfully loaded ${pathCount} endpoints from 8.4MB spec`);
-  },
+  console.log(`✅ Successfully loaded ${pathCount} endpoints from 8.4MB spec`);
 });
 
 // =============================================================================
@@ -239,7 +230,6 @@ Deno.test({
 
 Deno.test({
   name: "Integration: Performance with complex nested schemas",
-  ignore: !await fileExists("./tests/fixtures/datadog-openapi.json"),
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -293,7 +283,6 @@ Deno.test({
 
 Deno.test({
   name: "Integration: Query parameter validation",
-  ignore: !await fileExists("./tests/fixtures/datadog-openapi.json"),
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -323,16 +312,3 @@ Deno.test({
     }
   },
 });
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
