@@ -10,6 +10,7 @@ import type { SchemaRegistry } from "../schema-registry.ts";
 import type { Analyzer } from "./ref-analyzer.ts";
 import type { Diagnostic, DiagnosticCode } from "../diagnostics/types.ts";
 import { getAttribution } from "../diagnostics/attribution.ts";
+import { escapeSegment } from "@steady/json-pointer";
 
 /**
  * Content types that typically don't have schemas (binary, non-JSON)
@@ -94,7 +95,7 @@ export class MockAnalyzer implements Analyzer {
             if (!mediaType || typeof mediaType !== "object") continue;
 
             const mediaObj = mediaType as Record<string, unknown>;
-            const pointer = `#/paths/${escapePointer(path)}/${method}/responses/${statusCode}/content/${escapePointer(contentType)}`;
+            const pointer = `#/paths/${escapeSegment(path)}/${method}/responses/${statusCode}/content/${escapeSegment(contentType)}`;
 
             // Check for schema
             if (!mediaObj.schema) {
@@ -158,9 +159,3 @@ export class MockAnalyzer implements Analyzer {
   }
 }
 
-/**
- * Escape special characters in JSON Pointer segment
- */
-function escapePointer(segment: string): string {
-  return segment.replace(/~/g, "~0").replace(/\//g, "~1");
-}

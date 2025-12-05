@@ -19,7 +19,7 @@ export interface ErrorContext {
   examples?: string[];
 
   // Multiple errors (for comprehensive validation)
-  allErrors?: ValidationError[];
+  allErrors?: SpecValidationError[];
 }
 
 export class SteadyError extends Error {
@@ -94,7 +94,11 @@ export class ParseError extends SteadyError {
   }
 }
 
-export class ValidationError extends SteadyError {
+/**
+ * Error thrown when OpenAPI spec validation fails.
+ * Distinct from SchemaValidationError (JSON Schema) and ValidationIssue (request validation).
+ */
+export class SpecValidationError extends SteadyError {
   constructor(message: string, context: ErrorContext) {
     super(message, { ...context, errorType: "validate" });
   }

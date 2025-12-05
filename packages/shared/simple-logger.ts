@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --allow-sys
 
-import { LogLevel } from "./types.ts";
-import { RequestLogger, ValidationResult } from "./logger.ts";
+import type { LogLevel, StoredRequest } from "./types.ts";
+import { RequestLogger, type ValidationResult } from "./logger.ts";
 
 // Simple ANSI codes for essential formatting only
 const RESET = "\x1b[0m";
@@ -13,22 +13,6 @@ const CLEAR_SCREEN = "\x1b[2J";
 const CURSOR_HOME = "\x1b[H";
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
-
-interface StoredRequest {
-  id: string;
-  timestamp: Date;
-  method: string;
-  path: string;
-  query: string;
-  headers: Headers;
-  body?: unknown;
-  statusCode: number;
-  statusText: string;
-  responseHeaders?: Headers;
-  responseBody?: unknown;
-  timing: number;
-  validation?: ValidationResult;
-}
 
 export class SimpleLogger extends RequestLogger {
   private entries: StoredRequest[] = [];

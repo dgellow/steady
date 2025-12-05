@@ -122,7 +122,11 @@ export type SchemaType =
   | "integer"
   | "string";
 
-export interface ValidationError {
+/**
+ * Represents a validation error from JSON Schema validation.
+ * Contains rich context for error attribution and debugging.
+ */
+export interface SchemaValidationError {
   // WHAT went wrong
   instancePath: string;
   schemaPath: string;
@@ -152,11 +156,17 @@ export interface ValidationError {
   relatedErrors?: string[];
 }
 
-export interface ValidationResult {
+/**
+ * Result of validating data against a JSON Schema.
+ */
+export interface SchemaValidationResult {
   valid: boolean;
-  errors: ValidationError[];
+  errors: SchemaValidationError[];
   attribution?: ErrorAttribution;
 }
+
+// Backwards compatibility alias
+export type ValidationResult = SchemaValidationResult;
 
 export interface ValidatorOptions {
   dialect?: JsonSchemaDialect;
@@ -243,7 +253,7 @@ export interface SchemaProcessResult {
   metadata?: SchemaMetadata; // Only present when processing succeeds
 }
 
-export interface SchemaError extends ValidationError {
+export interface SchemaError extends SchemaValidationError {
   type:
     | "schema-invalid"
     | "ref-not-found"
@@ -262,7 +272,7 @@ export interface ErrorAttribution {
   type: "sdk-error" | "spec-error" | "ambiguous";
   confidence: number;
   reasoning: string;
-  primaryError: ValidationError;
+  primaryError: SchemaValidationError;
   suggestion: string;
   relatedIssues?: string[];
 }

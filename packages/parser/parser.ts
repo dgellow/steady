@@ -1,6 +1,6 @@
 import { parse as parseYAML } from "@std/yaml";
 import { OpenAPISpec } from "./openapi.ts";
-import { ParseError, ValidationError, ErrorContext } from "./errors.ts";
+import { ParseError, SpecValidationError, ErrorContext } from "./errors.ts";
 import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
 import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
 
@@ -103,7 +103,7 @@ export async function parseSpecFromFile(path: string): Promise<OpenAPISpec> {
     });
   } catch (error) {
     // Add file context to errors
-    if (error instanceof ParseError || error instanceof ValidationError) {
+    if (error instanceof ParseError || error instanceof SpecValidationError) {
       error.context.specFile = path;
     }
     throw error;
@@ -120,7 +120,7 @@ async function validateOpenAPISpec(
 ): Promise<OpenAPISpec> {
   // Basic structural validation - must be an object
   if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
-    throw new ValidationError("Invalid OpenAPI spec structure", {
+    throw new SpecValidationError("Invalid OpenAPI spec structure", {
       errorType: "validate",
       reason: "OpenAPI spec must be an object, not an array or primitive value",
       suggestion: "Ensure your spec contains a valid OpenAPI object",
@@ -128,11 +128,11 @@ async function validateOpenAPISpec(
   }
 
   const s = spec as Record<string, unknown>;
-  const errors: ValidationError[] = [];
+  const errors: SpecValidationError[] = [];
 
   // Helper to collect validation errors
   function addError(message: string, context: Omit<ErrorContext, "errorType">) {
-    errors.push(new ValidationError(message, { ...context, errorType: "validate" }));
+    errors.push(new SpecValidationError(message, { ...context, errorType: "validate" }));
   }
 
   // Validate openapi version field
@@ -265,7 +265,7 @@ async function validateOpenAPISpec(
     if (errors.length === 1) {
       throw errors[0]!;
     } else {
-      throw new ValidationError(`Found ${errors.length} validation errors`, {
+      throw new SpecValidationError(`Found ${errors.length} validation errors`, {
         errorType: "validate",
         reason: errors.map(e => e.message).join("; "),
         allErrors: errors,
@@ -286,7 +286,7 @@ async function validateOpenAPISpec(
       const isRefError = error.type === "ref-not-found" ||
                          error.keyword === "$ref" ||
                          error.message.toLowerCase().includes("ref");
-      throw new ValidationError(
+      throw new SpecValidationError(
         isRefError ? "Invalid reference in OpenAPI spec" : "OpenAPI spec validation failed",
         {
           errorType: "validate",

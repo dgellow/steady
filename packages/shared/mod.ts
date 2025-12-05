@@ -6,8 +6,9 @@ export { SimpleLogger } from "./simple-logger.ts";
 export {
   InkSimpleLogger,
   startInkSimpleLogger,
-} from "./ink-simple-logger-v2.tsx";
+} from "./ink-logger.tsx";
 
 // Types
-export type { LogLevel } from "./types.ts";
+export type { LogLevel, LogValidationResult, StoredRequest } from "./types.ts";
+// Re-export ValidationResult alias for backwards compatibility
 export type { ValidationResult } from "./logger.ts";

@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { parseSpec, parseSpecFromFile } from "./parser.ts";
-import { ParseError, ValidationError } from "./errors.ts";
+import { ParseError, SpecValidationError } from "./errors.ts";
 
 // Helper to convert object to JSON string
 const json = (obj: object) => JSON.stringify(obj, null, 2);
@@ -92,7 +92,7 @@ Deno.test("parseSpec - structure validation", async (t) => {
   await t.step("throws when spec is not an object", async () => {
     await assertRejects(
       async () => await parseSpec("[]"),
-      ValidationError,
+      SpecValidationError,
       "Invalid OpenAPI spec structure",
     );
   });
@@ -100,7 +100,7 @@ Deno.test("parseSpec - structure validation", async (t) => {
   await t.step("throws when spec is null", async () => {
     await assertRejects(
       async () => await parseSpec("null"),
-      ValidationError,
+      SpecValidationError,
       "Invalid OpenAPI spec structure",
     );
   });
@@ -108,7 +108,7 @@ Deno.test("parseSpec - structure validation", async (t) => {
   await t.step("throws when spec is a string", async () => {
     await assertRejects(
       async () => await parseSpec('"not an object"'),
-      ValidationError,
+      SpecValidationError,
       "Invalid OpenAPI spec structure",
     );
   });
@@ -129,7 +129,7 @@ Deno.test("parseSpec - OpenAPI version validation", async (t) => {
     const spec = { info: { title: "Test", version: "1.0.0" }, paths: {} };
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Missing or invalid OpenAPI version",
     );
   });
@@ -138,7 +138,7 @@ Deno.test("parseSpec - OpenAPI version validation", async (t) => {
     const spec = { openapi: 3.1, info: { title: "Test", version: "1.0.0" }, paths: {} };
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Missing or invalid OpenAPI version",
     );
   });
@@ -146,7 +146,7 @@ Deno.test("parseSpec - OpenAPI version validation", async (t) => {
   await t.step("throws when version is not 3.x", async () => {
     await assertRejects(
       async () => await parseSpec(json(validSpec({ openapi: "2.0.0" }))),
-      ValidationError,
+      SpecValidationError,
       "Unsupported OpenAPI version",
     );
   });
@@ -157,7 +157,7 @@ Deno.test("parseSpec - info validation", async (t) => {
     const spec = { openapi: "3.1.0", paths: {} };
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Missing or invalid info object",
     );
   });
@@ -166,7 +166,7 @@ Deno.test("parseSpec - info validation", async (t) => {
     const spec = { openapi: "3.1.0", info: "not an object", paths: {} };
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Missing or invalid info object",
     );
   });
@@ -175,7 +175,7 @@ Deno.test("parseSpec - info validation", async (t) => {
     const spec = { openapi: "3.1.0", info: { version: "1.0.0" }, paths: {} };
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Missing API title",
     );
   });
@@ -184,7 +184,7 @@ Deno.test("parseSpec - info validation", async (t) => {
     const spec = { openapi: "3.1.0", info: { title: "Test API" }, paths: {} };
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Missing API version",
     );
   });
@@ -193,7 +193,7 @@ Deno.test("parseSpec - info validation", async (t) => {
     const spec = validSpec({ info: { title: "Test", version: "1.0.0", summary: 123 } });
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Invalid info summary",
     );
   });
@@ -210,7 +210,7 @@ Deno.test("parseSpec - paths validation", async (t) => {
     const spec = { openapi: "3.0.0", info: { title: "Test", version: "1.0.0" } };
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Missing paths object",
     );
   });
@@ -219,7 +219,7 @@ Deno.test("parseSpec - paths validation", async (t) => {
     const spec = { openapi: "3.1.0", info: { title: "Test", version: "1.0.0" } };
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Missing paths, webhooks, or components",
     );
   });
@@ -254,7 +254,7 @@ Deno.test("parseSpec - paths validation", async (t) => {
     const spec = { openapi: "3.0.0", info: { title: "Test", version: "1.0.0" }, paths: [] };
     await assertRejects(
       async () => await parseSpec(json(spec)),
-      ValidationError,
+      SpecValidationError,
       "Missing paths object",
     );
   });
@@ -269,7 +269,7 @@ Deno.test("parseSpec - OpenAPI 3.1 specific fields", async (t) => {
   await t.step("validates jsonSchemaDialect type", async () => {
     await assertRejects(
       async () => await parseSpec(json(validSpec({ jsonSchemaDialect: 123 }))),
-      ValidationError,
+      SpecValidationError,
       "Invalid jsonSchemaDialect",
     );
   });
@@ -277,7 +277,7 @@ Deno.test("parseSpec - OpenAPI 3.1 specific fields", async (t) => {
   await t.step("validates jsonSchemaDialect URI", async () => {
     await assertRejects(
       async () => await parseSpec(json(validSpec({ jsonSchemaDialect: "not a uri" }))),
-      ValidationError,
+      SpecValidationError,
       "Invalid jsonSchemaDialect URI",
     );
   });
@@ -291,7 +291,7 @@ Deno.test("parseSpec - OpenAPI 3.1 specific fields", async (t) => {
   await t.step("validates webhooks type", async () => {
     await assertRejects(
       async () => await parseSpec(json(validSpec({ webhooks: "not an object" }))),
-      ValidationError,
+      SpecValidationError,
       "Invalid webhooks object",
     );
   });
@@ -311,7 +311,7 @@ Deno.test("parseSpec - OpenAPI 3.1 specific fields", async (t) => {
   await t.step("validates components.pathItems type", async () => {
     await assertRejects(
       async () => await parseSpec(json(validSpec({ components: { pathItems: "not an object" } }))),
-      ValidationError,
+      SpecValidationError,
       "Invalid components.pathItems",
     );
   });
@@ -402,10 +402,10 @@ Deno.test("parseSpec - multiple errors", async (t) => {
       await parseSpec(json(spec));
       throw new Error("Should have thrown");
     } catch (error) {
-      if (error instanceof ValidationError) {
+      if (error instanceof SpecValidationError) {
         assertEquals(error.message.includes("Found"), true);
         assertEquals(error.message.includes("validation errors"), true);
-        const allErrors = error.context.allErrors as ValidationError[];
+        const allErrors = error.context.allErrors as SpecValidationError[];
         assertEquals(Array.isArray(allErrors), true);
         assertEquals(allErrors.length > 5, true);
       } else {
@@ -523,7 +523,7 @@ paths: {}`;
       await parseSpecFromFile(path);
       throw new Error("Should have thrown");
     } catch (error) {
-      if (error instanceof ValidationError) {
+      if (error instanceof SpecValidationError) {
         assertEquals(error.context.specFile, path);
       } else {
         throw error;

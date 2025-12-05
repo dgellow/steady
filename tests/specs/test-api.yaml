@@ -1,0 +1,153 @@
+openapi: 3.1.0
+info:
+  title: Test API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+paths:
+  /users:
+    get:
+      summary: List users
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              example:
+                - id: 1
+                  name: Alice
+                - id: 2
+                  name: Bob
+    post:
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                email:
+                  type: string
+                  format: email
+                age:
+                  type: integer
+                  minimum: 0
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              example:
+                id: 123
+                name: Alice
+                email: alice@example.com
+
+  /users/{id}:
+    get:
+      summary: Get user by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              example:
+                id: 1
+                name: Alice
+                email: alice@example.com
+        "404":
+          description: User not found
+          content:
+            application/json:
+              example:
+                error: User not found
+
+  /items:
+    get:
+      summary: List items
+      parameters:
+        - name: X-API-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of items
+          content:
+            application/json:
+              example:
+                - id: 1
+                  name: Widget
+
+  /echo:
+    post:
+      summary: Echo back the request body
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Echoed response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              example:
+                status: ok
+
+components:
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email

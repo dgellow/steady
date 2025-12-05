@@ -1,16 +1,7 @@
-import { LogLevel } from "./types.ts";
+import type { LogLevel, LogValidationResult } from "./types.ts";
 
-// ValidationResult is from main app - logger shouldn't depend on it
-// Instead, we'll use a generic interface
-export interface ValidationResult {
-  valid: boolean;
-  errors: Array<
-    { path: string; message: string; expected?: unknown; actual?: unknown }
-  >;
-  warnings: Array<
-    { path: string; message: string; expected?: unknown; actual?: unknown }
-  >;
-}
+// Re-export for backwards compatibility
+export type { LogValidationResult as ValidationResult } from "./types.ts";
 
 // ANSI color codes
 const RESET = "\x1b[0m";
@@ -35,7 +26,7 @@ export class RequestLogger {
     req: Request,
     path: string,
     method: string,
-    validation?: ValidationResult,
+    validation?: LogValidationResult,
   ): void {
     const url = new URL(req.url);
     const timestamp = new Date().toLocaleTimeString();
@@ -89,7 +80,7 @@ export class RequestLogger {
   logResponse(
     statusCode: number,
     timing: number,
-    validation?: ValidationResult,
+    validation?: LogValidationResult,
   ): void {
     const status = this.formatStatus(statusCode);
     const timingStr = `${GRAY}(${timing}ms)${RESET}`;

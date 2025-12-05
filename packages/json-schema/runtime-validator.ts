@@ -16,8 +16,8 @@ import type {
   ProcessedSchema,
   Schema,
   SchemaType,
+  SchemaValidationError,
   ValidationContext,
-  ValidationError,
 } from "./types.ts";
 
 /** Maximum regex execution time in milliseconds */
@@ -111,7 +111,7 @@ const FORMAT_VALIDATORS: Record<string, (value: string) => boolean> = {
  * - Sibling schemas (cousins in allOf) CANNOT see each other's evaluations
  */
 interface EvaluationResult {
-  errors: ValidationError[];
+  errors: SchemaValidationError[];
   /** Properties evaluated at the current instance path */
   evaluatedProperties: Set<string>;
   /** Array items evaluated at the current instance path */
@@ -149,7 +149,7 @@ export class RuntimeValidator {
   /**
    * Validate data against the processed schema
    */
-  validate(data: unknown): ValidationError[] {
+  validate(data: unknown): SchemaValidationError[] {
     const context: ValidationContext = {
       root: data,
       instancePath: "",
@@ -387,7 +387,7 @@ export class RuntimeValidator {
     schema: Schema,
     data: string,
     context: ValidationContext,
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
   ): void {
     const length = this.getStringLength(data);
 
@@ -489,7 +489,7 @@ export class RuntimeValidator {
     schema: Schema,
     data: number,
     context: ValidationContext,
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
   ): void {
     if (schema.minimum !== undefined && data < schema.minimum) {
       errors.push(this.createError(
@@ -1292,7 +1292,7 @@ export class RuntimeValidator {
     message: string,
     context: ValidationContext,
     params: Record<string, unknown>,
-  ): ValidationError {
+  ): SchemaValidationError {
     return {
       instancePath: context.instancePath,
       schemaPath: context.schemaPath,
@@ -1340,7 +1340,7 @@ export class RuntimeValidator {
   /**
    * Enrich errors with additional context
    */
-  private enrichErrors(errors: ValidationError[]): ValidationError[] {
+  private enrichErrors(errors: SchemaValidationError[]): SchemaValidationError[] {
     return errors.map((error) => {
       const enriched = { ...error };
 

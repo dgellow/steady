@@ -13,8 +13,8 @@ import type {
   SchemaError,
   SchemaProcessResult,
   SchemaSource,
+  SchemaValidationError,
   SchemaWarning,
-  ValidationError,
 } from "./types.ts";
 import { MetaschemaValidator } from "./metaschema-validator.ts";
 import { SchemaIndexer } from "./schema-indexer.ts";
@@ -164,7 +164,7 @@ export class JsonSchemaProcessor {
     return warnings;
   }
 
-  private convertToSchemaErrors(errors: ValidationError[]): SchemaError[] {
+  private convertToSchemaErrors(errors: SchemaValidationError[]): SchemaError[] {
     return errors.map((err) => ({
       ...err,
       type: "metaschema-violation" as const,

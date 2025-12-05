@@ -1,314 +1,216 @@
-# Steady - The World-Class OpenAPI 3 Mock Server
+# Steady
 
-The definitive OpenAPI 3.0/3.1 mock server designed to be the best of its kind
-in the world. Built specifically for **SDK validation workflows** in CI and
-production environments, Steady excels where other tools fail: handling
-enterprise-scale specs with surgical error attribution.
-
-## Features
-
-- **Enterprise-Scale Support** - Handle massive specs (1500+ endpoints) without
-  breaking
-- **Surgical Error Attribution** - Instantly distinguish SDK bugs from spec
-  issues
-- **Zero Crashes in CI** - Bulletproof reliability in automated environments
-- **Resource Efficient** - Smart algorithms that scale without memory issues
-- **World-Class Error Messages** - Precise location, root cause, and fix
-  instructions
-- **SDK Testing Focus** - Built specifically for generated SDK validation
-  workflows
-- **Complex Schema Handling** - Circular references, deep nesting, massive
-  complexity
-- **Zero Configuration** - Works perfectly out of the box
+OpenAPI 3.0/3.1 mock server built with Deno. Validates requests against specs and generates responses from schemas or examples.
 
 ## Installation
 
+Requires [Deno](https://deno.land/) 2.x.
+
 ```bash
+# Run directly
+deno run --allow-read --allow-net --allow-env --allow-write \
+  https://raw.githubusercontent.com/dgellow/steady/main/cmd/steady.ts api.yaml
+
+# Or install globally
 deno install -g --allow-read --allow-net --allow-env --allow-write \
-  https://raw.githubusercontent.com/dgellow/steady/main/cmd/steady.ts
-```
-
-## Quick Start
-
-```bash
-# Start mock server with your OpenAPI spec
-steady api.yaml
-
-# Validate a spec file
-steady validate api.yaml
-
-# Enable interactive TUI logging
-steady api.yaml --interactive
-
-# Auto-reload on spec changes
-steady api.yaml --auto-reload
+  -n steady https://raw.githubusercontent.com/dgellow/steady/main/cmd/steady.ts
 ```
 
 ## Usage
 
-### Basic Usage
-
-Create an OpenAPI specification file (e.g., `api.yaml`):
-
-```yaml
-openapi: 3.0.0
-info:
-  title: User API
-  version: 1.0.0
-servers:
-  - url: http://localhost:3000
-paths:
-  /users/{id}:
-    get:
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          content:
-            application/json:
-              example:
-                id: 123
-                name: "Alice Smith"
-                email: "alice@example.com"
-```
-
-Start the mock server:
-
 ```bash
+# Start mock server
 steady api.yaml
+
+# Validate spec without starting server
+steady validate api.yaml
+
+# Watch for spec changes
+steady -r api.yaml
+
+# Interactive mode with expandable request logs
+steady -i api.yaml
 ```
 
-Make requests:
-
-```bash
-curl http://localhost:3000/users/123
-```
-
-### Command Line Options
+### Options
 
 ```
-steady [options] <spec-file>
-
-Options:
-  --auto-reload, -r     Watch spec file and restart on changes
-  --log-level <level>   Set log level: summary, details, or full (default: summary)
-  --log-bodies          Include request/response bodies in logs
-  --no-log              Disable request logging
-  --strict              Use strict validation mode (default)
-  --relaxed             Use relaxed validation mode
-  --interactive, -i     Enable interactive TUI logger
+steady [command] [options] <spec-file>
 
 Commands:
-  steady validate <spec-file>   Check if an OpenAPI spec is valid
+  validate <spec>    Validate an OpenAPI spec (doesn't start server)
+  <spec>             Start mock server (default)
+
+Options:
+  -r, --auto-reload       Restart on spec file changes
+  -i, --interactive       Interactive TUI with expandable logs
+  --log-level <level>     summary | details | full (default: summary)
+  --log-bodies            Show request/response bodies
+  --no-log                Disable request logging
+  --strict                Reject invalid requests (default)
+  --relaxed               Log warnings but return responses anyway
+  -h, --help              Show help
 ```
 
-### Interactive TUI Logger
+### Port Configuration
 
-The interactive logger provides a rich terminal interface for exploring
-requests:
+The server uses port 3000 by default. To use a different port, set it in your spec:
 
-```bash
-steady api.yaml --interactive
+```yaml
+servers:
+  - url: http://localhost:8080
 ```
 
-**Keyboard shortcuts:**
+## Response Generation
 
-- `↑/↓` or `j/k` - Navigate requests
-- `Enter` - Toggle request details
-- `/` - Filter requests
-- `#` - Jump to request by hex ID
-- `c` - Clear all requests
-- `Esc` - Exit filter/jump mode
-- `q` or `Ctrl+C` - Quit
+Steady generates responses in this order:
 
-## SDK Validation Workflows
-
-Steady excels at validating generated SDKs against OpenAPI specifications:
-
-### CI Integration
-
-```bash
-# Run SDK tests with Steady mock server
-steady api.yaml --ci-mode &
-STEADY_PID=$!
-
-# Run your generated SDK tests
-npm test  # or python -m pytest, go test, etc.
-
-# Steady provides detailed attribution for any failures
-kill $STEADY_PID
-```
-
-### Error Attribution Examples
-
-**SDK Bug Detection:**
-
-```
-❌ Request validation failed
-
-  Endpoint: POST /users
-  SDK: user_service.create_user(email="invalid")
-  
-  Schema violation:
-    Field: email
-    Expected: valid email format
-    Received: "invalid"
-    
-  CAUSE: SDK validation bug
-  FIX: Check SDK's email validation logic
-```
-
-**Spec Issue Detection:**
-
-```
-❌ OpenAPI spec validation failed
-
-  Path: /users/{id}
-  Schema: responses.200.content.application/json.schema
-  
-  Invalid schema definition:
-    Field: user.age  
-    Issue: type="number" with string constraints
-    
-  CAUSE: OpenAPI spec error
-  FIX: Use type="string" or remove string constraints
-```
-
-### Validation Modes
-
-```bash
-# Strict mode (default) - fail on any validation error  
-steady api.yaml --strict
-
-# Relaxed mode - log warnings but continue processing
-steady api.yaml --relaxed
-
-# Per-request control
-curl -H "X-Steady-Mode: relaxed" http://localhost:3000/users/123
-```
-
-## Enterprise-Scale Capabilities
-
-### Handle Massive Specs
-
-- **1500+ endpoints** (Cloudflare-scale) without memory issues
-- **Complex schema recursion** without stack overflow
-- **Deep nesting** and circular references handled gracefully
-- **Resource-efficient algorithms** that scale properly
-
-### Response Generation
-
-Steady prioritizes responses intelligently:
-
-1. **Explicit examples** - Use provided examples for consistent testing
-2. **Schema-generated data** - Create realistic responses from JSON Schema
-3. **Detailed errors** - Clear feedback when neither is available
-
-Example with complex schema:
+1. `example` field on the media type
+2. First entry from `examples` map
+3. Generated from `schema` (if present)
 
 ```yaml
 responses:
   200:
     content:
       application/json:
+        # Option 1: explicit example (preferred)
+        example:
+          id: 123
+          name: "Alice"
+
+        # Option 2: multiple examples
+        examples:
+          success:
+            value: { id: 123, name: "Alice" }
+
+        # Option 3: generate from schema
         schema:
-          type: object
-          properties:
-            id: { type: integer, minimum: 1 }
-            name: { type: string, minLength: 1 }
-            email: { type: string, format: email }
-            nested:
-              type: object
-              properties:
-                deep: { $ref: "#/components/schemas/RecursiveType" }
-          required: [id, name, email]
+          $ref: '#/components/schemas/User'
 ```
 
-### Why Replace Prism?
+## Request Validation
 
-- **Prism breaks** on complex, real-world specs
-- **Steady scales** to enterprise requirements
-- **Better error messages** with precise attribution
-- **CI-optimized** for automated testing workflows
+In `--strict` mode (default), requests are validated against:
+
+- **Path parameters** - type coercion and schema validation
+- **Query parameters** - required check, type validation
+- **Headers** - required headers, schema validation
+- **Request body** - JSON Schema validation, content-type check
+
+Invalid requests return 400 with validation errors. In `--relaxed` mode, validation errors are logged but responses are still returned.
+
+### Per-Request Mode Override
+
+Use the `X-Steady-Mode` header to override the server's validation mode for individual requests:
+
+```bash
+# Force strict validation on a relaxed server
+curl -H "X-Steady-Mode: strict" http://localhost:3000/users
+
+# Force relaxed validation on a strict server
+curl -H "X-Steady-Mode: relaxed" http://localhost:3000/users
+```
+
+The response includes `X-Steady-Mode` header confirming which mode was used.
 
 ## Special Endpoints
 
-Steady provides special endpoints for development:
+- `GET /_x-steady/health` - Health check with schema stats
+- `GET /_x-steady/spec` - Returns the loaded OpenAPI spec as JSON
 
-- `GET /_x-steady/health` - Health check endpoint
-- `GET /_x-steady/spec` - Returns the loaded OpenAPI specification
+## JSON Schema Support
+
+Supports JSON Schema draft 2020-12 with ~91% compliance.
+
+**Supported:**
+- Types: `string`, `number`, `integer`, `boolean`, `null`, `array`, `object`
+- String: `minLength`, `maxLength`, `pattern`, `format`
+- Number: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
+- Array: `items`, `prefixItems`, `minItems`, `maxItems`, `uniqueItems`, `contains`
+- Object: `properties`, `required`, `additionalProperties`, `patternProperties`, `propertyNames`, `minProperties`, `maxProperties`
+- Composition: `allOf`, `anyOf`, `oneOf`, `not`
+- Conditional: `if`/`then`/`else`
+- References: `$ref`, `$defs`, `$anchor`
+- `const`, `enum`, `default`
+
+**Not supported:**
+- `$dynamicRef` / `$dynamicAnchor`
+- External `$ref` (http://, file://)
+- `unevaluatedProperties` / `unevaluatedItems` (partial)
+
+## Error Attribution
+
+Errors indicate whether the issue is likely in the spec or the client request:
+
+```
+POST /users → 400 Bad Request
+
+Validation errors:
+  1. Required parameter missing
+     Path: query.limit
+     Expected: integer
+
+Attribution: SDK issue (high confidence)
+Suggestion: Check SDK implementation - required parameter not sent
+```
 
 ## Development
 
-### Prerequisites
-
-- [Deno](https://deno.land/) 2.x or later
-
-### Running from Source
-
 ```bash
-# Clone the repository
 git clone https://github.com/dgellow/steady.git
 cd steady
+git submodule update --init  # fetch test fixtures
 
-# Run directly
-deno run --allow-read --allow-net --allow-env --allow-write cmd/steady.ts api.yaml
+# Run tests
+deno task test
 
-# Or use the dev task
-deno task dev api.yaml
+# Type check
+deno task check
+
+# Lint + format
+deno task lint
+deno task fmt
+
+# Run all checks
+deno task test-all
 ```
 
 ### Project Structure
 
 ```
 steady/
-├── cmd/
-│   └── steady.ts         # CLI entry point
-├── src/                   # Core source files
-│   ├── server.ts         # HTTP server implementation
-│   ├── generator.ts      # Response generation
-│   ├── resolver.ts       # Reference resolution
-│   ├── validator.ts      # Request validation
-│   └── ...
+├── cmd/steady.ts              # CLI entry point
+├── src/
+│   ├── server.ts              # HTTP server, route matching
+│   ├── validator.ts           # Request validation
+│   └── errors.ts              # Error types with attribution
 ├── packages/
-│   ├── parser/           # OpenAPI parser package
-│   └── shared/           # Shared utilities and logging
-├── scripts/              # Development scripts
-└── tests/                # Test files and specs
+│   ├── json-pointer/          # RFC 6901 JSON Pointer
+│   ├── json-schema/           # JSON Schema processor
+│   │   ├── openapi-document.ts    # Main document wrapper
+│   │   ├── schema-registry.ts     # Schema resolution + generation
+│   │   ├── runtime-validator.ts   # JSON Schema validation
+│   │   └── ref-graph.ts           # $ref cycle detection
+│   ├── parser/                # OpenAPI 3.x parser
+│   └── shared/                # Logging utilities
+└── tests/
+    └── edge-cases/            # Edge case tests
 ```
 
-### Contributing
+### Tasks
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run quality checks (`deno task test-all`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-### Code Quality
-
-All code must pass:
-
-- `deno fmt` - Code formatting
-- `deno check` - Type checking
-- `deno lint` - Linting
-- `deno task check-boundaries` - Package dependency checks
-
-## Philosophy
-
-Steady is built to be the world's best OpenAPI mock server:
-
-- **Enterprise-first** - Handle the most complex real-world specs without
-  breaking
-- **SDK-focused** - Designed specifically for generated SDK validation workflows
-- **Error attribution** - Instantly distinguish between SDK bugs and spec issues
-- **Resource efficient** - Smart algorithms that scale to massive specs
-- **Zero crashes** - Bulletproof reliability in CI and production environments
+```bash
+deno task dev               # Dev server with watch
+deno task start             # Production server
+deno task test              # Run all tests
+deno task test:json-schema  # JSON Schema tests only
+deno task test:parser       # Parser tests only
+deno task test:json-pointer # JSON Pointer tests only
+deno task check             # Type check
+deno task lint              # Lint
+deno task fmt               # Format
+deno task check-boundaries  # Verify package dependencies
+```
 - **Developer experience** - Error messages so good they eliminate debugging
-  time
+  

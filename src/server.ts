@@ -30,6 +30,11 @@ import {
 } from "@steady/shared";
 import { RequestValidator } from "./validator.ts";
 import { DiagnosticCollector } from "./diagnostics/collector.ts";
+import {
+  compilePathPattern,
+  matchCompiledPath,
+  type PathSegment,
+} from "./path-matcher.ts";
 
 // ANSI colors for startup message
 const BOLD = "\x1b[1m";
@@ -48,13 +53,11 @@ const HTTP_METHODS = [
 ] as const;
 type HttpMethod = typeof HTTP_METHODS[number];
 
-/** Pre-compiled path pattern for efficient matching */
+/** Pre-compiled path pattern with associated path item */
 interface CompiledPath {
   pattern: string;
   pathItem: PathItemObject;
-  segments: Array<
-    { type: "literal"; value: string } | { type: "param"; name: string }
-  >;
+  segments: PathSegment[];
   segmentCount: number;
 }
 
@@ -87,7 +90,7 @@ export class MockServer {
       this.logger = new RequestLogger(config.logLevel, config.logBodies);
     }
 
-    this.validator = new RequestValidator(config.mode);
+    this.validator = new RequestValidator();
 
     // Pre-compile all path patterns at construction time
     this.compileRoutes();
@@ -105,20 +108,11 @@ export class MockServer {
       if (!pattern.includes("{")) {
         this.exactRoutes.set(pattern, pathItem);
       } else {
-        // Compile the pattern
-        const segments = pattern.split("/").filter((s) => s.length > 0);
-        const compiledSegments = segments.map((seg) => {
-          if (seg.startsWith("{") && seg.endsWith("}")) {
-            return { type: "param" as const, name: seg.slice(1, -1) };
-          }
-          return { type: "literal" as const, value: seg };
-        });
-
+        // Compile the pattern using shared utility
+        const compiled = compilePathPattern(pattern);
         this.patternRoutes.push({
-          pattern,
+          ...compiled,
           pathItem,
-          segments: compiledSegments,
-          segmentCount: segments.length,
         });
       }
     }
@@ -279,6 +273,9 @@ export class MockServer {
       return this.handleSpec();
     }
 
+    // Determine effective mode: header override or server default
+    const effectiveMode = this.getEffectiveMode(req);
+
     try {
       const { operation, statusCode, pathPattern, pathParams } = this
         .findOperation(path, method);
@@ -295,7 +292,7 @@ export class MockServer {
       this.logger.logRequest(req, path, method, validation);
 
       // If validation failed in strict mode, return error
-      if (!validation.valid && this.config.mode === "strict") {
+      if (!validation.valid && effectiveMode === "strict") {
         const timing = Math.round(performance.now() - startTime);
         this.logger.logResponse(400, timing, validation);
 
@@ -306,7 +303,10 @@ export class MockServer {
           }),
           {
             status: 400,
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "X-Steady-Mode": effectiveMode,
+            },
           },
         );
       }
@@ -322,7 +322,8 @@ export class MockServer {
       const timing = Math.round(performance.now() - startTime);
       this.logger.logResponse(parseInt(statusCode), timing, validation);
 
-      return response;
+      // Add mode header to response
+      return this.addModeHeader(response, effectiveMode);
     } catch (error) {
       const timing = Math.round(performance.now() - startTime);
 
@@ -410,17 +411,9 @@ export class MockServer {
       return { operation, statusCode, pathPattern: path, pathParams: {} };
     }
 
-    // Try pattern matching with pre-compiled routes
-    const requestSegments = path.split("/").filter((s) => s.length > 0);
-    const segmentCount = requestSegments.length;
-
+    // Try pattern matching with pre-compiled routes using shared utility
     for (const compiled of this.patternRoutes) {
-      // Quick check: segment count must match
-      if (compiled.segmentCount !== segmentCount) {
-        continue;
-      }
-
-      const params = this.matchCompiledPath(requestSegments, compiled);
+      const params = matchCompiledPath(path, compiled);
       if (params) {
         const operation = this.getOperationForMethod(
           compiled.pathItem,
@@ -450,31 +443,6 @@ export class MockServer {
         }`
         : "No paths defined in the OpenAPI spec",
     });
-  }
-
-  /**
-   * Match request segments against a compiled path pattern
-   */
-  private matchCompiledPath(
-    requestSegments: string[],
-    compiled: CompiledPath,
-  ): Record<string, string> | null {
-    const params: Record<string, string> = {};
-
-    for (let i = 0; i < compiled.segments.length; i++) {
-      const compiledSeg = compiled.segments[i]!;
-      const requestSeg = requestSegments[i];
-
-      if (!requestSeg) return null;
-
-      if (compiledSeg.type === "param") {
-        params[compiledSeg.name] = decodeURIComponent(requestSeg);
-      } else if (compiledSeg.value !== requestSeg) {
-        return null;
-      }
-    }
-
-    return params;
   }
 
   /**
@@ -680,5 +648,31 @@ export class MockServer {
    */
   private escapePointer(path: string): string {
     return path.replace(/~/g, "~0").replace(/\//g, "~1");
+  }
+
+  /**
+   * Get effective validation mode for a request.
+   * X-Steady-Mode header overrides server default.
+   */
+  private getEffectiveMode(req: Request): "strict" | "relaxed" {
+    const headerValue = req.headers.get("X-Steady-Mode");
+    if (headerValue === "strict" || headerValue === "relaxed") {
+      return headerValue;
+    }
+    return this.config.mode;
+  }
+
+  /**
+   * Add X-Steady-Mode header to a response.
+   * Creates a new Response since headers are immutable.
+   */
+  private addModeHeader(response: Response, mode: "strict" | "relaxed"): Response {
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set("X-Steady-Mode", mode);
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    });
   }
 }

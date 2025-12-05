@@ -8,7 +8,7 @@
 import type {
   ErrorAttribution,
   ProcessedSchema,
-  ValidationError,
+  SchemaValidationError,
 } from "./types.ts";
 
 interface ErrorPattern {
@@ -28,7 +28,7 @@ export class AttributionAnalyzer {
   /**
    * Analyze validation errors to determine SDK vs spec issues
    */
-  analyze(errors: ValidationError[], data: unknown): ErrorAttribution {
+  analyze(errors: SchemaValidationError[], data: unknown): ErrorAttribution {
     if (errors.length === 0) {
       // Return a default attribution when there are no errors
       return {
@@ -75,7 +75,7 @@ export class AttributionAnalyzer {
   /**
    * Detect patterns in errors
    */
-  private detectPatterns(errors: ValidationError[]): ErrorPattern {
+  private detectPatterns(errors: SchemaValidationError[]): ErrorPattern {
     const pattern: ErrorPattern = {
       keywords: new Set(),
       paths: new Set(),
@@ -116,7 +116,7 @@ export class AttributionAnalyzer {
    */
   private checkSdkPatterns(
     patterns: ErrorPattern,
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
     data: unknown,
   ): ErrorAttribution | null {
     // Pattern 1: Consistent type mismatches suggest serialization issues
@@ -172,7 +172,7 @@ export class AttributionAnalyzer {
    */
   private checkSpecPatterns(
     patterns: ErrorPattern,
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
     data: unknown,
   ): ErrorAttribution | null {
     // Pattern 1: Overly restrictive constraints
@@ -226,11 +226,11 @@ export class AttributionAnalyzer {
    * Analyze by specific error types
    */
   private analyzeByErrorType(
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
     _data: unknown,
   ): ErrorAttribution | null {
     // Group errors by keyword
-    const errorsByKeyword = new Map<string, ValidationError[]>();
+    const errorsByKeyword = new Map<string, SchemaValidationError[]>();
     for (const error of errors) {
       if (!errorsByKeyword.has(error.keyword)) {
         errorsByKeyword.set(error.keyword, []);
@@ -289,7 +289,7 @@ export class AttributionAnalyzer {
    */
   private isConsistentTypeError(
     patterns: ErrorPattern,
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
   ): boolean {
     if (!patterns.keywords.has("type")) return false;
 
@@ -317,7 +317,7 @@ export class AttributionAnalyzer {
    */
   private isMissingAllRequiredFields(
     patterns: ErrorPattern,
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
   ): boolean {
     const requiredErrors = errors.filter((e) => e.keyword === "required");
     return requiredErrors.length > 3 && patterns.consistency > 0.7;
@@ -327,7 +327,7 @@ export class AttributionAnalyzer {
    * Helper: Check for systematic null values
    */
   private hasSystematicNulls(
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
     _data: unknown,
   ): boolean {
     const nullErrors = errors.filter((e) => e.data === null);
@@ -339,7 +339,7 @@ export class AttributionAnalyzer {
    */
   private hasConsistentFormatErrors(
     _patterns: ErrorPattern,
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
   ): boolean {
     const formatErrors = errors.filter((e) =>
       e.keyword === "format" || e.keyword === "pattern"
@@ -367,7 +367,7 @@ export class AttributionAnalyzer {
   /**
    * Helper: Check for overly restrictive constraints
    */
-  private hasOverlyRestrictiveConstraints(errors: ValidationError[]): boolean {
+  private hasOverlyRestrictiveConstraints(errors: SchemaValidationError[]): boolean {
     // Look for very specific constraints that might be too restrictive
     for (const error of errors) {
       if (error.keyword === "pattern" && error.params?.pattern) {
@@ -395,9 +395,9 @@ export class AttributionAnalyzer {
   /**
    * Helper: Check for conflicting requirements
    */
-  private hasConflictingRequirements(errors: ValidationError[]): boolean {
+  private hasConflictingRequirements(errors: SchemaValidationError[]): boolean {
     // Look for errors that suggest impossible requirements
-    const errorPairs = new Map<string, ValidationError[]>();
+    const errorPairs = new Map<string, SchemaValidationError[]>();
 
     for (const error of errors) {
       const key = error.instancePath;
@@ -427,7 +427,7 @@ export class AttributionAnalyzer {
   /**
    * Helper: Check for invalid schema keywords
    */
-  private hasInvalidSchemaKeywords(errors: ValidationError[]): boolean {
+  private hasInvalidSchemaKeywords(errors: SchemaValidationError[]): boolean {
     // If we get here with metaschema violations, it's a spec error
     return errors.some((e) =>
       e.message.includes("invalid") &&
@@ -440,7 +440,7 @@ export class AttributionAnalyzer {
    */
   private isRejectingValidAdditionalProperties(
     _patterns: ErrorPattern,
-    errors: ValidationError[],
+    errors: SchemaValidationError[],
     _data: unknown,
   ): boolean {
     const additionalPropErrors = errors.filter((e) =>
@@ -459,7 +459,7 @@ export class AttributionAnalyzer {
     type: "sdk-error" | "spec-error" | "ambiguous",
     confidence: number,
     reasoning: string,
-    primaryError: ValidationError,
+    primaryError: SchemaValidationError,
     suggestion?: string,
   ): ErrorAttribution {
     return {

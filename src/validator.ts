@@ -9,8 +9,9 @@
  * - Enterprise-scale performance with schema caching
  */
 
-import type { ValidationError } from "./types.ts";
+import type { ValidationIssue } from "./types.ts";
 import { isReference } from "./types.ts";
+import { BodyTooLargeError } from "./errors.ts";
 import type { ValidationResult } from "@steady/shared";
 import type {
   OperationObject,
@@ -71,10 +72,14 @@ const schemaKeyCache = new Map<string, SchemaValidator>();
 /** Maximum entries in key cache to prevent memory leaks */
 const MAX_KEY_CACHE_SIZE = 1000;
 
+/**
+ * Validates incoming requests against OpenAPI operation specifications.
+ *
+ * The validator always reports all issues found as errors. The server decides
+ * whether to reject requests based on the effective mode (strict/relaxed),
+ * which can be overridden per-request via the X-Steady-Mode header.
+ */
 export class RequestValidator {
-  constructor(
-    private mode: "strict" | "relaxed",
-  ) {}
 
   async validateRequest(
     req: Request,
@@ -82,8 +87,8 @@ export class RequestValidator {
     _pathPattern: string,
     pathParams: Record<string, string>,
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
     const url = new URL(req.url);
 
     // Validate query parameters
@@ -119,9 +124,9 @@ export class RequestValidator {
       warnings.push(...headerValidation.warnings);
     }
 
-    // Validate request body
+    // Validate request body (if spec defines one, validate it regardless of HTTP method)
     const requestBody = getResolvedRequestBody(operation.requestBody);
-    if (requestBody && req.method !== "GET" && req.method !== "HEAD") {
+    if (requestBody) {
       const bodyValidation = await this.validateRequestBodyFromRequest(
         req,
         requestBody,
@@ -144,8 +149,8 @@ export class RequestValidator {
     params: URLSearchParams,
     paramSpecs: ParameterObject[],
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     for (const spec of paramSpecs) {
       const isArrayType = this.isArraySchema(spec.schema);
@@ -175,19 +180,14 @@ export class RequestValidator {
       }
     }
 
-    // Check for unknown parameters in strict mode
+    // Check for unknown parameters - reported as errors, server decides based on effective mode
     const knownParams = new Set(paramSpecs.map((p) => p.name));
     for (const [key] of params) {
       if (!knownParams.has(key)) {
-        const error: ValidationError = {
+        errors.push({
           path: `query.${key}`,
           message: "Unknown parameter",
-        };
-        if (this.mode === "strict") {
-          errors.push(error);
-        } else {
-          warnings.push(error);
-        }
+        });
       }
     }
 
@@ -201,8 +201,8 @@ export class RequestValidator {
     pathParams: Record<string, string>,
     paramSpecs: ParameterObject[],
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     for (const spec of paramSpecs) {
       const value = pathParams[spec.name];
@@ -234,8 +234,8 @@ export class RequestValidator {
     headers: Headers,
     headerSpecs: ParameterObject[],
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     for (const spec of headerSpecs) {
       const value = headers.get(spec.name);
@@ -270,8 +270,8 @@ export class RequestValidator {
       content?: Record<string, { schema?: SchemaObject }>;
     },
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     // Check content length header for early rejection
     const contentLength = req.headers.get("content-length");
@@ -369,8 +369,8 @@ export class RequestValidator {
     },
     contentType: string,
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     const mediaType = contentType.split(";")[0]?.trim() || "application/json";
 
@@ -465,7 +465,7 @@ export class RequestValidator {
     }
 
     const result = validator.validate(value);
-    const errors: ValidationError[] = result.errors.map((err) => ({
+    const errors: ValidationIssue[] = result.errors.map((err) => ({
       path: err.instancePath ? `${path}${err.instancePath}` : path,
       message: err.message,
       expected: err.schema,
@@ -519,19 +519,16 @@ export class RequestValidator {
   }
 
   /**
-   * Collect validation errors based on mode
+   * Collect validation errors - always as errors, not warnings.
+   * The server decides whether to reject based on effective mode (including per-request override).
    */
   private collectErrors(
     validation: ValidationResult,
-    errors: ValidationError[],
-    warnings: ValidationError[],
+    errors: ValidationIssue[],
+    _warnings: ValidationIssue[],
   ): void {
     if (!validation.valid) {
-      if (this.mode === "strict") {
-        errors.push(...validation.errors);
-      } else {
-        warnings.push(...validation.errors);
-      }
+      errors.push(...validation.errors);
     }
   }
 
@@ -575,15 +572,5 @@ export class RequestValidator {
       default:
         return value;
     }
-  }
-}
-
-/**
- * Error thrown when request body exceeds size limit
- */
-class BodyTooLargeError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BodyTooLargeError";
   }
 }

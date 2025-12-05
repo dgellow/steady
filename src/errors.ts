@@ -8,7 +8,7 @@
  */
 
 import { ErrorContext, SteadyError } from "@steady/parser";
-import type { ValidationError } from "./types.ts";
+import type { ValidationIssue } from "./types.ts";
 
 /** Source of the error - helps with debugging */
 export type ErrorSource = "sdk" | "spec" | "server" | "unknown";
@@ -16,7 +16,7 @@ export type ErrorSource = "sdk" | "spec" | "server" | "unknown";
 /** Extended error context with attribution */
 export interface AttributedErrorContext extends ErrorContext {
   source?: ErrorSource;
-  validationErrors?: ValidationError[];
+  validationErrors?: ValidationIssue[];
 }
 
 /**
@@ -65,12 +65,12 @@ export class MatchError extends SteadyError {
  */
 export class RequestValidationError extends SteadyError {
   readonly source: ErrorSource = "sdk";
-  readonly validationErrors: ValidationError[];
+  readonly validationErrors: ValidationIssue[];
 
   constructor(
     message: string,
     context: ErrorContext,
-    validationErrors: ValidationError[],
+    validationErrors: ValidationIssue[],
   ) {
     super(message, { ...context, errorType: "validate" });
     this.name = "RequestValidationError";
@@ -183,7 +183,7 @@ export function missingExampleError(
 export function sdkValidationError(
   path: string,
   method: string,
-  errors: ValidationError[],
+  errors: ValidationIssue[],
   specFile?: string,
 ): RequestValidationError {
   const errorCount = errors.length;
@@ -292,4 +292,15 @@ export function methodNotAllowedError(
     },
     "sdk",
   );
+}
+
+/**
+ * Error thrown when request body exceeds size limit.
+ * This is an internal error used by the validator - not exposed to users.
+ */
+export class BodyTooLargeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BodyTooLargeError";
+  }
 }

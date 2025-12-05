@@ -11,6 +11,7 @@ import type { SchemaRegistry } from "../schema-registry.ts";
 import type { Analyzer } from "./ref-analyzer.ts";
 import type { Diagnostic, DiagnosticCode } from "../diagnostics/types.ts";
 import { getAttribution } from "../diagnostics/attribution.ts";
+import { escapeSegment } from "@steady/json-pointer";
 
 /**
  * Keywords allowed as siblings to $ref in JSON Schema 2020-12
@@ -133,7 +134,7 @@ export class SchemaAnalyzer implements Analyzer {
       // Recurse into all properties
       for (const [key, val] of Object.entries(obj)) {
         if (key === "$ref") continue;
-        check(val, `${pointer}/${escapePointer(key)}`);
+        check(val, `${pointer}/${escapeSegment(key)}`);
       }
     };
 
@@ -200,9 +201,3 @@ export class SchemaAnalyzer implements Analyzer {
   }
 }
 
-/**
- * Escape special characters in JSON Pointer segment
- */
-function escapePointer(segment: string): string {
-  return segment.replace(/~/g, "~0").replace(/\//g, "~1");
-}

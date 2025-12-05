@@ -26,5 +26,7 @@ export {
   needsEscaping,
   validatePointer,
   validateRef,
+  type PointerValidationResult,
+  // Backwards compatibility alias
   type ValidationResult,
 } from "./rfc6901-validator.ts";

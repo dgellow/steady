@@ -79,11 +79,14 @@ export type {
   SchemaProcessResult,
   SchemaSource,
   SchemaType,
+  SchemaValidationError,
+  SchemaValidationResult,
   SchemaWarning,
-  ValidationError,
   ValidationResult,
   ValidatorOptions,
 } from "./types.ts";
+// Backwards compatibility aliases (deprecated)
+export type { SchemaValidationError as ValidationError } from "./types.ts";
 
 // Core processing components
 export { JsonSchemaProcessor } from "./processor.ts";
