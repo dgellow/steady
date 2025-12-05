@@ -12,7 +12,7 @@ const RESET = "\x1b[0m";
 
 async function main() {
   const args = parseArgs(Deno.args, {
-    boolean: ["help", "auto-reload", "log-bodies", "no-log", "strict", "relaxed", "interactive", "validator-strict-oneof"],
+    boolean: ["help", "auto-reload", "log-bodies", "log", "strict", "relaxed", "interactive", "validator-strict-oneof"],
     string: ["port", "log-level", "validator-query-array-format", "validator-query-nested-format"],
     alias: {
       h: "help",
@@ -22,7 +22,9 @@ async function main() {
     },
     default: {
       "log-level": "summary",
+      "log": true,
     },
+    negatable: ["log"],
   });
 
   if (args.help || args._.length === 0) {
@@ -66,7 +68,7 @@ async function main() {
   const options = {
     logLevel,
     logBodies: args["log-bodies"],
-    noLog: args["no-log"],
+    log: args.log,
     mode,
     interactive: args.interactive,
     portOverride,
@@ -105,7 +107,7 @@ async function startServer(
   options: {
     logLevel: LogLevel;
     logBodies: boolean;
-    noLog: boolean;
+    log: boolean;
     mode: "strict" | "relaxed";
     interactive: boolean;
     portOverride?: number;
@@ -135,8 +137,8 @@ async function startServer(
     port,
     host: "localhost",
     mode: options.mode,
-    verbose: !options.noLog,
-    logLevel: options.noLog ? "summary" : options.logLevel,
+    verbose: options.log,
+    logLevel: options.log ? options.logLevel : "summary",
     logBodies: options.logBodies,
     showValidation: true,
     interactive: options.interactive,
@@ -155,7 +157,7 @@ async function startWithWatch(
   options: {
     logLevel: LogLevel;
     logBodies: boolean;
-    noLog: boolean;
+    log: boolean;
     mode: "strict" | "relaxed";
     interactive: boolean;
     portOverride?: number;
