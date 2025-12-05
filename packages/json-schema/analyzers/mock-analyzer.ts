@@ -70,13 +70,23 @@ export class MockAnalyzer implements Analyzer {
     for (const [path, pathItem] of Object.entries(paths)) {
       if (!pathItem || typeof pathItem !== "object") continue;
 
-      const methods = ["get", "post", "put", "patch", "delete", "options", "head"];
+      const methods = [
+        "get",
+        "post",
+        "put",
+        "patch",
+        "delete",
+        "options",
+        "head",
+      ];
       for (const method of methods) {
         const operation = (pathItem as Record<string, unknown>)[method];
         if (!operation || typeof operation !== "object") continue;
 
         const opObj = operation as Record<string, unknown>;
-        const responses = opObj.responses as Record<string, unknown> | undefined;
+        const responses = opObj.responses as
+          | Record<string, unknown>
+          | undefined;
 
         if (!responses) continue;
 
@@ -85,7 +95,9 @@ export class MockAnalyzer implements Analyzer {
           if (!response || typeof response !== "object") continue;
 
           const respObj = response as Record<string, unknown>;
-          const content = respObj.content as Record<string, unknown> | undefined;
+          const content = respObj.content as
+            | Record<string, unknown>
+            | undefined;
 
           // Skip responses without content (e.g., 204 No Content)
           if (!content) continue;
@@ -95,7 +107,11 @@ export class MockAnalyzer implements Analyzer {
             if (!mediaType || typeof mediaType !== "object") continue;
 
             const mediaObj = mediaType as Record<string, unknown>;
-            const pointer = `#/paths/${escapeSegment(path)}/${method}/responses/${statusCode}/content/${escapeSegment(contentType)}`;
+            const pointer = `#/paths/${
+              escapeSegment(path)
+            }/${method}/responses/${statusCode}/content/${
+              escapeSegment(contentType)
+            }`;
 
             // Check for schema
             if (!mediaObj.schema) {
@@ -108,7 +124,8 @@ export class MockAnalyzer implements Analyzer {
                 code: "mock-no-schema",
                 severity: "warning",
                 pointer,
-                message: `Response has no schema - cannot generate meaningful mock data`,
+                message:
+                  `Response has no schema - cannot generate meaningful mock data`,
                 attribution: getAttribution("mock-no-schema"),
                 suggestion: "Add a schema to enable response generation",
               });
@@ -124,7 +141,9 @@ export class MockAnalyzer implements Analyzer {
                 Object.keys(mediaObj.examples as object).length > 0;
 
               // Also check schema-level example
-              const schema = mediaObj.schema as Record<string, unknown> | undefined;
+              const schema = mediaObj.schema as
+                | Record<string, unknown>
+                | undefined;
               const schemaHasExample = schema && (
                 schema.example !== undefined ||
                 (Array.isArray(schema.examples) && schema.examples.length > 0)
@@ -137,7 +156,8 @@ export class MockAnalyzer implements Analyzer {
                   pointer,
                   message: `No example provided - will generate from schema`,
                   attribution: getAttribution("mock-no-example"),
-                  suggestion: "Add an example for more realistic mock responses",
+                  suggestion:
+                    "Add an example for more realistic mock responses",
                 });
               }
             }
@@ -158,4 +178,3 @@ export class MockAnalyzer implements Analyzer {
     return typeof doc.openapi === "string" || typeof doc.swagger === "string";
   }
 }
-

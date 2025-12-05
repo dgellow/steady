@@ -5,10 +5,7 @@
  * and aggregated summaries.
  */
 
-import type {
-  Diagnostic,
-  DiagnosticSeverity,
-} from "./types.ts";
+import type { Diagnostic, DiagnosticSeverity } from "./types.ts";
 import { groupByCode, summarizeDiagnostics } from "./types.ts";
 import { getAttributionLabel } from "./attribution.ts";
 
@@ -61,8 +58,20 @@ function getSeverityIcon(severity: DiagnosticSeverity): string {
 /**
  * Format a single diagnostic for console output
  */
-export function formatDiagnostic(diagnostic: Diagnostic, useColor = true): string {
-  const c = useColor ? colors : { reset: "", bold: "", dim: "", red: "", yellow: "", blue: "", cyan: "", gray: "" };
+export function formatDiagnostic(
+  diagnostic: Diagnostic,
+  useColor = true,
+): string {
+  const c = useColor ? colors : {
+    reset: "",
+    bold: "",
+    dim: "",
+    red: "",
+    yellow: "",
+    blue: "",
+    cyan: "",
+    gray: "",
+  };
   const icon = getSeverityIcon(diagnostic.severity);
   const severityColor = useColor ? getSeverityColor(diagnostic.severity) : "";
 
@@ -105,12 +114,26 @@ export function formatDiagnosticsGrouped(
     return "";
   }
 
-  const c = useColor ? colors : { reset: "", bold: "", dim: "", red: "", yellow: "", blue: "", cyan: "", gray: "" };
+  const c = useColor ? colors : {
+    reset: "",
+    bold: "",
+    dim: "",
+    red: "",
+    yellow: "",
+    blue: "",
+    cyan: "",
+    gray: "",
+  };
   const groups = groupByCode(diagnostics);
   const lines: string[] = [];
 
   // Sort groups by severity (errors first, then warnings, etc.)
-  const severityOrder: DiagnosticSeverity[] = ["error", "warning", "info", "hint"];
+  const severityOrder: DiagnosticSeverity[] = [
+    "error",
+    "warning",
+    "info",
+    "hint",
+  ];
   const sortedGroups = Array.from(groups.entries()).sort((a, b) => {
     const aSeverity = a[1][0]?.severity ?? "hint";
     const bSeverity = b[1][0]?.severity ?? "hint";
@@ -163,7 +186,16 @@ export function formatSummary(
   diagnostics: Diagnostic[],
   useColor = true,
 ): string {
-  const c = useColor ? colors : { reset: "", bold: "", dim: "", red: "", yellow: "", blue: "", cyan: "", gray: "" };
+  const c = useColor ? colors : {
+    reset: "",
+    bold: "",
+    dim: "",
+    red: "",
+    yellow: "",
+    blue: "",
+    cyan: "",
+    gray: "",
+  };
   const summary = summarizeDiagnostics(diagnostics);
 
   if (summary.total === 0) {
@@ -173,16 +205,28 @@ export function formatSummary(
   const parts: string[] = [];
 
   if (summary.bySeverity.error > 0) {
-    parts.push(`${c.red}${summary.bySeverity.error} error${summary.bySeverity.error > 1 ? "s" : ""}${c.reset}`);
+    parts.push(
+      `${c.red}${summary.bySeverity.error} error${
+        summary.bySeverity.error > 1 ? "s" : ""
+      }${c.reset}`,
+    );
   }
   if (summary.bySeverity.warning > 0) {
-    parts.push(`${c.yellow}${summary.bySeverity.warning} warning${summary.bySeverity.warning > 1 ? "s" : ""}${c.reset}`);
+    parts.push(
+      `${c.yellow}${summary.bySeverity.warning} warning${
+        summary.bySeverity.warning > 1 ? "s" : ""
+      }${c.reset}`,
+    );
   }
   if (summary.bySeverity.info > 0) {
     parts.push(`${c.blue}${summary.bySeverity.info} info${c.reset}`);
   }
   if (summary.bySeverity.hint > 0) {
-    parts.push(`${c.gray}${summary.bySeverity.hint} hint${summary.bySeverity.hint > 1 ? "s" : ""}${c.reset}`);
+    parts.push(
+      `${c.gray}${summary.bySeverity.hint} hint${
+        summary.bySeverity.hint > 1 ? "s" : ""
+      }${c.reset}`,
+    );
   }
 
   return parts.join(", ");
@@ -218,7 +262,16 @@ export function formatStartupDiagnostics(
   diagnostics: Diagnostic[],
   useColor = true,
 ): string {
-  const c = useColor ? colors : { reset: "", bold: "", dim: "", red: "", yellow: "", blue: "", cyan: "", gray: "" };
+  const c = useColor ? colors : {
+    reset: "",
+    bold: "",
+    dim: "",
+    red: "",
+    yellow: "",
+    blue: "",
+    cyan: "",
+    gray: "",
+  };
 
   if (diagnostics.length === 0) {
     return `${c.dim}✓ No issues found${c.reset}`;
@@ -239,7 +292,16 @@ export function formatSessionSummary(
   requestCount: number,
   useColor = true,
 ): string {
-  const c = useColor ? colors : { reset: "", bold: "", dim: "", red: "", yellow: "", blue: "", cyan: "", gray: "" };
+  const c = useColor ? colors : {
+    reset: "",
+    bold: "",
+    dim: "",
+    red: "",
+    yellow: "",
+    blue: "",
+    cyan: "",
+    gray: "",
+  };
   const lines: string[] = [];
 
   lines.push(`${c.bold}Session Summary${c.reset}`);
@@ -251,13 +313,25 @@ export function formatSessionSummary(
   if (runtimeDiagnostics.length > 0) {
     lines.push("  Runtime Issues:");
     if (runtimeSummary.byAttribution["sdk-issue"] > 0) {
-      lines.push(`    ${c.red}SDK issues:${c.reset}  ${runtimeSummary.byAttribution["sdk-issue"]}`);
+      lines.push(
+        `    ${c.red}SDK issues:${c.reset}  ${
+          runtimeSummary.byAttribution["sdk-issue"]
+        }`,
+      );
     }
     if (runtimeSummary.byAttribution["spec-issue"] > 0) {
-      lines.push(`    ${c.yellow}Spec issues:${c.reset} ${runtimeSummary.byAttribution["spec-issue"]}`);
+      lines.push(
+        `    ${c.yellow}Spec issues:${c.reset} ${
+          runtimeSummary.byAttribution["spec-issue"]
+        }`,
+      );
     }
     if (runtimeSummary.byAttribution["ambiguous"] > 0) {
-      lines.push(`    ${c.gray}Ambiguous:${c.reset}   ${runtimeSummary.byAttribution["ambiguous"]}`);
+      lines.push(
+        `    ${c.gray}Ambiguous:${c.reset}   ${
+          runtimeSummary.byAttribution["ambiguous"]
+        }`,
+      );
     }
     lines.push("");
 
@@ -275,7 +349,9 @@ export function formatSessionSummary(
         const location = first.context?.request
           ? `${first.context.request.method} ${first.context.request.path}`
           : first.pointer;
-        lines.push(`    ${i + 1}. ${code} at ${location} (${group.length} times)`);
+        lines.push(
+          `    ${i + 1}. ${code} at ${location} (${group.length} times)`,
+        );
       }
     }
   } else {

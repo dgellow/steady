@@ -367,7 +367,9 @@ export class AttributionAnalyzer {
   /**
    * Helper: Check for overly restrictive constraints
    */
-  private hasOverlyRestrictiveConstraints(errors: SchemaValidationError[]): boolean {
+  private hasOverlyRestrictiveConstraints(
+    errors: SchemaValidationError[],
+  ): boolean {
     // Look for very specific constraints that might be too restrictive
     for (const error of errors) {
       if (error.keyword === "pattern" && error.params?.pattern) {

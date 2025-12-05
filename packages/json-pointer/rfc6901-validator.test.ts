@@ -35,10 +35,10 @@ Deno.test("validatePointer: simple paths are valid", () => {
 });
 
 Deno.test("validatePointer: properly escaped sequences are valid", () => {
-  assertEquals(validatePointer("/a~0b").valid, true);  // ~0 for tilde
-  assertEquals(validatePointer("/a~1b").valid, true);  // ~1 for slash
-  assertEquals(validatePointer("/~0~1").valid, true);  // ~/
-  assertEquals(validatePointer("/~1~0").valid, true);  // /~
+  assertEquals(validatePointer("/a~0b").valid, true); // ~0 for tilde
+  assertEquals(validatePointer("/a~1b").valid, true); // ~1 for slash
+  assertEquals(validatePointer("/~0~1").valid, true); // ~/
+  assertEquals(validatePointer("/~1~0").valid, true); // /~
 });
 
 Deno.test("validatePointer: trailing slash is valid (empty string key)", () => {
@@ -108,8 +108,8 @@ Deno.test("validatePointer: invalid escape ~B in middle of token", () => {
 // =============================================================================
 
 Deno.test("validateRef: valid internal references", () => {
-  assertEquals(validateRef("#").valid, true);  // root
-  assertEquals(validateRef("#/").valid, true);  // empty string key at root
+  assertEquals(validateRef("#").valid, true); // root
+  assertEquals(validateRef("#/").valid, true); // empty string key at root
   assertEquals(validateRef("#/definitions/User").valid, true);
   assertEquals(validateRef("#/$defs/User").valid, true);
   assertEquals(validateRef("#/components/schemas/Pet").valid, true);
@@ -192,8 +192,8 @@ Deno.test("validateRef: encoded spaces are valid", () => {
 
 Deno.test("validateRef: validates pointer part of internal ref", () => {
   // Valid pointer part
-  assertEquals(validateRef("#/foo~0bar").valid, true);  // ~0 for tilde
-  assertEquals(validateRef("#/foo~1bar").valid, true);  // ~1 for slash
+  assertEquals(validateRef("#/foo~0bar").valid, true); // ~0 for tilde
+  assertEquals(validateRef("#/foo~1bar").valid, true); // ~1 for slash
 
   // Invalid pointer part (invalid escape sequence)
   const result = validateRef("#/foo~2bar");
@@ -259,18 +259,18 @@ Deno.test("explainInvalidRef: explanation includes the original ref", () => {
 Deno.test("RFC 6901 Section 5: All examples from spec are valid pointers", () => {
   // These are the examples from RFC 6901 Section 5
   const rfcExamples = [
-    "",           // whole document
-    "/foo",       // ["bar", "baz"]
-    "/foo/0",     // "bar"
-    "/",          // 0 (empty string key maps to 0)
-    "/a~1b",      // 1 (key "a/b")
-    "/c%d",       // 2 (literal %d, NOT percent-decoded)
-    "/e^f",       // 3
-    "/g|h",       // 4
-    "/i\\j",      // 5 (backslash is literal in pointer, not path separator)
-    '/k"l',       // 6 (double quote is literal)
-    "/ ",         // 7 (space is literal in pointer)
-    "/m~0n",      // 8 (key "m~n")
+    "", // whole document
+    "/foo", // ["bar", "baz"]
+    "/foo/0", // "bar"
+    "/", // 0 (empty string key maps to 0)
+    "/a~1b", // 1 (key "a/b")
+    "/c%d", // 2 (literal %d, NOT percent-decoded)
+    "/e^f", // 3
+    "/g|h", // 4
+    "/i\\j", // 5 (backslash is literal in pointer, not path separator)
+    '/k"l', // 6 (double quote is literal)
+    "/ ", // 7 (space is literal in pointer)
+    "/m~0n", // 8 (key "m~n")
   ];
 
   for (const pointer of rfcExamples) {
@@ -299,13 +299,13 @@ Deno.test("validatePointer: numeric keys are valid", () => {
 });
 
 Deno.test("validatePointer: unicode characters are valid", () => {
-  assertEquals(validatePointer("/foo/\u00e9").valid, true);  // é
-  assertEquals(validatePointer("/\u4e2d\u6587").valid, true);  // 中文
-  assertEquals(validatePointer("/\u{1F600}").valid, true);  // emoji
+  assertEquals(validatePointer("/foo/\u00e9").valid, true); // é
+  assertEquals(validatePointer("/\u4e2d\u6587").valid, true); // 中文
+  assertEquals(validatePointer("/\u{1F600}").valid, true); // emoji
 });
 
 Deno.test("validateRef: percent-encoded characters are valid", () => {
   // Percent encoding is allowed (though not required for most chars)
-  assertEquals(validateRef("#/foo%2Fbar").valid, true);  // %2F = /
-  assertEquals(validateRef("#/foo%7Ebar").valid, true);  // %7E = ~
+  assertEquals(validateRef("#/foo%2Fbar").valid, true); // %2F = /
+  assertEquals(validateRef("#/foo%7Ebar").valid, true); // %7E = ~
 });

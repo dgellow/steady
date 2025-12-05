@@ -34,7 +34,11 @@ export interface RefAnalyzerConfig {
  */
 export class RefAnalyzer implements Analyzer {
   readonly name = "RefAnalyzer";
-  readonly codes: DiagnosticCode[] = ["ref-unresolved", "ref-cycle", "ref-deep-chain"];
+  readonly codes: DiagnosticCode[] = [
+    "ref-unresolved",
+    "ref-cycle",
+    "ref-deep-chain",
+  ];
 
   constructor(private config: RefAnalyzerConfig = {}) {}
 
@@ -78,7 +82,8 @@ export class RefAnalyzer implements Analyzer {
           pointer: ref,
           message: `Reference "${ref}" cannot be resolved`,
           attribution: getAttribution("ref-unresolved"),
-          suggestion: `Check that the path "${ref}" exists in your OpenAPI spec`,
+          suggestion:
+            `Check that the path "${ref}" exists in your OpenAPI spec`,
         });
       }
     }
@@ -104,7 +109,8 @@ export class RefAnalyzer implements Analyzer {
         pointer: cycle[0] ?? "#",
         message: `Circular reference detected: ${cycleStr}`,
         attribution: getAttribution("ref-cycle"),
-        suggestion: "Circular references are handled gracefully but may indicate overly complex schemas",
+        suggestion:
+          "Circular references are handled gracefully but may indicate overly complex schemas",
         related: cycle.slice(1).map((ref) => ({
           pointer: ref,
           message: "Part of cycle",
@@ -154,7 +160,8 @@ export class RefAnalyzer implements Analyzer {
           pointer,
           message: `Reference chain depth is ${depth} (threshold: ${maxDepth})`,
           attribution: getAttribution("ref-deep-chain"),
-          suggestion: "Consider flattening deep reference chains for better performance",
+          suggestion:
+            "Consider flattening deep reference chains for better performance",
         });
       }
     }

@@ -307,7 +307,10 @@ Deno.test("RFC 6901: percent sequences are NOT decoded (they are literal charact
 
   // Accessing "/foo%20bar" should find the key "foo%20bar" (literal percent)
   // NOT decode it to "foo bar"
-  assertEquals(resolve(doc, "/foo%20bar"), "value with literal percent sequence");
+  assertEquals(
+    resolve(doc, "/foo%20bar"),
+    "value with literal percent sequence",
+  );
 
   // Accessing the space key requires the literal space (which RFC 6901 allows)
   assertEquals(resolve(doc, "/foo bar"), "value with actual space");
@@ -320,8 +323,8 @@ Deno.test("RFC 6901: escapeSegment and unescapeSegment are symmetric", () => {
     "with/slash",
     "with~tilde",
     "with~/both",
-    "with%20percent",     // Literal percent sequence - should NOT be decoded
-    "with%2Fslash",       // Literal %2F - should NOT become /
+    "with%20percent", // Literal percent sequence - should NOT be decoded
+    "with%2Fslash", // Literal %2F - should NOT become /
     "complex%20~0~1test", // Mixed cases
     "",
   ];

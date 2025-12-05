@@ -113,7 +113,9 @@ export class MetaschemaValidator {
   /**
    * Enhance error messages with schema-specific context
    */
-  private enhanceErrors(errors: SchemaValidationError[]): SchemaValidationError[] {
+  private enhanceErrors(
+    errors: SchemaValidationError[],
+  ): SchemaValidationError[] {
     return errors.map((error) => {
       const enhanced = { ...error };
 

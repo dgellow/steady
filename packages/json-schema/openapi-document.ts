@@ -14,14 +14,21 @@
 
 import {
   RegistryResponseGenerator,
+  type RegistrySchema,
   RegistryValidator,
   SchemaRegistry,
-  type RegistrySchema,
 } from "./schema-registry.ts";
 import { RefGraph } from "./ref-graph.ts";
 import type { GenerateOptions, ValidationResult } from "./types.ts";
-import { DocumentAnalyzer, type DocumentAnalyzerConfig } from "./document-analyzer.ts";
-import type { Diagnostic, DiagnosticSeverity, DiagnosticSummary } from "./diagnostics/types.ts";
+import {
+  DocumentAnalyzer,
+  type DocumentAnalyzerConfig,
+} from "./document-analyzer.ts";
+import type {
+  Diagnostic,
+  DiagnosticSeverity,
+  DiagnosticSummary,
+} from "./diagnostics/types.ts";
 import { filterBySeverity, summarizeDiagnostics } from "./diagnostics/types.ts";
 
 export interface OpenAPIDocumentOptions {
@@ -172,7 +179,9 @@ export class OpenAPIDocument {
   /**
    * Get the OpenAPI info section
    */
-  getInfo(): { title?: string; version?: string; description?: string } | undefined {
+  getInfo():
+    | { title?: string; version?: string; description?: string }
+    | undefined {
     const info = this.schemas.resolve("#/info");
     if (typeof info === "object" && info !== null) {
       return info as { title?: string; version?: string; description?: string };
@@ -195,15 +204,23 @@ export class OpenAPIDocument {
    * Get a specific operation by path and method
    */
   getOperation(path: string, method: string): unknown {
-    const pointer = `#/paths/${this.escapePointer(path)}/${method.toLowerCase()}`;
+    const pointer = `#/paths/${
+      this.escapePointer(path)
+    }/${method.toLowerCase()}`;
     return this.schemas.resolve(pointer);
   }
 
   /**
    * Get the response schema for an operation
    */
-  getResponseSchema(path: string, method: string, statusCode: string): RegistrySchema | undefined {
-    const responsePointer = `#/paths/${this.escapePointer(path)}/${method.toLowerCase()}/responses/${statusCode}/content/application~1json/schema`;
+  getResponseSchema(
+    path: string,
+    method: string,
+    statusCode: string,
+  ): RegistrySchema | undefined {
+    const responsePointer = `#/paths/${
+      this.escapePointer(path)
+    }/${method.toLowerCase()}/responses/${statusCode}/content/application~1json/schema`;
     return this.schemas.get(responsePointer);
   }
 
@@ -217,29 +234,41 @@ export class OpenAPIDocument {
     options?: GenerateOptions,
   ): unknown {
     // First try to get example from operation response
-    const examplePointer = `#/paths/${this.escapePointer(path)}/${method.toLowerCase()}/responses/${statusCode}/content/application~1json/example`;
+    const examplePointer = `#/paths/${
+      this.escapePointer(path)
+    }/${method.toLowerCase()}/responses/${statusCode}/content/application~1json/example`;
     const example = this.schemas.resolve(examplePointer);
     if (example !== undefined) {
       return example;
     }
 
     // Then try examples array
-    const examplesPointer = `#/paths/${this.escapePointer(path)}/${method.toLowerCase()}/responses/${statusCode}/content/application~1json/examples`;
+    const examplesPointer = `#/paths/${
+      this.escapePointer(path)
+    }/${method.toLowerCase()}/responses/${statusCode}/content/application~1json/examples`;
     const examples = this.schemas.resolve(examplesPointer);
     if (typeof examples === "object" && examples !== null) {
       const firstExample = Object.values(examples)[0];
-      if (typeof firstExample === "object" && firstExample !== null && "value" in firstExample) {
+      if (
+        typeof firstExample === "object" && firstExample !== null &&
+        "value" in firstExample
+      ) {
         return (firstExample as { value: unknown }).value;
       }
     }
 
     // Fall back to schema generation
-    const schemaPointer = `#/paths/${this.escapePointer(path)}/${method.toLowerCase()}/responses/${statusCode}/content/application~1json/schema`;
+    const schemaPointer = `#/paths/${
+      this.escapePointer(path)
+    }/${method.toLowerCase()}/responses/${statusCode}/content/application~1json/schema`;
     const schema = this.schemas.get(schemaPointer);
 
     if (schema) {
       // If schema has $ref, follow it
-      if (typeof schema.raw === "object" && schema.raw !== null && "$ref" in schema.raw) {
+      if (
+        typeof schema.raw === "object" && schema.raw !== null &&
+        "$ref" in schema.raw
+      ) {
         const ref = (schema.raw as { $ref: string }).$ref;
         const generator = new RegistryResponseGenerator(this.schemas, options);
         return generator.generate(ref);

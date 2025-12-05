@@ -1,6 +1,6 @@
 import { parse as parseYAML } from "@std/yaml";
 import { OpenAPISpec } from "./openapi.ts";
-import { ParseError, SpecValidationError, ErrorContext } from "./errors.ts";
+import { ErrorContext, ParseError, SpecValidationError } from "./errors.ts";
 import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
 import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
 
@@ -50,7 +50,9 @@ export function parseSpec(
       reason: `Failed to parse content: ${
         error instanceof Error ? error.message : String(error)
       }`,
-      suggestion: `Check that your content is valid ${isJSON ? "JSON" : "YAML"}`,
+      suggestion: `Check that your content is valid ${
+        isJSON ? "JSON" : "YAML"
+      }`,
     });
   }
 
@@ -160,14 +162,17 @@ async function validateOpenAPISpec(
 
   // Helper to collect validation errors
   function addError(message: string, context: Omit<ErrorContext, "errorType">) {
-    errors.push(new SpecValidationError(message, { ...context, errorType: "validate" }));
+    errors.push(
+      new SpecValidationError(message, { ...context, errorType: "validate" }),
+    );
   }
 
   // Validate openapi version field
   let version: string | null = null;
   if (typeof s.openapi !== "string") {
     addError("Missing or invalid OpenAPI version", {
-      reason: "Every OpenAPI spec must have an 'openapi' field specifying the version as a string",
+      reason:
+        "Every OpenAPI spec must have an 'openapi' field specifying the version as a string",
       suggestion: "Add the 'openapi' field at the top of your spec",
     });
   } else {
@@ -203,7 +208,8 @@ async function validateOpenAPISpec(
     // Note: Using schema:"json" in YAML parser prevents date-like strings from being converted to Date
     if (typeof info.version !== "string") {
       addError("Missing API version", {
-        reason: "The info object must have a 'version' field indicating the API version",
+        reason:
+          "The info object must have a 'version' field indicating the API version",
         suggestion: "Add a version to your info object",
       });
     }
@@ -215,35 +221,43 @@ async function validateOpenAPISpec(
   // Validate paths object
   // In 3.0.x: paths is required
   // In 3.1.x: paths is optional if webhooks or components exists
-  const hasPaths = s.paths && typeof s.paths === "object" && !Array.isArray(s.paths);
-  const hasWebhooks = s.webhooks && typeof s.webhooks === "object" && !Array.isArray(s.webhooks);
-  const hasComponents = s.components && typeof s.components === "object" && !Array.isArray(s.components);
+  const hasPaths = s.paths && typeof s.paths === "object" &&
+    !Array.isArray(s.paths);
+  const hasWebhooks = s.webhooks && typeof s.webhooks === "object" &&
+    !Array.isArray(s.webhooks);
+  const hasComponents = s.components && typeof s.components === "object" &&
+    !Array.isArray(s.components);
 
   if (!hasPaths) {
     if (is31) {
       // OpenAPI 3.1: need at least one of paths, webhooks, or components
       if (!hasWebhooks && !hasComponents) {
         addError("Missing paths, webhooks, or components", {
-          reason: "OpenAPI 3.1 spec must have at least one of: paths, webhooks, or components",
-          suggestion: "Add a 'paths' object with your API endpoints, or 'webhooks' for webhook definitions",
+          reason:
+            "OpenAPI 3.1 spec must have at least one of: paths, webhooks, or components",
+          suggestion:
+            "Add a 'paths' object with your API endpoints, or 'webhooks' for webhook definitions",
         });
       }
     } else {
       // OpenAPI 3.0.x: paths is required
       addError("Missing paths object", {
-        reason: "OpenAPI 3.0.x spec must have a 'paths' object defining the API endpoints",
+        reason:
+          "OpenAPI 3.0.x spec must have a 'paths' object defining the API endpoints",
         suggestion: "Add a 'paths' object with your API endpoints",
       });
     }
   }
   const has31Fields = s.jsonSchemaDialect !== undefined ||
-                      s.webhooks !== undefined ||
-                      (s.components && typeof s.components === "object" &&
-                       (s.components as Record<string, unknown>).pathItems !== undefined);
+    s.webhooks !== undefined ||
+    (s.components && typeof s.components === "object" &&
+      (s.components as Record<string, unknown>).pathItems !== undefined);
 
   if (is31 || has31Fields) {
     // Validate info.summary
-    if (info && info.summary !== undefined && typeof info.summary !== "string") {
+    if (
+      info && info.summary !== undefined && typeof info.summary !== "string"
+    ) {
       addError("Invalid info summary", {
         reason: "The info.summary field must be a string",
         suggestion: "Change info.summary to a string value",
@@ -261,7 +275,8 @@ async function validateOpenAPISpec(
         const dialect = s.jsonSchemaDialect;
         if (!dialect.startsWith("http://") && !dialect.startsWith("https://")) {
           addError("Invalid jsonSchemaDialect URI", {
-            reason: "The jsonSchemaDialect must be a valid URI starting with http:// or https://",
+            reason:
+              "The jsonSchemaDialect must be a valid URI starting with http:// or https://",
             suggestion: "Provide a valid URI for jsonSchemaDialect",
           });
         }
@@ -269,7 +284,11 @@ async function validateOpenAPISpec(
     }
 
     // Validate webhooks
-    if (s.webhooks !== undefined && (typeof s.webhooks !== "object" || s.webhooks === null || Array.isArray(s.webhooks))) {
+    if (
+      s.webhooks !== undefined &&
+      (typeof s.webhooks !== "object" || s.webhooks === null ||
+        Array.isArray(s.webhooks))
+    ) {
       addError("Invalid webhooks object", {
         reason: "The webhooks field must be an object",
         suggestion: "Define webhooks as an object with webhook definitions",
@@ -277,12 +296,20 @@ async function validateOpenAPISpec(
     }
 
     // Validate components.pathItems
-    if (s.components && typeof s.components === "object" && !Array.isArray(s.components)) {
+    if (
+      s.components && typeof s.components === "object" &&
+      !Array.isArray(s.components)
+    ) {
       const components = s.components as Record<string, unknown>;
-      if (components.pathItems !== undefined && (typeof components.pathItems !== "object" || components.pathItems === null || Array.isArray(components.pathItems))) {
+      if (
+        components.pathItems !== undefined &&
+        (typeof components.pathItems !== "object" ||
+          components.pathItems === null || Array.isArray(components.pathItems))
+      ) {
         addError("Invalid components.pathItems", {
           reason: "The components.pathItems field must be an object",
-          suggestion: "Define pathItems as an object with reusable path item definitions",
+          suggestion:
+            "Define pathItems as an object with reusable path item definitions",
         });
       }
     }
@@ -293,11 +320,14 @@ async function validateOpenAPISpec(
     if (errors.length === 1) {
       throw errors[0]!;
     } else {
-      throw new SpecValidationError(`Found ${errors.length} validation errors`, {
-        errorType: "validate",
-        reason: errors.map(e => e.message).join("; "),
-        allErrors: errors,
-      });
+      throw new SpecValidationError(
+        `Found ${errors.length} validation errors`,
+        {
+          errorType: "validate",
+          reason: errors.map((e) => e.message).join("; "),
+          allErrors: errors,
+        },
+      );
     }
   }
 
@@ -312,10 +342,12 @@ async function validateOpenAPISpec(
     if (!validationResult.valid && validationResult.errors.length > 0) {
       const error = validationResult.errors[0]!;
       const isRefError = error.type === "ref-not-found" ||
-                         error.keyword === "$ref" ||
-                         error.message.toLowerCase().includes("ref");
+        error.keyword === "$ref" ||
+        error.message.toLowerCase().includes("ref");
       throw new SpecValidationError(
-        isRefError ? "Invalid reference in OpenAPI spec" : "OpenAPI spec validation failed",
+        isRefError
+          ? "Invalid reference in OpenAPI spec"
+          : "OpenAPI spec validation failed",
         {
           errorType: "validate",
           schemaPath: error.schemaPath.split("/").slice(1),

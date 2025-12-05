@@ -285,10 +285,10 @@ export class RequestValidator {
   /**
    * Validate query parameters using JSON Schema processor
    */
-  private async validateQueryParams(
+  private validateQueryParams(
     params: URLSearchParams,
     paramSpecs: ParameterObject[],
-  ): Promise<ValidationResult> {
+  ): ValidationResult {
     const errors: ValidationIssue[] = [];
     const warnings: ValidationIssue[] = [];
 
@@ -359,10 +359,10 @@ export class RequestValidator {
   /**
    * Validate path parameters using JSON Schema processor
    */
-  private async validatePathParams(
+  private validatePathParams(
     pathParams: Record<string, string>,
     paramSpecs: ParameterObject[],
-  ): Promise<ValidationResult> {
+  ): ValidationResult {
     const errors: ValidationIssue[] = [];
     const warnings: ValidationIssue[] = [];
 
@@ -392,10 +392,10 @@ export class RequestValidator {
   /**
    * Validate headers using JSON Schema processor
    */
-  private async validateHeaders(
+  private validateHeaders(
     headers: Headers,
     headerSpecs: ParameterObject[],
-  ): Promise<ValidationResult> {
+  ): ValidationResult {
     const errors: ValidationIssue[] = [];
     const warnings: ValidationIssue[] = [];
 
@@ -524,14 +524,14 @@ export class RequestValidator {
   /**
    * Validate request body content
    */
-  private async validateRequestBody(
+  private validateRequestBody(
     body: string,
     requestBody: {
       required?: boolean;
       content?: Record<string, { schema?: SchemaObject }>;
     },
     contentType: string,
-  ): Promise<ValidationResult> {
+  ): ValidationResult {
     const errors: ValidationIssue[] = [];
     const warnings: ValidationIssue[] = [];
 

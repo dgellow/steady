@@ -8,8 +8,8 @@
  */
 
 export interface RefEdge {
-  from: string;      // JSON Pointer to schema containing the $ref
-  to: string;        // The $ref target
+  from: string; // JSON Pointer to schema containing the $ref
+  to: string; // The $ref target
   refPointer: string; // JSON Pointer to the $ref itself
 }
 
@@ -172,7 +172,10 @@ export class RefGraph {
           if (!index.has(target)) {
             // Target not yet visited
             strongConnect(target);
-            lowlink.set(node, Math.min(lowlink.get(node)!, lowlink.get(target)!));
+            lowlink.set(
+              node,
+              Math.min(lowlink.get(node)!, lowlink.get(target)!),
+            );
           } else if (onStack.has(target)) {
             // Target is on stack -> part of current SCC
             lowlink.set(node, Math.min(lowlink.get(node)!, index.get(target)!));
@@ -196,8 +199,7 @@ export class RefGraph {
           for (const ref of scc) {
             this.cyclicRefs.add(ref);
           }
-        }
-        // Also detect self-references
+        } // Also detect self-references
         else if (scc.length === 1 && this.edges.get(scc[0]!)?.has(scc[0]!)) {
           this.cycles.push(scc);
           this.cyclicRefs.add(scc[0]!);

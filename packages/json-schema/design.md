@@ -2,7 +2,10 @@
 
 ## Overview
 
-Steady's diagnostic system provides comprehensive analysis and error attribution across the full API mock server lifecycle. The key differentiator is **attribution** - helping SDK developers instantly know if an issue is a spec problem or an SDK bug.
+Steady's diagnostic system provides comprehensive analysis and error attribution
+across the full API mock server lifecycle. The key differentiator is
+**attribution** - helping SDK developers instantly know if an issue is a spec
+problem or an SDK bug.
 
 ## Architecture
 
@@ -80,8 +83,8 @@ Every diagnostic has attribution with confidence scoring:
 ```typescript
 interface Attribution {
   type: "spec-issue" | "sdk-issue" | "ambiguous";
-  confidence: number;  // 0.0 - 1.0
-  reasoning: string;   // Explanation for attribution
+  confidence: number; // 0.0 - 1.0
+  reasoning: string; // Explanation for attribution
 }
 ```
 
@@ -90,6 +93,7 @@ interface Attribution {
 Organized by phase:
 
 **Static (Startup)**
+
 - `ref-unresolved` - $ref points to non-existent target
 - `ref-cycle` - Reference cycle detected
 - `ref-deep-chain` - Very deep reference chain
@@ -100,6 +104,7 @@ Organized by phase:
 - `mock-no-schema` - No schema, can't generate response
 
 **Runtime (Request)**
+
 - `request-path-not-found` - No matching path in spec
 - `request-method-not-allowed` - Path exists but method doesn't
 - `request-missing-param` - Required parameter missing
@@ -108,6 +113,7 @@ Organized by phase:
 - `request-wrong-content-type` - Wrong content type
 
 **Runtime (Response)**
+
 - `response-generation-failed` - Couldn't generate response
 - `response-no-schema` - No schema defined
 
@@ -117,40 +123,40 @@ Organized by phase:
 
 Uses `RefGraph` to detect reference issues:
 
-| Code | Severity | Attribution | When |
-|------|----------|-------------|------|
-| `ref-unresolved` | error | spec-issue (1.0) | $ref points to non-existent path |
-| `ref-cycle` | warning | spec-issue (0.9) | Circular reference detected |
-| `ref-deep-chain` | info | spec-issue (0.6) | Reference chain > 10 levels |
+| Code             | Severity | Attribution      | When                             |
+| ---------------- | -------- | ---------------- | -------------------------------- |
+| `ref-unresolved` | error    | spec-issue (1.0) | $ref points to non-existent path |
+| `ref-cycle`      | warning  | spec-issue (0.9) | Circular reference detected      |
+| `ref-deep-chain` | info     | spec-issue (0.6) | Reference chain > 10 levels      |
 
 ### SchemaAnalyzer
 
 Checks JSON Schema quality:
 
-| Code | Severity | Attribution | When |
-|------|----------|-------------|------|
-| `schema-ref-siblings` | warning | spec-issue (1.0) | $ref with sibling keywords |
-| `schema-complexity` | info | spec-issue (0.7) | Complexity score > 1000 |
-| `schema-nesting` | info | spec-issue (0.6) | Nesting depth > 20 |
+| Code                  | Severity | Attribution      | When                       |
+| --------------------- | -------- | ---------------- | -------------------------- |
+| `schema-ref-siblings` | warning  | spec-issue (1.0) | $ref with sibling keywords |
+| `schema-complexity`   | info     | spec-issue (0.7) | Complexity score > 1000    |
+| `schema-nesting`      | info     | spec-issue (0.6) | Nesting depth > 20         |
 
 ### MockAnalyzer
 
 Checks mock server readiness:
 
-| Code | Severity | Attribution | When |
-|------|----------|-------------|------|
-| `mock-no-example` | info | spec-issue (0.5) | Response has schema but no example |
-| `mock-no-schema` | warning | spec-issue (0.9) | Response has no schema |
+| Code              | Severity | Attribution      | When                               |
+| ----------------- | -------- | ---------------- | ---------------------------------- |
+| `mock-no-example` | info     | spec-issue (0.5) | Response has schema but no example |
+| `mock-no-schema`  | warning  | spec-issue (0.9) | Response has no schema             |
 
 ## Runtime Attribution Rules
 
-| Code | Attribution | Confidence | Reasoning |
-|------|-------------|------------|-----------|
-| `request-invalid-body` | sdk-issue | 0.8 | Request body doesn't match schema |
-| `request-missing-param` | sdk-issue | 0.9 | SDK should include required params |
-| `request-path-not-found` | ambiguous | 0.6 | Could be SDK or spec issue |
-| `response-generation-failed` | spec-issue | 0.8 | Schema couldn't generate response |
-| `response-no-schema` | spec-issue | 1.0 | Spec doesn't define schema |
+| Code                         | Attribution | Confidence | Reasoning                          |
+| ---------------------------- | ----------- | ---------- | ---------------------------------- |
+| `request-invalid-body`       | sdk-issue   | 0.8        | Request body doesn't match schema  |
+| `request-missing-param`      | sdk-issue   | 0.9        | SDK should include required params |
+| `request-path-not-found`     | ambiguous   | 0.6        | Could be SDK or spec issue         |
+| `response-generation-failed` | spec-issue  | 0.8        | Schema couldn't generate response  |
+| `response-no-schema`         | spec-issue  | 1.0        | Spec doesn't define schema         |
 
 ## File Structure
 

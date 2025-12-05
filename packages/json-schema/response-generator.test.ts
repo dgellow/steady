@@ -3,7 +3,10 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { RegistryResponseGenerator, SchemaRegistry } from "./schema-registry.ts";
+import {
+  RegistryResponseGenerator,
+  SchemaRegistry,
+} from "./schema-registry.ts";
 import type { Schema } from "./types.ts";
 
 /**
@@ -61,7 +64,9 @@ Deno.test("RegistryResponseGenerator - anyOf with string or null should generate
   assertEquals(
     isStringOrNull,
     true,
-    `Expected string or null, got: ${JSON.stringify(result)} (type: ${typeof result})`,
+    `Expected string or null, got: ${
+      JSON.stringify(result)
+    } (type: ${typeof result})`,
   );
 });
 
@@ -84,14 +89,21 @@ Deno.test("RegistryResponseGenerator - oneOf should pick first matching schema",
 Deno.test("RegistryResponseGenerator - allOf should merge schemas", () => {
   const schema: Schema = {
     allOf: [
-      { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
+      {
+        type: "object",
+        properties: { name: { type: "string" } },
+        required: ["name"],
+      },
       { properties: { age: { type: "integer" } }, required: ["age"] },
     ],
   };
   const registry = createRegistry(schema);
   const generator = new RegistryResponseGenerator(registry);
 
-  const result = generator.generateFromSchema(schema, "#", 0) as Record<string, unknown>;
+  const result = generator.generateFromSchema(schema, "#", 0) as Record<
+    string,
+    unknown
+  >;
 
   // Should have both name and age
   assertEquals(typeof result, "object");
@@ -118,7 +130,10 @@ Deno.test("RegistryResponseGenerator - nested anyOf in object property", () => {
   const registry = createRegistry(schema);
   const generator = new RegistryResponseGenerator(registry);
 
-  const result = generator.generateFromSchema(schema, "#", 0) as Record<string, unknown>;
+  const result = generator.generateFromSchema(schema, "#", 0) as Record<
+    string,
+    unknown
+  >;
 
   assertEquals(typeof result, "object");
   assertEquals(Array.isArray(result.data), true);
@@ -126,19 +141,25 @@ Deno.test("RegistryResponseGenerator - nested anyOf in object property", () => {
 
   // first_id and last_id should be string or null, not {}
   if ("first_id" in result) {
-    const isValid = typeof result.first_id === "string" || result.first_id === null;
+    const isValid = typeof result.first_id === "string" ||
+      result.first_id === null;
     assertEquals(
       isValid,
       true,
-      `first_id should be string or null, got: ${JSON.stringify(result.first_id)}`,
+      `first_id should be string or null, got: ${
+        JSON.stringify(result.first_id)
+      }`,
     );
   }
   if ("last_id" in result) {
-    const isValid = typeof result.last_id === "string" || result.last_id === null;
+    const isValid = typeof result.last_id === "string" ||
+      result.last_id === null;
     assertEquals(
       isValid,
       true,
-      `last_id should be string or null, got: ${JSON.stringify(result.last_id)}`,
+      `last_id should be string or null, got: ${
+        JSON.stringify(result.last_id)
+      }`,
     );
   }
 });
@@ -188,23 +209,31 @@ Deno.test("RegistryResponseGenerator - allOf with $ref resolves referenced schem
   assertEquals(
     "token" in result,
     true,
-    `Should include 'token' from BaseTransaction, got: ${JSON.stringify(result)}`,
+    `Should include 'token' from BaseTransaction, got: ${
+      JSON.stringify(result)
+    }`,
   );
   assertEquals(
     "status" in result,
     true,
-    `Should include 'status' from BaseTransaction, got: ${JSON.stringify(result)}`,
+    `Should include 'status' from BaseTransaction, got: ${
+      JSON.stringify(result)
+    }`,
   );
   assertEquals(
     "created" in result,
     true,
-    `Should include 'created' from BaseTransaction, got: ${JSON.stringify(result)}`,
+    `Should include 'created' from BaseTransaction, got: ${
+      JSON.stringify(result)
+    }`,
   );
 
   // Properties from the inline schema should also be included
   assertEquals(
     "family" in result,
     true,
-    `Should include 'family' from inline schema, got: ${JSON.stringify(result)}`,
+    `Should include 'family' from inline schema, got: ${
+      JSON.stringify(result)
+    }`,
   );
 });

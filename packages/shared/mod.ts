@@ -3,10 +3,7 @@
 // Logging
 export { RequestLogger } from "./logger.ts";
 export { SimpleLogger } from "./simple-logger.ts";
-export {
-  InkSimpleLogger,
-  startInkSimpleLogger,
-} from "./ink-logger.tsx";
+export { InkSimpleLogger, startInkSimpleLogger } from "./ink-logger.tsx";
 
 // Types
 export type { LogLevel, LogValidationResult, StoredRequest } from "./types.ts";

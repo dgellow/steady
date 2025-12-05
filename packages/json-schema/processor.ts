@@ -164,7 +164,9 @@ export class JsonSchemaProcessor {
     return warnings;
   }
 
-  private convertToSchemaErrors(errors: SchemaValidationError[]): SchemaError[] {
+  private convertToSchemaErrors(
+    errors: SchemaValidationError[],
+  ): SchemaError[] {
     return errors.map((err) => ({
       ...err,
       type: "metaschema-violation" as const,

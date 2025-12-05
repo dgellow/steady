@@ -13,30 +13,24 @@ export type DiagnosticCode =
   | "ref-unresolved"
   | "ref-cycle"
   | "ref-deep-chain"
-
   // === STATIC (Startup) - Schema quality ===
   | "schema-ref-siblings"
   | "schema-complexity"
   | "schema-nesting"
-
   // === STATIC (Startup) - Mock readiness ===
   | "mock-no-example"
   | "mock-no-schema"
-
   // === RUNTIME (Request) - Path matching ===
   | "request-path-not-found"
   | "request-method-not-allowed"
-
   // === RUNTIME (Request) - Parameter validation ===
   | "request-missing-param"
   | "request-invalid-param"
   | "request-invalid-header"
-
   // === RUNTIME (Request) - Body validation ===
   | "request-invalid-body"
   | "request-wrong-content-type"
   | "request-body-too-large"
-
   // === RUNTIME (Response) ===
   | "response-generation-failed"
   | "response-no-schema"
@@ -154,7 +148,9 @@ export interface DiagnosticSummary {
 /**
  * Create a diagnostic summary from a list of diagnostics
  */
-export function summarizeDiagnostics(diagnostics: Diagnostic[]): DiagnosticSummary {
+export function summarizeDiagnostics(
+  diagnostics: Diagnostic[],
+): DiagnosticSummary {
   const summary: DiagnosticSummary = {
     total: diagnostics.length,
     bySeverity: { error: 0, warning: 0, info: 0, hint: 0 },
@@ -178,7 +174,12 @@ export function filterBySeverity(
   diagnostics: Diagnostic[],
   minSeverity: DiagnosticSeverity,
 ): Diagnostic[] {
-  const severityOrder: DiagnosticSeverity[] = ["error", "warning", "info", "hint"];
+  const severityOrder: DiagnosticSeverity[] = [
+    "error",
+    "warning",
+    "info",
+    "hint",
+  ];
   const minIndex = severityOrder.indexOf(minSeverity);
 
   return diagnostics.filter((d) => {

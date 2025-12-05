@@ -67,7 +67,10 @@ export function validatePointer(pointer: string): PointerValidationResult {
 /**
  * Validate a single JSON Pointer token (segment between slashes)
  */
-function validateToken(token: string, _position: number): PointerValidationResult {
+function validateToken(
+  token: string,
+  _position: number,
+): PointerValidationResult {
   // Check for invalid escape sequences
   // RFC 6901: Only ~0 (tilde) and ~1 (slash) are valid escape sequences
 
