@@ -212,14 +212,5 @@ deno task lint              # Lint
 deno task fmt               # Format
 deno task check-boundaries  # Verify package dependencies
 ```
-
-## Limitations
-
-- No external `$ref` resolution (all schemas must be in one file)
-- Server binds to localhost only
-- No HTTPS support
-- Request body limit: 10MB
-
-## License
-
-MIT
+- **Developer experience** - Error messages so good they eliminate debugging
+  
