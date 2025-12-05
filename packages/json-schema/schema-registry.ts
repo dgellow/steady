@@ -552,10 +552,25 @@ export class RegistryResponseGenerator {
 /**
  * Validator that uses the registry for ref resolution
  */
+export interface RegistryValidatorOptions {
+  /**
+   * Enable strict oneOf validation per JSON Schema semantics.
+   * When false (default), oneOf passes if ANY variant matches (union-like).
+   * When true, oneOf requires EXACTLY one variant to match.
+   */
+  strictOneOf?: boolean;
+}
+
 export class RegistryValidator {
   private visited = new Set<string>();
+  private readonly strictOneOf: boolean;
 
-  constructor(private registry: SchemaRegistry) {}
+  constructor(
+    private registry: SchemaRegistry,
+    options?: RegistryValidatorOptions,
+  ) {
+    this.strictOneOf = options?.strictOneOf ?? false;
+  }
 
   /**
    * Validate data against a schema at the given pointer
@@ -925,19 +940,29 @@ export class RegistryValidator {
       }
     }
 
-    // Composition: oneOf - treat as union (pass if ANY variant matches)
-    // Note: This differs from strict JSON Schema semantics but matches SDK needs
+    // Composition: oneOf - behavior controlled by strictOneOf option
     if (schema.oneOf) {
       const matchCount = schema.oneOf.filter((subSchema, i) => {
         const subErrors = this.validateSchemaInternal(subSchema, data, instancePath, `${schemaPath}/oneOf/${i}`);
         return subErrors.length === 0;
       }).length;
-      if (matchCount === 0) {
+
+      const isValid = this.strictOneOf
+        ? matchCount === 1
+        : matchCount >= 1;
+
+      if (!isValid) {
+        const message = this.strictOneOf
+          ? matchCount === 0
+            ? "Must match exactly one schema in oneOf (matched none)"
+            : `Must match exactly one schema in oneOf (matched ${matchCount})`
+          : "Must match at least one schema in oneOf";
+
         errors.push({
           instancePath,
           schemaPath: `${schemaPath}/oneOf`,
           keyword: "oneOf",
-          message: "Must match at least one schema in oneOf",
+          message,
         });
       }
     }
