@@ -51,38 +51,50 @@ async function withServer(
 // Route Matching
 // =============================================================================
 
-Deno.test({ name: "Server: matches exact paths", ...serverTestOpts }, async () => {
-  await withServer({}, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/users`);
-    assertEquals(response.status, 200);
+Deno.test(
+  { name: "Server: matches exact paths", ...serverTestOpts },
+  async () => {
+    await withServer({}, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/users`);
+      assertEquals(response.status, 200);
 
-    const data = await response.json();
-    assertExists(data);
-    assertEquals(Array.isArray(data), true);
-  });
-});
+      const data = await response.json();
+      assertExists(data);
+      assertEquals(Array.isArray(data), true);
+    });
+  },
+);
 
-Deno.test({ name: "Server: matches parameterized paths", ...serverTestOpts }, async () => {
-  await withServer({}, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/users/123`);
-    assertEquals(response.status, 200);
+Deno.test(
+  { name: "Server: matches parameterized paths", ...serverTestOpts },
+  async () => {
+    await withServer({}, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/users/123`);
+      assertEquals(response.status, 200);
 
-    const data = await response.json();
-    assertEquals(data.id, 1); // From example
-  });
-});
+      const data = await response.json();
+      assertEquals(data.id, 1); // From example
+    });
+  },
+);
 
-Deno.test({ name: "Server: returns 404 for unknown paths", ...serverTestOpts }, async () => {
-  await withServer({}, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/unknown/path`);
-    assertEquals(response.status, 404);
+Deno.test(
+  { name: "Server: returns 404 for unknown paths", ...serverTestOpts },
+  async () => {
+    await withServer({}, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/unknown/path`);
+      assertEquals(response.status, 404);
 
-    const data = await response.json();
-    assertExists(data.error);
-  });
-});
+      const data = await response.json();
+      assertExists(data.error);
+    });
+  },
+);
 
-Deno.test({ name: "Server: returns 404 for wrong HTTP method", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: returns 404 for wrong HTTP method",
+  ...serverTestOpts,
+}, async () => {
   await withServer({}, async (_server, baseUrl) => {
     const response = await fetch(`${baseUrl}/users/123`, { method: "DELETE" });
     assertEquals(response.status, 404);
@@ -94,17 +106,23 @@ Deno.test({ name: "Server: returns 404 for wrong HTTP method", ...serverTestOpts
 // Response Generation
 // =============================================================================
 
-Deno.test({ name: "Server: returns example from spec", ...serverTestOpts }, async () => {
-  await withServer({}, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/health`);
-    assertEquals(response.status, 200);
+Deno.test(
+  { name: "Server: returns example from spec", ...serverTestOpts },
+  async () => {
+    await withServer({}, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/health`);
+      assertEquals(response.status, 200);
 
-    const data = await response.json();
-    assertEquals(data.status, "ok");
-  });
-});
+      const data = await response.json();
+      assertEquals(data.status, "ok");
+    });
+  },
+);
 
-Deno.test({ name: "Server: includes X-Steady-Matched-Path header", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: includes X-Steady-Matched-Path header",
+  ...serverTestOpts,
+}, async () => {
   await withServer({}, async (_server, baseUrl) => {
     const response = await fetch(`${baseUrl}/users/456`);
     assertEquals(response.status, 200);
@@ -119,7 +137,10 @@ Deno.test({ name: "Server: includes X-Steady-Matched-Path header", ...serverTest
 // X-Steady-Mode Header
 // =============================================================================
 
-Deno.test({ name: "Server: X-Steady-Mode header in response (strict server)", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: X-Steady-Mode header in response (strict server)",
+  ...serverTestOpts,
+}, async () => {
   await withServer({ mode: "strict" }, async (_server, baseUrl) => {
     const response = await fetch(`${baseUrl}/users`);
     assertEquals(response.status, 200);
@@ -130,7 +151,10 @@ Deno.test({ name: "Server: X-Steady-Mode header in response (strict server)", ..
   });
 });
 
-Deno.test({ name: "Server: X-Steady-Mode header in response (relaxed server)", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: X-Steady-Mode header in response (relaxed server)",
+  ...serverTestOpts,
+}, async () => {
   await withServer({ mode: "relaxed" }, async (_server, baseUrl) => {
     const response = await fetch(`${baseUrl}/users`);
     assertEquals(response.status, 200);
@@ -141,7 +165,10 @@ Deno.test({ name: "Server: X-Steady-Mode header in response (relaxed server)", .
   });
 });
 
-Deno.test({ name: "Server: X-Steady-Mode request header overrides to relaxed", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: X-Steady-Mode request header overrides to relaxed",
+  ...serverTestOpts,
+}, async () => {
   await withServer({ mode: "strict" }, async (_server, baseUrl) => {
     // Send invalid path param (string instead of integer) with relaxed override
     const response = await fetch(`${baseUrl}/users/not-a-number`, {
@@ -157,7 +184,10 @@ Deno.test({ name: "Server: X-Steady-Mode request header overrides to relaxed", .
   });
 });
 
-Deno.test({ name: "Server: X-Steady-Mode request header overrides to strict", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: X-Steady-Mode request header overrides to strict",
+  ...serverTestOpts,
+}, async () => {
   await withServer({ mode: "relaxed" }, async (_server, baseUrl) => {
     // Send invalid path param with strict override
     const response = await fetch(`${baseUrl}/users/not-a-number`, {
@@ -173,7 +203,10 @@ Deno.test({ name: "Server: X-Steady-Mode request header overrides to strict", ..
   });
 });
 
-Deno.test({ name: "Server: invalid X-Steady-Mode header falls back to server default", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: invalid X-Steady-Mode header falls back to server default",
+  ...serverTestOpts,
+}, async () => {
   await withServer({ mode: "strict" }, async (_server, baseUrl) => {
     const response = await fetch(`${baseUrl}/users`, {
       headers: { "X-Steady-Mode": "invalid-value" },
@@ -190,7 +223,10 @@ Deno.test({ name: "Server: invalid X-Steady-Mode header falls back to server def
 // Request Validation
 // =============================================================================
 
-Deno.test({ name: "Server: validates path parameters (strict mode)", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: validates path parameters (strict mode)",
+  ...serverTestOpts,
+}, async () => {
   await withServer({ mode: "strict" }, async (_server, baseUrl) => {
     // Invalid: string instead of integer
     const response = await fetch(`${baseUrl}/users/not-a-number`);
@@ -202,7 +238,10 @@ Deno.test({ name: "Server: validates path parameters (strict mode)", ...serverTe
   });
 });
 
-Deno.test({ name: "Server: validates required headers (strict mode)", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: validates required headers (strict mode)",
+  ...serverTestOpts,
+}, async () => {
   await withServer({ mode: "strict" }, async (_server, baseUrl) => {
     // Missing required X-API-Key header
     const response = await fetch(`${baseUrl}/items`);
@@ -213,17 +252,23 @@ Deno.test({ name: "Server: validates required headers (strict mode)", ...serverT
   });
 });
 
-Deno.test({ name: "Server: accepts valid required headers", ...serverTestOpts }, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/items`, {
-      headers: { "X-API-Key": "my-secret-key" },
+Deno.test(
+  { name: "Server: accepts valid required headers", ...serverTestOpts },
+  async () => {
+    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/items`, {
+        headers: { "X-API-Key": "my-secret-key" },
+      });
+      assertEquals(response.status, 200);
+      await response.body?.cancel();
     });
-    assertEquals(response.status, 200);
-    await response.body?.cancel();
-  });
-});
+  },
+);
 
-Deno.test({ name: "Server: validates request body (strict mode)", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: validates request body (strict mode)",
+  ...serverTestOpts,
+}, async () => {
   await withServer({ mode: "strict" }, async (_server, baseUrl) => {
     // Missing required 'email' field
     const response = await fetch(`${baseUrl}/users`, {
@@ -238,46 +283,58 @@ Deno.test({ name: "Server: validates request body (strict mode)", ...serverTestO
   });
 });
 
-Deno.test({ name: "Server: accepts valid request body", ...serverTestOpts }, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/users`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "Alice",
-        email: "alice@example.com",
-      }),
+Deno.test(
+  { name: "Server: accepts valid request body", ...serverTestOpts },
+  async () => {
+    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Alice",
+          email: "alice@example.com",
+        }),
+      });
+
+      assertEquals(response.status, 201);
+      await response.body?.cancel();
     });
+  },
+);
 
-    assertEquals(response.status, 201);
-    await response.body?.cancel();
-  });
-});
+Deno.test(
+  { name: "Server: validates query parameters", ...serverTestOpts },
+  async () => {
+    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
+      // Invalid: limit exceeds maximum
+      const response = await fetch(`${baseUrl}/users?limit=500`);
+      assertEquals(response.status, 400);
 
-Deno.test({ name: "Server: validates query parameters", ...serverTestOpts }, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    // Invalid: limit exceeds maximum
-    const response = await fetch(`${baseUrl}/users?limit=500`);
-    assertEquals(response.status, 400);
+      const data = await response.json();
+      assertExists(data.errors);
+    });
+  },
+);
 
-    const data = await response.json();
-    assertExists(data.errors);
-  });
-});
-
-Deno.test({ name: "Server: accepts valid query parameters", ...serverTestOpts }, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/users?limit=50&offset=10`);
-    assertEquals(response.status, 200);
-    await response.body?.cancel();
-  });
-});
+Deno.test(
+  { name: "Server: accepts valid query parameters", ...serverTestOpts },
+  async () => {
+    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/users?limit=50&offset=10`);
+      assertEquals(response.status, 200);
+      await response.body?.cancel();
+    });
+  },
+);
 
 // =============================================================================
 // Relaxed Mode
 // =============================================================================
 
-Deno.test({ name: "Server: relaxed mode returns response despite validation errors", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: relaxed mode returns response despite validation errors",
+  ...serverTestOpts,
+}, async () => {
   await withServer({ mode: "relaxed" }, async (_server, baseUrl) => {
     // Invalid path param, but relaxed mode should still return response
     const response = await fetch(`${baseUrl}/users/not-a-number`);
@@ -292,18 +349,24 @@ Deno.test({ name: "Server: relaxed mode returns response despite validation erro
 // Special Endpoints
 // =============================================================================
 
-Deno.test({ name: "Server: health endpoint returns stats", ...serverTestOpts }, async () => {
-  await withServer({}, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/_x-steady/health`);
-    assertEquals(response.status, 200);
+Deno.test(
+  { name: "Server: health endpoint returns stats", ...serverTestOpts },
+  async () => {
+    await withServer({}, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/_x-steady/health`);
+      assertEquals(response.status, 200);
 
-    const data = await response.json();
-    assertEquals(data.status, "healthy");
-    assertExists(data.spec);
-  });
-});
+      const data = await response.json();
+      assertEquals(data.status, "healthy");
+      assertExists(data.spec);
+    });
+  },
+);
 
-Deno.test({ name: "Server: spec endpoint returns OpenAPI spec", ...serverTestOpts }, async () => {
+Deno.test({
+  name: "Server: spec endpoint returns OpenAPI spec",
+  ...serverTestOpts,
+}, async () => {
   await withServer({}, async (_server, baseUrl) => {
     const response = await fetch(`${baseUrl}/_x-steady/spec`);
     assertEquals(response.status, 200);
@@ -318,25 +381,31 @@ Deno.test({ name: "Server: spec endpoint returns OpenAPI spec", ...serverTestOpt
 // Content-Type Handling
 // =============================================================================
 
-Deno.test({ name: "Server: returns JSON content-type", ...serverTestOpts }, async () => {
-  await withServer({}, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/users`);
-    const contentType = response.headers.get("Content-Type");
-    assertEquals(contentType, "application/json");
-    await response.body?.cancel();
-  });
-});
-
-Deno.test({ name: "Server: validates Content-Type on POST", ...serverTestOpts }, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    // Wrong content-type for JSON body
-    const response = await fetch(`${baseUrl}/users`, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ name: "Alice", email: "alice@example.com" }),
+Deno.test(
+  { name: "Server: returns JSON content-type", ...serverTestOpts },
+  async () => {
+    await withServer({}, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/users`);
+      const contentType = response.headers.get("Content-Type");
+      assertEquals(contentType, "application/json");
+      await response.body?.cancel();
     });
+  },
+);
 
-    assertEquals(response.status, 400);
-    await response.body?.cancel();
-  });
-});
+Deno.test(
+  { name: "Server: validates Content-Type on POST", ...serverTestOpts },
+  async () => {
+    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
+      // Wrong content-type for JSON body
+      const response = await fetch(`${baseUrl}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ name: "Alice", email: "alice@example.com" }),
+      });
+
+      assertEquals(response.status, 400);
+      await response.body?.cancel();
+    });
+  },
+);

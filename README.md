@@ -1,6 +1,7 @@
 # Steady
 
-OpenAPI 3.0/3.1 mock server built with Deno. Validates requests against specs and generates responses from schemas or examples.
+OpenAPI 3.0/3.1 mock server built with Deno. Validates requests against specs
+and generates responses from schemas or examples.
 
 ## Installation
 
@@ -54,7 +55,8 @@ Options:
 
 ### Port Configuration
 
-The server uses port 3000 by default. To use a different port, set it in your spec:
+The server uses port 3000 by default. To use a different port, set it in your
+spec:
 
 ```yaml
 servers:
@@ -86,7 +88,7 @@ responses:
 
         # Option 3: generate from schema
         schema:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
 ```
 
 ## Request Validation
@@ -98,11 +100,13 @@ In `--strict` mode (default), requests are validated against:
 - **Headers** - required headers, schema validation
 - **Request body** - JSON Schema validation, content-type check
 
-Invalid requests return 400 with validation errors. In `--relaxed` mode, validation errors are logged but responses are still returned.
+Invalid requests return 400 with validation errors. In `--relaxed` mode,
+validation errors are logged but responses are still returned.
 
 ### Per-Request Mode Override
 
-Use the `X-Steady-Mode` header to override the server's validation mode for individual requests:
+Use the `X-Steady-Mode` header to override the server's validation mode for
+individual requests:
 
 ```bash
 # Force strict validation on a relaxed server
@@ -124,17 +128,22 @@ The response includes `X-Steady-Mode` header confirming which mode was used.
 Supports JSON Schema draft 2020-12 with ~91% compliance.
 
 **Supported:**
+
 - Types: `string`, `number`, `integer`, `boolean`, `null`, `array`, `object`
 - String: `minLength`, `maxLength`, `pattern`, `format`
-- Number: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
-- Array: `items`, `prefixItems`, `minItems`, `maxItems`, `uniqueItems`, `contains`
-- Object: `properties`, `required`, `additionalProperties`, `patternProperties`, `propertyNames`, `minProperties`, `maxProperties`
+- Number: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,
+  `multipleOf`
+- Array: `items`, `prefixItems`, `minItems`, `maxItems`, `uniqueItems`,
+  `contains`
+- Object: `properties`, `required`, `additionalProperties`, `patternProperties`,
+  `propertyNames`, `minProperties`, `maxProperties`
 - Composition: `allOf`, `anyOf`, `oneOf`, `not`
 - Conditional: `if`/`then`/`else`
 - References: `$ref`, `$defs`, `$anchor`
 - `const`, `enum`, `default`
 
 **Not supported:**
+
 - `$dynamicRef` / `$dynamicAnchor`
 - External `$ref` (http://, file://)
 - `unevaluatedProperties` / `unevaluatedItems` (partial)
@@ -212,5 +221,5 @@ deno task lint              # Lint
 deno task fmt               # Format
 deno task check-boundaries  # Verify package dependencies
 ```
+
 - **Developer experience** - Error messages so good they eliminate debugging
-  

@@ -88,7 +88,7 @@ Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
 
 Deno.test({
   name: "EDGE: Deeply nested allOf (100 levels)",
-  
+
   async fn() {
     // Create deeply nested allOf schema
     let schema: Schema = { type: "object" };
@@ -508,7 +508,7 @@ Deno.test("EDGE: allOf with unevaluatedProperties", async () => {
 
 Deno.test({
   name: "EDGE: Performance - allOf with many schemas",
-  
+
   async fn() {
     // Create allOf with 100 schemas
     const schemas: Schema[] = [];

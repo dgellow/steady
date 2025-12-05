@@ -12,8 +12,22 @@ const RESET = "\x1b[0m";
 
 async function main() {
   const args = parseArgs(Deno.args, {
-    boolean: ["help", "auto-reload", "log-bodies", "log", "strict", "relaxed", "interactive", "validator-strict-oneof"],
-    string: ["port", "log-level", "validator-query-array-format", "validator-query-nested-format"],
+    boolean: [
+      "help",
+      "auto-reload",
+      "log-bodies",
+      "log",
+      "strict",
+      "relaxed",
+      "interactive",
+      "validator-strict-oneof",
+    ],
+    string: [
+      "port",
+      "log-level",
+      "validator-query-array-format",
+      "validator-query-nested-format",
+    ],
     alias: {
       h: "help",
       r: "auto-reload",
@@ -50,17 +64,31 @@ async function main() {
   if (args.strict) mode = "strict"; // strict takes precedence
 
   // Validate query format args
-  const queryArrayFormat = args["validator-query-array-format"] as "repeat" | "comma" | "brackets" | undefined;
-  const queryNestedFormat = args["validator-query-nested-format"] as "none" | "brackets" | undefined;
+  const queryArrayFormat = args["validator-query-array-format"] as
+    | "repeat"
+    | "comma"
+    | "brackets"
+    | undefined;
+  const queryNestedFormat = args["validator-query-nested-format"] as
+    | "none"
+    | "brackets"
+    | undefined;
 
-  if (queryArrayFormat && !["repeat", "comma", "brackets"].includes(queryArrayFormat)) {
-    console.error(`${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-array-format: ${queryArrayFormat}`);
+  if (
+    queryArrayFormat &&
+    !["repeat", "comma", "brackets"].includes(queryArrayFormat)
+  ) {
+    console.error(
+      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-array-format: ${queryArrayFormat}`,
+    );
     console.error("Valid values: repeat, comma, brackets");
     Deno.exit(1);
   }
 
   if (queryNestedFormat && !["none", "brackets"].includes(queryNestedFormat)) {
-    console.error(`${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-nested-format: ${queryNestedFormat}`);
+    console.error(
+      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-nested-format: ${queryNestedFormat}`,
+    );
     console.error("Valid values: none, brackets");
     Deno.exit(1);
   }
@@ -125,7 +153,10 @@ async function startServer(
 
   // Determine port: CLI flag > spec > default
   let port = options.portOverride ?? 3000;
-  if (!options.portOverride && spec.servers && spec.servers.length > 0 && spec.servers[0]) {
+  if (
+    !options.portOverride && spec.servers && spec.servers.length > 0 &&
+    spec.servers[0]
+  ) {
     const serverUrl = new URL(spec.servers[0].url);
     if (serverUrl.port) {
       port = parseInt(serverUrl.port);

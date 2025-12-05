@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API
-  version: '1.0'
+  version: "1.0"
 servers:
   - url: https://api.writer.com
 security:
@@ -26,20 +26,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/chat_request'
+              $ref: "#/components/schemas/chat_request"
         required: true
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/chat_response'
+                $ref: "#/components/schemas/chat_response"
             text/event-stream:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/chat_completion_chunk'
+                  $ref: "#/components/schemas/chat_completion_chunk"
       x-codeSamples:
         - lang: cURL
           source: >-
@@ -98,20 +98,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/completions_request'
+              $ref: "#/components/schemas/completions_request"
         required: true
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/completions_response'
+                $ref: "#/components/schemas/completions_response"
             text/event-stream:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/streaming_data'
+                  $ref: "#/components/schemas/streaming_data"
       x-codeSamples:
         - lang: cURL
           source: >-
@@ -169,12 +169,12 @@ paths:
           name: list-models
           description: Get a list of available Writer AI models
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/models_response'
+                $ref: "#/components/schemas/models_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -255,12 +255,12 @@ paths:
             Specifies the maximum number of objects returned in a page. The default value is 50. The minimum
             value is 1, and the maximum value is 100.
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/graphs_response'
+                $ref: "#/components/schemas/graphs_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -306,15 +306,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/graph_request'
+              $ref: "#/components/schemas/graph_request"
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/graph_response'
+                $ref: "#/components/schemas/graph_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -363,24 +363,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/question_request'
+              $ref: "#/components/schemas/question_request"
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/question_response'
+                $ref: "#/components/schemas/question_response"
               example:
                 question: What is the generic name for the drug Bavencio?
                 answer: avelumab
                 sources:
-                  - file_id: '1234'
+                  - file_id: "1234"
                     snippet: Bavencio is the brand name for avelumab.
             text/event-stream:
               schema:
-                $ref: '#/components/schemas/question_response_chunk'
+                $ref: "#/components/schemas/question_response_chunk"
       x-codeSamples:
         - lang: cURL
           source: >-
@@ -439,12 +439,12 @@ paths:
             format: uuid
           description: The unique identifier of the Knowledge Graph.
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/graph'
+                $ref: "#/components/schemas/graph"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -498,15 +498,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/update_graph_request'
+              $ref: "#/components/schemas/update_graph_request"
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/graph_response'
+                $ref: "#/components/schemas/graph_response"
       x-codeSamples:
         - lang: cURL
           source: >-
@@ -524,7 +524,7 @@ paths:
             });
 
             async function main() {
-              const graph = await client.graphs.update('182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e', 
+              const graph = await client.graphs.update('182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
                 { name: 'name', description: 'description' }
               );
 
@@ -564,12 +564,12 @@ paths:
             format: uuid
           description: The unique identifier of the Knowledge Graph.
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/delete_graph_response'
+                $ref: "#/components/schemas/delete_graph_response"
               example:
                 id: e7392337-1c4e-4bc9-aaf5-b719bf1e938a
                 deleted: true
@@ -627,15 +627,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/graph_file_request'
+              $ref: "#/components/schemas/graph_file_request"
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/file_response'
+                $ref: "#/components/schemas/file_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -698,12 +698,12 @@ paths:
             type: string
           description: The unique identifier of the file.
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/delete_file_response'
+                $ref: "#/components/schemas/delete_file_response"
               example:
                 id: 7c36a365-392f-43ba-840d-8f3103b42572
                 deleted: true
@@ -760,15 +760,15 @@ paths:
             type: string
           description: The unique identifier of the file.
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/file_response'
+                $ref: "#/components/schemas/file_response"
               example:
                 id: 7c36a365-392f-43ba-840d-8f3103b42572
-                created_at: '2024-07-10T13:34:28.301201Z'
+                created_at: "2024-07-10T13:34:28.301201Z"
                 name: example.pdf
                 graph_ids:
                   - 704ffd94-de04-4de2-9f8b-f9fc04831edd
@@ -822,12 +822,12 @@ paths:
             type: string
           description: The unique identifier of the file.
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/delete_file_response'
+                $ref: "#/components/schemas/delete_file_response"
               example:
                 id: 7c36a365-392f-43ba-840d-8f3103b42572
                 deleted: true
@@ -937,29 +937,29 @@ paths:
             The extensions of the files to retrieve. Separate multiple extensions with a comma. For example:
             `pdf,jpg,docx`.
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/files_response'
+                $ref: "#/components/schemas/files_response"
               example:
                 data:
                   - id: 7c36a365-392f-43ba-840d-8f3103b42572
                     name: example.pdf
-                    created_at: '2024-07-10T12:00:00Z'
+                    created_at: "2024-07-10T12:00:00Z"
                     graph_ids:
                       - 31a8b75a-9a90-432f-8861-942229125333
                     status: in_progress
                   - id: 4bbe6207-737e-486f-a287-c5e95536984a
                     name: image.jpg
-                    created_at: '2024-07-09T15:30:00Z'
+                    created_at: "2024-07-09T15:30:00Z"
                     graph_ids:
                       - 31a8b75a-9a90-432f-8861-942229125333
                     status: completed
                   - id: efc86bb4-30a4-40c9-a52a-ecee0d7e071f
                     name: document.txt
-                    created_at: '2024-07-08T16:00:00Z'
+                    created_at: "2024-07-08T16:00:00Z"
                     graph_ids:
                       - 31a8b75a-9a90-432f-8861-942229125333
                     status: failed
@@ -1107,12 +1107,12 @@ paths:
               format: binary
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/file_response'
+                $ref: "#/components/schemas/file_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -1178,7 +1178,7 @@ paths:
             type: string
           description: The unique identifier of the file.
       responses:
-        '200':
+        "200":
           description: File download successful
           headers:
             Content-Type:
@@ -1248,15 +1248,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/retry_files_request'
+              $ref: "#/components/schemas/retry_files_request"
         required: true
       responses:
-        '200':
+        "200":
           description: The retry request is being processed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/retry_files_response'
+                $ref: "#/components/schemas/retry_files_response"
               example:
                 success: true
       x-codeSamples:
@@ -1348,15 +1348,15 @@ paths:
           required: false
           description: Filter applications by their type.
           schema:
-            $ref: '#/components/schemas/application_type'
+            $ref: "#/components/schemas/application_type"
             default: generation
       responses:
-        '200':
+        "200":
           description: Successfully retrieved list of applications.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/get_applications_response'
+                $ref: "#/components/schemas/get_applications_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -1407,12 +1407,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successfully retrieved application details.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/application_with_inputs'
+                $ref: "#/components/schemas/application_with_inputs"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -1465,15 +1465,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/generate_application_request'
+              $ref: "#/components/schemas/generate_application_request"
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/generate_application_response'
+                $ref: "#/components/schemas/generate_application_response"
               example:
                 title: Alt text
                 suggestion: A modern dining room with a minimalist design.
@@ -1481,7 +1481,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/generate_application_response_chunk'
+                  $ref: "#/components/schemas/generate_application_response_chunk"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -1552,7 +1552,7 @@ paths:
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/api_job_status'
+            $ref: "#/components/schemas/api_job_status"
         - name: offset
           in: query
           description: The pagination offset for retrieving the jobs.
@@ -1568,12 +1568,12 @@ paths:
             type: integer
             format: int32
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/get_async_application_jobs_response'
+                $ref: "#/components/schemas/get_async_application_jobs_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -1628,15 +1628,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/generate_application_async_request'
+              $ref: "#/components/schemas/generate_application_async_request"
         required: true
       responses:
-        '202':
-          description: ''
+        "202":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/generate_application_async_response'
+                $ref: "#/components/schemas/generate_application_async_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -1696,12 +1696,12 @@ paths:
             type: string
             format: uuid
       responses:
-        '202':
+        "202":
           description: Accepted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/generate_application_async_response'
+                $ref: "#/components/schemas/generate_application_async_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -1751,12 +1751,12 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/get_async_application_job_response'
+                $ref: "#/components/schemas/get_async_application_job_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -1805,12 +1805,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/application_graphs_response'
+                $ref: "#/components/schemas/application_graphs_response"
       security:
         - bearerAuth: []
       x-codeSamples:
@@ -1866,15 +1866,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/application_graph_ids_request'
+              $ref: "#/components/schemas/application_graph_ids_request"
         required: true
       responses:
-        '200':
+        "200":
           description: Successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/application_graphs_response'
+                $ref: "#/components/schemas/application_graphs_response"
       security:
         - bearerAuth: []
       x-codeSamples:
@@ -1929,14 +1929,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ai_detection_request'
+              $ref: "#/components/schemas/ai_detection_request"
       responses:
-        '200':
+        "200":
           description: Successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ai_detection_response'
+                $ref: "#/components/schemas/ai_detection_response"
       x-codeSamples:
         - lang: cURL
           source: >-
@@ -1993,15 +1993,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/comprehend_medical_request'
+              $ref: "#/components/schemas/comprehend_medical_request"
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/medical_comprehend_response'
+                $ref: "#/components/schemas/medical_comprehend_response"
       x-codeSamples:
         - lang: cURL
           source: >-
@@ -2053,15 +2053,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/context_aware_text_splitting_request'
+              $ref: "#/components/schemas/context_aware_text_splitting_request"
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/context_aware_splitting_response'
+                $ref: "#/components/schemas/context_aware_splitting_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -2117,15 +2117,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/parse_pdf_request'
+              $ref: "#/components/schemas/parse_pdf_request"
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/parse_pdf_response'
+                $ref: "#/components/schemas/parse_pdf_response"
       x-codeSamples:
         - lang: cURL
           source: |-
@@ -2174,15 +2174,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/text_to_graph_request'
+              $ref: "#/components/schemas/text_to_graph_request"
         required: true
       responses:
-        '200':
-          description: ''
+        "200":
+          description: ""
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/text_to_graph_response'
+                $ref: "#/components/schemas/text_to_graph_response"
               example:
                 graph:
                   - - racecar [RACECAR]
@@ -2249,18 +2249,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/web_search_request'
+              $ref: "#/components/schemas/web_search_request"
             example:
               query: How do I get an API key for the Writer API?
               include_domains:
                 - dev.writer.com
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/web_search_response'
+                $ref: "#/components/schemas/web_search_response"
       x-codeSamples:
         - lang: cURL
           source: >-
@@ -2284,7 +2284,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/vision_request'
+              $ref: "#/components/schemas/vision_request"
             example:
               model: palmyra-vision
               variables:
@@ -2294,7 +2294,7 @@ paths:
                   file_id: f9876
               prompt: Describe the difference between the image {{image_1}} and the image {{image_2}}.
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
@@ -2303,7 +2303,7 @@ paths:
                   Image f1234 shows a densely crowded urban beach with many umbrellas, while image f9876
                   depicts a sparsely populated tropical beach with clear turquoise water and lush greenery
               schema:
-                $ref: '#/components/schemas/vision_response'
+                $ref: "#/components/schemas/vision_response"
       x-codeSamples:
         - lang: cURL
           source: >-
@@ -2368,7 +2368,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/translation_request'
+              $ref: "#/components/schemas/translation_request"
             example:
               model: palmyra-translate
               source_language_code: en
@@ -2378,14 +2378,14 @@ paths:
               length_control: true
               mask_profanity: true
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               example:
                 data: ¡Hola, mundo!
               schema:
-                $ref: '#/components/schemas/translation_response'
+                $ref: "#/components/schemas/translation_response"
       x-codeSamples:
         - lang: cURL
           source: >-
@@ -2466,7 +2466,7 @@ components:
           type: array
           description: The [ID of the model](https://dev.writer.com/home/models) to use for processing the request.
           items:
-            $ref: '#/components/schemas/model_info'
+            $ref: "#/components/schemas/model_info"
       example:
         models:
           - name: Palmyra X 003 Instruct
@@ -2491,12 +2491,12 @@ components:
         content:
           type: array
           items:
-            $ref: '#/components/schemas/logprobs_token'
+            $ref: "#/components/schemas/logprobs_token"
           nullable: true
         refusal:
           type: array
           items:
-            $ref: '#/components/schemas/logprobs_token'
+            $ref: "#/components/schemas/logprobs_token"
           nullable: true
     logprobs_token:
       title: logprobs_token
@@ -2519,7 +2519,7 @@ components:
         top_logprobs:
           type: array
           items:
-            $ref: '#/components/schemas/top_log_prob'
+            $ref: "#/components/schemas/top_log_prob"
     top_log_prob:
       title: top_log_prob
       description: >-
@@ -2549,7 +2549,7 @@ components:
           type: string
           description: The generated text output from the model, which forms the main content of the response.
         log_probs:
-          $ref: '#/components/schemas/logprobs'
+          $ref: "#/components/schemas/logprobs"
     completions_response:
       required:
         - choices
@@ -2558,7 +2558,7 @@ components:
         choices:
           type: array
           items:
-            $ref: '#/components/schemas/completions_choice'
+            $ref: "#/components/schemas/completions_choice"
           minItems: 1
           description: >-
             A list of choices generated by the model, each containing the text of the completion and
@@ -2680,7 +2680,7 @@ components:
         errors:
           type: array
           items:
-            $ref: '#/components/schemas/fail_message'
+            $ref: "#/components/schemas/fail_message"
         extras:
           type: object
           additionalProperties: true
@@ -2696,16 +2696,16 @@ components:
           format: int32
           description: The index of the choice in the list of completions generated by the model.
         finish_reason:
-          $ref: '#/components/schemas/chat_completion_finish_reason'
+          $ref: "#/components/schemas/chat_completion_finish_reason"
           description: >-
             Describes the condition under which the model ceased generating content. Common reasons include
             'length' (reached the maximum output size), 'stop' (encountered a stop sequence), 'content_filter'
             (harmful content filtered out), or 'tool_calls' (encountered tool calls).
         message:
-          $ref: '#/components/schemas/chat_completion_response_message'
+          $ref: "#/components/schemas/chat_completion_response_message"
         logprobs:
           description: Log probability information for the choice.
-          $ref: '#/components/schemas/logprobs'
+          $ref: "#/components/schemas/logprobs"
     chat_completion_streaming_choice:
       required:
         - index
@@ -2718,20 +2718,20 @@ components:
           format: int32
           description: The index of the choice in the list of completions generated by the model.
         finish_reason:
-          $ref: '#/components/schemas/chat_completion_finish_reason'
+          $ref: "#/components/schemas/chat_completion_finish_reason"
           description: >-
             Describes the condition under which the model ceased generating content. Common reasons include
             'length' (reached the maximum output size), 'stop' (encountered a stop sequence), 'content_filter'
             (harmful content filtered out), or 'tool_calls' (encountered tool calls).
           nullable: true
         message:
-          $ref: '#/components/schemas/chat_completion_response_message'
+          $ref: "#/components/schemas/chat_completion_response_message"
         delta:
           description: A chat completion delta generated by streamed model responses.
-          $ref: '#/components/schemas/chat_completion_streaming_delta'
+          $ref: "#/components/schemas/chat_completion_streaming_delta"
         logprobs:
           description: Log probability information for the choice.
-          $ref: '#/components/schemas/logprobs'
+          $ref: "#/components/schemas/logprobs"
     chat_completion_finish_reason:
       type: string
       enum:
@@ -2754,7 +2754,7 @@ components:
         messages:
           type: array
           items:
-            $ref: '#/components/schemas/chat_message'
+            $ref: "#/components/schemas/chat_message"
           minItems: 1
           description: >-
             An array of message objects that form the conversation history or context for the model to respond
@@ -2782,7 +2782,7 @@ components:
             Sets the threshold for "nucleus sampling," a technique to focus the model's token generation on
             the most likely subset of tokens. Only tokens with cumulative probability above this threshold are
             considered, controlling the trade-off between creativity and coherence.
-        'n':
+        "n":
           type: integer
           format: int32
           description: >-
@@ -2817,14 +2817,14 @@ components:
             type in the array (only one of `graph`, `llm`, `translation`, or `vision`). You can pass multiple
             [custom tools](https://dev.writer.com/home/tool-calling) of type `function` in the same request.
           items:
-            $ref: '#/components/schemas/tool'
+            $ref: "#/components/schemas/tool"
             minItems: 1
         tool_choice:
-          $ref: '#/components/schemas/tool_choice'
+          $ref: "#/components/schemas/tool_choice"
         stream_options:
-          $ref: '#/components/schemas/stream_options'
+          $ref: "#/components/schemas/stream_options"
         response_format:
-          $ref: '#/components/schemas/response_format'
+          $ref: "#/components/schemas/response_format"
     stream_options:
       title: stream_options
       description: Additional options for streaming.
@@ -2880,7 +2880,7 @@ components:
         choices:
           type: array
           items:
-            $ref: '#/components/schemas/chat_completion_choice'
+            $ref: "#/components/schemas/chat_completion_choice"
           minItems: 1
           description: >-
             An array of objects representing the different outcomes or results produced by the model based on
@@ -2895,7 +2895,7 @@ components:
           type: string
           description: Identifies the specific model used to generate the response.
         usage:
-          $ref: '#/components/schemas/chat_completion_usage'
+          $ref: "#/components/schemas/chat_completion_usage"
         system_fingerprint:
           type: string
           description: A string representing the backend configuration that the model runs with.
@@ -2926,7 +2926,7 @@ components:
         choices:
           type: array
           items:
-            $ref: '#/components/schemas/chat_completion_streaming_choice'
+            $ref: "#/components/schemas/chat_completion_streaming_choice"
           minItems: 1
           description: >-
             An array of objects representing the different outcomes or results produced by the model based on
@@ -2941,7 +2941,7 @@ components:
           type: string
           description: Identifies the specific model used to generate the response.
         usage:
-          $ref: '#/components/schemas/chat_completion_usage'
+          $ref: "#/components/schemas/chat_completion_usage"
         system_fingerprint:
           type: string
         service_tier:
@@ -2969,17 +2969,17 @@ components:
         tool_calls:
           type: array
           items:
-            $ref: '#/components/schemas/tool_call'
+            $ref: "#/components/schemas/tool_call"
           minItems: 1
           nullable: true
         graph_data:
-          $ref: '#/components/schemas/graph_data'
+          $ref: "#/components/schemas/graph_data"
         llm_data:
-          $ref: '#/components/schemas/llm_data'
+          $ref: "#/components/schemas/llm_data"
         translation_data:
-          $ref: '#/components/schemas/translation_data'
+          $ref: "#/components/schemas/translation_data"
         web_search_data:
-          $ref: '#/components/schemas/web_search_data'
+          $ref: "#/components/schemas/web_search_data"
         refusal:
           type: string
           nullable: true
@@ -2995,7 +2995,7 @@ components:
             The text content produced by the model. This field contains the actual output generated,
             reflecting the model's response to the input query or command.
         role:
-          $ref: '#/components/schemas/chat_message_role'
+          $ref: "#/components/schemas/chat_message_role"
           description: >-
             Specifies the role associated with the content, indicating whether the message is from the
             'assistant' or another defined role, helping to contextualize the output within the interaction
@@ -3003,15 +3003,15 @@ components:
         tool_calls:
           type: array
           items:
-            $ref: '#/components/schemas/tool_call_streaming'
+            $ref: "#/components/schemas/tool_call_streaming"
           minItems: 1
           nullable: true
         graph_data:
-          $ref: '#/components/schemas/graph_data'
+          $ref: "#/components/schemas/graph_data"
         llm_data:
-          $ref: '#/components/schemas/llm_data'
+          $ref: "#/components/schemas/llm_data"
         translation_data:
-          $ref: '#/components/schemas/translation_data'
+          $ref: "#/components/schemas/translation_data"
         refusal:
           type: string
           nullable: true
@@ -3036,9 +3036,9 @@ components:
           type: integer
           format: int32
         prompt_token_details:
-          $ref: '#/components/schemas/prompt_token_details'
+          $ref: "#/components/schemas/prompt_token_details"
         completion_tokens_details:
-          $ref: '#/components/schemas/completion_token_details'
+          $ref: "#/components/schemas/completion_token_details"
     prompt_token_details:
       title: prompt_token_details
       required:
@@ -3074,10 +3074,10 @@ components:
             - type: array
               title: MixedContent
               items:
-                $ref: '#/components/schemas/composite_content'
+                $ref: "#/components/schemas/composite_content"
               minItems: 1
         role:
-          $ref: '#/components/schemas/chat_message_request_role'
+          $ref: "#/components/schemas/chat_message_request_role"
         name:
           type: string
           description: >-
@@ -3090,11 +3090,11 @@ components:
         tool_calls:
           type: array
           items:
-            $ref: '#/components/schemas/tool_call'
+            $ref: "#/components/schemas/tool_call"
           nullable: true
           minItems: 1
         graph_data:
-          $ref: '#/components/schemas/graph_data'
+          $ref: "#/components/schemas/graph_data"
           nullable: true
         refusal:
           type: string
@@ -3194,7 +3194,7 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/file_response'
+            $ref: "#/components/schemas/file_response"
         has_more:
           type: boolean
           description: Indicates if there are more files available beyond the current page.
@@ -3237,15 +3237,15 @@ components:
         sources:
           type: array
           items:
-            $ref: '#/components/schemas/source'
+            $ref: "#/components/schemas/source"
         status:
-          $ref: '#/components/schemas/graph_stage_status'
+          $ref: "#/components/schemas/graph_stage_status"
         subqueries:
           type: array
           items:
-            $ref: '#/components/schemas/sub_query'
+            $ref: "#/components/schemas/sub_query"
         references:
-          $ref: '#/components/schemas/references'
+          $ref: "#/components/schemas/references"
     llm_data:
       title: llm_data
       required:
@@ -3318,7 +3318,7 @@ components:
           type: array
           description: An array of web connector URLs associated with this Knowledge Graph.
           items:
-            $ref: '#/components/schemas/web_connector_url'
+            $ref: "#/components/schemas/web_connector_url"
     graph_stage_status:
       title: graph_stage_status
       type: string
@@ -3420,7 +3420,7 @@ components:
             An array of web connector URLs to update for this Knowledge Graph. You can only connect URLs to
             Knowledge Graphs with the type `web`. To clear the list of URLs, set this field to an empty array.
           items:
-            $ref: '#/components/schemas/update_graph_web_url'
+            $ref: "#/components/schemas/update_graph_web_url"
     update_graph_web_url:
       title: update_graph_web_url
       required:
@@ -3437,7 +3437,7 @@ components:
           items:
             type: string
         type:
-          $ref: '#/components/schemas/web_connector_url_type'
+          $ref: "#/components/schemas/web_connector_url_type"
           description: The type of web connector processing for this URL.
     graphs_response:
       title: graphs_response
@@ -3449,7 +3449,7 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/graph'
+            $ref: "#/components/schemas/graph"
         first_id:
           type: string
           format: uuid
@@ -3486,10 +3486,10 @@ components:
           type: string
           description: A description of the Knowledge Graph.
         file_status:
-          $ref: '#/components/schemas/graph_file_status'
+          $ref: "#/components/schemas/graph_file_status"
           description: The processing status of files in the Knowledge Graph.
         type:
-          $ref: '#/components/schemas/graph_type'
+          $ref: "#/components/schemas/graph_type"
           description: |-
             The type of Knowledge Graph.
 
@@ -3500,7 +3500,7 @@ components:
           type: array
           description: An array of web connector URLs associated with this Knowledge Graph.
           items:
-            $ref: '#/components/schemas/web_connector_url'
+            $ref: "#/components/schemas/web_connector_url"
     web_connector_url:
       title: web_connector_url
       required:
@@ -3513,7 +3513,7 @@ components:
           type: string
           description: The URL to be processed by the web connector.
         status:
-          $ref: '#/components/schemas/web_connector_url_state'
+          $ref: "#/components/schemas/web_connector_url_state"
           description: The current status of the URL processing.
         exclude_urls:
           type: array
@@ -3521,7 +3521,7 @@ components:
           items:
             type: string
         type:
-          $ref: '#/components/schemas/web_connector_url_type'
+          $ref: "#/components/schemas/web_connector_url_type"
           description: The type of web connector processing for this URL.
     web_connector_url_state:
       title: web_connector_url_state
@@ -3531,10 +3531,10 @@ components:
       type: object
       properties:
         status:
-          $ref: '#/components/schemas/web_connector_url_status'
+          $ref: "#/components/schemas/web_connector_url_status"
           description: The current status of the URL processing.
         error_type:
-          $ref: '#/components/schemas/web_connector_url_error_type'
+          $ref: "#/components/schemas/web_connector_url_error_type"
           description: The type of error that occurred during processing, if any.
     web_connector_url_type:
       title: web_connector_url_type
@@ -3579,7 +3579,7 @@ components:
           items:
             type: string
           description: >-
-            The value for the input field. 
+            The value for the input field.
 
 
             If the input type is "File upload", you must pass the `file_id` of an uploaded file. You cannot
@@ -3597,7 +3597,7 @@ components:
         inputs:
           type: array
           items:
-            $ref: '#/components/schemas/generate_application_input'
+            $ref: "#/components/schemas/generate_application_input"
         stream:
           type: boolean
           description: >-
@@ -3612,7 +3612,7 @@ components:
         result:
           type: array
           items:
-            $ref: '#/components/schemas/get_async_application_job_response'
+            $ref: "#/components/schemas/get_async_application_job_response"
         totalCount:
           type: integer
           format: int64
@@ -3642,7 +3642,7 @@ components:
           format: uuid
           description: The unique identifier for the job.
         status:
-          $ref: '#/components/schemas/api_job_status'
+          $ref: "#/components/schemas/api_job_status"
         application_id:
           type: string
           description: The ID of the application associated with this job.
@@ -3661,7 +3661,7 @@ components:
         data:
           type: object
           description: The result of the completed job, if applicable.
-          $ref: '#/components/schemas/generate_application_response'
+          $ref: "#/components/schemas/generate_application_response"
         error:
           type: string
           description: The error message if the job failed.
@@ -3675,7 +3675,7 @@ components:
           type: array
           description: A list of input objects to generate content for.
           items:
-            $ref: '#/components/schemas/generate_application_input'
+            $ref: "#/components/schemas/generate_application_input"
     generate_application_async_response:
       title: generate_application_async_response
       required:
@@ -3689,7 +3689,7 @@ components:
           format: uuid
           description: The unique identifier for the async job created.
         status:
-          $ref: '#/components/schemas/api_job_status'
+          $ref: "#/components/schemas/api_job_status"
         created_at:
           type: string
           format: date-time
@@ -3704,7 +3704,7 @@ components:
           type: string
           description: The unique identifier for the retried async job.
         status:
-          $ref: '#/components/schemas/api_job_status'
+          $ref: "#/components/schemas/api_job_status"
         created_at:
           type: string
           format: date-time
@@ -3738,7 +3738,7 @@ components:
           type: array
           description: List of application objects with their configurations.
           items:
-            $ref: '#/components/schemas/application_with_inputs'
+            $ref: "#/components/schemas/application_with_inputs"
         first_id:
           type: string
           format: uuid
@@ -3771,14 +3771,14 @@ components:
           type: string
           description: Display name of the application.
         type:
-          $ref: '#/components/schemas/application_type'
+          $ref: "#/components/schemas/application_type"
         status:
-          $ref: '#/components/schemas/application_status'
+          $ref: "#/components/schemas/application_status"
         inputs:
           type: array
           description: List of input configurations for the application.
           items:
-            $ref: '#/components/schemas/application_input'
+            $ref: "#/components/schemas/application_input"
         created_at:
           type: string
           format: date-time
@@ -3813,7 +3813,7 @@ components:
           type: string
           description: Identifier for the input field.
         input_type:
-          $ref: '#/components/schemas/application_input_type'
+          $ref: "#/components/schemas/application_input_type"
         description:
           type: string
           description: Human-readable description of the input field's purpose.
@@ -3821,7 +3821,7 @@ components:
           type: boolean
           description: Indicates if this input field is mandatory.
         options:
-          $ref: '#/components/schemas/application_input_options'
+          $ref: "#/components/schemas/application_input_options"
     application_input_type:
       title: application_input_type
       description: Type of input field determining its behavior and validation rules.
@@ -3834,10 +3834,10 @@ components:
     application_input_options:
       description: Type-specific configuration options for input fields.
       oneOf:
-        - $ref: '#/components/schemas/application_input_dropdown_options'
-        - $ref: '#/components/schemas/application_input_file_options'
-        - $ref: '#/components/schemas/application_input_media_options'
-        - $ref: '#/components/schemas/application_input_text_options'
+        - $ref: "#/components/schemas/application_input_dropdown_options"
+        - $ref: "#/components/schemas/application_input_file_options"
+        - $ref: "#/components/schemas/application_input_media_options"
+        - $ref: "#/components/schemas/application_input_text_options"
     application_input_dropdown_options:
       title: Dropdown
       description: Configuration options specific to dropdown-type input fields.
@@ -3882,7 +3882,7 @@ components:
           type: array
           description: List of allowed upload types for file inputs.
           items:
-            $ref: '#/components/schemas/file_upload_type'
+            $ref: "#/components/schemas/file_upload_type"
     application_input_media_options:
       title: Media
       description: Configuration options specific to media upload input fields.
@@ -3942,7 +3942,7 @@ components:
       type: object
       properties:
         delta:
-          $ref: '#/components/schemas/generate_application_delta'
+          $ref: "#/components/schemas/generate_application_delta"
     generate_application_delta:
       title: generate_application_delta
       type: object
@@ -3958,7 +3958,7 @@ components:
           nullable: true
           description: A list of stages that show the 'thinking process'.
           items:
-            $ref: '#/components/schemas/generate_application_chunk_stage'
+            $ref: "#/components/schemas/generate_application_chunk_stage"
           minItems: 1
     generate_application_chunk_stage:
       title: generate_application_chunk_stage
@@ -4009,7 +4009,7 @@ components:
             sent incrementally, which can be useful for real-time applications.
           default: false
         query_config:
-          $ref: '#/components/schemas/graph_query_config'
+          $ref: "#/components/schemas/graph_query_config"
           description: >-
             Configuration options for Knowledge Graph queries, including search parameters and citation
             settings.
@@ -4019,7 +4019,7 @@ components:
       type: object
       properties:
         data:
-          $ref: '#/components/schemas/question_response'
+          $ref: "#/components/schemas/question_response"
     question_response:
       title: question_response
       required:
@@ -4037,13 +4037,13 @@ components:
         sources:
           type: array
           items:
-            $ref: '#/components/schemas/source'
+            $ref: "#/components/schemas/source"
         subqueries:
           type: array
           items:
-            $ref: '#/components/schemas/sub_query'
+            $ref: "#/components/schemas/sub_query"
         references:
-          $ref: '#/components/schemas/references'
+          $ref: "#/components/schemas/references"
     source:
       title: source
       description: A source snippet containing text and fileId from Knowledge Graph content.
@@ -4081,25 +4081,25 @@ components:
           type: array
           description: Array of source snippets that were used to answer this subquery.
           items:
-            $ref: '#/components/schemas/source'
+            $ref: "#/components/schemas/source"
     tool:
       type: object
       discriminator:
         propertyName: type
         mapping:
-          function: '#/components/schemas/function_tool'
-          graph: '#/components/schemas/graph_tool'
-          llm: '#/components/schemas/llm_tool'
-          translation: '#/components/schemas/translation_tool'
-          vision: '#/components/schemas/vision_tool'
-          web_search: '#/components/schemas/web_search_tool'
+          function: "#/components/schemas/function_tool"
+          graph: "#/components/schemas/graph_tool"
+          llm: "#/components/schemas/llm_tool"
+          translation: "#/components/schemas/translation_tool"
+          vision: "#/components/schemas/vision_tool"
+          web_search: "#/components/schemas/web_search_tool"
       oneOf:
-        - $ref: '#/components/schemas/function_tool'
-        - $ref: '#/components/schemas/graph_tool'
-        - $ref: '#/components/schemas/llm_tool'
-        - $ref: '#/components/schemas/translation_tool'
-        - $ref: '#/components/schemas/vision_tool'
-        - $ref: '#/components/schemas/web_search_tool'
+        - $ref: "#/components/schemas/function_tool"
+        - $ref: "#/components/schemas/graph_tool"
+        - $ref: "#/components/schemas/llm_tool"
+        - $ref: "#/components/schemas/translation_tool"
+        - $ref: "#/components/schemas/vision_tool"
+        - $ref: "#/components/schemas/web_search_tool"
     function_tool:
       title: Function tool
       required:
@@ -4113,7 +4113,7 @@ components:
           enum:
             - function
         function:
-          $ref: '#/components/schemas/tool_function'
+          $ref: "#/components/schemas/tool_function"
     tool_function:
       title: tool_function
       description: A tool that uses a custom function.
@@ -4144,7 +4144,7 @@ components:
           enum:
             - graph
         function:
-          $ref: '#/components/schemas/graph_function'
+          $ref: "#/components/schemas/graph_function"
     graph_function:
       title: graph_function
       description: A tool that uses Knowledge Graphs as context for responses.
@@ -4167,7 +4167,7 @@ components:
           type: boolean
           description: Boolean to indicate whether to include subqueries in the response.
         query_config:
-          $ref: '#/components/schemas/graph_query_config'
+          $ref: "#/components/schemas/graph_query_config"
           description: >-
             Configuration options for Knowledge Graph queries, including search parameters and citation
             settings.
@@ -4269,7 +4269,7 @@ components:
           enum:
             - llm
         function:
-          $ref: '#/components/schemas/llm_function'
+          $ref: "#/components/schemas/llm_function"
     llm_function:
       title: LLM function
       description: A tool that uses another Writer model to generate a response.
@@ -4297,7 +4297,7 @@ components:
           enum:
             - vision
         function:
-          $ref: '#/components/schemas/vision_function'
+          $ref: "#/components/schemas/vision_function"
     vision_function:
       title: Vision function
       description: >-
@@ -4311,7 +4311,7 @@ components:
         variables:
           type: array
           items:
-            $ref: '#/components/schemas/vision_tool_request_file_variable'
+            $ref: "#/components/schemas/vision_tool_request_file_variable"
         model:
           type: string
           description: The model to use for image analysis.
@@ -4354,7 +4354,7 @@ components:
           enum:
             - function
         function:
-          $ref: '#/components/schemas/function'
+          $ref: "#/components/schemas/function"
     tool_call_streaming:
       title: tool_call
       type: object
@@ -4371,7 +4371,7 @@ components:
           enum:
             - function
         function:
-          $ref: '#/components/schemas/function'
+          $ref: "#/components/schemas/function"
     function:
       title: function
       type: object
@@ -4397,8 +4397,8 @@ components:
         "function", "function": {"name": "get_current_weather"}}` requires the model to call the
         `get_current_weather` function, regardless of the prompt.
       oneOf:
-        - $ref: '#/components/schemas/string_tool_choice'
-        - $ref: '#/components/schemas/json_object_tool_choice'
+        - $ref: "#/components/schemas/string_tool_choice"
+        - $ref: "#/components/schemas/json_object_tool_choice"
     json_object_tool_choice:
       title: JSON object
       required:
@@ -4418,7 +4418,7 @@ components:
       type: object
       properties:
         value:
-          $ref: '#/components/schemas/string_tool_choice_options'
+          $ref: "#/components/schemas/string_tool_choice_options"
     string_tool_choice_options:
       title: string_tool_choice_options
       type: string
@@ -4471,7 +4471,7 @@ components:
           type: string
           description: The text to analyze.
         response_type:
-          $ref: '#/components/schemas/comprehend_medical_type'
+          $ref: "#/components/schemas/comprehend_medical_type"
           description: >-
             The structure of the response to return. `Entities` returns medical entities, `RxNorm` returns
             medication information, `ICD-10-CM` returns diagnosis codes, and `SNOMED CT` returns medical
@@ -4494,7 +4494,7 @@ components:
           description: An array of medical entities extracted from the input text.
           type: array
           items:
-            $ref: '#/components/schemas/medical_comprehend_entity'
+            $ref: "#/components/schemas/medical_comprehend_entity"
     medical_comprehend_entity:
       title: medical_comprehend_entity
       required:
@@ -4522,18 +4522,18 @@ components:
         traits:
           type: array
           items:
-            $ref: '#/components/schemas/medical_comprehend_trait'
+            $ref: "#/components/schemas/medical_comprehend_trait"
         concepts:
           type: array
           items:
-            $ref: '#/components/schemas/medical_comprehend_concept'
+            $ref: "#/components/schemas/medical_comprehend_concept"
         score:
           type: number
           format: double
         attributes:
           type: array
           items:
-            $ref: '#/components/schemas/medical_comprehend_attribute'
+            $ref: "#/components/schemas/medical_comprehend_attribute"
         type:
           type: string
     medical_comprehend_trait:
@@ -4592,11 +4592,11 @@ components:
         traits:
           type: array
           items:
-            $ref: '#/components/schemas/medical_comprehend_trait'
+            $ref: "#/components/schemas/medical_comprehend_trait"
         concepts:
           type: array
           items:
-            $ref: '#/components/schemas/medical_comprehend_concept'
+            $ref: "#/components/schemas/medical_comprehend_concept"
         score:
           type: number
           format: double
@@ -4615,7 +4615,7 @@ components:
           type: string
           description: The text to split into chunks.
         strategy:
-          $ref: '#/components/schemas/splitting_strategy'
+          $ref: "#/components/schemas/splitting_strategy"
           description: >-
             The strategy to use for splitting the text into chunks. `llm_split` uses the language model to
             split the text, `fast_split` uses a fast heuristic-based approach, and `hybrid_split` combines
@@ -4646,7 +4646,7 @@ components:
       type: object
       properties:
         format:
-          $ref: '#/components/schemas/pdf_conversion_format'
+          $ref: "#/components/schemas/pdf_conversion_format"
     pdf_conversion_format:
       title: pdf_conversion_format
       type: string
@@ -4712,7 +4712,7 @@ components:
         variables:
           type: array
           items:
-            $ref: '#/components/schemas/vision_request_file_variable'
+            $ref: "#/components/schemas/vision_request_file_variable"
     vision_request_file_variable:
       title: Vision Request File Variable
       description: >-
@@ -4831,7 +4831,7 @@ components:
           enum:
             - translation
         function:
-          $ref: '#/components/schemas/translation_function'
+          $ref: "#/components/schemas/translation_function"
     translation_function:
       title: Translation function
       description: A tool that uses Palmyra Translate to translate text.
@@ -4931,7 +4931,7 @@ components:
             - d
             - w
             - m
-            - 'y'
+            - "y"
           description: >-
             Filters results to content published within the specified time range back from the current date.
             For example, `week` or `w` returns results from the past 7 days.
@@ -5182,7 +5182,7 @@ components:
           enum:
             - web_search
         function:
-          $ref: '#/components/schemas/web_search_function'
+          $ref: "#/components/schemas/web_search_function"
     web_search_function:
       title: web_search_function
       description: A tool that uses web search to find information.
@@ -5208,8 +5208,8 @@ components:
         include mixed content types, allowing users to send both text and images in a single message. Note:
         Image fragments are only supported with the Palmyra X5 model.
       oneOf:
-        - $ref: '#/components/schemas/text_fragment'
-        - $ref: '#/components/schemas/image_fragment'
+        - $ref: "#/components/schemas/text_fragment"
+        - $ref: "#/components/schemas/image_fragment"
     text_fragment:
       title: Text
       description: Represents a text content fragment within a chat message.
@@ -5261,13 +5261,13 @@ components:
           type: array
           description: Array of file-based references from uploaded documents in the Knowledge Graph.
           items:
-            $ref: '#/components/schemas/file'
+            $ref: "#/components/schemas/file"
           minItems: 1
         web:
           type: array
           description: Array of web-based references from online sources accessed during the query.
           items:
-            $ref: '#/components/schemas/web'
+            $ref: "#/components/schemas/web"
           minItems: 1
     file:
       title: file

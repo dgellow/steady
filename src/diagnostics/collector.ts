@@ -9,7 +9,10 @@ import type {
   Diagnostic,
   DiagnosticSummary,
 } from "../../packages/json-schema/mod.ts";
-import { summarizeDiagnostics, groupByCode } from "../../packages/json-schema/mod.ts";
+import {
+  groupByCode,
+  summarizeDiagnostics,
+} from "../../packages/json-schema/mod.ts";
 
 /**
  * Session statistics
@@ -148,7 +151,8 @@ export class DiagnosticCollector {
    * Get count of static warnings
    */
   getStaticWarningCount(): number {
-    return this.staticDiagnostics.filter((d) => d.severity === "warning").length;
+    return this.staticDiagnostics.filter((d) => d.severity === "warning")
+      .length;
   }
 
   /**

@@ -26,7 +26,14 @@ function createValidator(): RequestValidator {
   return new RequestValidator(createTestRegistry());
 }
 
-type SchemaType = "string" | "number" | "integer" | "boolean" | "object" | "array" | "null";
+type SchemaType =
+  | "string"
+  | "number"
+  | "integer"
+  | "boolean"
+  | "object"
+  | "array"
+  | "null";
 
 /** Helper to create a minimal operation with query params */
 function operationWithQueryParams(
@@ -221,15 +228,23 @@ Deno.test("Validator: unknown query parameters are reported as errors", async ()
 
 Deno.test("Validator: queryArrayFormat=repeat parses repeated keys", async () => {
   const registry = new SchemaRegistry({});
-  const validator = new RequestValidator(registry, { queryArrayFormat: "repeat" });
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "repeat",
+  });
   const operation: OperationObject = {
     responses: {},
     parameters: [
-      { name: "colors", in: "query", schema: { type: "array", items: { type: "string" } } },
+      {
+        name: "colors",
+        in: "query",
+        schema: { type: "array", items: { type: "string" } },
+      },
     ],
   };
 
-  const req = mockRequest("http://localhost/test?colors=red&colors=green&colors=blue");
+  const req = mockRequest(
+    "http://localhost/test?colors=red&colors=green&colors=blue",
+  );
   const result = await validator.validateRequest(req, operation, "/test", {});
 
   assertEquals(result.valid, true);
@@ -237,11 +252,17 @@ Deno.test("Validator: queryArrayFormat=repeat parses repeated keys", async () =>
 
 Deno.test("Validator: queryArrayFormat=comma parses comma-separated values", async () => {
   const registry = new SchemaRegistry({});
-  const validator = new RequestValidator(registry, { queryArrayFormat: "comma" });
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "comma",
+  });
   const operation: OperationObject = {
     responses: {},
     parameters: [
-      { name: "colors", in: "query", schema: { type: "array", items: { type: "string" } } },
+      {
+        name: "colors",
+        in: "query",
+        schema: { type: "array", items: { type: "string" } },
+      },
     ],
   };
 
@@ -253,15 +274,23 @@ Deno.test("Validator: queryArrayFormat=comma parses comma-separated values", asy
 
 Deno.test("Validator: queryArrayFormat=brackets parses bracket notation", async () => {
   const registry = new SchemaRegistry({});
-  const validator = new RequestValidator(registry, { queryArrayFormat: "brackets" });
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "brackets",
+  });
   const operation: OperationObject = {
     responses: {},
     parameters: [
-      { name: "colors", in: "query", schema: { type: "array", items: { type: "string" } } },
+      {
+        name: "colors",
+        in: "query",
+        schema: { type: "array", items: { type: "string" } },
+      },
     ],
   };
 
-  const req = mockRequest("http://localhost/test?colors[]=red&colors[]=green&colors[]=blue");
+  const req = mockRequest(
+    "http://localhost/test?colors[]=red&colors[]=green&colors[]=blue",
+  );
   const result = await validator.validateRequest(req, operation, "/test", {});
 
   assertEquals(result.valid, true);
@@ -273,7 +302,9 @@ Deno.test("Validator: queryArrayFormat=brackets parses bracket notation", async 
 
 Deno.test("Validator: queryNestedFormat=brackets parses deepObject notation", async () => {
   const registry = new SchemaRegistry({});
-  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const validator = new RequestValidator(registry, {
+    queryNestedFormat: "brackets",
+  });
   const operation: OperationObject = {
     responses: {},
     parameters: [
@@ -300,7 +331,9 @@ Deno.test("Validator: queryNestedFormat=brackets parses deepObject notation", as
 
 Deno.test("Validator: queryNestedFormat=brackets validates nested object schema", async () => {
   const registry = new SchemaRegistry({});
-  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const validator = new RequestValidator(registry, {
+    queryNestedFormat: "brackets",
+  });
   const operation: OperationObject = {
     responses: {},
     parameters: [
@@ -331,7 +364,9 @@ Deno.test("Validator: queryNestedFormat=brackets validates nested object schema"
 
 Deno.test("Validator: queryNestedFormat=brackets coerces property types", async () => {
   const registry = new SchemaRegistry({});
-  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const validator = new RequestValidator(registry, {
+    queryNestedFormat: "brackets",
+  });
   const operation: OperationObject = {
     responses: {},
     parameters: [
@@ -349,7 +384,9 @@ Deno.test("Validator: queryNestedFormat=brackets coerces property types", async 
     ],
   };
 
-  const req = mockRequest("http://localhost/test?filter[limit]=10&filter[active]=true");
+  const req = mockRequest(
+    "http://localhost/test?filter[limit]=10&filter[active]=true",
+  );
   const result = await validator.validateRequest(req, operation, "/test", {});
 
   assertEquals(result.valid, true);
@@ -366,9 +403,14 @@ Deno.test("Validator: accepts valid path parameters", async () => {
   ]);
 
   const req = mockRequest("http://localhost/users/123");
-  const result = await validator.validateRequest(req, operation, "/users/{id}", {
-    id: "123",
-  });
+  const result = await validator.validateRequest(
+    req,
+    operation,
+    "/users/{id}",
+    {
+      id: "123",
+    },
+  );
 
   assertEquals(result.valid, true);
 });
@@ -380,9 +422,14 @@ Deno.test("Validator: rejects invalid path parameter type", async () => {
   ]);
 
   const req = mockRequest("http://localhost/users/abc");
-  const result = await validator.validateRequest(req, operation, "/users/{id}", {
-    id: "abc",
-  });
+  const result = await validator.validateRequest(
+    req,
+    operation,
+    "/users/{id}",
+    {
+      id: "abc",
+    },
+  );
 
   assertEquals(result.valid, false);
   assertExists(result.errors.find((e) => e.path === "path.id"));
@@ -579,7 +626,9 @@ Deno.test("Validator: rejects invalid content-length header", async () => {
   const result = await validator.validateRequest(req, operation, "/test", {});
 
   assertEquals(result.valid, false);
-  assertExists(result.errors.find((e) => e.message?.includes("Invalid Content-Length")));
+  assertExists(
+    result.errors.find((e) => e.message?.includes("Invalid Content-Length")),
+  );
 });
 
 // =============================================================================
@@ -678,7 +727,12 @@ Deno.test("Validator: resolves $ref parameters and validates them", async () => 
   const req = mockRequest(
     "http://localhost/transactions?status=active&begin=2024-01-01T00:00:00Z&page_size=10",
   );
-  const result = await validator.validateRequest(req, operation, "/transactions", {});
+  const result = await validator.validateRequest(
+    req,
+    operation,
+    "/transactions",
+    {},
+  );
 
   // Should NOT report "begin" or "page_size" as unknown parameters
   const unknownParamErrors = result.errors.filter(
@@ -687,7 +741,9 @@ Deno.test("Validator: resolves $ref parameters and validates them", async () => 
   assertEquals(
     unknownParamErrors.length,
     0,
-    `Should not have unknown parameter errors, got: ${JSON.stringify(unknownParamErrors)}`,
+    `Should not have unknown parameter errors, got: ${
+      JSON.stringify(unknownParamErrors)
+    }`,
   );
   assertEquals(result.valid, true);
 });

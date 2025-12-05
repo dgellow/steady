@@ -9,7 +9,7 @@
  * - Interactive and standard logging modes
  */
 
-import type { ServerConfig, ResponseObject } from "./types.ts";
+import type { ResponseObject, ServerConfig } from "./types.ts";
 import { isReference } from "./types.ts";
 import type {
   OpenAPISpec,
@@ -18,10 +18,10 @@ import type {
 } from "@steady/parser";
 import { MatchError, missingExampleError } from "./errors.ts";
 import {
+  formatSessionSummary,
+  formatStartupDiagnostics,
   OpenAPIDocument,
   RegistryResponseGenerator,
-  formatStartupDiagnostics,
-  formatSessionSummary,
 } from "@steady/json-schema";
 import {
   InkSimpleLogger,
@@ -90,13 +90,18 @@ export class MockServer {
       this.logger = new RequestLogger(config.logLevel, config.logBodies);
     }
 
-    this.validator = new RequestValidator(this.document.schemas, config.validator);
+    this.validator = new RequestValidator(
+      this.document.schemas,
+      config.validator,
+    );
 
     // Pre-compile all path patterns at construction time
     this.compileRoutes();
 
     // Collect static diagnostics
-    this.diagnosticCollector.setStaticDiagnostics(this.document.getDiagnostics());
+    this.diagnosticCollector.setStaticDiagnostics(
+      this.document.getDiagnostics(),
+    );
   }
 
   /**
@@ -175,12 +180,14 @@ export class MockServer {
     const stats = this.diagnosticCollector.getStats();
 
     if (stats.requestCount > 0 || runtimeDiagnostics.length > 0) {
-      console.log("\n" + formatSessionSummary(
-        staticDiagnostics,
-        runtimeDiagnostics,
-        stats.requestCount,
-        true,
-      ));
+      console.log(
+        "\n" + formatSessionSummary(
+          staticDiagnostics,
+          runtimeDiagnostics,
+          stats.requestCount,
+          true,
+        ),
+      );
     }
   }
 
@@ -516,7 +523,8 @@ export class MockServer {
           httpMethod: method.toUpperCase(),
           errorType: "match",
           reason: `Response reference not found: ${responseObjOrRef.$ref}`,
-          suggestion: "Check that the referenced response exists in components/responses",
+          suggestion:
+            "Check that the referenced response exists in components/responses",
         });
       }
       // Use resolved response
@@ -564,9 +572,10 @@ export class MockServer {
         // Priority 1: Explicit example
         if (mediaType.example !== undefined) {
           body = mediaType.example;
-        }
-        // Priority 2: First example from examples map
-        else if (mediaType.examples && Object.keys(mediaType.examples).length > 0) {
+        } // Priority 2: First example from examples map
+        else if (
+          mediaType.examples && Object.keys(mediaType.examples).length > 0
+        ) {
           const firstExampleOrRef = Object.values(mediaType.examples)[0];
           if (firstExampleOrRef && !isReference(firstExampleOrRef)) {
             const example = firstExampleOrRef as { value?: unknown };
@@ -574,10 +583,14 @@ export class MockServer {
               body = example.value;
             }
           }
-        }
-        // Priority 3: Generate from schema using document-centric approach
+        } // Priority 3: Generate from schema using document-centric approach
         else if (mediaType.schema) {
-          body = this.generateFromSchemaObject(mediaType.schema, pathPattern, method, statusCode);
+          body = this.generateFromSchemaObject(
+            mediaType.schema,
+            pathPattern,
+            method,
+            statusCode,
+          );
         }
 
         if (body === null && mediaType.schema) {
@@ -599,13 +612,22 @@ export class MockServer {
         bodyString = JSON.stringify(body, null, 2);
       } catch (error) {
         // Handle non-serializable values (circular refs, BigInt, etc.)
-        const errorMessage = error instanceof Error ? error.message : "Unknown serialization error";
-        console.error(`[Steady] Failed to serialize response body: ${errorMessage}`);
-        bodyString = JSON.stringify({
-          error: "Response serialization failed",
-          reason: errorMessage,
-          hint: "The generated response contains non-serializable values (circular references, BigInt, etc.)",
-        }, null, 2);
+        const errorMessage = error instanceof Error
+          ? error.message
+          : "Unknown serialization error";
+        console.error(
+          `[Steady] Failed to serialize response body: ${errorMessage}`,
+        );
+        bodyString = JSON.stringify(
+          {
+            error: "Response serialization failed",
+            reason: errorMessage,
+            hint:
+              "The generated response contains non-serializable values (circular references, BigInt, etc.)",
+          },
+          null,
+          2,
+        );
         headers.set("X-Steady-Serialization-Error", "true");
       }
     }
@@ -638,7 +660,9 @@ export class MockServer {
     const generator = new RegistryResponseGenerator(this.document.schemas);
     return generator.generateFromSchema(
       schema as Parameters<RegistryResponseGenerator["generateFromSchema"]>[0],
-      `#/paths/${this.escapePointer(pathPattern)}/${method}/responses/${statusCode}/content/application~1json/schema`,
+      `#/paths/${
+        this.escapePointer(pathPattern)
+      }/${method}/responses/${statusCode}/content/application~1json/schema`,
       0,
     );
   }
@@ -666,7 +690,10 @@ export class MockServer {
    * Add X-Steady-Mode header to a response.
    * Creates a new Response since headers are immutable.
    */
-  private addModeHeader(response: Response, mode: "strict" | "relaxed"): Response {
+  private addModeHeader(
+    response: Response,
+    mode: "strict" | "relaxed",
+  ): Response {
     const newHeaders = new Headers(response.headers);
     newHeaders.set("X-Steady-Mode", mode);
     return new Response(response.body, {

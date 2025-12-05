@@ -53,10 +53,14 @@ async function findSpecs(
   return specs;
 }
 
-async function parseSpecFile(path: string): Promise<{ success: boolean; error?: string }> {
+async function parseSpecFile(
+  path: string,
+): Promise<{ success: boolean; error?: string }> {
   try {
     const content = await Deno.readTextFile(path);
-    const format = path.endsWith(".yaml") || path.endsWith(".yml") ? "yaml" : "json";
+    const format = path.endsWith(".yaml") || path.endsWith(".yml")
+      ? "yaml"
+      : "json";
     await parseSpec(content, { format });
     return { success: true };
   } catch (e) {
@@ -183,7 +187,9 @@ Deno.test({
       }
     }
 
-    console.log(`Large specs: ${passed}/${Math.min(20, largeSpecs.length)} passed`);
+    console.log(
+      `Large specs: ${passed}/${Math.min(20, largeSpecs.length)} passed`,
+    );
 
     if (failures.length > 0) {
       console.log("Failures:");
@@ -235,7 +241,9 @@ Deno.test({
 
     const passRate = (passed / sample.length) * 100;
     console.log(
-      `Sample of ${sample.length} specs: ${passed} passed, ${failed} failed (${passRate.toFixed(1)}%)`,
+      `Sample of ${sample.length} specs: ${passed} passed, ${failed} failed (${
+        passRate.toFixed(1)
+      }%)`,
     );
 
     if (failures.length > 0) {

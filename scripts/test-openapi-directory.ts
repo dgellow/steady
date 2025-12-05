@@ -12,7 +12,8 @@
 import { parseSpec } from "../packages/parser/parser.ts";
 
 // Path to the openapi-directory submodule
-const OPENAPI_DIR = new URL("../test-fixtures/openapi-directory/APIs", import.meta.url).pathname;
+const OPENAPI_DIR =
+  new URL("../test-fixtures/openapi-directory/APIs", import.meta.url).pathname;
 
 interface TestResult {
   path: string;
@@ -54,7 +55,9 @@ async function testSpec(path: string): Promise<TestResult> {
     return {
       path,
       success: false,
-      error: `Failed to read file: ${e instanceof Error ? e.message : String(e)}`,
+      error: `Failed to read file: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
       parseTimeMs: performance.now() - start,
       sizeBytes: 0,
     };
@@ -63,7 +66,9 @@ async function testSpec(path: string): Promise<TestResult> {
   const sizeBytes = new TextEncoder().encode(content).length;
 
   try {
-    const format = path.endsWith(".yaml") || path.endsWith(".yml") ? "yaml" : "json";
+    const format = path.endsWith(".yaml") || path.endsWith(".yml")
+      ? "yaml"
+      : "json";
     await parseSpec(content, { format });
     return {
       path,
@@ -94,7 +99,7 @@ async function main() {
   let specs = await findSpecs(OPENAPI_DIR);
 
   if (filter) {
-    specs = specs.filter(s => s.toLowerCase().includes(filter));
+    specs = specs.filter((s) => s.toLowerCase().includes(filter));
     console.log(`📋 Filtered to ${specs.length} specs matching "${filter}"`);
   }
 
@@ -119,7 +124,11 @@ async function main() {
     if (result.success) {
       passed++;
       if (verbose) {
-        console.log(`✅ ${shortPath} (${result.parseTimeMs.toFixed(0)}ms, ${(result.sizeBytes / 1024).toFixed(1)}KB)`);
+        console.log(
+          `✅ ${shortPath} (${result.parseTimeMs.toFixed(0)}ms, ${
+            (result.sizeBytes / 1024).toFixed(1)
+          }KB)`,
+        );
       }
     } else {
       failed++;
@@ -129,7 +138,11 @@ async function main() {
 
     // Progress indicator every 100 specs
     if (!verbose && (i + 1) % 100 === 0) {
-      console.log(`   Progress: ${i + 1}/${specs.length} (${passed} passed, ${failed} failed)`);
+      console.log(
+        `   Progress: ${
+          i + 1
+        }/${specs.length} (${passed} passed, ${failed} failed)`,
+      );
     }
   }
 
@@ -138,29 +151,39 @@ async function main() {
   console.log("SUMMARY");
   console.log("=".repeat(60));
   console.log(`Total:  ${specs.length}`);
-  console.log(`Passed: ${passed} (${(passed / specs.length * 100).toFixed(1)}%)`);
-  console.log(`Failed: ${failed} (${(failed / specs.length * 100).toFixed(1)}%)`);
+  console.log(
+    `Passed: ${passed} (${(passed / specs.length * 100).toFixed(1)}%)`,
+  );
+  console.log(
+    `Failed: ${failed} (${(failed / specs.length * 100).toFixed(1)}%)`,
+  );
 
   // Timing stats
-  const times = results.map(r => r.parseTimeMs);
+  const times = results.map((r) => r.parseTimeMs);
   const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
   const maxTime = Math.max(...times);
-  const slowest = results.find(r => r.parseTimeMs === maxTime);
+  const slowest = results.find((r) => r.parseTimeMs === maxTime);
 
-  console.log(`\nParse time: avg ${avgTime.toFixed(0)}ms, max ${maxTime.toFixed(0)}ms`);
+  console.log(
+    `\nParse time: avg ${avgTime.toFixed(0)}ms, max ${maxTime.toFixed(0)}ms`,
+  );
   if (slowest) {
     console.log(`Slowest: ${slowest.path.replace(OPENAPI_DIR + "/", "")}`);
   }
 
   // Size stats
-  const sizes = results.map(r => r.sizeBytes);
+  const sizes = results.map((r) => r.sizeBytes);
   const totalSize = sizes.reduce((a, b) => a + b, 0);
   const maxSize = Math.max(...sizes);
-  const largest = results.find(r => r.sizeBytes === maxSize);
+  const largest = results.find((r) => r.sizeBytes === maxSize);
 
   console.log(`\nTotal size: ${(totalSize / 1024 / 1024).toFixed(1)}MB`);
   if (largest) {
-    console.log(`Largest: ${largest.path.replace(OPENAPI_DIR + "/", "")} (${(largest.sizeBytes / 1024 / 1024).toFixed(1)}MB)`);
+    console.log(
+      `Largest: ${largest.path.replace(OPENAPI_DIR + "/", "")} (${
+        (largest.sizeBytes / 1024 / 1024).toFixed(1)
+      }MB)`,
+    );
   }
 
   // Top 10 failures by error type
@@ -170,12 +193,15 @@ async function main() {
     console.log("=".repeat(60));
 
     const errorCounts = new Map<string, number>();
-    for (const r of results.filter(r => !r.success)) {
+    for (const r of results.filter((r) => !r.success)) {
       const errorType = r.error?.split("\n")[0].slice(0, 80) || "Unknown";
       errorCounts.set(errorType, (errorCounts.get(errorType) || 0) + 1);
     }
 
-    const sorted = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const sorted = [...errorCounts.entries()].sort((a, b) => b[1] - a[1]).slice(
+      0,
+      10,
+    );
     for (const [error, count] of sorted) {
       console.log(`${count.toString().padStart(4)} × ${error}`);
     }

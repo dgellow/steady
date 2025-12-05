@@ -72,7 +72,9 @@ async function profileSpec(path: string): Promise<TimingResult> {
 
   // Phase 2: Parse YAML (we'll measure this separately)
   const parseStart = performance.now();
-  const format = path.endsWith(".yaml") || path.endsWith(".yml") ? "yaml" : "json";
+  const format = path.endsWith(".yaml") || path.endsWith(".yml")
+    ? "yaml"
+    : "json";
 
   // We can't easily separate YAML parsing from validation without modifying the parser
   // So we'll measure total parse time
@@ -134,7 +136,9 @@ async function main() {
 
     const bar = "█".repeat(Math.min(50, Math.round(result.totalMs / 20)));
     console.log(
-      `${result.spec.slice(0, 50).padEnd(50)} ${result.sizeKB.toFixed(0).padStart(6)}KB ${result.totalMs.toFixed(0).padStart(5)}ms ${bar}`,
+      `${result.spec.slice(0, 50).padEnd(50)} ${
+        result.sizeKB.toFixed(0).padStart(6)
+      }KB ${result.totalMs.toFixed(0).padStart(5)}ms ${bar}`,
     );
   }
 
@@ -177,7 +181,9 @@ async function main() {
   console.log("Slowest specs (ms per KB):");
   for (const r of normalized.slice(0, 10)) {
     console.log(
-      `  ${r.spec.slice(0, 50).padEnd(50)} ${r.msPerKB.toFixed(2)} ms/KB (${r.sizeKB.toFixed(0)}KB in ${r.totalMs.toFixed(0)}ms)`,
+      `  ${r.spec.slice(0, 50).padEnd(50)} ${r.msPerKB.toFixed(2)} ms/KB (${
+        r.sizeKB.toFixed(0)
+      }KB in ${r.totalMs.toFixed(0)}ms)`,
     );
   }
 
@@ -185,7 +191,9 @@ async function main() {
   console.log("Fastest specs (ms per KB):");
   for (const r of normalized.slice(-5).reverse()) {
     console.log(
-      `  ${r.spec.slice(0, 50).padEnd(50)} ${r.msPerKB.toFixed(2)} ms/KB (${r.sizeKB.toFixed(0)}KB in ${r.totalMs.toFixed(0)}ms)`,
+      `  ${r.spec.slice(0, 50).padEnd(50)} ${r.msPerKB.toFixed(2)} ms/KB (${
+        r.sizeKB.toFixed(0)
+      }KB in ${r.totalMs.toFixed(0)}ms)`,
     );
   }
 
@@ -199,9 +207,24 @@ async function main() {
   // Group by size buckets
   const buckets = [
     { name: "Small (<100KB)", min: 0, max: 100, results: [] as TimingResult[] },
-    { name: "Medium (100KB-1MB)", min: 100, max: 1024, results: [] as TimingResult[] },
-    { name: "Large (1MB-5MB)", min: 1024, max: 5120, results: [] as TimingResult[] },
-    { name: "XLarge (>5MB)", min: 5120, max: Infinity, results: [] as TimingResult[] },
+    {
+      name: "Medium (100KB-1MB)",
+      min: 100,
+      max: 1024,
+      results: [] as TimingResult[],
+    },
+    {
+      name: "Large (1MB-5MB)",
+      min: 1024,
+      max: 5120,
+      results: [] as TimingResult[],
+    },
+    {
+      name: "XLarge (>5MB)",
+      min: 5120,
+      max: Infinity,
+      results: [] as TimingResult[],
+    },
   ];
 
   for (const r of results) {
@@ -215,10 +238,16 @@ async function main() {
 
   for (const bucket of buckets) {
     if (bucket.results.length === 0) continue;
-    const avgMs = bucket.results.reduce((a, b) => a + b.totalMs, 0) / bucket.results.length;
-    const avgKB = bucket.results.reduce((a, b) => a + b.sizeKB, 0) / bucket.results.length;
+    const avgMs = bucket.results.reduce((a, b) => a + b.totalMs, 0) /
+      bucket.results.length;
+    const avgKB = bucket.results.reduce((a, b) => a + b.sizeKB, 0) /
+      bucket.results.length;
     console.log(
-      `${bucket.name.padEnd(20)} ${bucket.results.length.toString().padStart(3)} specs, avg ${avgMs.toFixed(0).padStart(5)}ms, avg ${avgKB.toFixed(0).padStart(6)}KB`,
+      `${bucket.name.padEnd(20)} ${
+        bucket.results.length.toString().padStart(3)
+      } specs, avg ${avgMs.toFixed(0).padStart(5)}ms, avg ${
+        avgKB.toFixed(0).padStart(6)
+      }KB`,
     );
   }
 
@@ -234,7 +263,9 @@ async function main() {
   if (Deno.memoryUsage) {
     const mem = Deno.memoryUsage();
     console.log(`Heap used:     ${(mem.heapUsed / 1024 / 1024).toFixed(1)} MB`);
-    console.log(`Heap total:    ${(mem.heapTotal / 1024 / 1024).toFixed(1)} MB`);
+    console.log(
+      `Heap total:    ${(mem.heapTotal / 1024 / 1024).toFixed(1)} MB`,
+    );
     console.log(`RSS:           ${(mem.rss / 1024 / 1024).toFixed(1)} MB`);
     console.log(`External:      ${(mem.external / 1024 / 1024).toFixed(1)} MB`);
   }
@@ -246,7 +277,9 @@ async function main() {
   console.log("");
 
   if (throughputMBperSec < 5) {
-    console.log("⚠️  Throughput is below 5 MB/s - consider optimizing YAML parsing");
+    console.log(
+      "⚠️  Throughput is below 5 MB/s - consider optimizing YAML parsing",
+    );
   } else if (throughputMBperSec < 10) {
     console.log("✓ Throughput is acceptable (5-10 MB/s)");
   } else {
@@ -255,7 +288,9 @@ async function main() {
 
   const slowSpecs = normalized.filter((r) => r.msPerKB > 0.5);
   if (slowSpecs.length > 0) {
-    console.log(`⚠️  ${slowSpecs.length} specs are slower than expected (>0.5ms/KB)`);
+    console.log(
+      `⚠️  ${slowSpecs.length} specs are slower than expected (>0.5ms/KB)`,
+    );
     console.log("   These may have complex schemas or deep nesting");
   }
 
