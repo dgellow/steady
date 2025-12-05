@@ -301,7 +301,7 @@ Examples:
 
 function printHelp() {
   console.log(`
-${BOLD}Steady - The Reliable OpenAPI 3 Mock Server${RESET}
+${BOLD}Steady${RESET} - OpenAPI 3 mock server
 
 Usage: steady [command] [options] <openapi-spec>
 
@@ -346,7 +346,6 @@ Examples:
   steady -r api.yaml                       # Auto-reload on file changes
   steady -i api.yaml                       # Interactive mode with expandable logs
 
-Steady provides rock-solid API mocking with excellent error messages.
 `);
 }
 

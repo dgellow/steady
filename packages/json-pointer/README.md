@@ -1,19 +1,6 @@
 # JSON Pointer
 
-RFC 6901 JSON Pointer implementation for JavaScript/TypeScript.
-
-## Purpose
-
-Provides reliable JSON Pointer resolution for traversing JSON documents. This is
-the foundation for JSON Schema reference resolution and OpenAPI component
-lookups.
-
-## Key Features
-
-- **RFC 6901 Compliant** - Full specification compliance
-- **Type Safe** - TypeScript types for pointer operations
-- **Error Handling** - Clear error messages for invalid pointers
-- **Performance** - Efficient traversal algorithms
+RFC 6901 JSON Pointer implementation.
 
 ## Usage
 
@@ -21,23 +8,18 @@ lookups.
 import { resolve } from "@steady/json-pointer";
 
 const data = {
-  users: [
-    { id: 1, name: "Alice" },
-    { id: 2, name: "Bob" },
-  ],
+  users: [{ id: 1, name: "Alice" }],
 };
 
-// Resolve JSON Pointer
-const alice = resolve(data, "/users/0"); // { id: 1, name: "Alice" }
-const name = resolve(data, "/users/0/name"); // "Alice"
+resolve(data, "/users/0/name"); // "Alice"
 ```
 
 ## API
 
-- `resolve(data, pointer)` - Resolve a JSON Pointer in data
+- `resolve(data, pointer)` - Resolve a JSON Pointer
 - `isValidReference(data, pointer)` - Check if pointer is valid
-- `getAllReferences(data)` - Extract all `$ref` values from data
+- `getAllReferences(data)` - Extract all `$ref` values
 
 ## Dependencies
 
-None - pure JavaScript implementation.
+None.
