@@ -7,7 +7,7 @@
 import type {
   ErrorAttribution,
   ProcessedSchema,
-  ValidationError,
+  SchemaValidationError,
   ValidationResult,
 } from "./types.ts";
 import {
@@ -70,7 +70,7 @@ export class SchemaValidator {
   /**
    * Validate and return only the first error (useful for fail-fast scenarios)
    */
-  validateFirst(data: unknown): ValidationError | null {
+  validateFirst(data: unknown): SchemaValidationError | null {
     const result = this.validate(data);
     return result.errors.length > 0 ? result.errors[0]! : null;
   }

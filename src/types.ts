@@ -44,7 +44,12 @@ export interface ServerConfig {
 }
 
 // Validation types
-export interface ValidationError {
+/**
+ * Represents a single validation issue found during request validation.
+ * This is a simple data structure for reporting validation problems,
+ * not an Error class that gets thrown.
+ */
+export interface ValidationIssue {
   path: string; // e.g., "body.email" or "query.limit"
   message: string;
   expected?: unknown;

@@ -94,7 +94,11 @@ export class ParseError extends SteadyError {
   }
 }
 
-export class ValidationError extends SteadyError {
+/**
+ * Error thrown when OpenAPI spec validation fails.
+ * Distinct from SchemaValidationError (JSON Schema) and ValidationIssue (request validation).
+ */
+export class SpecValidationError extends SteadyError {
   constructor(message: string, context: ErrorContext) {
     super(message, { ...context, errorType: "validate" });
   }

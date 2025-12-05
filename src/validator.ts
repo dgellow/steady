@@ -9,7 +9,7 @@
  * - Enterprise-scale performance with schema caching
  */
 
-import type { ValidationError } from "./types.ts";
+import type { ValidationIssue } from "./types.ts";
 import { isReference } from "./types.ts";
 import type { ValidationResult } from "@steady/shared";
 import type {
@@ -81,8 +81,8 @@ export class RequestValidator {
     _pathPattern: string,
     pathParams: Record<string, string>,
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
     const url = new URL(req.url);
 
     // Validate query parameters
@@ -143,8 +143,8 @@ export class RequestValidator {
     params: URLSearchParams,
     paramSpecs: ParameterObject[],
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     for (const spec of paramSpecs) {
       const isArrayType = this.isArraySchema(spec.schema);
@@ -195,8 +195,8 @@ export class RequestValidator {
     pathParams: Record<string, string>,
     paramSpecs: ParameterObject[],
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     for (const spec of paramSpecs) {
       const value = pathParams[spec.name];
@@ -228,8 +228,8 @@ export class RequestValidator {
     headers: Headers,
     headerSpecs: ParameterObject[],
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     for (const spec of headerSpecs) {
       const value = headers.get(spec.name);
@@ -264,8 +264,8 @@ export class RequestValidator {
       content?: Record<string, { schema?: SchemaObject }>;
     },
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     // Check content length header for early rejection
     const contentLength = req.headers.get("content-length");
@@ -363,8 +363,8 @@ export class RequestValidator {
     },
     contentType: string,
   ): Promise<ValidationResult> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
 
     const mediaType = contentType.split(";")[0]?.trim() || "application/json";
 
@@ -459,7 +459,7 @@ export class RequestValidator {
     }
 
     const result = validator.validate(value);
-    const errors: ValidationError[] = result.errors.map((err) => ({
+    const errors: ValidationIssue[] = result.errors.map((err) => ({
       path: err.instancePath ? `${path}${err.instancePath}` : path,
       message: err.message,
       expected: err.schema,
@@ -518,8 +518,8 @@ export class RequestValidator {
    */
   private collectErrors(
     validation: ValidationResult,
-    errors: ValidationError[],
-    _warnings: ValidationError[],
+    errors: ValidationIssue[],
+    _warnings: ValidationIssue[],
   ): void {
     if (!validation.valid) {
       errors.push(...validation.errors);

@@ -8,7 +8,7 @@
 import type {
   ProcessedSchema,
   Schema,
-  ValidationError,
+  SchemaValidationError,
   ValidationResult,
 } from "./types.ts";
 import { RuntimeValidator } from "./runtime-validator.ts";
@@ -113,7 +113,7 @@ export class MetaschemaValidator {
   /**
    * Enhance error messages with schema-specific context
    */
-  private enhanceErrors(errors: ValidationError[]): ValidationError[] {
+  private enhanceErrors(errors: SchemaValidationError[]): SchemaValidationError[] {
     return errors.map((error) => {
       const enhanced = { ...error };
 
@@ -165,8 +165,8 @@ export class MetaschemaValidator {
   /**
    * Additional semantic validation beyond structural validation
    */
-  private validateSemantics(schemaObject: unknown): ValidationError[] {
-    const errors: ValidationError[] = [];
+  private validateSemantics(schemaObject: unknown): SchemaValidationError[] {
+    const errors: SchemaValidationError[] = [];
 
     if (typeof schemaObject !== "object" || schemaObject === null) {
       // Boolean schemas are valid, non-objects are handled by structural validation
