@@ -925,18 +925,19 @@ export class RegistryValidator {
       }
     }
 
-    // Composition: oneOf
+    // Composition: oneOf - treat as union (pass if ANY variant matches)
+    // Note: This differs from strict JSON Schema semantics but matches SDK needs
     if (schema.oneOf) {
       const matchCount = schema.oneOf.filter((subSchema, i) => {
         const subErrors = this.validateSchemaInternal(subSchema, data, instancePath, `${schemaPath}/oneOf/${i}`);
         return subErrors.length === 0;
       }).length;
-      if (matchCount !== 1) {
+      if (matchCount === 0) {
         errors.push({
           instancePath,
           schemaPath: `${schemaPath}/oneOf`,
           keyword: "oneOf",
-          message: `Must match exactly one schema in oneOf (matched ${matchCount})`,
+          message: "Must match at least one schema in oneOf",
         });
       }
     }
