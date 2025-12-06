@@ -12,7 +12,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { RequestValidator } from "./validator.ts";
-import type { OperationObject } from "@steady/parser";
+import type { OperationObject } from "@steady/openapi";
 import { SchemaRegistry } from "@steady/json-schema";
 
 /** Create a minimal schema registry for unit tests */

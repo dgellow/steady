@@ -4,7 +4,7 @@ import type {
   OperationObject,
   ResponseObject,
   SchemaObject,
-} from "@steady/parser";
+} from "@steady/openapi";
 import type { LogLevel } from "@steady/shared";
 
 export interface ResolvedOperation {
@@ -109,9 +109,9 @@ export type {
   ResponseObject,
   ResponsesObject,
   SchemaObject,
-} from "@steady/parser";
+} from "@steady/openapi";
 
-import type { ReferenceObject } from "@steady/parser";
+import type { ReferenceObject } from "@steady/openapi";
 
 /**
  * Type guard to check if a value is a ReferenceObject

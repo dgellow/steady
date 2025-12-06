@@ -8,7 +8,7 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
-import { parseSpec } from "@steady/parser";
+import { parseSpec } from "@steady/openapi";
 
 const OPENAPI_DIR = new URL(
   "../test-fixtures/openapi-directory/APIs",

@@ -1,5 +1,5 @@
 {
-  "name": "@steady/parser",
+  "name": "@steady/openapi",
   "version": "0.1.0",
   "license": "Elastic-2.0",
   "exports": "./mod.ts"

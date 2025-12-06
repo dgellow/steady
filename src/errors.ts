@@ -7,7 +7,7 @@
  * - Server Error: Internal mock server issue
  */
 
-import { ErrorContext, SteadyError } from "@steady/parser";
+import { ErrorContext, SteadyError } from "@steady/openapi";
 import type { ValidationIssue } from "./types.ts";
 
 /** Source of the error - helps with debugging */
