@@ -21,5 +21,14 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v2
 
-      - name: Publish to JSR
-        run: deno publish
+      - name: Publish packages in dependency order
+        run: |
+          # Leaf packages (no workspace deps)
+          deno publish --config packages/json-pointer/deno.json
+          deno publish --config packages/shared/deno.json
+          # Depends on json-pointer
+          deno publish --config packages/json-schema/deno.json
+          # Depends on json-pointer, json-schema
+          deno publish --config packages/parser/deno.json
+          # Root CLI (depends on all)
+          deno publish
