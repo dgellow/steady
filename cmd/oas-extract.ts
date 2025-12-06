@@ -2,6 +2,7 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import {
+  type DeduplicationDecision,
   FastAnalyzer,
   FastExtractor,
   GeminiClient,
@@ -218,13 +219,13 @@ async function main() {
 
       // Show merge decisions by confidence
       const byConfidence = {
-        HIGH: result.auditTrail.filter((d) =>
+        HIGH: result.auditTrail.filter((d: DeduplicationDecision) =>
           d.decision === "MERGE" && d.confidence === "HIGH"
         ),
-        MEDIUM: result.auditTrail.filter((d) =>
+        MEDIUM: result.auditTrail.filter((d: DeduplicationDecision) =>
           d.decision === "MERGE" && d.confidence === "MEDIUM"
         ),
-        LOW: result.auditTrail.filter((d) =>
+        LOW: result.auditTrail.filter((d: DeduplicationDecision) =>
           d.decision === "MERGE" && d.confidence === "LOW"
         ),
       };
@@ -237,9 +238,9 @@ async function main() {
       if (args.verbose && result.auditTrail.length > 0) {
         console.log("\n🔍 Detailed merge decisions:");
         for (
-          const decision of result.auditTrail.filter((d) =>
-            d.decision === "MERGE"
-          )
+          const decision of result.auditTrail.filter((
+            d: DeduplicationDecision,
+          ) => d.decision === "MERGE")
         ) {
           console.log(
             `\n${decision.groupId} (${decision.confidence} confidence):`,
