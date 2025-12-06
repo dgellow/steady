@@ -5,7 +5,7 @@ import type {
   ResponseObject,
   SchemaObject,
 } from "@steady/openapi";
-import type { LogLevel } from "@steady/shared";
+import type { LogLevel } from "../packages/shared/mod.ts";
 
 export interface ResolvedOperation {
   method: string;

@@ -15,7 +15,7 @@ import type {
 } from "./types.ts";
 import { isReference } from "./types.ts";
 import { BodyTooLargeError } from "./errors.ts";
-import type { ValidationResult } from "@steady/shared";
+import type { ValidationResult } from "../packages/shared/mod.ts";
 import type {
   OperationObject,
   ParameterObject,
