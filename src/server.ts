@@ -560,6 +560,15 @@ export class MockServer {
     let contentType = "application/json";
 
     if (responseObj.content) {
+      const contentKeys = Object.keys(responseObj.content);
+      if (contentKeys.length === 0) {
+        // Content object exists but is empty - this is unusual and likely a spec issue
+        console.warn(
+          `[Steady] Warning: Response for ${method.toUpperCase()} ${path} has empty content object. ` +
+            `Using default application/json with no body.`,
+        );
+      }
+
       // Prefer JSON, then any other content type
       const mediaType = responseObj.content["application/json"] ||
         Object.values(responseObj.content)[0];
@@ -567,7 +576,7 @@ export class MockServer {
       if (mediaType) {
         contentType = responseObj.content["application/json"]
           ? "application/json"
-          : Object.keys(responseObj.content)[0] || "application/json";
+          : contentKeys[0] ?? "application/json";
 
         // Priority 1: Explicit example
         if (mediaType.example !== undefined) {

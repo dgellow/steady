@@ -43,14 +43,17 @@ export class SchemaValidator {
     if (errors.length > 0) {
       attribution = this.attributionAnalyzer.analyze(errors, data);
 
-      // Enhance errors with attribution info
-      errors.forEach((error) => {
-        error.attribution = {
-          type: attribution!.type,
-          confidence: attribution!.confidence,
-          reasoning: attribution!.reasoning,
-        };
-      });
+      // Enhance errors with attribution info (only if attribution was successfully analyzed)
+      if (attribution) {
+        const attr = attribution; // Capture for closure
+        errors.forEach((error) => {
+          error.attribution = {
+            type: attr.type,
+            confidence: attr.confidence,
+            reasoning: attr.reasoning,
+          };
+        });
+      }
     }
 
     return {

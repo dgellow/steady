@@ -67,10 +67,11 @@ export function matchCompiledPath(
   const params: Record<string, string> = {};
 
   for (let i = 0; i < compiled.segments.length; i++) {
-    const compiledSeg = compiled.segments[i]!;
+    const compiledSeg = compiled.segments[i];
     const requestSeg = requestSegments[i];
 
-    if (requestSeg === undefined) {
+    // Both should be defined due to length checks, but verify for safety
+    if (compiledSeg === undefined || requestSeg === undefined) {
       return null;
     }
 

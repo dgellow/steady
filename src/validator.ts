@@ -94,13 +94,19 @@ export class RequestValidator {
       if (isReference(param)) {
         // Resolve $ref using registry
         const refResult = this.registry.resolveRef(param.$ref);
-        if (refResult) {
-          const resolvedParam = refResult.raw as ParameterObject;
-          if (resolvedParam.in === location) {
-            resolved.push(resolvedParam);
-          }
+        if (refResult === null || refResult === undefined) {
+          // Log warning for unresolved parameter reference
+          // This indicates a spec issue - the reference points to a non-existent parameter
+          console.warn(
+            `[Steady] Warning: Could not resolve parameter reference "${param.$ref}". ` +
+              `The referenced parameter will be skipped during validation.`,
+          );
+          continue;
         }
-        // If resolution fails, skip the ref (legacy behavior)
+        const resolvedParam = refResult.raw as ParameterObject;
+        if (resolvedParam.in === location) {
+          resolved.push(resolvedParam);
+        }
       } else if (param.in === location) {
         resolved.push(param);
       }
@@ -216,22 +222,24 @@ export class RequestValidator {
 
   /**
    * Parse nested object from brackets notation: user[name]=sam&user[age]=123 -> { name: "sam", age: "123" }
+   * Handles schema references by resolving them first.
    */
   private parseNestedObject(
     params: URLSearchParams,
     name: string,
-    schema: SchemaObject,
+    schema: SchemaObject | ReferenceObject,
   ): unknown {
+    const resolved = this.resolveSchema(schema);
     const result: Record<string, unknown> = {};
     const prefix = `${name}[`;
 
     for (const [key, value] of params) {
       if (key.startsWith(prefix) && key.endsWith("]")) {
         const propName = key.slice(prefix.length, -1);
-        // Get the property schema for type coercion
-        const propSchema = schema.properties?.[propName];
+        // Get the property schema for type coercion (only if we have resolved schema)
+        const propSchema = resolved?.properties?.[propName];
         result[propName] = propSchema
-          ? this.parseParamValue(value, propSchema as SchemaObject)
+          ? this.parseParamValue(value, propSchema)
           : value;
       }
     }
@@ -275,11 +283,37 @@ export class RequestValidator {
   }
 
   /**
-   * Check if schema is an object type
+   * Resolve a schema that might be a reference.
+   * Returns the resolved SchemaObject or undefined if resolution fails.
    */
-  private isObjectSchema(schema: SchemaObject | undefined): boolean {
-    if (!schema) return false;
-    return schema.type === "object" || !!schema.properties;
+  private resolveSchema(
+    schema: SchemaObject | ReferenceObject | undefined,
+  ): SchemaObject | undefined {
+    if (!schema) return undefined;
+    if (isReference(schema)) {
+      const resolved = this.registry.resolveRef(schema.$ref);
+      if (!resolved) return undefined;
+      return resolved.raw as SchemaObject;
+    }
+    return schema;
+  }
+
+  /**
+   * Check if schema is an object type
+   * Checks for type: "object" or object-specific keywords (properties, additionalProperties, patternProperties)
+   * Handles schema references by resolving them first.
+   */
+  private isObjectSchema(
+    schema: SchemaObject | ReferenceObject | undefined,
+  ): boolean {
+    const resolved = this.resolveSchema(schema);
+    if (!resolved) return false;
+    return (
+      resolved.type === "object" ||
+      resolved.properties !== undefined ||
+      resolved.additionalProperties !== undefined ||
+      resolved.patternProperties !== undefined
+    );
   }
 
   /**
@@ -310,28 +344,30 @@ export class RequestValidator {
           actual: undefined,
         });
       } else if (hasValue && spec.schema) {
+        // Store schema reference to avoid repeated checks
+        const schema = spec.schema;
         let parsedValue: unknown;
 
         if (isObjectType && this.queryNestedFormat === "brackets") {
           // Parse nested object from brackets notation
-          parsedValue = this.parseNestedObject(params, spec.name, spec.schema);
+          parsedValue = this.parseNestedObject(params, spec.name, schema);
         } else if (isArrayType) {
           // Parse array values
           const values = this.getArrayValues(params, spec.name);
-          parsedValue = values.map((v) =>
-            this.parseParamValue(v, spec.schema!)
-          );
+          parsedValue = values.map((v) => this.parseParamValue(v, schema));
         } else {
-          // Parse single value
-          parsedValue = this.parseParamValue(
-            params.get(spec.name)!,
-            spec.schema,
-          );
+          // Parse single value - hasValue guarantees the param exists
+          const value = params.get(spec.name);
+          if (value === null) {
+            // This should not happen given hasValue check, but handle gracefully
+            continue;
+          }
+          parsedValue = this.parseParamValue(value, schema);
         }
 
         const validation = this.validateValue(
           parsedValue,
-          spec.schema as Schema,
+          schema as Schema,
           `query.${spec.name}`,
         );
         this.collectErrors(validation, errors, warnings);
@@ -623,23 +659,33 @@ export class RequestValidator {
 
   /**
    * Check if a schema represents an array type
+   * Handles schema references by resolving them first.
    */
-  private isArraySchema(schema?: SchemaObject): boolean {
-    if (!schema) return false;
-    if (Array.isArray(schema.type)) {
-      return schema.type.includes("array");
+  private isArraySchema(schema?: SchemaObject | ReferenceObject): boolean {
+    const resolved = this.resolveSchema(schema);
+    if (!resolved) return false;
+    if (Array.isArray(resolved.type)) {
+      return resolved.type.includes("array");
     }
-    return schema.type === "array";
+    return resolved.type === "array";
   }
 
   /**
    * Parse parameter value based on schema type
+   * Handles schema references by resolving them first.
    */
-  private parseParamValue(value: string, schema: SchemaObject): unknown {
-    const types = Array.isArray(schema.type)
-      ? schema.type
-      : schema.type
-      ? [schema.type]
+  private parseParamValue(
+    value: string,
+    schema: SchemaObject | ReferenceObject,
+  ): unknown {
+    const resolved = this.resolveSchema(schema);
+    // If we can't resolve the schema, treat as string
+    if (!resolved) return value;
+
+    const types = Array.isArray(resolved.type)
+      ? resolved.type
+      : resolved.type
+      ? [resolved.type]
       : ["string"];
 
     const type = types.find((t) => t !== "null") || "string";
