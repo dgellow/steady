@@ -747,3 +747,178 @@ Deno.test("Validator: resolves $ref parameters and validates them", async () => 
   );
   assertEquals(result.valid, true);
 });
+
+Deno.test("Validator: handles unresolved parameter $ref gracefully", async () => {
+  // When a parameter $ref points to a non-existent component, we should:
+  // 1. Log a warning (tested via console output)
+  // 2. Skip the parameter during validation (not crash)
+  // 3. Continue validating other parameters
+  const spec = {
+    openapi: "3.1.0",
+    info: { title: "Test", version: "1.0.0" },
+    paths: {
+      "/test": {
+        get: {
+          responses: { "200": { description: "OK" } },
+          parameters: [
+            { name: "valid", in: "query", schema: { type: "string" } },
+            { $ref: "#/components/parameters/nonExistent" }, // This doesn't exist
+          ],
+        },
+      },
+    },
+    components: {
+      parameters: {}, // Empty - no parameters defined
+    },
+  };
+
+  const registry = new SchemaRegistry(spec);
+  const validator = new RequestValidator(registry);
+  const operation = spec.paths["/test"].get as OperationObject;
+
+  // Request should still work - the unresolved ref is skipped with a warning
+  const req = mockRequest("http://localhost/test?valid=hello");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  // The valid parameter should be validated
+  assertEquals(result.valid, true);
+});
+
+// =============================================================================
+// Schema Reference Resolution Tests
+// =============================================================================
+
+Deno.test("Validator: resolves $ref in parameter schema for array type detection", async () => {
+  // Test that array schemas defined via $ref are properly detected
+  const spec = {
+    openapi: "3.1.0",
+    info: { title: "Test", version: "1.0.0" },
+    paths: {
+      "/test": {
+        get: {
+          responses: { "200": { description: "OK" } },
+          parameters: [
+            {
+              name: "ids",
+              in: "query",
+              schema: { $ref: "#/components/schemas/IdArray" },
+            },
+          ],
+        },
+      },
+    },
+    components: {
+      schemas: {
+        IdArray: {
+          type: "array",
+          items: { type: "integer" },
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(spec);
+  const validator = new RequestValidator(registry, { queryArrayFormat: "repeat" });
+  const operation = spec.paths["/test"].get as OperationObject;
+
+  // Should recognize this as an array and parse correctly
+  const req = mockRequest("http://localhost/test?ids=1&ids=2&ids=3");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: resolves $ref in parameter schema for object type detection", async () => {
+  // Test that object schemas defined via $ref are properly detected
+  const spec = {
+    openapi: "3.1.0",
+    info: { title: "Test", version: "1.0.0" },
+    paths: {
+      "/test": {
+        get: {
+          responses: { "200": { description: "OK" } },
+          parameters: [
+            {
+              name: "filter",
+              in: "query",
+              schema: { $ref: "#/components/schemas/Filter" },
+            },
+          ],
+        },
+      },
+    },
+    components: {
+      schemas: {
+        Filter: {
+          type: "object",
+          properties: {
+            status: { type: "string" },
+            limit: { type: "integer" },
+          },
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(spec);
+  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const operation = spec.paths["/test"].get as OperationObject;
+
+  // Should recognize this as an object and parse bracket notation correctly
+  const req = mockRequest("http://localhost/test?filter[status]=active&filter[limit]=10");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: detects object schema with only additionalProperties", async () => {
+  // Object schemas can be defined with just additionalProperties (no explicit properties)
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "metadata",
+        in: "query",
+        schema: {
+          type: "object",
+          additionalProperties: { type: "string" },
+        },
+      },
+    ],
+  };
+
+  // Should recognize this as an object schema
+  const req = mockRequest("http://localhost/test?metadata[key1]=value1&metadata[key2]=value2");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: detects object schema with only patternProperties", async () => {
+  // Object schemas can be defined with just patternProperties
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "dynamic",
+        in: "query",
+        schema: {
+          type: "object",
+          patternProperties: {
+            "^x-": { type: "string" },
+          },
+        },
+      },
+    ],
+  };
+
+  // Should recognize this as an object schema
+  const req = mockRequest("http://localhost/test?dynamic[x-custom]=value");
+  const result = await validator.validateRequest(req, operation, "/test", {});
+
+  assertEquals(result.valid, true);
+});
