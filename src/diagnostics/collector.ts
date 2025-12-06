@@ -5,14 +5,8 @@
  * to provide session-level insights.
  */
 
-import type {
-  Diagnostic,
-  DiagnosticSummary,
-} from "../../packages/json-schema/mod.ts";
-import {
-  groupByCode,
-  summarizeDiagnostics,
-} from "../../packages/json-schema/mod.ts";
+import type { Diagnostic, DiagnosticSummary } from "@steady/json-schema";
+import { groupByCode, summarizeDiagnostics } from "@steady/json-schema";
 
 /**
  * Session statistics
