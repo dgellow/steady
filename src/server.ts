@@ -27,7 +27,7 @@ import {
   InkSimpleLogger,
   RequestLogger,
   startInkSimpleLogger,
-} from "./shared/mod.ts";
+} from "./logging/mod.ts";
 import { RequestValidator } from "./validator.ts";
 import { DiagnosticCollector } from "./diagnostics/collector.ts";
 import {
