@@ -61,8 +61,7 @@
     "test-all": "deno fmt && deno check cmd/steady.ts && deno lint --quiet && deno task check-boundaries && deno task test",
     "extract": "deno run --allow-read --allow-write --allow-net --allow-env cmd/oas-extract.ts extract",
     "publish": "deno publish",
-    "publish:dry": "deno publish --dry-run",
-    "build:npm": "deno run -A scripts/build-npm.ts"
+    "publish:dry": "deno publish --dry-run"
   },
   "compilerOptions": {
     "noFallthroughCasesInSwitch": true,
