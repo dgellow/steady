@@ -25,7 +25,6 @@ jobs:
         run: |
           # Leaf packages (no workspace deps)
           deno publish --config packages/json-pointer/deno.json
-          deno publish --config packages/shared/deno.json
           # Depends on json-pointer
           deno publish --config packages/json-schema/deno.json
           # Depends on json-pointer, json-schema
