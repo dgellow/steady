@@ -11,7 +11,7 @@
  * - Validators and generators receive registry access for ref following
  */
 
-import { resolve as resolvePointer } from "../json-pointer/mod.ts";
+import { resolve as resolvePointer } from "@steady/json-pointer";
 import { RefGraph } from "./ref-graph.ts";
 import type {
   GenerateOptions,

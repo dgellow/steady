@@ -8,7 +8,7 @@
  * - Path-oriented design enables efficient memoization
  */
 
-import { JsonPointerError, resolve, validateRef } from "../json-pointer/mod.ts";
+import { JsonPointerError, resolve, validateRef } from "@steady/json-pointer";
 import type { Schema } from "./types.ts";
 
 export interface ResolverContext {

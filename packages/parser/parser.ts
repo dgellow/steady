@@ -1,7 +1,7 @@
 import { parse as parseYAML } from "@std/yaml";
 import { OpenAPISpec } from "./openapi.ts";
 import { ErrorContext, ParseError, SpecValidationError } from "./errors.ts";
-import { JsonSchemaProcessor, type Schema } from "../json-schema/mod.ts";
+import { JsonSchemaProcessor, type Schema } from "@steady/json-schema";
 import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
 
 const metaschema = metaschemaJson as unknown as Schema;
