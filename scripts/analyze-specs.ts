@@ -12,7 +12,7 @@
  *   deno task analyze --verbose    # With trace logs
  */
 
-import { parseSpec } from "../packages/parser/parser.ts";
+import { parseSpec } from "../packages/openapi/parser.ts";
 import { OpenAPIDocument } from "../packages/json-schema/openapi-document.ts";
 import type { Diagnostic } from "../packages/json-schema/diagnostics/types.ts";
 

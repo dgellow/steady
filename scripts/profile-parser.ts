@@ -11,7 +11,7 @@
  *   deno task profile
  */
 
-import { parseSpec } from "../packages/parser/parser.ts";
+import { parseSpec } from "../packages/openapi/parser.ts";
 
 const OPENAPI_DIR = new URL(
   "../test-fixtures/openapi-directory/APIs",

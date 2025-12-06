@@ -9,7 +9,7 @@
  * 5. Performance with complex schemas
  */
 
-import { parseSpecFromFile } from "../packages/parser/mod.ts";
+import { parseSpecFromFile } from "../packages/openapi/mod.ts";
 import { MockServer } from "../src/server.ts";
 import { matchPathPattern } from "../src/path-matcher.ts";
 import { assertEquals, assertExists } from "@std/assert";
