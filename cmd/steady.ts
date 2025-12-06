@@ -10,7 +10,7 @@ const BOLD = "\x1b[1m";
 const RED = "\x1b[31m";
 const RESET = "\x1b[0m";
 
-async function main() {
+export async function main() {
   const args = parseArgs(Deno.args, {
     boolean: [
       "help",
