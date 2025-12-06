@@ -1,0 +1,38 @@
+name: Pls Sync
+
+on:
+  pull_request:
+    types: [edited]
+
+jobs:
+  sync:
+    name: Sync pls Release PR
+    runs-on: ubuntu-latest
+    # Only run on release prep PRs created by pls
+    if: startsWith(github.event.pull_request.title, 'chore: release') || startsWith(github.event.pull_request.title, 'chore: bump')
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync pls with PR selection
+        run: |
+          deno run -A jsr:@dgellow/pls prep --github-pr=${{ github.event.pull_request.number }} --storage=github --execute
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
