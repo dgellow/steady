@@ -22,6 +22,15 @@ deno task start             # Production server
 
 **CRITICAL**: `deno test` without `deno task` will fail (missing permissions).
 
+**Certificate Issues**: If you encounter TLS/certificate errors when downloading
+packages from npm or jsr registries, set this environment variable:
+
+```bash
+export DENO_TLS_CA_STORE=system
+```
+
+Or prefix commands with it: `DENO_TLS_CA_STORE=system deno task test`
+
 ## Project Structure
 
 ```
