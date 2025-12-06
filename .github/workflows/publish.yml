@@ -28,6 +28,6 @@ jobs:
           # Depends on json-pointer
           deno publish --config packages/json-schema/deno.json
           # Depends on json-pointer, json-schema
-          deno publish --config packages/parser/deno.json
+          deno publish --config packages/openapi/deno.json
           # Root CLI (depends on all)
           deno publish
