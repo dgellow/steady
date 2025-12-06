@@ -75,6 +75,10 @@
         "no-explicit-any"
       ]
     },
-    "exclude": ["oas-tools/**", "packages/json-schema/test-suite/", "research/**"]
+    "exclude": [
+      "oas-tools/**",
+      "packages/json-schema/test-suite/",
+      "research/**"
+    ]
   }
 }
