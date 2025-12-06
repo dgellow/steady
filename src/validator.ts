@@ -248,14 +248,20 @@ export class RequestValidator {
   }
 
   /**
-   * Get the set of known parameter keys based on format
+   * Get the set of known parameter keys based on format.
+   * Returns { known: Set of known keys, dynamicPrefixes: Set of prefixes that allow any suffix }
    */
-  private getKnownParamKeys(paramSpecs: ParameterObject[]): Set<string> {
+  private getKnownParamKeys(paramSpecs: ParameterObject[]): {
+    known: Set<string>;
+    dynamicPrefixes: Set<string>;
+  } {
     const known = new Set<string>();
+    const dynamicPrefixes = new Set<string>();
 
     for (const spec of paramSpecs) {
       const isArray = this.isArraySchema(spec.schema);
       const isObject = this.isObjectSchema(spec.schema);
+      const resolved = this.resolveSchema(spec.schema);
 
       // Add the base name
       known.add(spec.name);
@@ -265,21 +271,25 @@ export class RequestValidator {
         known.add(`${spec.name}[]`);
       }
 
-      if (
-        isObject && this.queryNestedFormat === "brackets" && spec.schema &&
-        !isReference(spec.schema)
-      ) {
-        const schema = spec.schema as SchemaObject;
-        if (schema.properties) {
-          // Add all bracket-notation keys for known properties
-          for (const propName of Object.keys(schema.properties)) {
+      if (isObject && this.queryNestedFormat === "brackets" && resolved) {
+        // If schema has additionalProperties or patternProperties, allow any nested key
+        if (
+          resolved.additionalProperties !== undefined ||
+          resolved.patternProperties !== undefined
+        ) {
+          dynamicPrefixes.add(`${spec.name}[`);
+        }
+
+        // Add all bracket-notation keys for explicitly known properties
+        if (resolved.properties) {
+          for (const propName of Object.keys(resolved.properties)) {
             known.add(`${spec.name}[${propName}]`);
           }
         }
       }
     }
 
-    return known;
+    return { known, dynamicPrefixes };
   }
 
   /**
@@ -375,18 +385,30 @@ export class RequestValidator {
     }
 
     // Check for unknown parameters - reported as errors, server decides based on effective mode
-    const knownParams = this.getKnownParamKeys(paramSpecs);
+    const { known: knownParams, dynamicPrefixes } =
+      this.getKnownParamKeys(paramSpecs);
     for (const [key] of params) {
-      if (!knownParams.has(key)) {
-        // For bracket notation, extract base name for error message
-        const baseName = key.includes("[") ? key.split("[")[0] : key;
-        errors.push({
-          path: `query.${baseName}`,
-          message: key.includes("[")
-            ? `Unknown parameter: ${key}`
-            : "Unknown parameter",
-        });
+      // Check if key is known directly
+      if (knownParams.has(key)) continue;
+
+      // Check if key matches any dynamic prefix (for additionalProperties/patternProperties)
+      let isDynamic = false;
+      for (const prefix of dynamicPrefixes) {
+        if (key.startsWith(prefix) && key.endsWith("]")) {
+          isDynamic = true;
+          break;
+        }
       }
+      if (isDynamic) continue;
+
+      // Unknown parameter
+      const baseName = key.includes("[") ? key.split("[")[0] : key;
+      errors.push({
+        path: `query.${baseName}`,
+        message: key.includes("[")
+          ? `Unknown parameter: ${key}`
+          : "Unknown parameter",
+      });
     }
 
     return { valid: errors.length === 0, errors, warnings };
