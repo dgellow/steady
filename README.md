@@ -8,13 +8,13 @@ and generates responses from schemas or examples.
 Requires [Deno](https://deno.land/) 2.x.
 
 ```bash
-# Run directly
-deno run --allow-read --allow-net --allow-env --allow-write \
-  https://raw.githubusercontent.com/dgellow/steady/main/cmd/steady.ts api.yaml
-
-# Or install globally
+# Install from JSR
 deno install -g --allow-read --allow-net --allow-env --allow-write \
-  -n steady https://raw.githubusercontent.com/dgellow/steady/main/cmd/steady.ts
+  -n steady jsr:@steady/cli/cli
+
+# Or run directly
+deno run --allow-read --allow-net --allow-env --allow-write \
+  jsr:@steady/cli/cli api.yaml
 ```
 
 ## Usage
@@ -193,16 +193,12 @@ steady/
 ├── src/
 │   ├── server.ts              # HTTP server, route matching
 │   ├── validator.ts           # Request validation
-│   └── errors.ts              # Error types with attribution
+│   ├── errors.ts              # Error types with attribution
+│   └── logging/               # Request logging utilities
 ├── packages/
-│   ├── json-pointer/          # RFC 6901 JSON Pointer
-│   ├── json-schema/           # JSON Schema processor
-│   │   ├── openapi-document.ts    # Main document wrapper
-│   │   ├── schema-registry.ts     # Schema resolution + generation
-│   │   ├── runtime-validator.ts   # JSON Schema validation
-│   │   └── ref-graph.ts           # $ref cycle detection
-│   ├── parser/                # OpenAPI 3.x parser
-│   └── shared/                # Logging utilities
+│   ├── json-pointer/          # @steady/json-pointer - RFC 6901
+│   ├── json-schema/           # @steady/json-schema - JSON Schema processor
+│   └── openapi/               # @steady/openapi - OpenAPI 3.x parser
 └── tests/
     └── edge-cases/            # Edge case tests
 ```
@@ -214,7 +210,7 @@ deno task dev               # Dev server with watch
 deno task start             # Production server
 deno task test              # Run all tests
 deno task test:json-schema  # JSON Schema tests only
-deno task test:parser       # Parser tests only
+deno task test:parser       # OpenAPI parser tests only
 deno task test:json-pointer # JSON Pointer tests only
 deno task check             # Type check
 deno task lint              # Lint
