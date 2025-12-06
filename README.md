@@ -9,10 +9,10 @@ Requires [Deno](https://deno.land/) 2.x.
 
 ```bash
 # Run directly
-deno run -A jsr:@steady/cli/cli api.yaml
+deno run -A jsr:@steady/cli api.yaml
 
 # Or install globally
-deno install -gAn steady jsr:@steady/cli/cli
+deno install -gAn steady jsr:@steady/cli
 ```
 
 ## Usage
