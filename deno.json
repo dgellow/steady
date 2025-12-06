@@ -31,7 +31,7 @@
   "tasks": {
     "dev": "deno run --watch --allow-read --allow-net --allow-env --allow-write cmd/steady.ts --auto-reload",
     "start": "deno run --allow-read --allow-net --allow-env --allow-write cmd/steady.ts",
-    "check": "deno check **/*.ts",
+    "check": "deno check cmd/**/*.ts src/**/*.ts packages/**/*.ts scripts/**/*.ts tests/**/*.ts mod.ts",
     "fmt": "deno fmt",
     "lint": "deno lint",
     "check-boundaries": "deno run --allow-read scripts/check-boundaries.ts",
@@ -47,7 +47,6 @@
     "test:specs": "deno run --allow-read --allow-write scripts/test-openapi-directory.ts",
     "analyze": "deno run --allow-read --allow-write scripts/analyze-specs.ts",
     "test-all": "deno fmt && deno check cmd/steady.ts && deno lint --quiet && deno task check-boundaries && deno task test",
-    "extract": "deno run --allow-read --allow-write --allow-net --allow-env cmd/oas-extract.ts extract",
     "publish": "deno publish",
     "publish:dry": "deno publish --dry-run"
   },
@@ -76,6 +75,6 @@
         "no-explicit-any"
       ]
     },
-    "exclude": ["oas-tools/**", "packages/json-schema/test-suite/"]
+    "exclude": ["oas-tools/**", "packages/json-schema/test-suite/", "research/**"]
   }
 }

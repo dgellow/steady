@@ -1,14 +1,14 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env
 
 import { parseArgs } from "@std/cli/parse-args";
-import { parseSpec } from "@steady/openapi";
+import { parseSpec } from "../packages/openapi/parser.ts";
 import {
   compareStrategies,
   evaluateStability,
   formatStabilityReport,
   type NamingStrategy,
   parseStrategy,
-} from "@steady/oas-extract";
+} from "./oas-extract/mod.ts";
 
 function printHelp() {
   console.log(`

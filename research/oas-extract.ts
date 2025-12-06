@@ -10,8 +10,8 @@ import {
   parseStrategy,
   SemanticDeduplicator,
   SpecTransformer,
-} from "@steady/oas-extract";
-import { parseSpec } from "@steady/openapi";
+} from "./oas-extract/mod.ts";
+import { parseSpec } from "../packages/openapi/parser.ts";
 
 const VERSION = "0.1.0";
 
