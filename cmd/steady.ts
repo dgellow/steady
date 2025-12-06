@@ -2,7 +2,7 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import { parseSpecFromFile, SteadyError } from "@steady/openapi";
-import { LogLevel } from "@steady/shared";
+import { LogLevel } from "../packages/shared/mod.ts";
 import { ServerConfig } from "../src/types.ts";
 
 // ANSI colors
