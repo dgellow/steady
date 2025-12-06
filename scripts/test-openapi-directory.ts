@@ -9,7 +9,7 @@
  *   deno task test:specs --filter stripe  # Test only specs matching "stripe"
  */
 
-import { parseSpec } from "../packages/parser/parser.ts";
+import { parseSpec } from "../packages/openapi/parser.ts";
 
 // Path to the openapi-directory submodule
 const OPENAPI_DIR =

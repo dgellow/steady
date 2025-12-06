@@ -78,7 +78,7 @@ Examples:
 }
 
 async function loadSpec(path: string): Promise<OpenAPISpec> {
-  // Use the parser from packages/parser which handles both JSON and YAML
+  // Use the parser from packages/openapi which handles both JSON and YAML
   return await parseSpec(path);
 }
 

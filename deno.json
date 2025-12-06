@@ -39,7 +39,7 @@
     "test:watch": "deno test --allow-read --allow-write --allow-net --allow-env --watch",
     "test:coverage": "deno test --allow-read --allow-write --allow-net --allow-env --coverage=coverage && deno coverage coverage",
     "test:json-schema": "deno test --allow-read --allow-write --allow-net --allow-env packages/json-schema/**/*.test.ts",
-    "test:parser": "deno test --allow-read --allow-write --allow-net --allow-env packages/parser/**/*.test.ts",
+    "test:parser": "deno test --allow-read --allow-write --allow-net --allow-env packages/openapi/**/*.test.ts",
     "test:json-pointer": "deno test --allow-read --allow-write --allow-net --allow-env packages/json-pointer/**/*.test.ts",
     "test:integration": "deno test --allow-read --allow-write --allow-net --allow-env tests/**/*.test.ts",
     "test:edge-cases": "deno test --allow-read --allow-write --allow-net --allow-env tests/edge-cases/**/*.test.ts",

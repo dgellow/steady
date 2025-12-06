@@ -4,7 +4,7 @@
  * Find all specs with ref-unresolved errors
  */
 
-import { parseSpec } from "../packages/parser/parser.ts";
+import { parseSpec } from "../packages/openapi/parser.ts";
 import { OpenAPIDocument } from "../packages/json-schema/openapi-document.ts";
 
 const OPENAPI_DIR = new URL(

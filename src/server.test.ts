@@ -11,7 +11,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { MockServer } from "./server.ts";
-import { parseSpecFromFile } from "../packages/parser/mod.ts";
+import { parseSpecFromFile } from "../packages/openapi/mod.ts";
 
 const TEST_SPEC_PATH = "./tests/specs/test-api.yaml";
 

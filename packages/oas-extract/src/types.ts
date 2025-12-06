@@ -24,7 +24,7 @@ import type {
   ServerVariableObject,
   TagObject,
   XMLObject,
-} from "../../parser/openapi.ts";
+} from "../../openapi/openapi.ts";
 
 // Re-export types for consumers
 export type {
