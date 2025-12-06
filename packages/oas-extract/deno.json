@@ -1,5 +1,3 @@
 {
-  "name": "@steady/oas-extract",
-  "version": "0.1.0",
   "exports": "./mod.ts"
 }

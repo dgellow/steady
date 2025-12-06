@@ -22,7 +22,8 @@
       "test-fixtures/**",
       "tests/**",
       "scripts/**",
-      "docs/**"
+      "docs/**",
+      "packages/oas-extract/**"
     ]
   },
   "workspace": [
