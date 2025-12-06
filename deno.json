@@ -11,6 +11,7 @@
       "mod.ts",
       "cmd/steady.ts",
       "src/**/*.ts",
+      "src/**/*.tsx",
       "README.md",
       "LICENSE"
     ],
