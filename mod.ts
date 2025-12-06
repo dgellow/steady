@@ -10,4 +10,4 @@ export * from "./cmd/steady.ts";
 // Re-export key types and utilities for library usage
 export { MockServer } from "./src/server.ts";
 export type { ServerConfig } from "./src/types.ts";
-export { parseSpecFromFile, SteadyError } from "@steady/parser";
+export { parseSpecFromFile, SteadyError } from "@steady/openapi";

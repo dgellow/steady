@@ -5,7 +5,7 @@ OpenAPI 3.x specification parser.
 ## Usage
 
 ```typescript
-import { parseSpecFromFile } from "@steady/parser";
+import { parseSpecFromFile } from "@steady/openapi";
 
 const spec = await parseSpecFromFile("api.yaml");
 ```

@@ -10,7 +10,7 @@ import {
   SemanticDeduplicator,
   SpecTransformer,
 } from "@steady/oas-extract";
-import { parseSpec } from "@steady/parser";
+import { parseSpec } from "@steady/openapi";
 
 const VERSION = "0.1.0";
 

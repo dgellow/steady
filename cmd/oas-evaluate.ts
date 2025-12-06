@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env
 
 import { parseArgs } from "@std/cli/parse-args";
-import { parseSpec } from "@steady/parser";
+import { parseSpec } from "@steady/openapi";
 import {
   compareStrategies,
   evaluateStability,

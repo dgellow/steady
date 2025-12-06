@@ -22,7 +22,7 @@ import type {
   ReferenceObject,
   RequestBodyObject,
   SchemaObject,
-} from "@steady/parser";
+} from "@steady/openapi";
 import {
   RegistryValidator,
   type RegistryValidatorOptions,

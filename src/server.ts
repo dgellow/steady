@@ -15,7 +15,7 @@ import type {
   OpenAPISpec,
   OperationObject,
   PathItemObject,
-} from "@steady/parser";
+} from "@steady/openapi";
 import { MatchError, missingExampleError } from "./errors.ts";
 import {
   formatSessionSummary,

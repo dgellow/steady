@@ -30,7 +30,7 @@
     "./packages/*"
   ],
   "imports": {
-    "@steady/parser": "./packages/parser/mod.ts",
+    "@steady/openapi": "./packages/parser/mod.ts",
     "@steady/shared": "./packages/shared/mod.ts",
     "@steady/json-schema": "./packages/json-schema/mod.ts",
     "@steady/json-pointer": "./packages/json-pointer/mod.ts",
