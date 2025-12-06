@@ -8,13 +8,11 @@ and generates responses from schemas or examples.
 Requires [Deno](https://deno.land/) 2.x.
 
 ```bash
-# Install from JSR
-deno install -g --allow-read --allow-net --allow-env --allow-write \
-  -n steady jsr:@steady/cli/cli
+# Run directly
+deno run -A jsr:@steady/cli api.yaml
 
-# Or run directly
-deno run --allow-read --allow-net --allow-env --allow-write \
-  jsr:@steady/cli/cli api.yaml
+# Or install globally
+deno install -gAn steady jsr:@steady/cli
 ```
 
 ## Usage
