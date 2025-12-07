@@ -1,0 +1,6 @@
+{
+  ".": "0.1.0",
+  "packages/json-pointer": "0.1.0",
+  "packages/json-schema": "0.1.0",
+  "packages/openapi": "0.1.0"
+}
