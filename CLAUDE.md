@@ -25,7 +25,8 @@ steady/
 ├── src/                       # Main server
 │   ├── server.ts              # HTTP server, request matching
 │   ├── validator.ts           # Request/response validation
-│   └── errors.ts              # Error types
+│   ├── errors.ts              # Error types
+│   └── logging/               # Request logging utilities
 ├── packages/
 │   ├── json-pointer/          # RFC 6901 implementation
 │   │   ├── json-pointer.ts    # resolve(), set(), escape/unescape
@@ -34,12 +35,10 @@ steady/
 │   ├── json-schema/           # JSON Schema 2020-12
 │   │   ├── processor.ts       # Schema analysis
 │   │   ├── runtime-validator.ts # Data validation
-│   │   ├── response-generator.ts # Mock response generation
+│   │   ├── schema-registry.ts # Document-centric schema resolution
 │   │   └── ref-resolver.ts    # $ref resolution
-│   ├── parser/                # OpenAPI 3.x parser
-│   │   └── parser.ts          # YAML/JSON parsing
-│   └── shared/                # Common utilities
-│       └── logger.ts          # Request logging
+│   └── openapi/               # OpenAPI 3.x parser
+│       └── parser.ts          # YAML/JSON parsing
 ├── tests/edge-cases/          # Edge case tests
 └── test-fixtures/
     └── openapi-directory/     # Git submodule: 1970 real-world specs (99.5% pass)
@@ -57,8 +56,8 @@ steady/
 - Percent-decoding happens at URI fragment layer (ref-resolver.ts:171)
 - Array indices must be exact: "0", "1", "10" - reject "01", "1.5", "-1"
 
-**JSON Schema**: 91.6% compliance (1151/1257 tests). Missing:
-unevaluatedProperties, unevaluatedItems, dynamicRef.
+**JSON Schema**: 91.6% compliance (1151/1257 tests). Missing: `$dynamicRef`,
+`$dynamicAnchor`. Full support for `unevaluatedProperties`/`unevaluatedItems`.
 
 **$ref Resolution**: Handles URI fragment encoding. `#/$defs/User%20Name`resolves
 to key`"User

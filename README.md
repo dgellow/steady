@@ -41,6 +41,7 @@ Commands:
   <spec>             Start mock server (default)
 
 Options:
+  -p, --port <port>       Override server port (default: from spec or 3000)
   -r, --auto-reload       Restart on spec file changes
   -i, --interactive       Interactive TUI with expandable logs
   --log-level <level>     summary | details | full (default: summary)
@@ -53,10 +54,17 @@ Options:
 
 ### Port Configuration
 
-The server uses port 3000 by default. To use a different port, set it in your
-spec:
+The server port is determined in this order:
+
+1. `-p, --port` CLI flag
+2. `servers[0].url` port in your spec
+3. Default: 3000
 
 ```yaml
+# Option 1: CLI flag takes precedence
+steady -p 8080 api.yaml
+
+# Option 2: Set in spec
 servers:
   - url: http://localhost:8080
 ```
@@ -96,6 +104,7 @@ In `--strict` mode (default), requests are validated against:
 - **Path parameters** - type coercion and schema validation
 - **Query parameters** - required check, type validation
 - **Headers** - required headers, schema validation
+- **Cookies** - required cookies, schema validation
 - **Request body** - JSON Schema validation, content-type check
 
 Invalid requests return 400 with validation errors. In `--relaxed` mode,
@@ -132,9 +141,9 @@ Supports JSON Schema draft 2020-12 with ~91% compliance.
 - Number: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,
   `multipleOf`
 - Array: `items`, `prefixItems`, `minItems`, `maxItems`, `uniqueItems`,
-  `contains`
+  `contains`, `unevaluatedItems`
 - Object: `properties`, `required`, `additionalProperties`, `patternProperties`,
-  `propertyNames`, `minProperties`, `maxProperties`
+  `propertyNames`, `minProperties`, `maxProperties`, `unevaluatedProperties`
 - Composition: `allOf`, `anyOf`, `oneOf`, `not`
 - Conditional: `if`/`then`/`else`
 - References: `$ref`, `$defs`, `$anchor`
@@ -144,7 +153,6 @@ Supports JSON Schema draft 2020-12 with ~91% compliance.
 
 - `$dynamicRef` / `$dynamicAnchor`
 - External `$ref` (http://, file://)
-- `unevaluatedProperties` / `unevaluatedItems` (partial)
 
 ## Error Attribution
 

@@ -140,7 +140,7 @@ Deno.test("Validator: accepts valid query parameters", async () => {
   ]);
 
   const req = mockRequest("http://localhost/test?page=1&limit=10");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
@@ -153,7 +153,7 @@ Deno.test("Validator: rejects missing required query parameter", async () => {
   ]);
 
   const req = mockRequest("http://localhost/test");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
   assertEquals(result.errors.length, 1);
@@ -167,7 +167,7 @@ Deno.test("Validator: rejects invalid query parameter type", async () => {
   ]);
 
   const req = mockRequest("http://localhost/test?page=not-a-number");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
   assertExists(result.errors.find((e) => e.path === "query.page"));
@@ -181,17 +181,17 @@ Deno.test("Validator: validates query parameter constraints", async () => {
 
   // Valid
   const req1 = mockRequest("http://localhost/test?limit=50");
-  const result1 = await validator.validateRequest(req1, operation, "/test", {});
+  const result1 = await validator.validateRequest(req1, operation, {});
   assertEquals(result1.valid, true);
 
   // Too low
   const req2 = mockRequest("http://localhost/test?limit=0");
-  const result2 = await validator.validateRequest(req2, operation, "/test", {});
+  const result2 = await validator.validateRequest(req2, operation, {});
   assertEquals(result2.valid, false);
 
   // Too high
   const req3 = mockRequest("http://localhost/test?limit=500");
-  const result3 = await validator.validateRequest(req3, operation, "/test", {});
+  const result3 = await validator.validateRequest(req3, operation, {});
   assertEquals(result3.valid, false);
 });
 
@@ -202,7 +202,7 @@ Deno.test("Validator: strict mode rejects unknown query parameters", async () =>
   ]);
 
   const req = mockRequest("http://localhost/test?page=1&unknown=value");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
   assertExists(result.errors.find((e) => e.path === "query.unknown"));
@@ -216,7 +216,7 @@ Deno.test("Validator: unknown query parameters are reported as errors", async ()
   ]);
 
   const req = mockRequest("http://localhost/test?page=1&unknown=value");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false); // Validation fails, server decides action
   assertExists(result.errors.find((e) => e.path === "query.unknown"));
@@ -245,7 +245,7 @@ Deno.test("Validator: queryArrayFormat=repeat parses repeated keys", async () =>
   const req = mockRequest(
     "http://localhost/test?colors=red&colors=green&colors=blue",
   );
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -267,7 +267,7 @@ Deno.test("Validator: queryArrayFormat=comma parses comma-separated values", asy
   };
 
   const req = mockRequest("http://localhost/test?colors=red,green,blue");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -291,7 +291,7 @@ Deno.test("Validator: queryArrayFormat=brackets parses bracket notation", async 
   const req = mockRequest(
     "http://localhost/test?colors[]=red&colors[]=green&colors[]=blue",
   );
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -324,7 +324,7 @@ Deno.test("Validator: queryNestedFormat=brackets parses deepObject notation", as
   };
 
   const req = mockRequest("http://localhost/test?user[name]=sam&user[age]=30");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -355,7 +355,7 @@ Deno.test("Validator: queryNestedFormat=brackets validates nested object schema"
 
   // Missing required 'name' property
   const req = mockRequest("http://localhost/test?user[age]=30");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   // Should fail because 'name' is required
   assertEquals(result.valid, false);
@@ -387,7 +387,7 @@ Deno.test("Validator: queryNestedFormat=brackets coerces property types", async 
   const req = mockRequest(
     "http://localhost/test?filter[limit]=10&filter[active]=true",
   );
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -406,10 +406,7 @@ Deno.test("Validator: accepts valid path parameters", async () => {
   const result = await validator.validateRequest(
     req,
     operation,
-    "/users/{id}",
-    {
-      id: "123",
-    },
+    { id: "123" },
   );
 
   assertEquals(result.valid, true);
@@ -425,10 +422,7 @@ Deno.test("Validator: rejects invalid path parameter type", async () => {
   const result = await validator.validateRequest(
     req,
     operation,
-    "/users/{id}",
-    {
-      id: "abc",
-    },
+    { id: "abc" },
   );
 
   assertEquals(result.valid, false);
@@ -445,7 +439,6 @@ Deno.test("Validator: handles string path parameters", async () => {
   const result = await validator.validateRequest(
     req,
     operation,
-    "/posts/{slug}",
     { slug: "my-post-slug" },
   );
 
@@ -465,7 +458,7 @@ Deno.test("Validator: accepts valid headers", async () => {
   const req = mockRequest("http://localhost/test", {
     headers: { "X-API-Key": "secret-key" },
   });
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -477,7 +470,7 @@ Deno.test("Validator: rejects missing required header", async () => {
   ]);
 
   const req = mockRequest("http://localhost/test");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
   assertExists(result.errors.find((e) => e.path === "header.X-API-Key"));
@@ -490,7 +483,7 @@ Deno.test("Validator: optional header not required", async () => {
   ]);
 
   const req = mockRequest("http://localhost/test");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -518,7 +511,7 @@ Deno.test("Validator: accepts valid request body", async () => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: "Alice", age: 30 }),
   });
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -542,7 +535,7 @@ Deno.test("Validator: rejects invalid request body", async () => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: "Alice" }), // Missing email
   });
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
   assertExists(result.errors.find((e) => e.path?.includes("body")));
@@ -560,7 +553,7 @@ Deno.test("Validator: rejects wrong content-type", async () => {
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify({ name: "Alice" }),
   });
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
 });
@@ -577,7 +570,7 @@ Deno.test("Validator: rejects malformed JSON body", async () => {
     headers: { "Content-Type": "application/json" },
     body: "{ invalid json }",
   });
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
   assertExists(result.errors.find((e) => e.path === "body"));
@@ -602,7 +595,7 @@ Deno.test("Validator: rejects oversized content-length", async () => {
     },
     body: "{}",
   });
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
   assertExists(result.errors.find((e) => e.message?.includes("too large")));
@@ -623,7 +616,7 @@ Deno.test("Validator: rejects invalid content-length header", async () => {
     },
     body: "{}",
   });
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
   assertExists(
@@ -648,7 +641,7 @@ Deno.test("Validator: validates body for GET if spec defines it (missing body)",
 
   // Missing required body - GET without body should fail if spec requires one
   const req = mockRequest("http://localhost/test", { method: "GET" });
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
   assertEquals(result.valid, false);
   // Note: Deno's Request API doesn't allow body on GET, so we can only test missing body case
 });
@@ -662,7 +655,7 @@ Deno.test("Validator: validates body for HEAD if spec defines it", async () => {
 
   // Missing required body
   const req = mockRequest("http://localhost/test", { method: "HEAD" });
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, false);
 });
@@ -676,7 +669,7 @@ Deno.test("Validator: handles operation with no parameters", async () => {
   const operation: OperationObject = { responses: {} };
 
   const req = mockRequest("http://localhost/test");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -730,7 +723,6 @@ Deno.test("Validator: resolves $ref parameters and validates them", async () => 
   const result = await validator.validateRequest(
     req,
     operation,
-    "/transactions",
     {},
   );
 
@@ -778,7 +770,7 @@ Deno.test("Validator: handles unresolved parameter $ref gracefully", async () =>
 
   // Request should still work - the unresolved ref is skipped with a warning
   const req = mockRequest("http://localhost/test?valid=hello");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   // The valid parameter should be validated
   assertEquals(result.valid, true);
@@ -825,7 +817,7 @@ Deno.test("Validator: resolves $ref in parameter schema for array type detection
 
   // Should recognize this as an array and parse correctly
   const req = mockRequest("http://localhost/test?ids=1&ids=2&ids=3");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -872,7 +864,7 @@ Deno.test("Validator: resolves $ref in parameter schema for object type detectio
   const req = mockRequest(
     "http://localhost/test?filter[status]=active&filter[limit]=10",
   );
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -901,7 +893,7 @@ Deno.test("Validator: detects object schema with only additionalProperties", asy
   const req = mockRequest(
     "http://localhost/test?metadata[key1]=value1&metadata[key2]=value2",
   );
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });
@@ -930,7 +922,7 @@ Deno.test("Validator: detects object schema with only patternProperties", async 
 
   // Should recognize this as an object schema
   const req = mockRequest("http://localhost/test?dynamic[x-custom]=value");
-  const result = await validator.validateRequest(req, operation, "/test", {});
+  const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
 });

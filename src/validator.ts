@@ -117,7 +117,6 @@ export class RequestValidator {
   async validateRequest(
     req: Request,
     operation: OperationObject,
-    _pathPattern: string,
     pathParams: Record<string, string>,
   ): Promise<ValidationResult> {
     const errors: ValidationIssue[] = [];
@@ -155,6 +154,14 @@ export class RequestValidator {
       );
       errors.push(...headerValidation.errors);
       warnings.push(...headerValidation.warnings);
+    }
+
+    // Validate cookies
+    const cookieParams = this.resolveParams(operation.parameters, "cookie");
+    if (cookieParams.length > 0) {
+      const cookieValidation = this.validateCookies(req.headers, cookieParams);
+      errors.push(...cookieValidation.errors);
+      warnings.push(...cookieValidation.warnings);
     }
 
     // Validate request body (if spec defines one, validate it regardless of HTTP method)
@@ -473,6 +480,51 @@ export class RequestValidator {
           this.parseParamValue(value, spec.schema),
           spec.schema as Schema,
           `header.${spec.name}`,
+        );
+        this.collectErrors(validation, errors, warnings);
+      }
+    }
+
+    return { valid: errors.length === 0, errors, warnings };
+  }
+
+  /**
+   * Validate cookies using JSON Schema processor
+   */
+  private validateCookies(
+    headers: Headers,
+    cookieSpecs: ParameterObject[],
+  ): ValidationResult {
+    const errors: ValidationIssue[] = [];
+    const warnings: ValidationIssue[] = [];
+
+    // Parse cookies from Cookie header
+    const cookieHeader = headers.get("cookie");
+    const cookies: Record<string, string> = {};
+    if (cookieHeader) {
+      for (const part of cookieHeader.split(";")) {
+        const [name, ...valueParts] = part.trim().split("=");
+        if (name) {
+          cookies[name.trim()] = valueParts.join("=").trim();
+        }
+      }
+    }
+
+    for (const spec of cookieSpecs) {
+      const value = cookies[spec.name];
+
+      if (spec.required && value === undefined) {
+        errors.push({
+          path: `cookie.${spec.name}`,
+          message: "Required cookie missing",
+          expected: getSchemaType(spec.schema) || "string",
+          actual: undefined,
+        });
+      } else if (value !== undefined && spec.schema) {
+        const validation = this.validateValue(
+          this.parseParamValue(value, spec.schema),
+          spec.schema as Schema,
+          `cookie.${spec.name}`,
         );
         this.collectErrors(validation, errors, warnings);
       }
