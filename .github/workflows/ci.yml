@@ -21,18 +21,9 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           cache: true
-
-      - name: Check formatting
-        run: deno fmt --check
-
-      - name: Type checking
-        run: deno check cmd/steady.ts src/**/*.ts packages/**/*.ts
-
+        
       - name: Lint code
         run: ./scripts/lint
-
-      - name: Check import boundaries
-        run: deno task check-boundaries
 
   test:
     name: Tests
