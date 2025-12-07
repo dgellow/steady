@@ -1,6 +1,6 @@
 {
   "name": "@steady/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "Elastic-2.0",
   "exports": {
     ".": "./mod.ts",
@@ -65,11 +65,16 @@
     "strictPropertyInitialization": true
   },
   "fmt": {
-    "exclude": ["packages/json-schema/test-suite/", "tests/fixtures/"]
+    "exclude": [
+      "packages/json-schema/test-suite/",
+      "tests/fixtures/"
+    ]
   },
   "lint": {
     "rules": {
-      "tags": ["recommended"],
+      "tags": [
+        "recommended"
+      ],
       "include": [
         "ban-ts-comment",
         "no-explicit-any"
