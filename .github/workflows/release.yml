@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, edited]
   workflow_dispatch:
 
 jobs:
