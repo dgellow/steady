@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, edited, synchronize]
+  workflow_dispatch:
+
+jobs:
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          cache: true
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Show current versions
+        run: |
+          echo "## Current package versions:" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Version |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
+          for manifest in deno.json packages/*/deno.json; do
+            if [ -f "$manifest" ]; then
+              name=$(jq -r '.name // "unknown"' "$manifest")
+              version=$(jq -r '.version // "unknown"' "$manifest")
+              echo "| $name | $version |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+      - name: Run pls prep
+        run: deno run -A jsr:@dgellow/pls prep --storage=github --execute
+        env:
+          GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}
