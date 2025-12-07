@@ -60,4 +60,4 @@ jobs:
         if: steps.check.outputs.is_release == 'false'
         run: deno run -A jsr:@dgellow/pls prep --execute
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}
