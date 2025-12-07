@@ -21,7 +21,7 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           cache: true
-        
+
       - name: Lint code
         run: ./scripts/lint
 
