@@ -483,12 +483,20 @@ export class MockServer {
 
   /**
    * Select the best status code to return (prefer 200, then first available)
+   *
+   * OpenAPI allows "default" and "1XX", "2XX", etc. as response keys.
+   * We only select numeric status codes; fallback to 200 if none found.
    */
   private selectStatusCode(operation: OperationObject): string {
     if (operation.responses["200"]) return "200";
     if (operation.responses["201"]) return "201";
     if (operation.responses["204"]) return "204";
-    return Object.keys(operation.responses)[0] || "200";
+
+    // Find first numeric status code, skip "default", "1XX", etc.
+    const numericCode = Object.keys(operation.responses).find(
+      (code) => /^\d{3}$/.test(code),
+    );
+    return numericCode || "200";
   }
 
   /**
