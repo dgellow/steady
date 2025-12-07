@@ -64,7 +64,11 @@ Deno.test("SchemaValidator: validates string type correctly", async () => {
   assertEquals(validResult.errors.length, 0, "No errors for valid string");
 
   const invalidResult = validator.validate(42);
-  assertEquals(invalidResult.valid, false, "Number should fail string type check");
+  assertEquals(
+    invalidResult.valid,
+    false,
+    "Number should fail string type check",
+  );
   assertEquals(invalidResult.errors.length > 0, true, "Should have errors");
 });
 
@@ -75,7 +79,11 @@ Deno.test("SchemaValidator: validates number type correctly", async () => {
   assertEquals(validResult.valid, true, "Number should pass number type check");
 
   const invalidResult = validator.validate("not a number");
-  assertEquals(invalidResult.valid, false, "String should fail number type check");
+  assertEquals(
+    invalidResult.valid,
+    false,
+    "String should fail number type check",
+  );
 });
 
 Deno.test("SchemaValidator: validates object properties correctly", async () => {
@@ -94,7 +102,11 @@ Deno.test("SchemaValidator: validates object properties correctly", async () => 
 
   // Missing required property
   const missingRequired = validator.validate({ age: 30 });
-  assertEquals(missingRequired.valid, false, "Missing required property should fail");
+  assertEquals(
+    missingRequired.valid,
+    false,
+    "Missing required property should fail",
+  );
 
   // Wrong property type
   const wrongType = validator.validate({ name: "John", age: "thirty" });
@@ -138,7 +150,10 @@ Deno.test("SchemaValidator: includes error attribution on failures", async () =>
   assertExists(error, "Should have at least one error");
   assertExists(error.attribution, "Error should have attribution");
   assertExists(error.attribution.type, "Attribution should have type");
-  assertExists(error.attribution.confidence, "Attribution should have confidence");
+  assertExists(
+    error.attribution.confidence,
+    "Attribution should have confidence",
+  );
 });
 
 Deno.test("SchemaValidator: no attribution on valid data", async () => {
@@ -165,7 +180,11 @@ Deno.test("SchemaValidator: getProcessedSchema returns the processed schema", as
   const validator = new SchemaValidator(processedSchema);
   const returned = validator.getProcessedSchema();
 
-  assertEquals(returned, processedSchema, "Should return the same processed schema");
+  assertEquals(
+    returned,
+    processedSchema,
+    "Should return the same processed schema",
+  );
   assertExists(returned.refs, "Processed schema should have refs");
 });
 
@@ -225,7 +244,10 @@ Deno.test("SchemaValidator: validateOrThrow error includes validation result", a
     throw new Error("Should have thrown");
   } catch (e) {
     const error = e as Error & { validationResult?: unknown };
-    assertExists(error.validationResult, "Error should include validationResult");
+    assertExists(
+      error.validationResult,
+      "Error should include validationResult",
+    );
     assertEquals(
       (error.validationResult as { valid: boolean }).valid,
       false,
@@ -262,7 +284,11 @@ Deno.test("SchemaValidator: handles nested objects correctly", async () => {
   const invalidResult = validator.validate({
     user: { email: "john@example.com" },
   });
-  assertEquals(invalidResult.valid, false, "Missing nested required property should fail");
+  assertEquals(
+    invalidResult.valid,
+    false,
+    "Missing nested required property should fail",
+  );
 });
 
 Deno.test("SchemaValidator: handles enum correctly", async () => {

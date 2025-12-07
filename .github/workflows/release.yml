@@ -7,7 +7,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -54,7 +54,7 @@ jobs:
         if: steps.check.outputs.is_release == 'true'
         run: deno run -A jsr:@dgellow/pls --storage=github --execute
         env:
-          GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}         
+          GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}
 
       - name: Create/update release PR (on regular commit)
         if: steps.check.outputs.is_release == 'false'
