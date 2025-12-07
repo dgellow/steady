@@ -539,7 +539,8 @@ export class RuntimeValidator {
       ));
     }
 
-    if (schema.multipleOf !== undefined) {
+    if (schema.multipleOf !== undefined && schema.multipleOf > 0) {
+      // Skip validation if multipleOf is invalid (must be > 0 per JSON Schema)
       const division = data / schema.multipleOf;
       const rounded = Math.round(division);
       const isMultiple = Math.abs(division - rounded) <

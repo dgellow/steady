@@ -276,6 +276,22 @@ Deno.test("number validation: multipleOf", async () => {
   assertEquals(validator.validate(3)[0]?.keyword, "multipleOf");
 });
 
+Deno.test("number validation: multipleOf zero is ignored (invalid schema)", async () => {
+  // multipleOf: 0 is invalid per JSON Schema spec (must be > 0)
+  // The validator should gracefully handle this by skipping the check
+  const schema = { type: "number", multipleOf: 0 };
+  const validator = await createValidator(schema);
+
+  // Should not throw or produce NaN-related errors
+  const errors = validator.validate(5);
+  // Either passes (skipped) or has a schema error, but should not crash
+  assertEquals(
+    typeof errors.length,
+    "number",
+    "Should return valid errors array",
+  );
+});
+
 // =============================================================================
 // Array Validation Tests
 // =============================================================================

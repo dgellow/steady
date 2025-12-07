@@ -68,9 +68,15 @@ export class SchemaRegistry {
 
     // Handle #/path/to/schema format
     // Percent-decode for URI fragment compatibility (RFC 3986)
-    const path = pointer.startsWith("#")
-      ? decodeURIComponent(pointer.slice(1))
-      : decodeURIComponent(pointer);
+    let path: string;
+    try {
+      path = pointer.startsWith("#")
+        ? decodeURIComponent(pointer.slice(1))
+        : decodeURIComponent(pointer);
+    } catch {
+      // Invalid percent encoding
+      return undefined;
+    }
 
     try {
       return resolvePointer(this.document, path);
@@ -432,7 +438,7 @@ export class RegistryResponseGenerator {
       ? schema.exclusiveMaximum - 1
       : (schema.maximum ?? 100);
     let num = Math.floor(min + this.random() * (max - min + 1));
-    if (schema.multipleOf) {
+    if (schema.multipleOf && schema.multipleOf > 0) {
       num = Math.floor(num / schema.multipleOf) * schema.multipleOf;
     }
     return num;
@@ -446,7 +452,7 @@ export class RegistryResponseGenerator {
       ? schema.exclusiveMaximum - Number.EPSILON
       : (schema.maximum ?? 100);
     let num = min + this.random() * (max - min);
-    if (schema.multipleOf) {
+    if (schema.multipleOf && schema.multipleOf > 0) {
       num = Math.floor(num / schema.multipleOf) * schema.multipleOf;
     }
     return num;
@@ -853,7 +859,11 @@ export class RegistryValidator {
           message: `Number must be < ${schema.exclusiveMaximum}`,
         });
       }
-      if (schema.multipleOf !== undefined && data % schema.multipleOf !== 0) {
+      if (
+        schema.multipleOf !== undefined &&
+        schema.multipleOf > 0 &&
+        data % schema.multipleOf !== 0
+      ) {
         errors.push({
           instancePath,
           schemaPath: `${schemaPath}/multipleOf`,
