@@ -157,9 +157,13 @@ async function startServer(
     !options.portOverride && spec.servers && spec.servers.length > 0 &&
     spec.servers[0]
   ) {
-    const serverUrl = new URL(spec.servers[0].url);
-    if (serverUrl.port) {
-      port = parseInt(serverUrl.port, 10);
+    try {
+      const serverUrl = new URL(spec.servers[0].url);
+      if (serverUrl.port) {
+        port = parseInt(serverUrl.port, 10);
+      }
+    } catch {
+      // Invalid URL in spec.servers - ignore and use default port
     }
   }
 
