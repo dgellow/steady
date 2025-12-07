@@ -809,14 +809,18 @@ export class RegistryValidator {
         });
       }
       if (schema.pattern !== undefined) {
-        const regex = new RegExp(schema.pattern);
-        if (!regex.test(data)) {
-          errors.push({
-            instancePath,
-            schemaPath: `${schemaPath}/pattern`,
-            keyword: "pattern",
-            message: `String must match pattern: ${schema.pattern}`,
-          });
+        try {
+          const regex = new RegExp(schema.pattern);
+          if (!regex.test(data)) {
+            errors.push({
+              instancePath,
+              schemaPath: `${schemaPath}/pattern`,
+              keyword: "pattern",
+              message: `String must match pattern: ${schema.pattern}`,
+            });
+          }
+        } catch {
+          // Invalid regex pattern in schema - skip validation
         }
       }
     }
@@ -986,9 +990,14 @@ export class RegistryValidator {
         for (const key of keys) {
           if (!defined.has(key)) {
             // Check pattern properties
-            const matchesPattern = patternProps.some((pattern) =>
-              new RegExp(pattern).test(key)
-            );
+            const matchesPattern = patternProps.some((pattern) => {
+              try {
+                return new RegExp(pattern).test(key);
+              } catch {
+                // Invalid regex pattern - treat as no match
+                return false;
+              }
+            });
             if (!matchesPattern) {
               errors.push({
                 instancePath: `${instancePath}/${key}`,
