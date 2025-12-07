@@ -10,6 +10,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
+import { SchemaValidator } from "../../../packages/json-schema/schema-validator.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
 Deno.test("EDGE: allOf with circular self-reference", async () => {
@@ -59,11 +60,21 @@ Deno.test("EDGE: allOf with conflicting type requirements", async () => {
   // This schema is technically valid but creates an impossible constraint
   // Validation of data should fail, but schema processing should succeed
   assertEquals(result.valid, true, "Schema itself should be valid");
+  assertExists(result.schema, "Should return processed schema");
 
-  // TODO: Add data validation test to verify impossibility is detected
-  // const validator = new SchemaValidator(result.schema);
-  // assertEquals(validator.validate("test").valid, false);
-  // assertEquals(validator.validate(42).valid, false);
+  // Data validation test to verify impossibility is detected
+  const validator = new SchemaValidator(result.schema);
+  // Neither a string nor a number can satisfy both type requirements
+  assertEquals(
+    validator.validate("test").valid,
+    false,
+    "String should fail - cannot be both string and number",
+  );
+  assertEquals(
+    validator.validate(42).valid,
+    false,
+    "Number should fail - cannot be both string and number",
+  );
 });
 
 Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
@@ -80,10 +91,25 @@ Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
 
   // Schema is valid, but creates impossible constraint
   assertEquals(result.valid, true, "Schema itself should be valid");
+  assertExists(result.schema, "Should return processed schema");
 
-  // TODO: Add data validation test
-  // const validator = new SchemaValidator(result.schema);
-  // assertEquals(validator.validate(7).valid, false);
+  // Data validation test - no number can satisfy min >= 10 AND max <= 5
+  const validator = new SchemaValidator(result.schema);
+  assertEquals(
+    validator.validate(7).valid,
+    false,
+    "7 should fail - cannot be >= 10 AND <= 5",
+  );
+  assertEquals(
+    validator.validate(10).valid,
+    false,
+    "10 should fail - violates maximum: 5",
+  );
+  assertEquals(
+    validator.validate(3).valid,
+    false,
+    "3 should fail - violates minimum: 10",
+  );
 });
 
 Deno.test({
@@ -243,7 +269,12 @@ Deno.test("EDGE: allOf with mixed composition and recursion", async () => {
 
 Deno.test("EDGE: allOf with additionalProperties false across schemas", async () => {
   // This pattern is known to break many tools - they incorrectly reject
-  // properties defined in allOf schemas
+  // properties defined in allOf schemas.
+  //
+  // NOTE: This is actually CORRECT behavior per JSON Schema spec!
+  // additionalProperties at root level only sees properties defined at root level,
+  // NOT properties defined in allOf subschemas. This is why unevaluatedProperties
+  // was added in later JSON Schema drafts.
   const schema: Schema = {
     allOf: [
       {
@@ -266,19 +297,26 @@ Deno.test("EDGE: allOf with additionalProperties false across schemas", async ()
 
   // Schema itself should be valid
   assertEquals(result.valid, true, "Schema should be valid");
+  assertExists(result.schema, "Should return processed schema");
 
-  // TODO: Add data validation test - this is the CORE of the edge case
-  // const validator = new SchemaValidator(result.schema);
+  // Data validation test - this is the CORE of the edge case
+  const validator = new SchemaValidator(result.schema);
+
+  // Per JSON Schema spec, additionalProperties: false at root only knows about
+  // properties defined at root level. Properties in allOf are NOT visible to it.
+  // This means ALL properties appear "additional" to the root schema.
   //
-  // // SHOULD accept - properties defined in allOf
-  // const validData = { a: "x", b: "y", c: "z" };
-  // assertEquals(validator.validate(validData).valid, true,
-  //   "Should accept properties from allOf");
-  //
-  // // SHOULD reject - truly additional property
-  // const invalidData = { a: "x", b: "y", c: "z", d: "extra" };
-  // assertEquals(validator.validate(invalidData).valid, false,
-  //   "Should reject additional properties");
+  // This is why unevaluatedProperties was introduced - it tracks which properties
+  // were "evaluated" by any subschema.
+  const dataWithAllOfProps = { a: "x", b: "y", c: "z" };
+  const validation = validator.validate(dataWithAllOfProps);
+  // Note: This REJECTS because additionalProperties doesn't see allOf properties
+  // This is expected per spec, though many find it surprising
+  assertEquals(
+    validation.valid,
+    false,
+    "Strict JSON Schema: additionalProperties rejects allOf properties (use unevaluatedProperties instead)",
+  );
 });
 
 Deno.test("EDGE: allOf with empty schemas", async () => {
@@ -331,10 +369,20 @@ Deno.test("EDGE: allOf with false schema (impossible)", async () => {
     true,
     "Schema with false in allOf should be valid",
   );
+  assertExists(result.schema, "Should return processed schema");
 
-  // TODO: Add data validation test
-  // const validator = new SchemaValidator(result.schema);
-  // assertEquals(validator.validate({}).valid, false);
+  // Data validation test - false in allOf rejects everything
+  const validator = new SchemaValidator(result.schema);
+  assertEquals(
+    validator.validate({}).valid,
+    false,
+    "Empty object should fail - false rejects everything",
+  );
+  assertEquals(
+    validator.validate("anything").valid,
+    false,
+    "Any value should fail - false rejects everything",
+  );
 });
 
 Deno.test("EDGE: allOf with nested allOf", async () => {
@@ -474,13 +522,25 @@ Deno.test("EDGE: allOf merging conflicting required arrays", async () => {
     true,
     "Should handle merging required arrays in allOf",
   );
+  assertExists(result.schema, "Should return processed schema");
 
-  // TODO: Add data validation test
-  // const validator = new SchemaValidator(result.schema);
-  // // Should require both a and c
-  // assertEquals(validator.validate({ a: "x" }).valid, false);
-  // assertEquals(validator.validate({ c: "z" }).valid, false);
-  // assertEquals(validator.validate({ a: "x", c: "z" }).valid, true);
+  // Data validation test - should require both a and c (union of required arrays)
+  const validator = new SchemaValidator(result.schema);
+  assertEquals(
+    validator.validate({ a: "x" }).valid,
+    false,
+    "Missing 'c' should fail",
+  );
+  assertEquals(
+    validator.validate({ c: "z" }).valid,
+    false,
+    "Missing 'a' should fail",
+  );
+  assertEquals(
+    validator.validate({ a: "x", c: "z" }).valid,
+    true,
+    "Both 'a' and 'c' present should pass",
+  );
 });
 
 Deno.test("EDGE: allOf with unevaluatedProperties", async () => {
