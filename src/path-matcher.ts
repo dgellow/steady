@@ -77,7 +77,12 @@ export function matchCompiledPath(
 
     if (compiledSeg.type === "param") {
       // Parameter segment - extract the value
-      params[compiledSeg.name] = decodeURIComponent(requestSeg);
+      try {
+        params[compiledSeg.name] = decodeURIComponent(requestSeg);
+      } catch {
+        // Invalid percent encoding - treat as no match
+        return null;
+      }
     } else if (compiledSeg.value !== requestSeg) {
       // Literal segment must match exactly
       return null;

@@ -177,3 +177,19 @@ Deno.test("matchCompiledPath: handles parameter-only path", () => {
 
   assertEquals(result, { resource: "users", id: "123" });
 });
+
+Deno.test("matchCompiledPath: returns null for invalid percent encoding", () => {
+  const compiled = compilePathPattern("/items/{name}");
+
+  // Invalid percent encoding: %ZZ is not valid hex
+  const result = matchCompiledPath("/items/%ZZinvalid", compiled);
+  assertEquals(
+    result,
+    null,
+    "Invalid percent encoding should return null, not throw",
+  );
+
+  // Incomplete percent encoding: %2 without second hex digit
+  const result2 = matchCompiledPath("/items/%2", compiled);
+  assertEquals(result2, null, "Incomplete percent encoding should return null");
+});

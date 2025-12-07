@@ -1,3 +1,18 @@
+/**
+ * Safely stringify a value, handling circular references and non-serializable values
+ */
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    // Handle circular references or non-serializable values
+    if (typeof value === "object" && value !== null) {
+      return "[Complex Object]";
+    }
+    return String(value);
+  }
+}
+
 export interface ErrorContext {
   // Where
   specFile?: string;
@@ -65,10 +80,10 @@ export class SteadyError extends Error {
 
     if (this.context.expected !== undefined) {
       output += `\n\n  ${GREEN}Expected:${RESET} ${
-        JSON.stringify(this.context.expected)
+        safeStringify(this.context.expected)
       }`;
       output += `\n  ${RED}Actual:${RESET} ${
-        JSON.stringify(this.context.actual)
+        safeStringify(this.context.actual)
       }`;
     }
 
