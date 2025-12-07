@@ -1,0 +1,35 @@
+name: Release PR Sync
+
+on:
+  pull_request:
+    types: [edited]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    # Only run for release PRs from pls-release branch
+    if: github.head_ref == 'pls-release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+          cache: true
+
+      - name: Sync PR with selected version
+        run: deno run -A jsr:@dgellow/pls prep --github-pr=${{ github.event.pull_request.number }} --execute
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
