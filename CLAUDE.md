@@ -5,7 +5,7 @@ clear error attribution (SDK bug vs spec issue).
 
 ## Commands
 
-**ALWAYS use the scripts in `scripts/` directory. 
+**ALWAYS use the scripts in `scripts/` directory.
 
 ```bash
 ./scripts/bootstrap   # Install dependencies, setup environment
@@ -14,7 +14,8 @@ clear error attribution (SDK bug vs spec issue).
 ./scripts/format      # Format code
 ```
 
-These scripts handle all the necessary flags and environment setup automatically.
+These scripts handle all the necessary flags and environment setup
+automatically.
 
 ## Project Structure
 
