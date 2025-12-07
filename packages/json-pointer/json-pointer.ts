@@ -280,19 +280,35 @@ export function set(
 
 /**
  * Get all JSON Pointers that exist in a document
+ *
+ * Handles circular references by tracking visited objects to prevent
+ * infinite recursion and stack overflow.
  */
 export function listPointers(document: unknown, prefix = ""): string[] {
   const pointers: string[] = [];
+  const visited = new WeakSet<object>();
 
   function traverse(obj: unknown, path: string[]) {
     const currentPointer = formatPointer(path);
     pointers.push(currentPointer);
 
     if (Array.isArray(obj)) {
+      // Check for circular reference
+      if (visited.has(obj)) {
+        return;
+      }
+      visited.add(obj);
+
       obj.forEach((_, index) => {
         traverse(obj[index], [...path, index.toString()]);
       });
     } else if (typeof obj === "object" && obj !== null) {
+      // Check for circular reference
+      if (visited.has(obj)) {
+        return;
+      }
+      visited.add(obj);
+
       const record = obj as Record<string, unknown>;
       Object.keys(record).forEach((key) => {
         traverse(record[key], [...path, key]);

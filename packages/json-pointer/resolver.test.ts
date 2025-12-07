@@ -351,3 +351,27 @@ Deno.test("resolveReference - preserves non-ref properties in resolved objects",
     ],
   });
 });
+
+Deno.test("resolveReference - throws on invalid percent encoding", () => {
+  const doc = {
+    components: {
+      schemas: {
+        User: { type: "object" },
+      },
+    },
+  };
+
+  // Invalid percent encoding: %GG is not valid hex
+  assertThrows(
+    () => resolveReference(doc, "#/components/schemas/%GGinvalid"),
+    JsonPointerError,
+    "Invalid percent encoding",
+  );
+
+  // Incomplete percent encoding: %2 without second hex digit
+  assertThrows(
+    () => resolveReference(doc, "#/components/schemas/%2"),
+    JsonPointerError,
+    "Invalid percent encoding",
+  );
+});

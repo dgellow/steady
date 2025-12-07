@@ -76,6 +76,15 @@ Name"` (percent-decoded before JSON Pointer parsing).
 
 ## Testing Approach
 
+**RED-GREEN TESTING IS MANDATORY**: Always write a failing test BEFORE fixing a
+bug.
+
+1. Write a test that exposes the bug (should fail - RED)
+2. Run the test to confirm it fails
+3. Fix the bug
+4. Run the test to confirm it passes (GREEN)
+5. Run all tests to ensure no regressions
+
 ```bash
 # Run all tests
 ./scripts/test

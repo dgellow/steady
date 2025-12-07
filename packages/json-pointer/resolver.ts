@@ -32,7 +32,18 @@ export function resolveReference(
 
   // Remove "#" and percent-decode the URI fragment
   // Per RFC 3986, URI fragments may be percent-encoded
-  const pointer = decodeURIComponent(ref.slice(1));
+  let pointer: string;
+  try {
+    pointer = decodeURIComponent(ref.slice(1));
+  } catch (error) {
+    if (error instanceof URIError) {
+      throw new JsonPointerError(
+        `Invalid percent encoding in reference: ${ref}`,
+        ref,
+      );
+    }
+    throw error;
+  }
 
   if (!exists(document, pointer)) {
     throw new JsonPointerError(
