@@ -1,71 +1,14 @@
 name: Publish
 
 on:
-  push:
-    branches: [main]
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      action:
-        description: "Action to run"
-        required: true
-        type: choice
-        options:
-          - prep
-          - publish
 
 jobs:
-  # Runs on main push: analyzes commits and creates/updates release PR
-  prepare-release:
-    name: Prepare Release
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.action == 'prep')
-
-    permissions:
-      contents: write
-      pull-requests: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Deno
-        uses: denoland/setup-deno@v2
-        with:
-          cache: true
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Show current versions
-        run: |
-          echo "## Current package versions:" >> $GITHUB_STEP_SUMMARY
-          echo "| Package | Version |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
-          for manifest in deno.json packages/*/deno.json; do
-            if [ -f "$manifest" ]; then
-              name=$(jq -r '.name // "unknown"' "$manifest")
-              version=$(jq -r '.version // "unknown"' "$manifest")
-              echo "| $name | $version |" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-
-      - name: Run pls prep
-        run: |
-          deno run -A jsr:@dgellow/pls prep --storage=github --execute
-        env:
-          GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}
-
-  # Runs on GitHub release creation: publishes all packages to JSR
   publish-jsr:
     name: Publish to JSR
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.action == 'publish')
 
     permissions:
       contents: read
