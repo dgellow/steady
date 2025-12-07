@@ -5,31 +5,16 @@ clear error attribution (SDK bug vs spec issue).
 
 ## Commands
 
-```bash
-# ALWAYS use deno task, never raw deno commands
-deno task test              # Run all tests (195 tests)
-deno task test:watch        # Watch mode
-deno task test:json-schema  # JSON Schema package only
-deno task test:parser       # Parser package only
-deno task test:json-pointer # JSON Pointer package only
-deno task test:specs        # Test against 1970 real-world OpenAPI specs
-deno task check             # Type check
-deno task lint              # Lint
-deno task fmt               # Format
-deno task dev               # Dev server with auto-reload
-deno task start             # Production server
-```
-
-**CRITICAL**: `deno test` without `deno task` will fail (missing permissions).
-
-**Certificate Issues**: If you encounter TLS/certificate errors when downloading
-packages from npm or jsr registries, set this environment variable:
+**ALWAYS use the scripts in `scripts/` directory. NEVER use `deno task` directly.**
 
 ```bash
-export DENO_TLS_CA_STORE=system
+./scripts/bootstrap   # Install dependencies, setup environment
+./scripts/test        # Run all tests
+./scripts/lint        # Lint code
+./scripts/format      # Format code
 ```
 
-Or prefix commands with it: `DENO_TLS_CA_STORE=system deno task test`
+These scripts handle all the necessary flags and environment setup automatically.
 
 ## Project Structure
 
@@ -91,14 +76,17 @@ Name"` (percent-decoded before JSON Pointer parsing).
 ## Testing Approach
 
 ```bash
+# Run all tests
+./scripts/test
+
 # Run specific test file
-deno task test packages/json-pointer/json-pointer.test.ts
+./scripts/test packages/json-pointer/json-pointer.test.ts
 
 # Run with filter
-deno task test --filter "RFC 6901"
+./scripts/test --filter "RFC 6901"
 ```
 
-Tests must pass before committing. Use `deno task test` to verify.
+Tests must pass before committing. Use `./scripts/test` to verify.
 
 ## Error Messages
 
@@ -131,6 +119,4 @@ Working:
 
 Test coverage gaps:
 
-- schema-validator.ts (no tests)
-- response-generator.ts (no tests)
-- src/validator.ts (no tests)
+- response-generator.ts (limited tests)
