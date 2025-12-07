@@ -45,7 +45,7 @@ Options:
   -i, --interactive       Interactive TUI with expandable logs
   --log-level <level>     summary | details | full (default: summary)
   --log-bodies            Show request/response bodies
-  --no-log                Disable request logging
+  --log=false             Disable request logging
   --strict                Reject invalid requests (default)
   --relaxed               Log warnings but return responses anyway
   -h, --help              Show help
