@@ -388,3 +388,27 @@ Deno.test("RFC 6901: array index must be exact non-negative integer string", () 
     "Invalid array index",
   );
 });
+
+Deno.test("listPointers - handles circular references without hanging", () => {
+  // Create a document with circular references
+  const doc: Record<string, unknown> = {
+    name: "root",
+    child: {
+      name: "child",
+    },
+  };
+  // Create circular reference
+  (doc.child as Record<string, unknown>).parent = doc;
+
+  // This should complete without hanging or stack overflow
+  // Either by detecting the cycle or by some other mechanism
+  const pointers = listPointers(doc);
+
+  // Should at least return the root pointer
+  assertEquals(pointers.includes(""), true);
+  // Should have found /name and /child/name
+  assertEquals(pointers.includes("/name"), true);
+  assertEquals(pointers.includes("/child"), true);
+  assertEquals(pointers.includes("/child/name"), true);
+  // Note: we're NOT asserting exact count because cycle handling may vary
+});
