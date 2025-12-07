@@ -327,7 +327,7 @@ export class MockServer {
       );
 
       const timing = Math.round(performance.now() - startTime);
-      this.logger.logResponse(parseInt(statusCode), timing, validation);
+      this.logger.logResponse(parseInt(statusCode, 10), timing, validation);
 
       // Add mode header to response
       return this.addModeHeader(response, effectiveMode);
@@ -652,7 +652,7 @@ export class MockServer {
     return new Response(
       bodyString,
       {
-        status: parseInt(statusCode),
+        status: parseInt(statusCode, 10),
         headers,
       },
     );

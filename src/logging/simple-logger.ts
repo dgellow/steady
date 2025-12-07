@@ -178,7 +178,7 @@ export class SimpleLogger extends RequestLogger {
       // deno-lint-ignore no-control-regex
       const mouseMatch = input.match(/\x1b\[<(\d+);(\d+);(\d+)([Mm])/);
       if (mouseMatch && mouseMatch[1] && mouseMatch[4]) {
-        const button = parseInt(mouseMatch[1]);
+        const button = parseInt(mouseMatch[1], 10);
         const press = mouseMatch[4] === "M";
 
         if (press) {
