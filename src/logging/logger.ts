@@ -201,10 +201,32 @@ export class RequestLogger {
     return filtered.join(", ");
   }
 
-  private formatBody(_req: Request): string {
-    // This is a simplified version - in reality we'd need to handle
-    // different content types, streaming, etc.
-    return "(request body formatting not yet implemented)";
+  private formatBody(req: Request): string {
+    // Request body is a ReadableStream that can only be consumed once.
+    // Since the validator consumes it, we can only show metadata here.
+    const contentType = req.headers.get("content-type");
+    const contentLength = req.headers.get("content-length");
+
+    if (!contentType) {
+      return `${DIM}(no content-type header)${RESET}`;
+    }
+
+    const typeInfo = contentType.split(";")[0]?.trim() || contentType;
+    const sizeInfo = contentLength
+      ? ` ${DIM}(${this.formatSize(parseInt(contentLength, 10))})${RESET}`
+      : "";
+
+    return `${typeInfo}${sizeInfo}`;
+  }
+
+  private formatSize(bytes: number): string {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    } else if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    } else {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
   }
 
   private formatResponseBody(body: unknown): string {
