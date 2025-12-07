@@ -10,7 +10,7 @@
  */
 
 import type { ResponseObject, ServerConfig } from "./types.ts";
-import { isReference } from "./types.ts";
+import { isReference, VERSION } from "./types.ts";
 import type {
   OpenAPISpec,
   OperationObject,
@@ -68,6 +68,7 @@ export class MockServer {
   private logger: RequestLogger;
   private validator: RequestValidator;
   private diagnosticCollector: DiagnosticCollector;
+  private serverFinished: Promise<void> | null = null;
 
   // Pre-compiled routes for O(1) exact matches and efficient pattern matching
   private exactRoutes = new Map<string, PathItemObject>();
@@ -147,7 +148,7 @@ export class MockServer {
       startInkSimpleLogger(this.logger);
     }
 
-    Deno.serve({
+    const server = Deno.serve({
       port: this.config.port,
       hostname: this.config.host,
       signal: this.abortController.signal,
@@ -155,6 +156,9 @@ export class MockServer {
         this.printStartupMessage();
       },
     }, (req) => this.handleRequest(req));
+
+    // Store the finished promise for proper shutdown
+    this.serverFinished = server.finished;
 
     // Handle graceful shutdown
     if (!this.config.interactive) {
@@ -167,10 +171,18 @@ export class MockServer {
     }
   }
 
-  stop(): void {
+  /**
+   * Stop the server and wait for it to fully shut down.
+   * Returns a Promise that resolves when the server has stopped.
+   */
+  async stop(): Promise<void> {
     this.abortController.abort();
     if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
       this.logger.stop();
+    }
+    // Wait for the server to fully stop
+    if (this.serverFinished) {
+      await this.serverFinished;
     }
   }
 
@@ -199,7 +211,7 @@ export class MockServer {
     const stats = this.document.getStats();
     const diagnostics = this.diagnosticCollector.getStaticDiagnostics();
 
-    console.log(`\n${BOLD}Steady Mock Server v1.0.0${RESET}`);
+    console.log(`\n${BOLD}Steady Mock Server v${VERSION}${RESET}`);
     console.log(
       `Loaded spec: ${this.spec.info.title} v${this.spec.info.version}`,
     );
@@ -291,7 +303,6 @@ export class MockServer {
       const validation = await this.validator.validateRequest(
         req,
         operation,
-        pathPattern,
         pathParams,
       );
 
@@ -370,7 +381,7 @@ export class MockServer {
     return new Response(
       JSON.stringify({
         status: "healthy",
-        version: "1.0.0",
+        version: VERSION,
         spec: {
           title: this.spec.info.title,
           version: this.spec.info.version,

@@ -131,20 +131,19 @@ export class SchemaRegistry {
    * Handles both internal (#/...) and anchor ($anchor) references.
    */
   resolveRef(ref: string): RegistrySchema | undefined {
-    // Handle JSON Pointer references
+    // Handle JSON Pointer references (e.g., "#/components/schemas/User")
     if (ref.startsWith("#")) {
       return this.get(ref);
     }
 
-    // Handle $anchor references (bare string like "myAnchor")
-    // Search the document for a schema with matching $anchor
-    const anchor = ref.startsWith("#") ? ref.slice(1) : ref;
-    const anchorSchema = this.findAnchor(anchor);
+    // At this point, ref is a bare string (not starting with #)
+    // Try $anchor lookup first (e.g., "myAnchor")
+    const anchorSchema = this.findAnchor(ref);
     if (anchorSchema) {
       return anchorSchema;
     }
 
-    // Handle $id references
+    // Handle $id references (e.g., "schema://example.com/user")
     const idSchema = this.findById(ref);
     if (idSchema) {
       return idSchema;
@@ -819,8 +818,16 @@ export class RegistryValidator {
               message: `String must match pattern: ${schema.pattern}`,
             });
           }
-        } catch {
-          // Invalid regex pattern in schema - skip validation
+        } catch (e) {
+          // Invalid regex pattern in schema - report as schema error
+          errors.push({
+            instancePath,
+            schemaPath: `${schemaPath}/pattern`,
+            keyword: "pattern",
+            message: `Invalid regex pattern in schema: ${schema.pattern} (${
+              e instanceof Error ? e.message : String(e)
+            })`,
+          });
         }
       }
     }

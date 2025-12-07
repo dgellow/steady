@@ -21,13 +21,14 @@ export interface AttributedErrorContext extends ErrorContext {
 
 /**
  * Reference resolution error - usually a spec issue
+ * Named RefResolutionError to avoid shadowing JavaScript's built-in ReferenceError
  */
-export class ReferenceError extends SteadyError {
+export class RefResolutionError extends SteadyError {
   readonly source: ErrorSource = "spec";
 
   constructor(message: string, context: ErrorContext) {
     super(message, { ...context, errorType: "reference" });
-    this.name = "ReferenceError";
+    this.name = "RefResolutionError";
   }
 }
 
@@ -118,8 +119,8 @@ export function circularReferenceError(
   _refPath: string,
   cycle: string[],
   specFile?: string,
-): ReferenceError {
-  return new ReferenceError("Circular reference detected", {
+): RefResolutionError {
+  return new RefResolutionError("Circular reference detected", {
     specFile,
     errorType: "reference",
     reason: `Schema references itself, creating an infinite loop`,

@@ -3,7 +3,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { parseSpecFromFile, SteadyError } from "@steady/openapi";
 import { LogLevel } from "../src/logging/mod.ts";
-import { ServerConfig } from "../src/types.ts";
+import { DEFAULT_PORT, ServerConfig } from "../src/types.ts";
 
 // ANSI colors
 const BOLD = "\x1b[1m";
@@ -145,14 +145,14 @@ async function startServer(
       queryNestedFormat?: "none" | "brackets";
     };
   },
-): Promise<{ start: () => void; stop: () => void }> {
+): Promise<{ start: () => void; stop: () => Promise<void> }> {
   // Lazy import to avoid loading server code for validate command
   const { MockServer } = await import("../src/server.ts");
   // Parse the OpenAPI spec
   const spec = await parseSpecFromFile(specPath);
 
   // Determine port: CLI flag > spec > default
-  let port = options.portOverride ?? 3000;
+  let port = options.portOverride ?? DEFAULT_PORT;
   if (
     !options.portOverride && spec.servers && spec.servers.length > 0 &&
     spec.servers[0]
@@ -203,7 +203,7 @@ async function startWithWatch(
     };
   },
 ) {
-  let server: { start: () => void; stop: () => void } | null = null;
+  let server: { start: () => void; stop: () => Promise<void> } | null = null;
 
   // Initial start
   try {
@@ -228,11 +228,9 @@ async function startWithWatch(
         `\n🔄 ${BOLD}Detected change${RESET} - restarting server...\n`,
       );
 
-      // Stop existing server
+      // Stop existing server and wait for it to fully shut down
       if (server) {
-        server.stop();
-        // Give it a moment to clean up
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await server.stop();
       }
 
       // Restart
