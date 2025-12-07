@@ -175,6 +175,53 @@ Deno.test("type validation: array of types works", async () => {
   assertEquals(validator.validate(true).length, 1);
 });
 
+Deno.test("type validation: number rejects NaN", async () => {
+  const schema = { type: "number" };
+  const validator = await createValidator(schema);
+
+  const errors = validator.validate(NaN);
+
+  assertEquals(errors.length, 1, "NaN should be rejected for number type");
+  assertEquals(errors[0]?.keyword, "type");
+});
+
+Deno.test("type validation: integer rejects NaN", async () => {
+  const schema = { type: "integer" };
+  const validator = await createValidator(schema);
+
+  const errors = validator.validate(NaN);
+
+  assertEquals(errors.length, 1, "NaN should be rejected for integer type");
+  assertEquals(errors[0]?.keyword, "type");
+});
+
+Deno.test("type validation: number rejects Infinity", async () => {
+  const schema = { type: "number" };
+  const validator = await createValidator(schema);
+
+  assertEquals(
+    validator.validate(Infinity).length,
+    1,
+    "Infinity should be rejected",
+  );
+  assertEquals(
+    validator.validate(-Infinity).length,
+    1,
+    "-Infinity should be rejected",
+  );
+});
+
+Deno.test("type validation: integer rejects Infinity", async () => {
+  const schema = { type: "integer" };
+  const validator = await createValidator(schema);
+
+  assertEquals(
+    validator.validate(Infinity).length,
+    1,
+    "Infinity should be rejected for integer type",
+  );
+});
+
 // =============================================================================
 // String Validation Tests
 // =============================================================================

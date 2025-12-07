@@ -1421,12 +1421,19 @@ export class RuntimeValidator {
 
   /**
    * Utility: Get JSON type of value
+   *
+   * NaN, Infinity, and -Infinity are not valid JSON numbers per RFC 8259,
+   * so they are classified as "object" (fallback) and will fail type validation.
    */
   private getType(data: unknown): SchemaType {
     if (data === null) return "null";
     if (typeof data === "boolean") return "boolean";
     if (typeof data === "string") return "string";
     if (typeof data === "number") {
+      // NaN and Infinity are not valid JSON numbers
+      if (!Number.isFinite(data)) {
+        return "object"; // Will fail type validation for number/integer
+      }
       return Number.isInteger(data) ? "integer" : "number";
     }
     if (Array.isArray(data)) return "array";
