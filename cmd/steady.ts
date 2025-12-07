@@ -159,7 +159,7 @@ async function startServer(
   ) {
     const serverUrl = new URL(spec.servers[0].url);
     if (serverUrl.port) {
-      port = parseInt(serverUrl.port);
+      port = parseInt(serverUrl.port, 10);
     }
   }
 
