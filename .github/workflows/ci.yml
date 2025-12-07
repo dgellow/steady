@@ -17,6 +17,8 @@ jobs:
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
+        with:
+          cache: true
 
       - name: Check formatting
         run: deno fmt --check
@@ -40,6 +42,35 @@ jobs:
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
+        with:
+          cache: true
 
       - name: Run tests
         run: ./scripts/test
+
+  test-openapi-directory:
+    name: OpenAPI Directory Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache submodules
+        id: cache-submodules
+        uses: actions/cache@v4
+        with:
+          path: test-fixtures/openapi-directory
+          key: submodules-${{ hashFiles('.gitmodules') }}
+
+      - name: Checkout submodules
+        if: steps.cache-submodules.outputs.cache-hit != 'true'
+        run: git submodule update --init --recursive
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          cache: true
+
+      - name: Run OpenAPI directory tests
+        run: deno task test:specs

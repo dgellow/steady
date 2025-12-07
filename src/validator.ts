@@ -385,8 +385,9 @@ export class RequestValidator {
     }
 
     // Check for unknown parameters - reported as errors, server decides based on effective mode
-    const { known: knownParams, dynamicPrefixes } =
-      this.getKnownParamKeys(paramSpecs);
+    const { known: knownParams, dynamicPrefixes } = this.getKnownParamKeys(
+      paramSpecs,
+    );
     for (const [key] of params) {
       // Check if key is known directly
       if (knownParams.has(key)) continue;

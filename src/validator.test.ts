@@ -818,7 +818,9 @@ Deno.test("Validator: resolves $ref in parameter schema for array type detection
   };
 
   const registry = new SchemaRegistry(spec);
-  const validator = new RequestValidator(registry, { queryArrayFormat: "repeat" });
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "repeat",
+  });
   const operation = spec.paths["/test"].get as OperationObject;
 
   // Should recognize this as an array and parse correctly
@@ -861,11 +863,15 @@ Deno.test("Validator: resolves $ref in parameter schema for object type detectio
   };
 
   const registry = new SchemaRegistry(spec);
-  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const validator = new RequestValidator(registry, {
+    queryNestedFormat: "brackets",
+  });
   const operation = spec.paths["/test"].get as OperationObject;
 
   // Should recognize this as an object and parse bracket notation correctly
-  const req = mockRequest("http://localhost/test?filter[status]=active&filter[limit]=10");
+  const req = mockRequest(
+    "http://localhost/test?filter[status]=active&filter[limit]=10",
+  );
   const result = await validator.validateRequest(req, operation, "/test", {});
 
   assertEquals(result.valid, true);
@@ -874,7 +880,9 @@ Deno.test("Validator: resolves $ref in parameter schema for object type detectio
 Deno.test("Validator: detects object schema with only additionalProperties", async () => {
   // Object schemas can be defined with just additionalProperties (no explicit properties)
   const registry = new SchemaRegistry({});
-  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const validator = new RequestValidator(registry, {
+    queryNestedFormat: "brackets",
+  });
   const operation: OperationObject = {
     responses: {},
     parameters: [
@@ -890,7 +898,9 @@ Deno.test("Validator: detects object schema with only additionalProperties", asy
   };
 
   // Should recognize this as an object schema
-  const req = mockRequest("http://localhost/test?metadata[key1]=value1&metadata[key2]=value2");
+  const req = mockRequest(
+    "http://localhost/test?metadata[key1]=value1&metadata[key2]=value2",
+  );
   const result = await validator.validateRequest(req, operation, "/test", {});
 
   assertEquals(result.valid, true);
@@ -899,7 +909,9 @@ Deno.test("Validator: detects object schema with only additionalProperties", asy
 Deno.test("Validator: detects object schema with only patternProperties", async () => {
   // Object schemas can be defined with just patternProperties
   const registry = new SchemaRegistry({});
-  const validator = new RequestValidator(registry, { queryNestedFormat: "brackets" });
+  const validator = new RequestValidator(registry, {
+    queryNestedFormat: "brackets",
+  });
   const operation: OperationObject = {
     responses: {},
     parameters: [
