@@ -5,7 +5,7 @@ clear error attribution (SDK bug vs spec issue).
 
 ## Commands
 
-**ALWAYS use the scripts in `scripts/` directory. NEVER use `deno task` directly.**
+**ALWAYS use the scripts in `scripts/` directory. 
 
 ```bash
 ./scripts/bootstrap   # Install dependencies, setup environment
