@@ -35,6 +35,8 @@ jobs:
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
+        with:
+          cache: true
 
       - name: Configure Git
         run: |
@@ -76,14 +78,8 @@ jobs:
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
+        with:
+          cache: true
 
-      - name: Publish packages in dependency order
-        run: |
-          # Leaf packages (no workspace deps)
-          deno publish --config packages/json-pointer/deno.json
-          # Depends on json-pointer
-          deno publish --config packages/json-schema/deno.json
-          # Depends on json-pointer, json-schema
-          deno publish --config packages/openapi/deno.json
-          # Root CLI (depends on all)
-          deno publish
+      - name: Publish all packages to JSR
+        run: deno publish
