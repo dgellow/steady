@@ -238,6 +238,8 @@ export class RegistryResponseGenerator {
   private visited = new Set<string>();
   private maxDepth: number;
   private seed: number;
+  private arrayMin: number;
+  private arrayMax: number;
 
   constructor(
     private registry: SchemaRegistry,
@@ -245,6 +247,27 @@ export class RegistryResponseGenerator {
   ) {
     this.maxDepth = options.maxDepth ?? 10;
     this.seed = options.seed ?? Math.random() * 1000000;
+    // Default to exactly 1 item (no randomness)
+    // If only min is set: exact count (min=max=value)
+    // If only max is set: range from default 1 to max
+    const minSet = options.arrayMin !== undefined;
+    const maxSet = options.arrayMax !== undefined;
+    if (minSet && maxSet) {
+      this.arrayMin = options.arrayMin!;
+      this.arrayMax = options.arrayMax!;
+    } else if (minSet) {
+      // Only min set: exact count
+      this.arrayMin = options.arrayMin!;
+      this.arrayMax = options.arrayMin!;
+    } else if (maxSet) {
+      // Only max set: range from 1 to max
+      this.arrayMin = 1;
+      this.arrayMax = options.arrayMax!;
+    } else {
+      // Neither set: exactly 1 item
+      this.arrayMin = 1;
+      this.arrayMax = 1;
+    }
   }
 
   /**
@@ -517,10 +540,12 @@ export class RegistryResponseGenerator {
     pointer: string,
     depth: number,
   ): unknown[] {
-    const minItems = schema.minItems ?? 0;
-    const maxItems = schema.maxItems ?? 3;
-    const length = minItems +
-      Math.floor(this.random() * (maxItems - minItems + 1));
+    // Use generator options, which override schema constraints
+    const minItems = this.arrayMin;
+    const maxItems = this.arrayMax;
+    const length = minItems <= 0
+      ? 0
+      : minItems + Math.floor(this.random() * (maxItems - minItems + 1));
 
     const array: unknown[] = [];
 

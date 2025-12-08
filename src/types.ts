@@ -77,6 +77,26 @@ export interface ValidatorConfig {
   queryNestedFormat?: QueryNestedFormat;
 }
 
+export interface GeneratorConfig {
+  /**
+   * Minimum array size for generated responses.
+   * Default: 1
+   */
+  arrayMin?: number;
+
+  /**
+   * Maximum array size for generated responses.
+   * Default: 1
+   */
+  arrayMax?: number;
+
+  /**
+   * Seed for deterministic random generation.
+   * If not set, uses random seed.
+   */
+  seed?: number;
+}
+
 export interface ServerConfig {
   port: number;
   host: string;
@@ -87,6 +107,7 @@ export interface ServerConfig {
   showValidation?: boolean;
   interactive?: boolean;
   validator?: ValidatorConfig;
+  generator?: GeneratorConfig;
 }
 
 // Validation types

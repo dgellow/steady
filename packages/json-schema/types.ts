@@ -283,6 +283,8 @@ export interface GenerateOptions {
   locale?: string; // For localized data
   useExamples?: boolean; // Prefer examples over generated data
   formats?: Record<string, (options: GenerateContext) => unknown>; // Custom format generators
+  arrayMin?: number; // Minimum array size (default: 1)
+  arrayMax?: number; // Maximum array size (default: 1)
 }
 
 export interface GenerateContext {
