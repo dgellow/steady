@@ -50,6 +50,12 @@ Options:
   --strict                Reject invalid requests (default)
   --relaxed               Log warnings but return responses anyway
   -h, --help              Show help
+
+Generator Options:
+  --generator-array-size=<n>   Exact size for all generated arrays
+  --generator-array-min=<n>    Minimum array size (default: 1)
+  --generator-array-max=<n>    Maximum array size (default: 1)
+  --generator-seed=<n>         Seed for deterministic generation (-1 for random)
 ```
 
 ### Port Configuration
@@ -110,20 +116,38 @@ In `--strict` mode (default), requests are validated against:
 Invalid requests return 400 with validation errors. In `--relaxed` mode,
 validation errors are logged but responses are still returned.
 
-### Per-Request Mode Override
+### Request Headers
 
-Use the `X-Steady-Mode` header to override the server's validation mode for
-individual requests:
+Override server behavior for individual requests:
+
+| Header | Description |
+|--------|-------------|
+| `X-Steady-Mode` | Override validation mode: `strict` or `relaxed` |
+| `X-Steady-Array-Size` | Override array size (sets both min and max) |
+| `X-Steady-Array-Min` | Override minimum array size |
+| `X-Steady-Array-Max` | Override maximum array size |
+| `X-Steady-Seed` | Override random seed (`-1` for non-deterministic) |
 
 ```bash
-# Force strict validation on a relaxed server
+# Force strict validation
 curl -H "X-Steady-Mode: strict" http://localhost:3000/users
 
-# Force relaxed validation on a strict server
-curl -H "X-Steady-Mode: relaxed" http://localhost:3000/users
+# Request 50 items in arrays
+curl -H "X-Steady-Array-Size: 50" http://localhost:3000/users
+
+# Get random (non-deterministic) responses
+curl -H "X-Steady-Seed: -1" http://localhost:3000/users
 ```
 
-The response includes `X-Steady-Mode` header confirming which mode was used.
+### Response Headers
+
+Informational headers returned by the server:
+
+| Header | Description |
+|--------|-------------|
+| `X-Steady-Mode` | The validation mode used for this request |
+| `X-Steady-Matched-Path` | The OpenAPI path pattern that matched |
+| `X-Steady-Example-Source` | How the response was generated: `generated` or `none` |
 
 ## Special Endpoints
 
