@@ -551,3 +551,31 @@ Deno.test(
     });
   },
 );
+
+Deno.test(
+  { name: "Server: X-Steady-Seed=-1 enables random results", ...serverTestOpts },
+  async () => {
+    await withArrayServer({}, async (_server, baseUrl) => {
+      // Make multiple requests with seed=-1 (random)
+      // With enough items, probability of identical results is negligible
+      const responses = await Promise.all([
+        fetch(`${baseUrl}/items`, {
+          headers: { "X-Steady-Array-Size": "5", "X-Steady-Seed": "-1" },
+        }),
+        fetch(`${baseUrl}/items`, {
+          headers: { "X-Steady-Array-Size": "5", "X-Steady-Seed": "-1" },
+        }),
+        fetch(`${baseUrl}/items`, {
+          headers: { "X-Steady-Array-Size": "5", "X-Steady-Seed": "-1" },
+        }),
+      ]);
+
+      const results = await Promise.all(responses.map((r) => r.json()));
+      const jsonStrings = results.map((r) => JSON.stringify(r));
+
+      // At least one should be different (extremely unlikely all 3 are identical with random seeds)
+      const allIdentical = jsonStrings.every((s) => s === jsonStrings[0]);
+      assertEquals(allIdentical, false, "seed=-1 should produce varied results across requests");
+    });
+  },
+);
