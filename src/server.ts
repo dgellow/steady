@@ -10,7 +10,7 @@
  */
 
 import type { ResponseObject, ServerConfig } from "./types.ts";
-import { isReference, VERSION } from "./types.ts";
+import { HEADERS, isReference, VERSION } from "./types.ts";
 import type {
   OpenAPISpec,
   OperationObject,
@@ -324,7 +324,7 @@ export class MockServer {
             status: 400,
             headers: {
               "Content-Type": "application/json",
-              "X-Steady-Mode": effectiveMode,
+              [HEADERS.MODE]: effectiveMode,
             },
           },
         );
@@ -637,8 +637,8 @@ export class MockServer {
 
     const headers = new Headers({
       "Content-Type": contentType,
-      "X-Steady-Matched-Path": pathPattern,
-      "X-Steady-Example-Source": body !== null ? "generated" : "none",
+      [HEADERS.MATCHED_PATH]: pathPattern,
+      [HEADERS.EXAMPLE_SOURCE]: body !== null ? "generated" : "none",
     });
 
     // Safely stringify body - handle circular references and non-serializable values
@@ -664,7 +664,7 @@ export class MockServer {
           null,
           2,
         );
-        headers.set("X-Steady-Serialization-Error", "true");
+        headers.set(HEADERS.SERIALIZATION_ERROR, "true");
       }
     }
 
@@ -719,7 +719,7 @@ export class MockServer {
    * X-Steady-Mode header overrides server default.
    */
   private getEffectiveMode(req: Request): "strict" | "relaxed" {
-    const headerValue = req.headers.get("X-Steady-Mode");
+    const headerValue = req.headers.get(HEADERS.MODE);
     if (headerValue === "strict" || headerValue === "relaxed") {
       return headerValue;
     }
@@ -740,10 +740,10 @@ export class MockServer {
     const config = this.config.generator ?? {};
 
     // Parse headers (headers override config)
-    const headerArraySize = req.headers.get("X-Steady-Array-Size");
-    const headerArrayMin = req.headers.get("X-Steady-Array-Min");
-    const headerArrayMax = req.headers.get("X-Steady-Array-Max");
-    const headerSeed = req.headers.get("X-Steady-Seed");
+    const headerArraySize = req.headers.get(HEADERS.ARRAY_SIZE);
+    const headerArrayMin = req.headers.get(HEADERS.ARRAY_MIN);
+    const headerArrayMax = req.headers.get(HEADERS.ARRAY_MAX);
+    const headerSeed = req.headers.get(HEADERS.SEED);
 
     // If array-size header is set, it overrides both min and max
     let arrayMin: number | undefined;
@@ -771,12 +771,20 @@ export class MockServer {
     const finalArrayMax = arrayMax ?? config.arrayMax;
 
     // Seed: header > config > default (deterministic)
+    // Special value -1 means "use random seed"
     let seed: number;
     if (headerSeed) {
       const parsedSeed = parseInt(headerSeed, 10);
-      seed = isNaN(parsedSeed) ? MockServer.DEFAULT_SEED : parsedSeed;
+      if (isNaN(parsedSeed)) {
+        seed = MockServer.DEFAULT_SEED;
+      } else if (parsedSeed === -1) {
+        seed = Math.random() * 1000000;
+      } else {
+        seed = parsedSeed;
+      }
     } else {
-      seed = config.seed ?? MockServer.DEFAULT_SEED;
+      const configSeed = config.seed ?? MockServer.DEFAULT_SEED;
+      seed = configSeed === -1 ? Math.random() * 1000000 : configSeed;
     }
 
     return {
@@ -795,7 +803,7 @@ export class MockServer {
     mode: "strict" | "relaxed",
   ): Response {
     const newHeaders = new Headers(response.headers);
-    newHeaders.set("X-Steady-Mode", mode);
+    newHeaders.set(HEADERS.MODE, mode);
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,

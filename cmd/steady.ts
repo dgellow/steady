@@ -383,12 +383,19 @@ Generator Options:
   --generator-array-max=<n>    Maximum array size (default: 1)
                                If only max is set, arrays range from 1 to max
   --generator-seed=<n>         Seed for deterministic random generation
+                               Use -1 for random (non-deterministic) results
 
-  Headers (per-request override):
-    X-Steady-Array-Size: <n>   Override array size
-    X-Steady-Array-Min: <n>    Override minimum array size
-    X-Steady-Array-Max: <n>    Override maximum array size
-    X-Steady-Seed: <n>         Override seed
+Request Headers (per-request overrides):
+  X-Steady-Mode: strict|relaxed   Override validation mode for this request
+  X-Steady-Array-Size: <n>        Override array size (sets both min and max)
+  X-Steady-Array-Min: <n>         Override minimum array size
+  X-Steady-Array-Max: <n>         Override maximum array size
+  X-Steady-Seed: <n>              Override seed (-1 for random)
+
+Response Headers (informational):
+  X-Steady-Mode                   The validation mode used for this request
+  X-Steady-Matched-Path           The OpenAPI path pattern that matched
+  X-Steady-Example-Source         How the response was generated (generated|none)
 
 Examples:
   steady api.yaml                          # Start with default settings

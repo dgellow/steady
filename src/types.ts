@@ -16,6 +16,33 @@ export const VERSION = denoConfig.version;
 /** Default server port */
 export const DEFAULT_PORT = 3000;
 
+/**
+ * X-Steady-* header names used by the mock server.
+ * Request headers can be sent by clients to override behavior.
+ * Response headers are informational and sent back to clients.
+ */
+export const HEADERS = {
+  // Request headers (clients can send these to override behavior)
+  /** Override validation mode: "strict" | "relaxed" */
+  MODE: "X-Steady-Mode",
+  /** Override array size for generated responses (sets both min and max) */
+  ARRAY_SIZE: "X-Steady-Array-Size",
+  /** Override minimum array size for generated responses */
+  ARRAY_MIN: "X-Steady-Array-Min",
+  /** Override maximum array size for generated responses */
+  ARRAY_MAX: "X-Steady-Array-Max",
+  /** Override seed for deterministic generation (-1 for random) */
+  SEED: "X-Steady-Seed",
+
+  // Response headers (informational)
+  /** The OpenAPI path pattern that matched the request */
+  MATCHED_PATH: "X-Steady-Matched-Path",
+  /** How the response body was generated: "generated" | "none" */
+  EXAMPLE_SOURCE: "X-Steady-Example-Source",
+  /** Indicates a serialization error occurred (set to "true") */
+  SERIALIZATION_ERROR: "X-Steady-Serialization-Error",
+} as const;
+
 export interface ResolvedOperation {
   method: string;
   path: string;
