@@ -8,7 +8,8 @@
 /** Segment types in a compiled path pattern */
 export type PathSegment =
   | { type: "literal"; value: string }
-  | { type: "param"; name: string };
+  | { type: "param"; name: string }
+  | { type: "mixed"; prefix: string; paramName: string; suffix: string };
 
 /** Compiled path pattern for efficient matching */
 export interface CompiledPathPattern {
@@ -23,15 +24,29 @@ export interface CompiledPathPattern {
  * @example
  * compilePathPattern("/users/{id}") // => { segments: [literal, param], ... }
  * compilePathPattern("/api/v1/items") // => { segments: [literal, literal, literal], ... }
+ * compilePathPattern("/form-v{version}/users") // => { segments: [mixed, literal], ... }
  */
 export function compilePathPattern(pattern: string): CompiledPathPattern {
   const segments = pattern
     .split("/")
     .filter((s) => s.length > 0)
     .map((segment): PathSegment => {
+      // Full parameter: entire segment is {paramName}
       if (segment.startsWith("{") && segment.endsWith("}")) {
         return { type: "param", name: segment.slice(1, -1) };
       }
+
+      // Check for embedded parameter: prefix{paramName}suffix
+      // Only match the FIRST parameter in the segment
+      const paramMatch = segment.match(/^([^{]*)\{([^}]+)\}(.*)$/);
+      if (paramMatch && paramMatch[1] !== undefined && paramMatch[2] !== undefined && paramMatch[3] !== undefined) {
+        const prefix = paramMatch[1];
+        const paramName = paramMatch[2];
+        const suffix = paramMatch[3];
+        return { type: "mixed", prefix, paramName, suffix };
+      }
+
+      // Plain literal segment
       return { type: "literal", value: segment };
     });
 
@@ -79,6 +94,38 @@ export function matchCompiledPath(
       // Parameter segment - extract the value
       try {
         params[compiledSeg.name] = decodeURIComponent(requestSeg);
+      } catch {
+        // Invalid percent encoding - treat as no match
+        return null;
+      }
+    } else if (compiledSeg.type === "mixed") {
+      // Mixed segment: prefix{param}suffix
+      const { prefix, paramName, suffix } = compiledSeg;
+
+      // Check prefix matches
+      if (!requestSeg.startsWith(prefix)) {
+        return null;
+      }
+
+      // Check suffix matches
+      if (!requestSeg.endsWith(suffix)) {
+        return null;
+      }
+
+      // Extract the parameter value (between prefix and suffix)
+      const prefixLen = prefix.length;
+      const suffixLen = suffix.length;
+      const valueEnd = requestSeg.length - suffixLen;
+
+      // Ensure there's actually a value between prefix and suffix
+      if (prefixLen >= valueEnd) {
+        return null;
+      }
+
+      const rawValue = requestSeg.slice(prefixLen, valueEnd);
+
+      try {
+        params[paramName] = decodeURIComponent(rawValue);
       } catch {
         // Invalid percent encoding - treat as no match
         return null;
