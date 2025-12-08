@@ -1,0 +1,49 @@
+openapi: 3.1.0
+info:
+  title: Array Test API
+  version: 1.0.0
+paths:
+  /items:
+    get:
+      summary: List items (schema-generated array)
+      responses:
+        "200":
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    name:
+                      type: string
+  /nested:
+    get:
+      summary: Object with nested arrays
+      responses:
+        "200":
+          description: Object with nested arrays
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - users
+                properties:
+                  users:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - id
+                        - tags
+                      properties:
+                        id:
+                          type: integer
+                        tags:
+                          type: array
+                          items:
+                            type: string

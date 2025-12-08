@@ -27,6 +27,10 @@ export async function main() {
       "log-level",
       "validator-query-array-format",
       "validator-query-nested-format",
+      "generator-array-size",
+      "generator-array-min",
+      "generator-array-max",
+      "generator-seed",
     ],
     alias: {
       h: "help",
@@ -93,6 +97,24 @@ export async function main() {
     Deno.exit(1);
   }
 
+  // Parse generator options
+  const generatorArraySize = args["generator-array-size"]
+    ? parseInt(args["generator-array-size"], 10)
+    : undefined;
+  const generatorArrayMin = args["generator-array-min"]
+    ? parseInt(args["generator-array-min"], 10)
+    : undefined;
+  const generatorArrayMax = args["generator-array-max"]
+    ? parseInt(args["generator-array-max"], 10)
+    : undefined;
+  const generatorSeed = args["generator-seed"]
+    ? parseInt(args["generator-seed"], 10)
+    : undefined;
+
+  // If array-size is set, it overrides both min and max
+  const effectiveArrayMin = generatorArraySize ?? generatorArrayMin;
+  const effectiveArrayMax = generatorArraySize ?? generatorArrayMax;
+
   const options = {
     logLevel,
     logBodies: args["log-bodies"],
@@ -104,6 +126,11 @@ export async function main() {
       strictOneOf: args["validator-strict-oneof"],
       queryArrayFormat,
       queryNestedFormat,
+    },
+    generator: {
+      arrayMin: effectiveArrayMin,
+      arrayMax: effectiveArrayMax,
+      seed: generatorSeed,
     },
   };
 
@@ -144,6 +171,11 @@ async function startServer(
       queryArrayFormat?: "repeat" | "comma" | "brackets";
       queryNestedFormat?: "none" | "brackets";
     };
+    generator?: {
+      arrayMin?: number;
+      arrayMax?: number;
+      seed?: number;
+    };
   },
 ): Promise<{ start: () => void; stop: () => Promise<void> }> {
   // Lazy import to avoid loading server code for validate command
@@ -178,6 +210,7 @@ async function startServer(
     showValidation: true,
     interactive: options.interactive,
     validator: options.validator,
+    generator: options.generator,
   };
 
   // Create and start server
@@ -200,6 +233,11 @@ async function startWithWatch(
       strictOneOf?: boolean;
       queryArrayFormat?: "repeat" | "comma" | "brackets";
       queryNestedFormat?: "none" | "brackets";
+    };
+    generator?: {
+      arrayMin?: number;
+      arrayMax?: number;
+      seed?: number;
     };
   },
 ) {
@@ -337,6 +375,20 @@ Validator Options:
                              How nested object query params are serialized:
                              - none: flat keys (default)
                              - brackets: user[name]=sam&user[age]=123 (deepObject)
+
+Generator Options:
+  --generator-array-size=<n>   Exact array size for all arrays (sets both min and max)
+  --generator-array-min=<n>    Minimum array size (default: 1)
+                               If only min is set, arrays have exactly that size
+  --generator-array-max=<n>    Maximum array size (default: 1)
+                               If only max is set, arrays range from 1 to max
+  --generator-seed=<n>         Seed for deterministic random generation
+
+  Headers (per-request override):
+    X-Steady-Array-Size: <n>   Override array size
+    X-Steady-Array-Min: <n>    Override minimum array size
+    X-Steady-Array-Max: <n>    Override maximum array size
+    X-Steady-Seed: <n>         Override seed
 
 Examples:
   steady api.yaml                          # Start with default settings

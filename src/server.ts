@@ -23,6 +23,7 @@ import {
   OpenAPIDocument,
   RegistryResponseGenerator,
 } from "@steady/json-schema";
+import type { GenerateOptions } from "@steady/json-schema";
 import {
   InkSimpleLogger,
   RequestLogger,
@@ -329,12 +330,14 @@ export class MockServer {
         );
       }
 
+      const generatorOptions = this.getEffectiveGeneratorOptions(req);
       const response = this.generateResponse(
         operation,
         statusCode,
         path,
         method,
         pathPattern,
+        generatorOptions,
       );
 
       const timing = Math.round(performance.now() - startTime);
@@ -519,6 +522,7 @@ export class MockServer {
     path: string,
     method: string,
     pathPattern: string,
+    generatorOptions: GenerateOptions,
   ): Response {
     const responseObjOrRef = operation.responses[statusCode];
     if (!responseObjOrRef) {
@@ -553,6 +557,7 @@ export class MockServer {
         path,
         method,
         pathPattern,
+        generatorOptions,
       );
     }
 
@@ -562,6 +567,7 @@ export class MockServer {
       path,
       method,
       pathPattern,
+      generatorOptions,
     );
   }
 
@@ -574,6 +580,7 @@ export class MockServer {
     path: string,
     method: string,
     pathPattern: string,
+    generatorOptions: GenerateOptions,
   ): Response {
     let body: unknown = null;
     let contentType = "application/json";
@@ -618,6 +625,7 @@ export class MockServer {
             pathPattern,
             method,
             statusCode,
+            generatorOptions,
           );
         }
 
@@ -677,15 +685,19 @@ export class MockServer {
     pathPattern: string,
     method: string,
     statusCode: string,
+    generatorOptions: GenerateOptions,
   ): unknown {
     // If schema is a reference, use the document to resolve and generate
     if (typeof schema === "object" && schema !== null && "$ref" in schema) {
       const ref = (schema as { $ref: string }).$ref;
-      return this.document.generateResponse(ref);
+      return this.document.generateResponse(ref, generatorOptions);
     }
 
     // For inline schemas, create a generator with document access
-    const generator = new RegistryResponseGenerator(this.document.schemas);
+    const generator = new RegistryResponseGenerator(
+      this.document.schemas,
+      generatorOptions,
+    );
     return generator.generateFromSchema(
       schema as Parameters<RegistryResponseGenerator["generateFromSchema"]>[0],
       `#/paths/${
@@ -712,6 +724,66 @@ export class MockServer {
       return headerValue;
     }
     return this.config.mode;
+  }
+
+  /**
+   * Default seed for deterministic generation.
+   * Uses a simple hash of "steady" to get a stable number.
+   */
+  private static readonly DEFAULT_SEED = 123456789;
+
+  /**
+   * Get effective generator options for a request.
+   * Headers override config defaults.
+   */
+  private getEffectiveGeneratorOptions(req: Request): GenerateOptions {
+    const config = this.config.generator ?? {};
+
+    // Parse headers (headers override config)
+    const headerArraySize = req.headers.get("X-Steady-Array-Size");
+    const headerArrayMin = req.headers.get("X-Steady-Array-Min");
+    const headerArrayMax = req.headers.get("X-Steady-Array-Max");
+    const headerSeed = req.headers.get("X-Steady-Seed");
+
+    // If array-size header is set, it overrides both min and max
+    let arrayMin: number | undefined;
+    let arrayMax: number | undefined;
+
+    if (headerArraySize) {
+      const size = parseInt(headerArraySize, 10);
+      if (!isNaN(size)) {
+        arrayMin = size;
+        arrayMax = size;
+      }
+    } else {
+      if (headerArrayMin) {
+        const min = parseInt(headerArrayMin, 10);
+        if (!isNaN(min)) arrayMin = min;
+      }
+      if (headerArrayMax) {
+        const max = parseInt(headerArrayMax, 10);
+        if (!isNaN(max)) arrayMax = max;
+      }
+    }
+
+    // Merge: header > config > default
+    const finalArrayMin = arrayMin ?? config.arrayMin;
+    const finalArrayMax = arrayMax ?? config.arrayMax;
+
+    // Seed: header > config > default (deterministic)
+    let seed: number;
+    if (headerSeed) {
+      const parsedSeed = parseInt(headerSeed, 10);
+      seed = isNaN(parsedSeed) ? MockServer.DEFAULT_SEED : parsedSeed;
+    } else {
+      seed = config.seed ?? MockServer.DEFAULT_SEED;
+    }
+
+    return {
+      arrayMin: finalArrayMin,
+      arrayMax: finalArrayMax,
+      seed,
+    };
   }
 
   /**

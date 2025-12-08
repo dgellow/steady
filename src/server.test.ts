@@ -409,3 +409,145 @@ Deno.test(
     });
   },
 );
+
+// =============================================================================
+// Array Size Control Tests
+// =============================================================================
+
+const ARRAY_TEST_SPEC_PATH = "./tests/specs/array-test-api.yaml";
+
+/** Helper for array size tests */
+async function withArrayServer(
+  opts: {
+    generator?: { arrayMin?: number; arrayMax?: number; seed?: number };
+    port?: number;
+  },
+  fn: (server: MockServer, baseUrl: string) => Promise<void>,
+): Promise<void> {
+  const spec = await parseSpecFromFile(ARRAY_TEST_SPEC_PATH);
+  const port = opts.port ?? 3100 + Math.floor(Math.random() * 900);
+  const server = new MockServer(spec, {
+    port,
+    host: "localhost",
+    mode: "strict",
+    verbose: false,
+    logLevel: "summary",
+    interactive: false,
+    generator: opts.generator,
+  });
+
+  server.start();
+  await new Promise((r) => setTimeout(r, 10));
+  try {
+    await fn(server, `http://localhost:${port}`);
+  } finally {
+    server.stop();
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
+Deno.test(
+  { name: "Server: default array size is 1", ...serverTestOpts },
+  async () => {
+    await withArrayServer({}, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/items`);
+      assertEquals(response.status, 200);
+
+      const data = await response.json();
+      assertEquals(Array.isArray(data), true);
+      assertEquals(data.length, 1, "Default array size should be 1");
+    });
+  },
+);
+
+Deno.test(
+  { name: "Server: generator config sets array size", ...serverTestOpts },
+  async () => {
+    await withArrayServer(
+      { generator: { arrayMin: 5, arrayMax: 5 } },
+      async (_server, baseUrl) => {
+        const response = await fetch(`${baseUrl}/items`);
+        assertEquals(response.status, 200);
+
+        const data = await response.json();
+        assertEquals(Array.isArray(data), true);
+        assertEquals(data.length, 5, "Array size should be 5 from config");
+      },
+    );
+  },
+);
+
+Deno.test(
+  { name: "Server: X-Steady-Array-Size header overrides config", ...serverTestOpts },
+  async () => {
+    await withArrayServer(
+      { generator: { arrayMin: 5, arrayMax: 5 } },
+      async (_server, baseUrl) => {
+        const response = await fetch(`${baseUrl}/items`, {
+          headers: { "X-Steady-Array-Size": "10" },
+        });
+        assertEquals(response.status, 200);
+
+        const data = await response.json();
+        assertEquals(Array.isArray(data), true);
+        assertEquals(data.length, 10, "Array size should be 10 from header override");
+      },
+    );
+  },
+);
+
+Deno.test(
+  { name: "Server: X-Steady-Array-Size=0 returns empty array", ...serverTestOpts },
+  async () => {
+    await withArrayServer({}, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/items`, {
+        headers: { "X-Steady-Array-Size": "0" },
+      });
+      assertEquals(response.status, 200);
+
+      const data = await response.json();
+      assertEquals(Array.isArray(data), true);
+      assertEquals(data.length, 0, "Array size 0 should return empty array");
+    });
+  },
+);
+
+Deno.test(
+  { name: "Server: nested arrays also respect array size", ...serverTestOpts },
+  async () => {
+    await withArrayServer({}, async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/nested`, {
+        headers: { "X-Steady-Array-Size": "3" },
+      });
+      assertEquals(response.status, 200);
+
+      const data = await response.json();
+      // users is required so should always be present
+      assertEquals(Array.isArray(data.users), true, "users should be an array");
+      assertEquals(data.users.length, 3, "users array should have 3 items");
+      // Each user has required tags
+      assertEquals(data.users[0].tags.length, 3, "nested tags array should have 3 items");
+    });
+  },
+);
+
+Deno.test(
+  { name: "Server: X-Steady-Seed provides deterministic results", ...serverTestOpts },
+  async () => {
+    await withArrayServer({}, async (_server, baseUrl) => {
+      // Make two requests with the same seed
+      const response1 = await fetch(`${baseUrl}/items`, {
+        headers: { "X-Steady-Array-Size": "3", "X-Steady-Seed": "42" },
+      });
+      const data1 = await response1.json();
+
+      const response2 = await fetch(`${baseUrl}/items`, {
+        headers: { "X-Steady-Array-Size": "3", "X-Steady-Seed": "42" },
+      });
+      const data2 = await response2.json();
+
+      // Same seed should produce same results
+      assertEquals(JSON.stringify(data1), JSON.stringify(data2), "Same seed should produce identical results");
+    });
+  },
+);
