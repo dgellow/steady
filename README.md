@@ -120,13 +120,13 @@ validation errors are logged but responses are still returned.
 
 Override server behavior for individual requests:
 
-| Header | Description |
-|--------|-------------|
-| `X-Steady-Mode` | Override validation mode: `strict` or `relaxed` |
-| `X-Steady-Array-Size` | Override array size (sets both min and max) |
-| `X-Steady-Array-Min` | Override minimum array size |
-| `X-Steady-Array-Max` | Override maximum array size |
-| `X-Steady-Seed` | Override random seed (`-1` for non-deterministic) |
+| Header                | Description                                       |
+| --------------------- | ------------------------------------------------- |
+| `X-Steady-Mode`       | Override validation mode: `strict` or `relaxed`   |
+| `X-Steady-Array-Size` | Override array size (sets both min and max)       |
+| `X-Steady-Array-Min`  | Override minimum array size                       |
+| `X-Steady-Array-Max`  | Override maximum array size                       |
+| `X-Steady-Seed`       | Override random seed (`-1` for non-deterministic) |
 
 ```bash
 # Force strict validation
@@ -143,10 +143,10 @@ curl -H "X-Steady-Seed: -1" http://localhost:3000/users
 
 Informational headers returned by the server:
 
-| Header | Description |
-|--------|-------------|
-| `X-Steady-Mode` | The validation mode used for this request |
-| `X-Steady-Matched-Path` | The OpenAPI path pattern that matched |
+| Header                    | Description                                           |
+| ------------------------- | ----------------------------------------------------- |
+| `X-Steady-Mode`           | The validation mode used for this request             |
+| `X-Steady-Matched-Path`   | The OpenAPI path pattern that matched                 |
 | `X-Steady-Example-Source` | How the response was generated: `generated` or `none` |
 
 ## Special Endpoints

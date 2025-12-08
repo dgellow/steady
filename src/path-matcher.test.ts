@@ -200,14 +200,20 @@ Deno.test("matchCompiledPath: returns null for invalid percent encoding", () => 
 
 Deno.test("matchPathPattern: extracts embedded parameter with prefix", () => {
   // Pattern like /form-v{version} should match /form-v5 and extract version="5"
-  const result = matchPathPattern("/form-v5/users/abc", "/form-v{version}/users/{userId}");
+  const result = matchPathPattern(
+    "/form-v5/users/abc",
+    "/form-v{version}/users/{userId}",
+  );
 
   assertEquals(result, { version: "5", userId: "abc" });
 });
 
 Deno.test("matchPathPattern: extracts embedded parameter with suffix", () => {
   // Pattern like /{version}-beta should match /2-beta and extract version="2"
-  const result = matchPathPattern("/api/2-beta/resource", "/api/{version}-beta/resource");
+  const result = matchPathPattern(
+    "/api/2-beta/resource",
+    "/api/{version}-beta/resource",
+  );
 
   assertEquals(result, { version: "2" });
 });
@@ -220,19 +226,28 @@ Deno.test("matchPathPattern: extracts embedded parameter with prefix and suffix"
 });
 
 Deno.test("matchPathPattern: returns null when embedded prefix doesn't match", () => {
-  const result = matchPathPattern("/json-v5/users/abc", "/form-v{version}/users/{userId}");
+  const result = matchPathPattern(
+    "/json-v5/users/abc",
+    "/form-v{version}/users/{userId}",
+  );
 
   assertEquals(result, null);
 });
 
 Deno.test("matchPathPattern: returns null when embedded suffix doesn't match", () => {
-  const result = matchPathPattern("/api/2-alpha/resource", "/api/{version}-beta/resource");
+  const result = matchPathPattern(
+    "/api/2-alpha/resource",
+    "/api/{version}-beta/resource",
+  );
 
   assertEquals(result, null);
 });
 
 Deno.test("matchPathPattern: handles longer embedded parameter values", () => {
-  const result = matchPathPattern("/form-v123/users/user-456", "/form-v{version}/users/{userId}");
+  const result = matchPathPattern(
+    "/form-v123/users/user-456",
+    "/form-v{version}/users/{userId}",
+  );
 
   assertEquals(result, { version: "123", userId: "user-456" });
 });

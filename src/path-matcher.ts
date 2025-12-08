@@ -39,7 +39,10 @@ export function compilePathPattern(pattern: string): CompiledPathPattern {
       // Check for embedded parameter: prefix{paramName}suffix
       // Only match the FIRST parameter in the segment
       const paramMatch = segment.match(/^([^{]*)\{([^}]+)\}(.*)$/);
-      if (paramMatch && paramMatch[1] !== undefined && paramMatch[2] !== undefined && paramMatch[3] !== undefined) {
+      if (
+        paramMatch && paramMatch[1] !== undefined &&
+        paramMatch[2] !== undefined && paramMatch[3] !== undefined
+      ) {
         const prefix = paramMatch[1];
         const paramName = paramMatch[2];
         const suffix = paramMatch[3];
