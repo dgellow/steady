@@ -478,7 +478,10 @@ Deno.test(
 );
 
 Deno.test(
-  { name: "Server: X-Steady-Array-Size header overrides config", ...serverTestOpts },
+  {
+    name: "Server: X-Steady-Array-Size header overrides config",
+    ...serverTestOpts,
+  },
   async () => {
     await withArrayServer(
       { generator: { arrayMin: 5, arrayMax: 5 } },
@@ -490,14 +493,21 @@ Deno.test(
 
         const data = await response.json();
         assertEquals(Array.isArray(data), true);
-        assertEquals(data.length, 10, "Array size should be 10 from header override");
+        assertEquals(
+          data.length,
+          10,
+          "Array size should be 10 from header override",
+        );
       },
     );
   },
 );
 
 Deno.test(
-  { name: "Server: X-Steady-Array-Size=0 returns empty array", ...serverTestOpts },
+  {
+    name: "Server: X-Steady-Array-Size=0 returns empty array",
+    ...serverTestOpts,
+  },
   async () => {
     await withArrayServer({}, async (_server, baseUrl) => {
       const response = await fetch(`${baseUrl}/items`, {
@@ -526,13 +536,20 @@ Deno.test(
       assertEquals(Array.isArray(data.users), true, "users should be an array");
       assertEquals(data.users.length, 3, "users array should have 3 items");
       // Each user has required tags
-      assertEquals(data.users[0].tags.length, 3, "nested tags array should have 3 items");
+      assertEquals(
+        data.users[0].tags.length,
+        3,
+        "nested tags array should have 3 items",
+      );
     });
   },
 );
 
 Deno.test(
-  { name: "Server: X-Steady-Seed provides deterministic results", ...serverTestOpts },
+  {
+    name: "Server: X-Steady-Seed provides deterministic results",
+    ...serverTestOpts,
+  },
   async () => {
     await withArrayServer({}, async (_server, baseUrl) => {
       // Make two requests with the same seed
@@ -547,13 +564,20 @@ Deno.test(
       const data2 = await response2.json();
 
       // Same seed should produce same results
-      assertEquals(JSON.stringify(data1), JSON.stringify(data2), "Same seed should produce identical results");
+      assertEquals(
+        JSON.stringify(data1),
+        JSON.stringify(data2),
+        "Same seed should produce identical results",
+      );
     });
   },
 );
 
 Deno.test(
-  { name: "Server: X-Steady-Seed=-1 enables random results", ...serverTestOpts },
+  {
+    name: "Server: X-Steady-Seed=-1 enables random results",
+    ...serverTestOpts,
+  },
   async () => {
     await withArrayServer({}, async (_server, baseUrl) => {
       // Make multiple requests with seed=-1 (random)
@@ -575,7 +599,11 @@ Deno.test(
 
       // At least one should be different (extremely unlikely all 3 are identical with random seeds)
       const allIdentical = jsonStrings.every((s) => s === jsonStrings[0]);
-      assertEquals(allIdentical, false, "seed=-1 should produce varied results across requests");
+      assertEquals(
+        allIdentical,
+        false,
+        "seed=-1 should produce varied results across requests",
+      );
     });
   },
 );
