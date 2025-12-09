@@ -27,9 +27,8 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-          cache: true
 
       - name: Sync PR with selected version
-        run: deno run -A --reload=jsr:@dgellow/pls jsr:@dgellow/pls sync --pr=${{ github.event.pull_request.number }}
+        run: deno run -A jsr:@dgellow/pls sync --pr=${{ github.event.pull_request.number }}
         env:
           GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}
