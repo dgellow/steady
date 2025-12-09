@@ -134,9 +134,6 @@ for (const platform of platforms) {
     },
     os: [platform.os],
     cpu: [platform.cpu],
-    bin: {
-      steady: `./bin/${platform.binName}`,
-    },
   };
 
   await Deno.writeTextFile(
