@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+### Chores
+
+- update npm to latest in publish workflow
+
 ## 0.4.0
 
 ### Features
