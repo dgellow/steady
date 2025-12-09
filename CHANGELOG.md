@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2
+
+### Chores
+
+- switch npm publish to token auth (temporary)
+
 ## 0.4.1
 
 ### Chores
