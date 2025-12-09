@@ -32,8 +32,7 @@ jobs:
 
     permissions:
       contents: read
-      # TODO: Re-enable OIDC after initial npm publish
-      # id-token: write
+      id-token: write
 
     steps:
       - name: Checkout code
@@ -56,41 +55,28 @@ jobs:
       - name: Build npm packages
         run: deno run -A scripts/build_npm.ts
 
-      # TODO: Re-enable --provenance after initial npm publish (requires OIDC)
       # Publish platform-specific packages first (main package depends on them)
       - name: Publish @stdy/cli-linux-x64
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: ./npm/cli-linux-x64
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @stdy/cli-linux-arm64
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: ./npm/cli-linux-arm64
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @stdy/cli-darwin-x64
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: ./npm/cli-darwin-x64
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @stdy/cli-darwin-arm64
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: ./npm/cli-darwin-arm64
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @stdy/cli-win32-x64
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: ./npm/cli-win32-x64
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Publish main package last
       - name: Publish @stdy/cli
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: ./npm/cli
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
