@@ -30,6 +30,6 @@ jobs:
           cache: true
 
       - name: Sync PR with selected version
-        run: deno run -A jsr:@dgellow/pls prep --github-pr=${{ github.event.pull_request.number }} --execute
+        run: deno run -A jsr:@dgellow/pls sync --pr=${{ github.event.pull_request.number }}
         env:
           GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}

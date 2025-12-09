@@ -20,7 +20,7 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.5.x
+          deno-version: v2.x
           cache: true
 
       - name: Configure Git
@@ -41,23 +41,15 @@ jobs:
             fi
           done
 
-      - name: Check if release commit
-        id: check
-        run: |
-          if git log -1 --pretty=%B | grep -q "^chore: release v"; then
-            echo "is_release=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_release=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create release (on release commit)
-        if: steps.check.outputs.is_release == 'true'
-        run: deno run -A jsr:@dgellow/pls --storage=github --execute
+      # pls release is idempotent and self-healing:
+      # - If tag exists: no-op (success)
+      # - If tag missing: creates it (self-heals from previous failure)
+      - name: Create release (if release commit merged)
+        run: deno run -A jsr:@dgellow/pls release
         env:
           GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}
 
-      - name: Create/update release PR (on regular commit)
-        if: steps.check.outputs.is_release == 'false'
+      - name: Create/update release PR
         run: deno run -A jsr:@dgellow/pls prep --execute
         env:
           GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}
