@@ -14,6 +14,9 @@ npx @stdy/cli api.yaml
 
 # Deno
 deno install -gAn steady jsr:@steady/cli
+
+# deno run (no install)
+deno run -A jsr:@steady/cli api.yaml
 ```
 
 ## Usage
