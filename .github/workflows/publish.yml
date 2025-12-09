@@ -49,6 +49,9 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Update npm to latest
+        run: npm install -g npm@latest && npm --version
+
       - name: Build npm packages
         run: deno run -A scripts/build_npm.ts
 
