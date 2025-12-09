@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.4
+
+### Bug Fixes
+
+- remove bin field from platform-specific npm packages
+- update repository URL to dgellow/steady for npm provenance
+
 ## 0.4.3
 
 ### Documentation
