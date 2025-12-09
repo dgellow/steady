@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.3
+
+### Documentation
+
+- add deno run example to installation
+- update installation section with npx usage
+
+### Chores
+
+- revert npm publish to OIDC auth with provenance
+
 ## 0.4.2
 
 ### Chores
