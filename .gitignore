@@ -42,3 +42,6 @@ analysis-report.json
 # SDK test directories (cloned for testing)
 openai-python/
 sdk-tests/
+
+# npm build output
+npm/

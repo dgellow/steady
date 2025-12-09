@@ -1,5 +1,3 @@
-#!/usr/bin/env -S deno run --allow-read --allow-net --allow-env
-
 import { parseArgs } from "@std/cli/parse-args";
 import { parseSpecFromFile, SteadyError } from "@steady/openapi";
 import { LogLevel } from "../src/logging/mod.ts";

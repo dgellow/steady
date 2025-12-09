@@ -5,13 +5,11 @@ and generates responses from schemas or examples.
 
 ## Installation
 
-Requires [Deno](https://deno.land/) 2.x.
-
 ```bash
-# Run directly
-deno run -A jsr:@steady/cli api.yaml
+# npm (recommended)
+npm install -g @stdy/cli
 
-# Or install globally
+# Or with Deno
 deno install -gAn steady jsr:@steady/cli
 ```
 
