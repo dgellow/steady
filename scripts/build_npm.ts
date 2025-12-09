@@ -130,7 +130,7 @@ for (const platform of platforms) {
     license: "Elastic-2.0",
     repository: {
       type: "git",
-      url: "git+https://github.com/stainless-api/steady.git",
+      url: "git+https://github.com/dgellow/steady.git",
     },
     os: [platform.os],
     cpu: [platform.cpu],
@@ -235,12 +235,12 @@ const mainPkgJson = {
   license: "Elastic-2.0",
   repository: {
     type: "git",
-    url: "git+https://github.com/stainless-api/steady.git",
+    url: "git+https://github.com/dgellow/steady.git",
   },
   bugs: {
-    url: "https://github.com/stainless-api/steady/issues",
+    url: "https://github.com/dgellow/steady/issues",
   },
-  homepage: "https://github.com/stainless-api/steady#readme",
+  homepage: "https://github.com/dgellow/steady#readme",
   keywords: [
     "openapi",
     "mock-server",
