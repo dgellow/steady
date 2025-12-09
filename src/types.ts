@@ -7,11 +7,7 @@ import type {
 } from "@steady/openapi";
 import type { LogLevel } from "./logging/mod.ts";
 
-// Import version from deno.json
-import denoConfig from "../deno.json" with { type: "json" };
-
-/** Package version from deno.json */
-export const VERSION = denoConfig.version;
+export { VERSION } from "./version.ts";
 
 /** Default server port */
 export const DEFAULT_PORT = 3000;
