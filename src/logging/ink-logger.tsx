@@ -1,5 +1,3 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --allow-sys --allow-net
-
 import React, { useEffect, useState } from "npm:react@18";
 import { Box, render, Text, useApp, useInput, useStdout } from "npm:ink@5";
 // import fullscreen from "npm:fullscreen-ink"; // Not used currently

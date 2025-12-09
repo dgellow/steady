@@ -1,5 +1,3 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --allow-sys
-
 import type { LogLevel, StoredRequest } from "./types.ts";
 import { RequestLogger, type ValidationResult } from "./logger.ts";
 

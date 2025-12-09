@@ -67,3 +67,32 @@ jobs:
 
       - name: Run OpenAPI directory tests
         run: deno task test:specs
+
+  test-npm-build:
+    name: Test npm Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build npm packages (linux-x64 only)
+        run: deno run -A scripts/build_npm.ts --platform linux-x64
+
+      - name: Install and test CLI
+        run: |
+          cd /tmp
+          npm init -y
+          npm install ${{ github.workspace }}/npm/cli ${{ github.workspace }}/npm/cli-linux-x64
+          npx steady validate ${{ github.workspace }}/tests/specs/simple.yaml
+          npx steady --help
