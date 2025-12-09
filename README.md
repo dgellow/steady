@@ -6,10 +6,13 @@ and generates responses from schemas or examples.
 ## Installation
 
 ```bash
-# npm (recommended)
+# npm
 npm install -g @stdy/cli
 
-# Or with Deno
+# npx (no install)
+npx @stdy/cli api.yaml
+
+# Deno
 deno install -gAn steady jsr:@steady/cli
 ```
 
