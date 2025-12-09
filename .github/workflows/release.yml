@@ -21,7 +21,6 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-          cache: true
 
       - name: Configure Git
         run: |
@@ -45,11 +44,11 @@ jobs:
       # - If tag exists: no-op (success)
       # - If tag missing: creates it (self-heals from previous failure)
       - name: Create release (if release commit merged)
-        run: deno run -A --reload=jsr:@dgellow/pls jsr:@dgellow/pls release
+        run: deno run -A jsr:@dgellow/pls release
         env:
           GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}
 
       - name: Create/update release PR
-        run: deno run -A --reload=jsr:@dgellow/pls jsr:@dgellow/pls prep --execute
+        run: deno run -A jsr:@dgellow/pls prep --execute
         env:
           GITHUB_TOKEN: ${{ secrets.PLS_RELEASE_TOKEN }}
