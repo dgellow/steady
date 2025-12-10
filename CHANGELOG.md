@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0
+
+### Features
+
+- Add form data parsing for request body validation
+- Support full OpenAPI query parameter serialization matrix
+
+### Documentation
+
+- Add investigation standards to CLAUDE.md
+
+### Tests
+
+- Add parameter suite for comprehensive edge case testing
+
+### CI
+
+- Add TypeScript SDK integration test runner
+
 ## 0.4.4
 
 ### Bug Fixes
