@@ -55,12 +55,45 @@ Options:
   --relaxed               Log warnings but return responses anyway
   -h, --help              Show help
 
+Validator Options:
+  --validator-strict-oneof             Require exactly one oneOf variant to match
+  --validator-query-array-format=<fmt> Array query param serialization (see below)
+  --validator-query-object-format=<fmt> Object query param serialization (see below)
+
 Generator Options:
   --generator-array-size=<n>   Exact size for all generated arrays
   --generator-array-min=<n>    Minimum array size (default: 1)
   --generator-array-max=<n>    Maximum array size (default: 1)
   --generator-seed=<n>         Seed for deterministic generation (-1 for random)
 ```
+
+### Query Parameter Serialization
+
+Steady supports the full OpenAPI 3.x parameter serialization matrix. By default
+(`auto`), Steady reads the `style` and `explode` properties from your OpenAPI
+spec for each parameter. You can override this globally via CLI flags or
+per-request via headers.
+
+**Array formats** (`--validator-query-array-format`):
+
+| Format     | Example                       | OpenAPI Equivalent             |
+| ---------- | ----------------------------- | ------------------------------ |
+| `auto`     | Read from spec (default)      | -                              |
+| `repeat`   | `colors=red&colors=green`     | `style=form, explode=true`     |
+| `comma`    | `colors=red,green,blue`       | `style=form, explode=false`    |
+| `space`    | `colors=red%20green%20blue`   | `style=spaceDelimited`         |
+| `pipe`     | `colors=red\|green\|blue`     | `style=pipeDelimited`          |
+| `brackets` | `colors[]=red&colors[]=green` | PHP/Rails style (non-standard) |
+
+**Object formats** (`--validator-query-object-format`):
+
+| Format       | Example                             | OpenAPI Equivalent          |
+| ------------ | ----------------------------------- | --------------------------- |
+| `auto`       | Read from spec (default)            | -                           |
+| `flat`       | `role=admin&firstName=Alex`         | `style=form, explode=true`  |
+| `flat-comma` | `id=role,admin,firstName,Alex`      | `style=form, explode=false` |
+| `brackets`   | `id[role]=admin&id[firstName]=Alex` | `style=deepObject`          |
+| `dots`       | `id.role=admin&id.firstName=Alex`   | Non-standard (SDK compat)   |
 
 ### Port Configuration
 
@@ -124,13 +157,15 @@ validation errors are logged but responses are still returned.
 
 Override server behavior for individual requests:
 
-| Header                | Description                                       |
-| --------------------- | ------------------------------------------------- |
-| `X-Steady-Mode`       | Override validation mode: `strict` or `relaxed`   |
-| `X-Steady-Array-Size` | Override array size (sets both min and max)       |
-| `X-Steady-Array-Min`  | Override minimum array size                       |
-| `X-Steady-Array-Max`  | Override maximum array size                       |
-| `X-Steady-Seed`       | Override random seed (`-1` for non-deterministic) |
+| Header                         | Description                                       |
+| ------------------------------ | ------------------------------------------------- |
+| `X-Steady-Mode`                | Override validation mode: `strict` or `relaxed`   |
+| `X-Steady-Query-Array-Format`  | Override array query param serialization format   |
+| `X-Steady-Query-Object-Format` | Override object query param serialization format  |
+| `X-Steady-Array-Size`          | Override array size (sets both min and max)       |
+| `X-Steady-Array-Min`           | Override minimum array size                       |
+| `X-Steady-Array-Max`           | Override maximum array size                       |
+| `X-Steady-Seed`                | Override random seed (`-1` for non-deterministic) |
 
 ```bash
 # Force strict validation
@@ -141,6 +176,9 @@ curl -H "X-Steady-Array-Size: 50" http://localhost:3000/users
 
 # Get random (non-deterministic) responses
 curl -H "X-Steady-Seed: -1" http://localhost:3000/users
+
+# Override query format for SDK testing
+curl -H "X-Steady-Query-Object-Format: dots" "http://localhost:3000/search?filter.level=high"
 ```
 
 ### Response Headers

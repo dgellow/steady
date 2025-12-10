@@ -297,13 +297,13 @@ Deno.test("Validator: queryArrayFormat=brackets parses bracket notation", async 
 });
 
 // =============================================================================
-// Query Parameter Nested Format Tests
+// Query Parameter Object Format Tests
 // =============================================================================
 
-Deno.test("Validator: queryNestedFormat=brackets parses deepObject notation", async () => {
+Deno.test("Validator: queryObjectFormat=brackets parses deepObject notation", async () => {
   const registry = new SchemaRegistry({});
   const validator = new RequestValidator(registry, {
-    queryNestedFormat: "brackets",
+    queryObjectFormat: "brackets",
   });
   const operation: OperationObject = {
     responses: {},
@@ -329,10 +329,10 @@ Deno.test("Validator: queryNestedFormat=brackets parses deepObject notation", as
   assertEquals(result.valid, true);
 });
 
-Deno.test("Validator: queryNestedFormat=brackets validates nested object schema", async () => {
+Deno.test("Validator: queryObjectFormat=brackets validates nested object schema", async () => {
   const registry = new SchemaRegistry({});
   const validator = new RequestValidator(registry, {
-    queryNestedFormat: "brackets",
+    queryObjectFormat: "brackets",
   });
   const operation: OperationObject = {
     responses: {},
@@ -362,10 +362,10 @@ Deno.test("Validator: queryNestedFormat=brackets validates nested object schema"
   assertExists(result.errors.find((e) => e.message.includes("required")));
 });
 
-Deno.test("Validator: queryNestedFormat=brackets coerces property types", async () => {
+Deno.test("Validator: queryObjectFormat=brackets coerces property types", async () => {
   const registry = new SchemaRegistry({});
   const validator = new RequestValidator(registry, {
-    queryNestedFormat: "brackets",
+    queryObjectFormat: "brackets",
   });
   const operation: OperationObject = {
     responses: {},
@@ -387,6 +387,94 @@ Deno.test("Validator: queryNestedFormat=brackets coerces property types", async 
   const req = mockRequest(
     "http://localhost/test?filter[limit]=10&filter[active]=true",
   );
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryObjectFormat=dots parses dot notation", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "dots",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "filter",
+        in: "query",
+        schema: {
+          type: "object",
+          properties: {
+            status: { type: "string" },
+            level: { type: "integer" },
+          },
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest(
+    "http://localhost/test?filter.status=active&filter.level=5",
+  );
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryObjectFormat=flat parses exploded object params", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "flat",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "id",
+        in: "query",
+        schema: {
+          type: "object",
+          properties: {
+            role: { type: "string" },
+            firstName: { type: "string" },
+          },
+        },
+      },
+    ],
+  };
+
+  // In flat format, properties are sent as top-level params
+  const req = mockRequest("http://localhost/test?role=admin&firstName=Alex");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryObjectFormat=flat-comma parses comma-separated key-value pairs", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "flat-comma",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "id",
+        in: "query",
+        schema: {
+          type: "object",
+          properties: {
+            role: { type: "string" },
+            firstName: { type: "string" },
+          },
+        },
+      },
+    ],
+  };
+
+  // In flat-comma format: id=role,admin,firstName,Alex
+  const req = mockRequest("http://localhost/test?id=role,admin,firstName,Alex");
   const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
@@ -856,7 +944,7 @@ Deno.test("Validator: resolves $ref in parameter schema for object type detectio
 
   const registry = new SchemaRegistry(spec);
   const validator = new RequestValidator(registry, {
-    queryNestedFormat: "brackets",
+    queryObjectFormat: "brackets",
   });
   const operation = spec.paths["/test"].get as OperationObject;
 
@@ -873,7 +961,7 @@ Deno.test("Validator: detects object schema with only additionalProperties", asy
   // Object schemas can be defined with just additionalProperties (no explicit properties)
   const registry = new SchemaRegistry({});
   const validator = new RequestValidator(registry, {
-    queryNestedFormat: "brackets",
+    queryObjectFormat: "brackets",
   });
   const operation: OperationObject = {
     responses: {},
@@ -902,7 +990,7 @@ Deno.test("Validator: detects object schema with only patternProperties", async 
   // Object schemas can be defined with just patternProperties
   const registry = new SchemaRegistry({});
   const validator = new RequestValidator(registry, {
-    queryNestedFormat: "brackets",
+    queryObjectFormat: "brackets",
   });
   const operation: OperationObject = {
     responses: {},
@@ -925,4 +1013,384 @@ Deno.test("Validator: detects object schema with only patternProperties", async 
   const result = await validator.validateRequest(req, operation, {});
 
   assertEquals(result.valid, true);
+});
+
+// =============================================================================
+// Additional Array Format Tests (space, pipe)
+// =============================================================================
+
+Deno.test("Validator: queryArrayFormat=space parses space-delimited values", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "space",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "colors",
+        in: "query",
+        schema: { type: "array", items: { type: "string" } },
+      },
+    ],
+  };
+
+  // URL-encoded space is %20
+  const req = mockRequest("http://localhost/test?colors=red%20green%20blue");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryArrayFormat=pipe parses pipe-delimited values", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "pipe",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "colors",
+        in: "query",
+        schema: { type: "array", items: { type: "string" } },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?colors=red|green|blue");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+// =============================================================================
+// Auto Format Tests (reads from OpenAPI style/explode)
+// =============================================================================
+
+Deno.test("Validator: queryArrayFormat=auto uses spec's style=form explode=true (repeat)", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "auto", // default
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "colors",
+        in: "query",
+        style: "form",
+        explode: true, // Explicit: repeat format
+        schema: { type: "array", items: { type: "string" } },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?colors=red&colors=green");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryArrayFormat=auto uses spec's style=form explode=false (comma)", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "auto",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "colors",
+        in: "query",
+        style: "form",
+        explode: false, // Explicit: comma format
+        schema: { type: "array", items: { type: "string" } },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?colors=red,green,blue");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryArrayFormat=auto uses spec's style=spaceDelimited", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "auto",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "colors",
+        in: "query",
+        style: "spaceDelimited",
+        schema: { type: "array", items: { type: "string" } },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?colors=red%20green%20blue");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryArrayFormat=auto uses spec's style=pipeDelimited", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "auto",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "colors",
+        in: "query",
+        style: "pipeDelimited",
+        schema: { type: "array", items: { type: "string" } },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?colors=red|green|blue");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryArrayFormat=auto defaults to repeat when no style specified", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "auto",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "colors",
+        in: "query",
+        // No style/explode specified - defaults to form/true (repeat)
+        schema: { type: "array", items: { type: "string" } },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?colors=red&colors=green");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryObjectFormat=auto uses spec's style=deepObject (brackets)", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "auto",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "filter",
+        in: "query",
+        style: "deepObject",
+        schema: {
+          type: "object",
+          properties: {
+            status: { type: "string" },
+            level: { type: "integer" },
+          },
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest(
+    "http://localhost/test?filter[status]=active&filter[level]=5",
+  );
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryObjectFormat=auto uses spec's style=form explode=true (flat)", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "auto",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "filter",
+        in: "query",
+        style: "form",
+        explode: true, // Explicit: flat format
+        schema: {
+          type: "object",
+          properties: {
+            role: { type: "string" },
+            firstName: { type: "string" },
+          },
+        },
+      },
+    ],
+  };
+
+  // In flat format, properties are top-level params
+  const req = mockRequest("http://localhost/test?role=admin&firstName=Alex");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryObjectFormat=auto uses spec's style=form explode=false (flat-comma)", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "auto",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "id",
+        in: "query",
+        style: "form",
+        explode: false, // Explicit: flat-comma format
+        schema: {
+          type: "object",
+          properties: {
+            role: { type: "string" },
+            firstName: { type: "string" },
+          },
+        },
+      },
+    ],
+  };
+
+  // In flat-comma format: id=role,admin,firstName,Alex
+  const req = mockRequest("http://localhost/test?id=role,admin,firstName,Alex");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: queryObjectFormat=auto defaults to flat when no style specified", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "auto",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "filter",
+        in: "query",
+        // No style/explode specified - defaults to form/true (flat)
+        schema: {
+          type: "object",
+          properties: {
+            role: { type: "string" },
+            firstName: { type: "string" },
+          },
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?role=admin&firstName=Alex");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+// =============================================================================
+// Per-Request Header Override Tests
+// =============================================================================
+
+Deno.test("Validator: X-Steady-Query-Array-Format header overrides config", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "repeat", // Config says repeat
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "colors",
+        in: "query",
+        schema: { type: "array", items: { type: "string" } },
+      },
+    ],
+  };
+
+  // But header says comma
+  const req = mockRequest("http://localhost/test?colors=red,green,blue", {
+    headers: { "X-Steady-Query-Array-Format": "comma" },
+  });
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: X-Steady-Query-Object-Format header overrides config", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "brackets", // Config says brackets
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "filter",
+        in: "query",
+        schema: {
+          type: "object",
+          properties: {
+            status: { type: "string" },
+            level: { type: "integer" },
+          },
+        },
+      },
+    ],
+  };
+
+  // But header says dots
+  const req = mockRequest(
+    "http://localhost/test?filter.status=active&filter.level=5",
+    {
+      headers: { "X-Steady-Query-Object-Format": "dots" },
+    },
+  );
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: invalid header format value is ignored", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryArrayFormat: "repeat", // Config says repeat
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "colors",
+        in: "query",
+        schema: { type: "array", items: { type: "string" } },
+      },
+    ],
+  };
+
+  // Invalid header value - should fall back to config
+  const req = mockRequest("http://localhost/test?colors=red&colors=green", {
+    headers: { "X-Steady-Query-Array-Format": "invalid-format" },
+  });
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true); // Should use config's repeat format
 });
