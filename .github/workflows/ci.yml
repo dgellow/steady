@@ -96,3 +96,24 @@ jobs:
           npm install ${{ github.workspace }}/npm/cli ${{ github.workspace }}/npm/cli-linux-x64
           npx steady validate ${{ github.workspace }}/tests/specs/simple.yaml
           npx steady --help
+
+  test-sdks:
+    name: SDK Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          cache: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Run SDK tests
+        run: deno task test:sdks --go
