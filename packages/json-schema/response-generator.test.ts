@@ -310,62 +310,15 @@ Deno.test("RegistryResponseGenerator - different seeds produce different output"
   );
 });
 
-Deno.test("SchemaRegistry - $id lookup resolves simple name via basename match", () => {
-  // Test that a simple name like "User" can resolve to a schema with $id ending in /User
+Deno.test("SchemaRegistry - $id lookup requires exact match", () => {
+  // Per JSON Schema spec, $ref values are resolved as URI-references.
+  // Only exact $id matches should work - no basename/suffix matching.
   const document = {
     $defs: {
-      UserSchema: {
-        $id: "https://example.com/schemas/User",
-        type: "object",
-        properties: { name: { type: "string", const: "resolved" } },
-      },
-    },
-    components: {
-      schemas: {
-        Profile: {
-          type: "object",
-          properties: {
-            // Reference by simple name - should match via basename
-            user: { $ref: "User" },
-          },
-        },
-      },
-    },
-  };
-
-  const registry = new SchemaRegistry(document);
-  const generator = new RegistryResponseGenerator(registry, { seed: 42 });
-
-  const result = generator.generate(
-    "#/components/schemas/Profile",
-  ) as Record<string, unknown>;
-
-  assertEquals(typeof result, "object");
-  // If user property exists and was resolved, it should have the "resolved" name
-  if (result.user && typeof result.user === "object") {
-    const user = result.user as Record<string, unknown>;
-    assertEquals(
-      user.name,
-      "resolved",
-      "Simple name 'User' should resolve to schema with $id ending in /User",
-    );
-  }
-});
-
-Deno.test("SchemaRegistry - $id lookup exact match takes priority", () => {
-  const document = {
-    $defs: {
-      // Exact match should win
       ExactUser: {
         $id: "User",
         type: "object",
         properties: { source: { type: "string", const: "exact" } },
-      },
-      // Basename match should NOT be used when exact match exists
-      SuffixUser: {
-        $id: "https://example.com/schemas/User",
-        type: "object",
-        properties: { source: { type: "string", const: "suffix" } },
       },
     },
     components: {
@@ -393,18 +346,20 @@ Deno.test("SchemaRegistry - $id lookup exact match takes priority", () => {
     assertEquals(
       user.source,
       "exact",
-      "Exact $id match should take priority over basename match",
+      "$ref 'User' should resolve to schema with $id 'User'",
     );
   }
 });
 
-Deno.test("SchemaRegistry - $id lookup only does basename match for simple names", () => {
+Deno.test("SchemaRegistry - $id lookup does not do basename matching", () => {
+  // Per JSON Schema spec, $ref: "User" should NOT match $id: "https://example.com/User"
+  // This is non-standard behavior that we explicitly don't support.
   const document = {
     $defs: {
       UserSchema: {
         $id: "https://example.com/schemas/User",
         type: "object",
-        properties: { name: { type: "string" } },
+        properties: { name: { type: "string", const: "should-not-resolve" } },
       },
     },
     components: {
@@ -412,8 +367,8 @@ Deno.test("SchemaRegistry - $id lookup only does basename match for simple names
         Profile: {
           type: "object",
           properties: {
-            // This has a slash, so should NOT do basename matching
-            user: { $ref: "schemas/User" },
+            // This should NOT resolve - "User" != "https://example.com/schemas/User"
+            user: { $ref: "User" },
           },
         },
       },
@@ -427,20 +382,14 @@ Deno.test("SchemaRegistry - $id lookup only does basename match for simple names
     "#/components/schemas/Profile",
   ) as Record<string, unknown>;
 
-  // The ref "schemas/User" contains a slash, so basename matching should NOT
-  // be used. Since there's no exact match, user should be null or unresolved.
   assertEquals(typeof result, "object");
-  // User should either be null (unresolved) or a circular ref comment
-  if (result.user !== null && result.user !== undefined) {
-    const user = result.user;
-    // If it resolved, it shouldn't have the name property from UserSchema
-    // because basename matching shouldn't work for refs with slashes
-    if (typeof user === "object" && user !== null && !("$comment" in user)) {
-      assertEquals(
-        "name" in user,
-        false,
-        "Ref with slash should not do basename matching",
-      );
-    }
+  // user should NOT have resolved to UserSchema (no basename matching)
+  if (result.user && typeof result.user === "object") {
+    const user = result.user as Record<string, unknown>;
+    assertEquals(
+      user.name !== "should-not-resolve",
+      true,
+      "$ref 'User' should NOT resolve to schema with $id 'https://example.com/schemas/User'",
+    );
   }
 });

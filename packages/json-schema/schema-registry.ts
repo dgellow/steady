@@ -169,15 +169,12 @@ export class SchemaRegistry {
   }
 
   /**
-   * Find a schema by $id value
+   * Find a schema by $id value (exact match only)
    *
-   * Matching strategy:
-   * 1. Exact match: schemaId === id
-   * 2. Basename match: If id is a simple name (no slashes or scheme),
-   *    match schema whose $id ends with exactly that name as a path segment.
+   * Per JSON Schema spec, $ref values are resolved as URI-references against
+   * the base URI. We only match schemas whose $id exactly equals the reference.
    */
   private findById(id: string): RegistrySchema | undefined {
-    // First pass: look for exact match
     for (const pointer of this.refGraph.pointers) {
       const schema = this.get(pointer);
       if (schema && typeof schema.raw === "object" && schema.raw !== null) {
@@ -187,21 +184,6 @@ export class SchemaRegistry {
         }
       }
     }
-
-    // Second pass: if id is a simple name (no slashes), try basename match
-    if (!id.includes("/") && !id.includes(":")) {
-      for (const pointer of this.refGraph.pointers) {
-        const schema = this.get(pointer);
-        if (schema && typeof schema.raw === "object" && schema.raw !== null) {
-          const schemaId = (schema.raw as Schema).$id;
-          // Match if schemaId ends with /id (exact basename match)
-          if (schemaId?.endsWith("/" + id)) {
-            return schema;
-          }
-        }
-      }
-    }
-
     return undefined;
   }
 
