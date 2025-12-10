@@ -48,6 +48,7 @@
     "test:edge-cases": "deno test --allow-read --allow-write --allow-net --allow-env tests/edge-cases/**/*.test.ts",
     "test:suite": "deno run --allow-read packages/json-schema/test-suite-runner.ts",
     "test:specs": "deno run --allow-read --allow-write scripts/test-openapi-directory.ts",
+    "test:sdks": "deno run -A scripts/test-sdks.ts",
     "analyze": "deno run --allow-read --allow-write scripts/analyze-specs.ts",
     "test-all": "deno fmt && deno check cmd/steady.ts && deno lint --quiet && deno task check-boundaries && deno task test",
     "publish": "deno publish",
