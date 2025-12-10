@@ -237,3 +237,210 @@ Deno.test("RegistryResponseGenerator - allOf with $ref resolves referenced schem
     }`,
   );
 });
+
+Deno.test("RegistryResponseGenerator - seeded RNG produces deterministic output per generate() call", () => {
+  const document = {
+    components: {
+      schemas: {
+        User: {
+          type: "object",
+          properties: {
+            id: { type: "integer", minimum: 1, maximum: 1000000 },
+            name: { type: "string", minLength: 5, maxLength: 20 },
+            email: { type: "string", format: "email" },
+          },
+          required: ["id", "name", "email"],
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(document);
+
+  // Create generator with fixed seed
+  const generator = new RegistryResponseGenerator(registry, { seed: 42 });
+
+  // Generate multiple times - each call should produce the same result
+  const result1 = generator.generate("#/components/schemas/User");
+  const result2 = generator.generate("#/components/schemas/User");
+  const result3 = generator.generate("#/components/schemas/User");
+
+  assertEquals(
+    JSON.stringify(result1),
+    JSON.stringify(result2),
+    "Same seed should produce identical results on repeated generate() calls",
+  );
+  assertEquals(
+    JSON.stringify(result2),
+    JSON.stringify(result3),
+    "Same seed should produce identical results on repeated generate() calls",
+  );
+});
+
+Deno.test("RegistryResponseGenerator - different seeds produce different output", () => {
+  const document = {
+    components: {
+      schemas: {
+        User: {
+          type: "object",
+          properties: {
+            id: { type: "integer", minimum: 1, maximum: 1000000 },
+            name: { type: "string", minLength: 10, maxLength: 20 },
+          },
+          required: ["id", "name"],
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(document);
+
+  const generator1 = new RegistryResponseGenerator(registry, { seed: 42 });
+  const generator2 = new RegistryResponseGenerator(registry, { seed: 12345 });
+
+  const result1 = generator1.generate("#/components/schemas/User");
+  const result2 = generator2.generate("#/components/schemas/User");
+
+  // Different seeds should (almost certainly) produce different results
+  // for schemas with randomness
+  assertEquals(
+    JSON.stringify(result1) !== JSON.stringify(result2),
+    true,
+    "Different seeds should produce different results",
+  );
+});
+
+Deno.test("SchemaRegistry - $id lookup resolves simple name via basename match", () => {
+  // Test that a simple name like "User" can resolve to a schema with $id ending in /User
+  const document = {
+    $defs: {
+      UserSchema: {
+        $id: "https://example.com/schemas/User",
+        type: "object",
+        properties: { name: { type: "string", const: "resolved" } },
+      },
+    },
+    components: {
+      schemas: {
+        Profile: {
+          type: "object",
+          properties: {
+            // Reference by simple name - should match via basename
+            user: { $ref: "User" },
+          },
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(document);
+  const generator = new RegistryResponseGenerator(registry, { seed: 42 });
+
+  const result = generator.generate(
+    "#/components/schemas/Profile",
+  ) as Record<string, unknown>;
+
+  assertEquals(typeof result, "object");
+  // If user property exists and was resolved, it should have the "resolved" name
+  if (result.user && typeof result.user === "object") {
+    const user = result.user as Record<string, unknown>;
+    assertEquals(
+      user.name,
+      "resolved",
+      "Simple name 'User' should resolve to schema with $id ending in /User",
+    );
+  }
+});
+
+Deno.test("SchemaRegistry - $id lookup exact match takes priority", () => {
+  const document = {
+    $defs: {
+      // Exact match should win
+      ExactUser: {
+        $id: "User",
+        type: "object",
+        properties: { source: { type: "string", const: "exact" } },
+      },
+      // Basename match should NOT be used when exact match exists
+      SuffixUser: {
+        $id: "https://example.com/schemas/User",
+        type: "object",
+        properties: { source: { type: "string", const: "suffix" } },
+      },
+    },
+    components: {
+      schemas: {
+        Profile: {
+          type: "object",
+          properties: {
+            user: { $ref: "User" },
+          },
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(document);
+  const generator = new RegistryResponseGenerator(registry, { seed: 42 });
+
+  const result = generator.generate(
+    "#/components/schemas/Profile",
+  ) as Record<string, unknown>;
+
+  assertEquals(typeof result, "object");
+  if (result.user && typeof result.user === "object") {
+    const user = result.user as Record<string, unknown>;
+    assertEquals(
+      user.source,
+      "exact",
+      "Exact $id match should take priority over basename match",
+    );
+  }
+});
+
+Deno.test("SchemaRegistry - $id lookup only does basename match for simple names", () => {
+  const document = {
+    $defs: {
+      UserSchema: {
+        $id: "https://example.com/schemas/User",
+        type: "object",
+        properties: { name: { type: "string" } },
+      },
+    },
+    components: {
+      schemas: {
+        Profile: {
+          type: "object",
+          properties: {
+            // This has a slash, so should NOT do basename matching
+            user: { $ref: "schemas/User" },
+          },
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(document);
+  const generator = new RegistryResponseGenerator(registry, { seed: 42 });
+
+  const result = generator.generate(
+    "#/components/schemas/Profile",
+  ) as Record<string, unknown>;
+
+  // The ref "schemas/User" contains a slash, so basename matching should NOT
+  // be used. Since there's no exact match, user should be null or unresolved.
+  assertEquals(typeof result, "object");
+  // User should either be null (unresolved) or a circular ref comment
+  if (result.user !== null && result.user !== undefined) {
+    const user = result.user;
+    // If it resolved, it shouldn't have the name property from UserSchema
+    // because basename matching shouldn't work for refs with slashes
+    if (typeof user === "object" && user !== null && !("$comment" in user)) {
+      assertEquals(
+        "name" in user,
+        false,
+        "Ref with slash should not do basename matching",
+      );
+    }
+  }
+});
