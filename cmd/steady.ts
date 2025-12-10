@@ -1,7 +1,14 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { parseSpecFromFile, SteadyError } from "@steady/openapi";
 import { LogLevel } from "../src/logging/mod.ts";
-import { DEFAULT_PORT, ServerConfig } from "../src/types.ts";
+import {
+  DEFAULT_PORT,
+  type QueryArrayFormat,
+  type QueryObjectFormat,
+  type ServerConfig,
+  VALID_ARRAY_FORMATS,
+  VALID_OBJECT_FORMATS,
+} from "../src/types.ts";
 
 // ANSI colors
 const BOLD = "\x1b[1m";
@@ -24,7 +31,7 @@ export async function main() {
       "port",
       "log-level",
       "validator-query-array-format",
-      "validator-query-nested-format",
+      "validator-query-object-format",
       "generator-array-size",
       "generator-array-min",
       "generator-array-max",
@@ -67,31 +74,31 @@ export async function main() {
 
   // Validate query format args
   const queryArrayFormat = args["validator-query-array-format"] as
-    | "repeat"
-    | "comma"
-    | "brackets"
+    | QueryArrayFormat
     | undefined;
-  const queryNestedFormat = args["validator-query-nested-format"] as
-    | "none"
-    | "brackets"
+  const queryObjectFormat = args["validator-query-object-format"] as
+    | QueryObjectFormat
     | undefined;
 
   if (
     queryArrayFormat &&
-    !["repeat", "comma", "brackets"].includes(queryArrayFormat)
+    !VALID_ARRAY_FORMATS.includes(queryArrayFormat)
   ) {
     console.error(
       `${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-array-format: ${queryArrayFormat}`,
     );
-    console.error("Valid values: repeat, comma, brackets");
+    console.error(`Valid values: ${VALID_ARRAY_FORMATS.join(", ")}`);
     Deno.exit(1);
   }
 
-  if (queryNestedFormat && !["none", "brackets"].includes(queryNestedFormat)) {
+  if (
+    queryObjectFormat &&
+    !VALID_OBJECT_FORMATS.includes(queryObjectFormat)
+  ) {
     console.error(
-      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-nested-format: ${queryNestedFormat}`,
+      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-object-format: ${queryObjectFormat}`,
     );
-    console.error("Valid values: none, brackets");
+    console.error(`Valid values: ${VALID_OBJECT_FORMATS.join(", ")}`);
     Deno.exit(1);
   }
 
@@ -123,7 +130,7 @@ export async function main() {
     validator: {
       strictOneOf: args["validator-strict-oneof"],
       queryArrayFormat,
-      queryNestedFormat,
+      queryObjectFormat,
     },
     generator: {
       arrayMin: effectiveArrayMin,
@@ -166,8 +173,8 @@ async function startServer(
     portOverride?: number;
     validator?: {
       strictOneOf?: boolean;
-      queryArrayFormat?: "repeat" | "comma" | "brackets";
-      queryNestedFormat?: "none" | "brackets";
+      queryArrayFormat?: QueryArrayFormat;
+      queryObjectFormat?: QueryObjectFormat;
     };
     generator?: {
       arrayMin?: number;
@@ -229,8 +236,8 @@ async function startWithWatch(
     portOverride?: number;
     validator?: {
       strictOneOf?: boolean;
-      queryArrayFormat?: "repeat" | "comma" | "brackets";
-      queryNestedFormat?: "none" | "brackets";
+      queryArrayFormat?: QueryArrayFormat;
+      queryObjectFormat?: QueryObjectFormat;
     };
     generator?: {
       arrayMin?: number;
@@ -364,15 +371,23 @@ Options:
 Validator Options:
   --validator-strict-oneof   Require exactly one oneOf variant to match (strict JSON Schema)
                              Default: false (union-like, any variant matching is OK)
+
   --validator-query-array-format=<format>
-                             How array query params are serialized:
-                             - repeat: colors=red&colors=green (default)
-                             - comma:  colors=red,green,blue
-                             - brackets: colors[]=red&colors[]=green
-  --validator-query-nested-format=<format>
-                             How nested object query params are serialized:
-                             - none: flat keys (default)
-                             - brackets: user[name]=sam&user[age]=123 (deepObject)
+                             How array query params are serialized. Maps to OpenAPI style/explode:
+                             - auto: read from OpenAPI spec's style/explode (default)
+                             - repeat: colors=red&colors=green (style=form, explode=true)
+                             - comma: colors=red,green,blue (style=form, explode=false)
+                             - space: colors=red%20green%20blue (style=spaceDelimited)
+                             - pipe: colors=red|green|blue (style=pipeDelimited)
+                             - brackets: colors[]=red&colors[]=green (PHP/Rails style)
+
+  --validator-query-object-format=<format>
+                             How object query params are serialized. Maps to OpenAPI style/explode:
+                             - auto: read from OpenAPI spec's style/explode (default)
+                             - flat: role=admin&firstName=Alex (style=form, explode=true)
+                             - flat-comma: id=role,admin,firstName,Alex (style=form, explode=false)
+                             - brackets: id[role]=admin&id[firstName]=Alex (style=deepObject)
+                             - dots: id.role=admin&id.firstName=Alex (non-standard, SDK compat)
 
 Generator Options:
   --generator-array-size=<n>   Exact array size for all arrays (sets both min and max)
@@ -385,6 +400,8 @@ Generator Options:
 
 Request Headers (per-request overrides):
   X-Steady-Mode: strict|relaxed   Override validation mode for this request
+  X-Steady-Query-Array-Format     Override array query format for this request
+  X-Steady-Query-Object-Format    Override object query format for this request
   X-Steady-Array-Size: <n>        Override array size (sets both min and max)
   X-Steady-Array-Min: <n>         Override minimum array size
   X-Steady-Array-Max: <n>         Override maximum array size

@@ -21,6 +21,10 @@ export const HEADERS = {
   // Request headers (clients can send these to override behavior)
   /** Override validation mode: "strict" | "relaxed" */
   MODE: "X-Steady-Mode",
+  /** Override array query param format */
+  QUERY_ARRAY_FORMAT: "X-Steady-Query-Array-Format",
+  /** Override object query param format */
+  QUERY_OBJECT_FORMAT: "X-Steady-Query-Object-Format",
   /** Override array size for generated responses (sets both min and max) */
   ARRAY_SIZE: "X-Steady-Array-Size",
   /** Override minimum array size for generated responses */
@@ -65,19 +69,83 @@ export interface ResolvedSchema extends Omit<SchemaObject, "$ref"> {
 }
 
 /**
- * How array query parameters are serialized
- * - 'repeat': colors=red&colors=green (explode=true, default)
- * - 'comma': colors=red,green,blue (explode=false)
- * - 'brackets': colors[]=red&colors[]=green (PHP/Rails style)
+ * How array query parameters are serialized.
+ * Maps to OpenAPI style/explode combinations.
+ *
+ * - 'auto': read from OpenAPI spec's style/explode (default)
+ * - 'repeat': colors=red&colors=green (style=form, explode=true)
+ * - 'comma': colors=red,green,blue (style=form, explode=false)
+ * - 'space': colors=red%20green%20blue (style=spaceDelimited)
+ * - 'pipe': colors=red|green|blue (style=pipeDelimited)
+ * - 'brackets': colors[]=red&colors[]=green (PHP/Rails style, non-standard)
  */
-export type QueryArrayFormat = "repeat" | "comma" | "brackets";
+export type QueryArrayFormat =
+  | "auto"
+  | "repeat"
+  | "comma"
+  | "space"
+  | "pipe"
+  | "brackets";
+
+/** All valid array format values */
+export const VALID_ARRAY_FORMATS: readonly QueryArrayFormat[] = [
+  "auto",
+  "repeat",
+  "comma",
+  "space",
+  "pipe",
+  "brackets",
+] as const;
+
+/** Set for O(1) lookup in type guard */
+const VALID_ARRAY_FORMATS_SET: ReadonlySet<string> = new Set(
+  VALID_ARRAY_FORMATS,
+);
 
 /**
- * How nested object query parameters are serialized
- * - 'none': flat keys, no nesting support (default)
- * - 'brackets': user[name]=sam&user[age]=123 (deepObject style)
+ * How object query parameters are serialized.
+ * Maps to OpenAPI style/explode combinations.
+ *
+ * - 'auto': read from OpenAPI spec's style/explode (default)
+ * - 'flat': role=admin&firstName=Alex (style=form, explode=true)
+ * - 'flat-comma': id=role,admin,firstName,Alex (style=form, explode=false)
+ * - 'brackets': id[role]=admin&id[firstName]=Alex (style=deepObject)
+ * - 'dots': id.role=admin&id.firstName=Alex (non-standard, SDK compat)
  */
-export type QueryNestedFormat = "none" | "brackets";
+export type QueryObjectFormat =
+  | "auto"
+  | "flat"
+  | "flat-comma"
+  | "brackets"
+  | "dots";
+
+/** All valid object format values */
+export const VALID_OBJECT_FORMATS: readonly QueryObjectFormat[] = [
+  "auto",
+  "flat",
+  "flat-comma",
+  "brackets",
+  "dots",
+] as const;
+
+/** Set for O(1) lookup in type guard */
+const VALID_OBJECT_FORMATS_SET: ReadonlySet<string> = new Set(
+  VALID_OBJECT_FORMATS,
+);
+
+/** Type guard for valid array format strings */
+export function isValidArrayFormat(
+  value: string | null,
+): value is QueryArrayFormat {
+  return value !== null && VALID_ARRAY_FORMATS_SET.has(value);
+}
+
+/** Type guard for valid object format strings */
+export function isValidObjectFormat(
+  value: string | null,
+): value is QueryObjectFormat {
+  return value !== null && VALID_OBJECT_FORMATS_SET.has(value);
+}
 
 export interface ValidatorConfig {
   /**
@@ -89,15 +157,15 @@ export interface ValidatorConfig {
 
   /**
    * How to parse array query parameters.
-   * Default: 'repeat' (colors=red&colors=green)
+   * Default: 'auto' (read from OpenAPI spec)
    */
   queryArrayFormat?: QueryArrayFormat;
 
   /**
-   * How to parse nested object query parameters.
-   * Default: 'none' (flat keys)
+   * How to parse object query parameters.
+   * Default: 'auto' (read from OpenAPI spec)
    */
-  queryNestedFormat?: QueryNestedFormat;
+  queryObjectFormat?: QueryObjectFormat;
 }
 
 export interface GeneratorConfig {
