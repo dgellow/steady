@@ -1,0 +1,740 @@
+# Parameter Suite - Edge case testing for query params, headers, path params, and body validation
+# Tests various OpenAPI parameter styles, formats, and validation edge cases
+#
+# Known issues / edge cases covered:
+# - Nested deepObject style: filter[meta][level]=1
+# - Header arrays with simple style: X-Flags: F1, F2
+# - Boolean values as strings in request bodies
+# - Array query params with repeat/comma/brackets styles
+# - Date/time/datetime format validation
+# - Integer request body (not object)
+# - Mixed path params with versions in path
+# - Form-data with nested objects
+# - Pagination with defaults and constraints
+
+openapi: 3.0.3
+info:
+  title: Parameter Suite - Edge Case Testing
+  description: |
+    A comprehensive test spec for parameter handling edge cases.
+    Used for testing SDK behavior against OpenAPI specs.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+
+paths:
+  # Simple integer body - unusual but valid
+  /count:
+    put:
+      summary: Update count with integer body
+      description: Tests non-object request body (bare integer)
+      operationId: updateCount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: integer
+              minimum: 0
+              maximum: 1000000
+      responses:
+        "200":
+          description: Count updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  # Form-data endpoint with complex nested objects
+  /form-v{version}/users/{userId}:
+    post:
+      summary: Create user with form-data and mixed parameters
+      description: |
+        Tests multipart/form-data with nested objects and various parameter types.
+        - Path params: version (integer), userId (string)
+        - Query params: limit, tags[], filter[status], filter[meta][level], date, time, datetime
+        - Header params: X-Trace-ID, X-Flags (array)
+      operationId: createFormUser
+      parameters:
+        # --- PATH PARAMS ---
+        - name: version
+          in: path
+          required: true
+          description: API version number
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 99
+
+        - name: userId
+          in: path
+          required: true
+          description: User identifier
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+
+        # --- QUERY PARAMS ---
+        - name: limit
+          in: query
+          description: Maximum results to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+
+        - name: tags
+          in: query
+          description: Filter by tags (array, explode=true)
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+            minItems: 0
+            maxItems: 20
+
+        - name: filter
+          in: query
+          description: Deep object filter with nested properties
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [active, inactive, pending]
+              meta:
+                type: object
+                properties:
+                  level:
+                    type: integer
+                    minimum: 0
+                    maximum: 10
+                  priority:
+                    type: string
+                    enum: [low, medium, high]
+
+        - name: date
+          in: query
+          required: true
+          description: Filter by date
+          schema:
+            type: string
+            format: date
+
+        - name: time
+          in: query
+          required: true
+          description: Filter by time
+          schema:
+            type: string
+            format: time
+
+        - name: datetime
+          in: query
+          required: true
+          description: Filter by datetime
+          schema:
+            type: string
+            format: date-time
+
+        # --- HEADER PARAMS ---
+        - name: X-Trace-ID
+          in: header
+          description: Trace ID for request tracking
+          schema:
+            type: string
+            pattern: "^[A-Za-z0-9-]+$"
+
+        - name: X-Flags
+          in: header
+          description: Feature flags (comma-separated array)
+          style: simple
+          schema:
+            type: array
+            items:
+              type: string
+            minItems: 0
+            maxItems: 10
+
+      requestBody:
+        required: false
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                preferences:
+                  type: object
+                  properties:
+                    theme:
+                      type: string
+                      enum: [light, dark, system]
+                    alerts:
+                      type: boolean
+                blorp:
+                  type: string
+                  maxLength: 500
+
+      responses:
+        "200":
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+
+  # JSON body endpoint - same params but JSON body
+  /json-v{version}/users/{userId}:
+    post:
+      summary: Create user with JSON body and mixed parameters
+      description: |
+        Tests application/json with nested objects and various parameter types.
+        Same as /form-v{version}/users/{userId} but with JSON body.
+      operationId: createJsonUser
+      parameters:
+        # --- PATH PARAMS ---
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 99
+
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+
+        # --- QUERY PARAMS ---
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+
+        - name: tags
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+
+        - name: filter
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+              meta:
+                type: object
+                properties:
+                  level:
+                    type: integer
+
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+
+        - name: time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: time
+
+        - name: datetime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+
+        # --- HEADER PARAMS ---
+        - name: X-Trace-ID
+          in: header
+          schema:
+            type: string
+
+        - name: X-Flags
+          in: header
+          style: simple
+          schema:
+            type: array
+            items:
+              type: string
+
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preferences:
+                  type: object
+                  properties:
+                    theme:
+                      type: string
+                    alerts:
+                      type: boolean
+                blorp:
+                  type: string
+
+      responses:
+        "200":
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+
+  # Pagination endpoint with defaults
+  /paginated:
+    get:
+      summary: Get paginated foos
+      description: Tests pagination with defaults and constraints
+      operationId: get_foos_foos_get
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            description: Page number
+            default: 1
+            title: Page
+          description: Page number
+
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 100
+            minimum: 1
+            description: Page size
+            default: 50
+            title: Size
+          description: Page size
+
+        - name: tags
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Page_Foo_"
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  # Additional edge cases
+
+  # Empty body endpoint
+  /ping:
+    post:
+      summary: Simple ping endpoint with no body
+      operationId: ping
+      responses:
+        "200":
+          description: Pong
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pong:
+                    type: boolean
+                    const: true
+
+  # Cookie params
+  /session:
+    get:
+      summary: Get session info (tests cookie parameters)
+      operationId: getSession
+      parameters:
+        - name: session_id
+          in: cookie
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-f0-9]{32}$"
+        - name: user_pref
+          in: cookie
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                  valid:
+                    type: boolean
+
+  # Array body
+  /bulk:
+    post:
+      summary: Bulk create items (array body)
+      operationId: bulkCreate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/Foo"
+              minItems: 1
+              maxItems: 100
+      responses:
+        "200":
+          description: Items created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: integer
+
+  # Nullable types
+  /nullable:
+    post:
+      summary: Test nullable field handling
+      operationId: testNullable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - requiredField
+              properties:
+                requiredField:
+                  type: string
+                optionalNullable:
+                  type: ["string", "null"]
+                optionalString:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+
+  # oneOf with discriminator
+  /events:
+    post:
+      summary: Create event (oneOf with discriminator)
+      operationId: createEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/ClickEvent"
+                - $ref: "#/components/schemas/ViewEvent"
+              discriminator:
+                propertyName: type
+                mapping:
+                  click: "#/components/schemas/ClickEvent"
+                  view: "#/components/schemas/ViewEvent"
+      responses:
+        "200":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eventId:
+                    type: string
+
+  # Path with special characters
+  /items/{item-id}/sub-items/{sub_item_id}:
+    get:
+      summary: Get sub-item (tests path param naming)
+      operationId: getSubItem
+      parameters:
+        - name: item-id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sub_item_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sub-item
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  itemId:
+                    type: string
+                  subItemId:
+                    type: integer
+
+  # Multiple content types
+  /upload:
+    post:
+      summary: Upload file or JSON
+      operationId: upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - data
+              properties:
+                name:
+                  type: string
+                data:
+                  type: string
+                  format: byte
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                metadata:
+                  type: string
+      responses:
+        "200":
+          description: Upload result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  size:
+                    type: integer
+
+  # Query with enum array
+  /search:
+    get:
+      summary: Search with enum filters
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: status
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [draft, published, archived]
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    score:
+                      type: number
+
+components:
+  schemas:
+    Foo:
+      type: object
+      required:
+        - foo
+        - baz
+      properties:
+        foo:
+          type: string
+          title: Foo
+          description: The foo field
+        baz:
+          type: integer
+          title: Baz
+          description: The baz field
+
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationError"
+          title: Detail
+      title: HTTPValidationError
+
+    Page_Foo_:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - size
+        - pages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Foo"
+          title: Items
+        total:
+          type: integer
+          minimum: 0
+          title: Total
+        page:
+          type: integer
+          minimum: 1
+          title: Page
+        size:
+          type: integer
+          minimum: 1
+          title: Size
+        pages:
+          type: integer
+          minimum: 0
+          title: Pages
+      title: Page[Foo]
+
+    ValidationError:
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      title: ValidationError
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        version:
+          type: integer
+        userId:
+          type: string
+        status:
+          type: string
+
+    ClickEvent:
+      type: object
+      required:
+        - type
+        - x
+        - y
+      properties:
+        type:
+          type: string
+          enum: [click]
+        x:
+          type: integer
+        y:
+          type: integer
+        element:
+          type: string
+
+    ViewEvent:
+      type: object
+      required:
+        - type
+        - page
+      properties:
+        type:
+          type: string
+          enum: [view]
+        page:
+          type: string
+        duration:
+          type: integer
