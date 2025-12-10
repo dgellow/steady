@@ -1,21 +1,28 @@
 /**
  * $ref Sibling Keyword Checker
  *
- * According to JSON Schema 2020-12:
- * - When a schema object contains $ref, all sibling keywords are IGNORED
- * - Exception: $id and $anchor are still processed (they identify the schema)
- * - Exception: $comment is still processed (it's for documentation only)
- * - Exception: $defs is still processed (it defines reusable schemas)
+ * JSON Schema $ref behavior differs by version:
  *
- * This is a breaking change from draft-07 where siblings were merged with the referenced schema.
+ * - **Draft-07 and earlier (OpenAPI 3.0.x):** When a schema object contains
+ *   $ref, all sibling keywords are IGNORED. The $ref completely replaces
+ *   the schema object.
  *
- * Reference: https://json-schema.org/draft/2020-12/json-schema-core.html#name-the-ref-keyword
+ * - **JSON Schema 2020-12 (OpenAPI 3.1.x):** $ref is now a regular keyword,
+ *   and sibling keywords ARE processed alongside it. This was a major
+ *   breaking change.
+ *
+ * This module checks for $ref siblings that would be ignored in OpenAPI 3.0.x
+ * specs. The SchemaAnalyzer only runs this check for 3.0.x specs since 3.1.x
+ * specs correctly process siblings.
+ *
+ * Reference: https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3.1
  */
 
 import type { Schema, SchemaWarning } from "./types.ts";
 
 /**
- * Keywords that are allowed as siblings to $ref in JSON Schema 2020-12
+ * Keywords that are processed as siblings to $ref in all JSON Schema versions.
+ * In draft-07, other keywords are ignored. In 2020-12, all keywords are processed.
  */
 const ALLOWED_REF_SIBLINGS = new Set([
   "$id", // Schema identification
@@ -26,8 +33,8 @@ const ALLOWED_REF_SIBLINGS = new Set([
 ]);
 
 /**
- * Check a schema for ignored siblings to $ref
- * Returns warnings for any siblings that will be ignored
+ * Check a schema for $ref siblings that would be ignored in draft-07/OpenAPI 3.0.x.
+ * Returns warnings for any siblings that will be ignored in those versions.
  */
 export function checkRefSiblings(
   schema: Schema | boolean,
@@ -51,11 +58,11 @@ export function checkRefSiblings(
       warnings.push({
         type: "compatibility" as const,
         message:
-          `Schema contains $ref with sibling keywords that will be ignored per JSON Schema 2020-12`,
+          `Schema contains $ref with sibling keywords that will be ignored in OpenAPI 3.0.x`,
         location: path,
         suggestion: `Remove ignored keywords: ${ignoredKeywords.join(", ")}. ` +
-          `In JSON Schema 2020-12, keywords that are siblings to $ref are ignored ` +
-          `(except $id, $anchor, $comment, and $defs).`,
+          `In OpenAPI 3.0.x (draft-07), keywords alongside $ref are ignored. ` +
+          `In OpenAPI 3.1.x (JSON Schema 2020-12), siblings ARE processed.`,
       });
     }
   }

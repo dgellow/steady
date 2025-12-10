@@ -2,7 +2,7 @@
  * SchemaAnalyzer - Analyzes JSON Schema quality
  *
  * Checks for:
- * - $ref sibling keywords (ignored in JSON Schema 2020-12)
+ * - $ref sibling keywords (ignored in OpenAPI 3.0.x / draft-07, but processed in 3.1.x)
  * - High complexity scores
  * - Deep nesting
  */
@@ -14,7 +14,8 @@ import { getAttribution } from "../diagnostics/attribution.ts";
 import { escapeSegment } from "@steady/json-pointer";
 
 /**
- * Keywords allowed as siblings to $ref in JSON Schema 2020-12
+ * Keywords that are always processed as siblings to $ref (in all versions).
+ * Other keywords are ignored in draft-07/OpenAPI 3.0.x but processed in 2020-12/3.1.x.
  */
 const ALLOWED_REF_SIBLINGS = new Set([
   "$id",
@@ -126,15 +127,16 @@ export class SchemaAnalyzer implements Analyzer {
             code: "schema-ref-siblings",
             severity: "warning",
             pointer,
-            message: `$ref has sibling keywords that will be ignored: ${
-              ignoredKeywords.join(", ")
-            }`,
+            message:
+              `$ref has sibling keywords that will be ignored in OpenAPI 3.0.x: ${
+                ignoredKeywords.join(", ")
+              }`,
             attribution: getAttribution("schema-ref-siblings"),
             suggestion:
-              "Per JSON Schema 2020-12, keywords alongside $ref are ignored. " +
+              "In OpenAPI 3.0.x (draft-07), keywords alongside $ref are ignored. " +
               "Move these keywords into the referenced schema or remove them.",
             documentation:
-              "https://json-schema.org/draft/2020-12/json-schema-core.html#name-the-ref-keyword",
+              "https://json-schema.org/understanding-json-schema/structuring.html#ref",
           });
         }
       }

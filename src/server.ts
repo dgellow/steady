@@ -132,17 +132,6 @@ export class MockServer {
     });
   }
 
-  /**
-   * Initialize the server
-   * With the document-centric architecture, initialization is lightweight -
-   * schemas are processed lazily on first access
-   */
-  async init(): Promise<void> {
-    // Document is already created in constructor
-    // Ref graph is built, schemas will be processed lazily
-    // Optionally, we could warm up the cache here for all component schemas
-  }
-
   start(): void {
     // Start interactive logger if enabled
     if (this.config.interactive && this.logger instanceof InkSimpleLogger) {

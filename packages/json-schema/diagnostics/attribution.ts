@@ -39,7 +39,8 @@ const ATTRIBUTION_RULES: Record<DiagnosticCode, AttributionRule> = {
   "schema-ref-siblings": {
     type: "spec-issue",
     confidence: 1.0,
-    reasoning: "Per JSON Schema 2020-12, keywords alongside $ref are ignored",
+    reasoning:
+      "In OpenAPI 3.0.x (draft-07), keywords alongside $ref are ignored",
   },
   "schema-complexity": {
     type: "spec-issue",
