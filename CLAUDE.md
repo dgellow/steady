@@ -73,6 +73,31 @@ Name"` (percent-decoded before JSON Pointer parsing).
 6. **No hacky solutions** - Use standard libraries (e.g., `@std/cli` for arg
    parsing), don't reinvent the wheel with brittle manual implementations
 
+## Investigation Standards
+
+**INVESTIGATE BEFORE IMPLEMENTING**: Always research the correct behavior first.
+
+1. **Research specifications** - Check OpenAPI spec, RFCs, and official docs
+2. **Test actual behavior** - Run code to see what happens, don't assume
+3. **Verify assumptions** - If uncertain, write a test to confirm behavior
+4. **No hand-waving comments** - Don't add comments like "intentional" or
+   "future use" without verifying the behavior is correct
+5. **No ignore flags as shortcuts** - Never mark tests as `ignore: true` without
+   first verifying if the feature actually works
+
+**When behavior is undefined by spec:**
+
+- Research how PHP, Rails, Node.js, and other frameworks handle it
+- Document the actual behavior differences
+- Make an informed decision and document why
+- Consider making it configurable if behavior varies significantly
+
+**Comments must be accurate:**
+
+- Don't claim behavior is "intentional" unless you verified it's correct
+- Don't claim something is "for future use" - either use it or remove it
+- Comments should explain WHY, not paper over uncertainty
+
 ## Testing Approach
 
 **RED-GREEN TESTING IS MANDATORY**: Always write a failing test BEFORE fixing a
