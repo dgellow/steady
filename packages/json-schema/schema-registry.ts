@@ -170,17 +170,38 @@ export class SchemaRegistry {
 
   /**
    * Find a schema by $id value
+   *
+   * Matching strategy:
+   * 1. Exact match: schemaId === id
+   * 2. Basename match: If id is a simple name (no slashes or scheme),
+   *    match schema whose $id ends with exactly that name as a path segment.
    */
   private findById(id: string): RegistrySchema | undefined {
+    // First pass: look for exact match
     for (const pointer of this.refGraph.pointers) {
       const schema = this.get(pointer);
       if (schema && typeof schema.raw === "object" && schema.raw !== null) {
         const schemaId = (schema.raw as Schema).$id;
-        if (schemaId === id || schemaId?.endsWith("/" + id)) {
+        if (schemaId === id) {
           return schema;
         }
       }
     }
+
+    // Second pass: if id is a simple name (no slashes), try basename match
+    if (!id.includes("/") && !id.includes(":")) {
+      for (const pointer of this.refGraph.pointers) {
+        const schema = this.get(pointer);
+        if (schema && typeof schema.raw === "object" && schema.raw !== null) {
+          const schemaId = (schema.raw as Schema).$id;
+          // Match if schemaId ends with /id (exact basename match)
+          if (schemaId?.endsWith("/" + id)) {
+            return schema;
+          }
+        }
+      }
+    }
+
     return undefined;
   }
 
@@ -237,6 +258,7 @@ export class SchemaRegistry {
 export class RegistryResponseGenerator {
   private visited = new Set<string>();
   private maxDepth: number;
+  private initialSeed: number;
   private seed: number;
   private arrayMin: number;
   private arrayMax: number;
@@ -246,7 +268,8 @@ export class RegistryResponseGenerator {
     private options: GenerateOptions = {},
   ) {
     this.maxDepth = options.maxDepth ?? 10;
-    this.seed = options.seed ?? Math.random() * 1000000;
+    this.initialSeed = options.seed ?? Math.random() * 1000000;
+    this.seed = this.initialSeed;
     // Default to exactly 1 item (no randomness)
     // If only min is set: exact count (min=max=value)
     // If only max is set: range from default 1 to max
@@ -278,6 +301,8 @@ export class RegistryResponseGenerator {
     if (!schema) {
       return null;
     }
+    // Reset RNG state for deterministic output per-call
+    this.seed = this.initialSeed;
     this.visited.clear();
     return this.generateFromSchema(schema.raw, pointer, 0);
   }
