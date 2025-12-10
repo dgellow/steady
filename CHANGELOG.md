@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.1
+
+### Bug Fixes
+
+- remove non-standard $id basename matching
+- address issues found in codebase review
+
+### Documentation
+
+- clarify red-green testing applies to all fixes, not just bugs
+
+### Tests
+
+- add tests for RNG determinism and $id lookup behavior
+
 ## 0.5.0
 
 ### Features
