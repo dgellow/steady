@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.0
+
+### Features
+
+- add streaming support for NDJSON and SSE responses <details><summary>Details</summary>
+  Adds streaming response support for:
+  - NDJSON formats: application/x-ndjson, application/jsonl, application/json-seq
+  - Server-Sent Events: text/event-stream<br>
+  Features:
+  - Schema-based streaming generates items from JSON Schema
+  - Example-based SSE supports event sequences with different event types
+  - OpenAI-style SSE pattern (data-only events like [DONE])
+  - Configurable stream count and interval via headers
+  - Auto-appends done event for SSE stream completion
+  - Deterministic streaming with seeded RNG<br>
+  Headers:
+  - X-Steady-Stream-Count: Number of items (default: 5, max: 1000)
+  - X-Steady-Stream-Interval-Ms: Delay between items (default: 100ms)
+</details>
+
+
 ## 0.5.1
 
 ### Bug Fixes
