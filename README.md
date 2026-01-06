@@ -157,15 +157,17 @@ validation errors are logged but responses are still returned.
 
 Override server behavior for individual requests:
 
-| Header                         | Description                                       |
-| ------------------------------ | ------------------------------------------------- |
-| `X-Steady-Mode`                | Override validation mode: `strict` or `relaxed`   |
-| `X-Steady-Query-Array-Format`  | Override array query param serialization format   |
-| `X-Steady-Query-Object-Format` | Override object query param serialization format  |
-| `X-Steady-Array-Size`          | Override array size (sets both min and max)       |
-| `X-Steady-Array-Min`           | Override minimum array size                       |
-| `X-Steady-Array-Max`           | Override maximum array size                       |
-| `X-Steady-Seed`                | Override random seed (`-1` for non-deterministic) |
+| Header                         | Description                                          |
+| ------------------------------ | ---------------------------------------------------- |
+| `X-Steady-Mode`                | Override validation mode: `strict` or `relaxed`      |
+| `X-Steady-Query-Array-Format`  | Override array query param serialization format      |
+| `X-Steady-Query-Object-Format` | Override object query param serialization format     |
+| `X-Steady-Array-Size`          | Override array size (sets both min and max)          |
+| `X-Steady-Array-Min`           | Override minimum array size                          |
+| `X-Steady-Array-Max`           | Override maximum array size                          |
+| `X-Steady-Seed`                | Override random seed (`-1` for non-deterministic)    |
+| `X-Steady-Stream-Count`        | Number of items to stream (default: 5)               |
+| `X-Steady-Stream-Interval-Ms`  | Interval between streamed items in ms (default: 100) |
 
 ```bash
 # Force strict validation
@@ -190,6 +192,132 @@ Informational headers returned by the server:
 | `X-Steady-Mode`           | The validation mode used for this request             |
 | `X-Steady-Matched-Path`   | The OpenAPI path pattern that matched                 |
 | `X-Steady-Example-Source` | How the response was generated: `generated` or `none` |
+| `X-Steady-Streaming`      | Set to `true` for streaming responses                 |
+
+## Streaming Responses
+
+Steady supports streaming responses for NDJSON and Server-Sent Events (SSE):
+
+| Content Type           | Format | Description            |
+| ---------------------- | ------ | ---------------------- |
+| `application/x-ndjson` | NDJSON | Newline-delimited JSON |
+| `application/jsonl`    | NDJSON | JSON Lines             |
+| `application/json-seq` | NDJSON | JSON Sequence          |
+| `text/event-stream`    | SSE    | Server-Sent Events     |
+
+### Streaming Headers
+
+| Header                        | Description                                 |
+| ----------------------------- | ------------------------------------------- |
+| `X-Steady-Stream-Count`       | Number of items to stream (default: 5)      |
+| `X-Steady-Stream-Interval-Ms` | Interval between items in ms (default: 100) |
+
+```bash
+# Stream 10 items with 50ms delay
+curl -H "X-Steady-Stream-Count: 10" \
+     -H "X-Steady-Stream-Interval-Ms: 50" \
+     http://localhost:3000/events
+```
+
+### NDJSON Example
+
+```yaml
+/metrics:
+  get:
+    responses:
+      "200":
+        content:
+          application/x-ndjson:
+            schema:
+              type: object
+              properties:
+                id: { type: integer }
+                value: { type: number }
+```
+
+Output:
+
+```
+{"id":1,"value":42.5,"_stream":{"index":0,"total":5,"timestamp":"..."}}
+{"id":2,"value":43.1,"_stream":{"index":1,"total":5,"timestamp":"..."}}
+...
+```
+
+### SSE with Event Sequences
+
+Define realistic SSE flows with different event types using array examples:
+
+```yaml
+/events:
+  get:
+    responses:
+      "200":
+        content:
+          text/event-stream:
+            example:
+              - event: start
+                data: { status: "processing" }
+              - event: progress
+                data: { percent: 50 }
+              - event: progress
+                data: { percent: 100 }
+              - event: complete
+                data: { result: "success" }
+```
+
+Output:
+
+```
+id: 0
+event: start
+data: {"status":"processing"}
+
+id: 1
+event: progress
+data: {"percent":50}
+
+id: 2
+event: progress
+data: {"percent":100}
+
+id: 3
+event: complete
+data: {"result":"success"}
+```
+
+SSE events support these fields:
+
+- `event` - Event type name (default: "message"; set to `null` or `""` to omit)
+- `data` - Event payload (required; strings output as-is, objects JSON-encoded)
+- `id` - Custom event ID (auto-generated if omitted; set to `null` to omit)
+- `retry` - Reconnection timeout in milliseconds
+
+If the last event isn't `done`, `complete`, or `end`, Steady automatically
+appends a `done` event to signal stream completion.
+
+### OpenAI-Style SSE
+
+For APIs like OpenAI that use data-only terminal events, set `event` and `id` to
+`null`:
+
+```yaml
+example:
+  - event: message
+    data: { delta: { content: "Hello" } }
+  - event: null
+    id: null
+    data: "[DONE]"
+```
+
+Output:
+
+```
+id: 0
+event: message
+data: {"delta":{"content":"Hello"}}
+
+data: [DONE]
+```
 
 ## Special Endpoints
 

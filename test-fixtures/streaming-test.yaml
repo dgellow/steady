@@ -1,0 +1,129 @@
+openapi: "3.1.0"
+info:
+  title: Streaming Test API
+  version: "1.0.0"
+  description: Test API for NDJSON and SSE streaming
+
+paths:
+  /events:
+    get:
+      summary: Get events as SSE stream (schema-based)
+      description: Returns events as Server-Sent Events generated from schema
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  type:
+                    type: string
+                    enum: ["created", "updated", "deleted"]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  data:
+                    type: object
+                    additionalProperties: true
+                required:
+                  - id
+                  - type
+                  - timestamp
+
+  /process:
+    post:
+      summary: Process data with SSE progress updates
+      description: Demonstrates SSE with event sequence example
+      responses:
+        "200":
+          description: SSE progress stream
+          content:
+            text/event-stream:
+              example:
+                - event: started
+                  data: { message: "Processing started", jobId: "job-123" }
+                - event: progress
+                  data: { percent: 25, stage: "validation" }
+                - event: progress
+                  data: { percent: 50, stage: "transformation" }
+                - event: progress
+                  data: { percent: 75, stage: "saving" }
+                - event: progress
+                  data: { percent: 100, stage: "complete" }
+                - event: done
+                  data: { success: true, result: { itemsProcessed: 42 } }
+
+  /stream-json:
+    get:
+      summary: Stream JSON objects
+      description: Streams JSON objects as a chunked response (NDJSON)
+      responses:
+        "200":
+          description: Chunked JSON stream
+          content:
+            application/x-ndjson:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  timestamp:
+                    type: string
+                    format: date-time
+                  value:
+                    type: number
+                required:
+                  - id
+                  - value
+
+  /metrics:
+    get:
+      summary: Stream metrics data
+      description: Streams metrics as JSON lines
+      responses:
+        "200":
+          description: Metrics stream
+          content:
+            application/jsonl:
+              schema:
+                type: object
+                properties:
+                  metric:
+                    type: string
+                  value:
+                    type: number
+                  tags:
+                    type: object
+                    additionalProperties:
+                      type: string
+                required:
+                  - metric
+                  - value
+
+  /users:
+    get:
+      summary: Get users (non-streaming)
+      description: Regular JSON endpoint for comparison
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    name:
+                      type: string
+                    email:
+                      type: string
+                      format: email
+                  required:
+                    - id
+                    - name

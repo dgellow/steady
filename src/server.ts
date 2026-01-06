@@ -36,6 +36,13 @@ import {
   matchCompiledPath,
   type PathSegment,
 } from "./path-matcher.ts";
+import {
+  createStreamingResponse,
+  getStreamFormat,
+  isStreamingContentType,
+  parseStreamingOptions,
+  type StreamingOptions,
+} from "./streaming.ts";
 
 // ANSI colors for startup message
 const BOLD = "\x1b[1m";
@@ -320,6 +327,9 @@ export class MockServer {
       }
 
       const generatorOptions = this.getEffectiveGeneratorOptions(req);
+      const streamingOptions = parseStreamingOptions(req);
+      streamingOptions.generatorOptions = generatorOptions;
+
       const response = this.generateResponse(
         operation,
         statusCode,
@@ -327,6 +337,7 @@ export class MockServer {
         method,
         pathPattern,
         generatorOptions,
+        streamingOptions,
       );
 
       const timing = Math.round(performance.now() - startTime);
@@ -512,6 +523,7 @@ export class MockServer {
     method: string,
     pathPattern: string,
     generatorOptions: GenerateOptions,
+    streamingOptions: StreamingOptions,
   ): Response {
     const responseObjOrRef = operation.responses[statusCode];
     if (!responseObjOrRef) {
@@ -547,6 +559,7 @@ export class MockServer {
         method,
         pathPattern,
         generatorOptions,
+        streamingOptions,
       );
     }
 
@@ -557,6 +570,7 @@ export class MockServer {
       method,
       pathPattern,
       generatorOptions,
+      streamingOptions,
     );
   }
 
@@ -570,6 +584,7 @@ export class MockServer {
     method: string,
     pathPattern: string,
     generatorOptions: GenerateOptions,
+    streamingOptions: StreamingOptions,
   ): Response {
     let body: unknown = null;
     let contentType = "application/json";
@@ -582,6 +597,26 @@ export class MockServer {
           `[Steady] Warning: Response for ${method.toUpperCase()} ${path} has empty content object. ` +
             `Using default application/json with no body.`,
         );
+      }
+
+      // Check for streaming content types first
+      const streamingContentType = contentKeys.find(isStreamingContentType);
+      if (streamingContentType) {
+        const mediaType = responseObj.content[streamingContentType];
+        if (mediaType?.schema || mediaType?.example) {
+          // Pass example to streaming options for SSE event sequences
+          if (mediaType.example !== undefined) {
+            streamingOptions.example = mediaType.example;
+          }
+          return this.generateStreamingResponse(
+            mediaType.schema,
+            pathPattern,
+            method,
+            statusCode,
+            streamingContentType,
+            streamingOptions,
+          );
+        }
       }
 
       // Prefer JSON, then any other content type
@@ -664,6 +699,57 @@ export class MockServer {
         headers,
       },
     );
+  }
+
+  /**
+   * Generate a streaming response (NDJSON or SSE)
+   */
+  private generateStreamingResponse(
+    schema: unknown,
+    pathPattern: string,
+    method: string,
+    statusCode: string,
+    contentType: string,
+    streamingOptions: StreamingOptions,
+  ): Response {
+    const format = getStreamFormat(contentType);
+    if (!format) {
+      // Fallback to JSON if format detection fails
+      throw new Error(`Unknown streaming format: ${contentType}`);
+    }
+
+    const schemaPointer = `#/paths/${
+      this.escapePointer(pathPattern)
+    }/${method}/responses/${statusCode}/content/${
+      this.escapePointer(contentType)
+    }/schema`;
+
+    const stream = createStreamingResponse(
+      this.document.schemas,
+      schema,
+      schemaPointer,
+      format,
+      streamingOptions,
+    );
+
+    const headers = new Headers({
+      "Content-Type": contentType,
+      [HEADERS.MATCHED_PATH]: pathPattern,
+      [HEADERS.EXAMPLE_SOURCE]: "generated",
+      [HEADERS.STREAMING]: "true",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    });
+
+    // For SSE, add specific headers
+    if (format === "sse") {
+      headers.set("X-Accel-Buffering", "no"); // Disable nginx buffering
+    }
+
+    return new Response(stream, {
+      status: parseInt(statusCode, 10),
+      headers,
+    });
   }
 
   /**

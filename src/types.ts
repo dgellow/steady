@@ -33,6 +33,10 @@ export const HEADERS = {
   ARRAY_MAX: "X-Steady-Array-Max",
   /** Override seed for deterministic generation (-1 for random) */
   SEED: "X-Steady-Seed",
+  /** Number of items to stream for streaming responses (default: 5) */
+  STREAM_COUNT: "X-Steady-Stream-Count",
+  /** Interval in milliseconds between streamed items (default: 100) */
+  STREAM_INTERVAL_MS: "X-Steady-Stream-Interval-Ms",
 
   // Response headers (informational)
   /** The OpenAPI path pattern that matched the request */
@@ -41,6 +45,8 @@ export const HEADERS = {
   EXAMPLE_SOURCE: "X-Steady-Example-Source",
   /** Indicates a serialization error occurred (set to "true") */
   SERIALIZATION_ERROR: "X-Steady-Serialization-Error",
+  /** Indicates the response is being streamed */
+  STREAMING: "X-Steady-Streaming",
 } as const;
 
 export interface ResolvedOperation {
