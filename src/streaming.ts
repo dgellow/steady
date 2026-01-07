@@ -18,6 +18,7 @@
 import type { SchemaRegistry } from "@steady/json-schema";
 import { RegistryResponseGenerator } from "@steady/json-schema";
 import type { GenerateOptions } from "@steady/json-schema";
+import { warn } from "./logging/mod.ts";
 
 /** Streaming content types that trigger streaming behavior */
 export const STREAMING_CONTENT_TYPES = [
@@ -185,8 +186,15 @@ export function createStreamingResponse(
   }
 
   // For NDJSON with examples (array of objects or multiline string), use example-based streaming
-  if (format === "ndjson" && options.example && isNDJSONExample(options.example)) {
-    return createNDJSONFromExample(options.example, options);
+  if (format === "ndjson" && options.example) {
+    if (isNDJSONExample(options.example)) {
+      return createNDJSONFromExample(options.example, options);
+    }
+    // Example provided but not valid NDJSON format - warn and fall back to schema
+    warn(
+      `NDJSON example provided but not valid. ` +
+        `Expected array of objects or multiline JSON string. Falling back to schema generation.`,
+    );
   }
 
   // Otherwise, generate from schema
