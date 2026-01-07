@@ -405,6 +405,8 @@ Request Headers (per-request overrides):
   X-Steady-Array-Min: <n>         Override minimum array size
   X-Steady-Array-Max: <n>         Override maximum array size
   X-Steady-Seed: <n>              Override seed (-1 for random)
+  X-Steady-Stream-Count: <n>      Number of items to stream (default: 5, max: 1000)
+  X-Steady-Stream-Interval-Ms: <n>  Interval between streamed items in ms (default: 100)
 
 Response Headers (informational):
   X-Steady-Mode                   The validation mode used for this request

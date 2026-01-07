@@ -626,9 +626,18 @@ Deno.test("createStreamingResponse: NDJSON with multiline string example", async
   const lines = fullText.trim().split("\n");
   assertEquals(lines.length, 3);
 
-  assertEquals(JSON.parse(lines[0]!), { event: "start", data: { jobId: "123" } });
-  assertEquals(JSON.parse(lines[1]!), { event: "progress", data: { percent: 50 } });
-  assertEquals(JSON.parse(lines[2]!), { event: "done", data: { result: "success" } });
+  assertEquals(JSON.parse(lines[0]!), {
+    event: "start",
+    data: { jobId: "123" },
+  });
+  assertEquals(JSON.parse(lines[1]!), {
+    event: "progress",
+    data: { percent: 50 },
+  });
+  assertEquals(JSON.parse(lines[2]!), {
+    event: "done",
+    data: { result: "success" },
+  });
 });
 
 Deno.test("createStreamingResponse: NDJSON example does not add _stream metadata", async () => {

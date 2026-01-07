@@ -135,7 +135,9 @@ export function isNDJSONExample(example: unknown): boolean {
       try {
         const parsed = JSON.parse(line);
         // Each line must be an object (not array, string, number, etc.)
-        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        if (
+          typeof parsed !== "object" || parsed === null || Array.isArray(parsed)
+        ) {
           return false;
         }
       } catch {
