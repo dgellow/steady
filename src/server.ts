@@ -327,7 +327,7 @@ export class MockServer {
       }
 
       const generatorOptions = this.getEffectiveGeneratorOptions(req);
-      const streamingOptions = parseStreamingOptions(req);
+      const streamingOptions = this.getEffectiveStreamingOptions(req);
       streamingOptions.generatorOptions = generatorOptions;
 
       const response = this.generateResponse(
@@ -866,6 +866,23 @@ export class MockServer {
       arrayMin: finalArrayMin,
       arrayMax: finalArrayMax,
       seed,
+    };
+  }
+
+  /**
+   * Get effective streaming options by merging header overrides with config defaults.
+   * Priority: header > config > default
+   */
+  private getEffectiveStreamingOptions(req: Request): StreamingOptions {
+    const config = this.config.streaming ?? {};
+
+    // Parse headers (headers override config)
+    const headerOptions = parseStreamingOptions(req);
+
+    // Merge: header > config > default
+    return {
+      count: headerOptions.count ?? config.count,
+      interval: headerOptions.interval ?? config.interval,
     };
   }
 

@@ -194,6 +194,20 @@ export interface GeneratorConfig {
   seed?: number;
 }
 
+export interface StreamingConfig {
+  /**
+   * Number of items to stream for streaming responses.
+   * Default: 5, max: 1000
+   */
+  count?: number;
+
+  /**
+   * Interval in milliseconds between streamed items.
+   * Default: 100
+   */
+  interval?: number;
+}
+
 export interface ServerConfig {
   port: number;
   host: string;
@@ -205,6 +219,7 @@ export interface ServerConfig {
   interactive?: boolean;
   validator?: ValidatorConfig;
   generator?: GeneratorConfig;
+  streaming?: StreamingConfig;
 }
 
 // Validation types

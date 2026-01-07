@@ -6,6 +6,7 @@ import {
   type QueryArrayFormat,
   type QueryObjectFormat,
   type ServerConfig,
+  type StreamingConfig,
   VALID_ARRAY_FORMATS,
   VALID_OBJECT_FORMATS,
 } from "../src/types.ts";
@@ -36,6 +37,8 @@ export async function main() {
       "generator-array-min",
       "generator-array-max",
       "generator-seed",
+      "stream-count",
+      "stream-interval",
     ],
     alias: {
       h: "help",
@@ -120,6 +123,35 @@ export async function main() {
   const effectiveArrayMin = generatorArraySize ?? generatorArrayMin;
   const effectiveArrayMax = generatorArraySize ?? generatorArrayMax;
 
+  // Parse streaming options
+  const streamCount = args["stream-count"]
+    ? parseInt(args["stream-count"], 10)
+    : undefined;
+  const streamInterval = args["stream-interval"]
+    ? parseInt(args["stream-interval"], 10)
+    : undefined;
+
+  // Validate streaming options
+  if (
+    streamCount !== undefined &&
+    (isNaN(streamCount) || streamCount < 1 || streamCount > 1000)
+  ) {
+    console.error(
+      `${RED}${BOLD}ERROR:${RESET} Invalid --stream-count: must be between 1 and 1000`,
+    );
+    Deno.exit(1);
+  }
+
+  if (
+    streamInterval !== undefined &&
+    (isNaN(streamInterval) || streamInterval < 0 || streamInterval > 10000)
+  ) {
+    console.error(
+      `${RED}${BOLD}ERROR:${RESET} Invalid --stream-interval: must be between 0 and 10000`,
+    );
+    Deno.exit(1);
+  }
+
   const options = {
     logLevel,
     logBodies: args["log-bodies"],
@@ -136,6 +168,10 @@ export async function main() {
       arrayMin: effectiveArrayMin,
       arrayMax: effectiveArrayMax,
       seed: generatorSeed,
+    },
+    streaming: {
+      count: streamCount,
+      interval: streamInterval,
     },
   };
 
@@ -181,6 +217,7 @@ async function startServer(
       arrayMax?: number;
       seed?: number;
     };
+    streaming?: StreamingConfig;
   },
 ): Promise<{ start: () => void; stop: () => Promise<void> }> {
   // Lazy import to avoid loading server code for validate command
@@ -216,6 +253,7 @@ async function startServer(
     interactive: options.interactive,
     validator: options.validator,
     generator: options.generator,
+    streaming: options.streaming,
   };
 
   // Create and start server
@@ -243,6 +281,7 @@ async function startWithWatch(
       arrayMax?: number;
       seed?: number;
     };
+    streaming?: StreamingConfig;
   },
 ) {
   let server: { start: () => void; stop: () => Promise<void> } | null = null;
@@ -396,6 +435,10 @@ Generator Options:
                                If only max is set, arrays range from 1 to max
   --generator-seed=<n>         Seed for deterministic random generation
                                Use -1 for random (non-deterministic) results
+
+Streaming Options:
+  --stream-count=<n>           Number of items to stream (default: 5, max: 1000)
+  --stream-interval=<n>        Interval between items in ms (default: 100)
 
 Request Headers (per-request overrides):
   X-Steady-Mode: strict|relaxed   Override validation mode for this request
