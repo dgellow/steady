@@ -5,9 +5,14 @@
  * - application/x-ndjson: Newline-delimited JSON (each line is a complete JSON object)
  * - text/event-stream: Server-Sent Events (data: {...}\n\n format)
  *
+ * NDJSON Examples:
+ * - Array of objects: each object is streamed as a JSON line
+ * - Multiline string: each line is parsed as JSON and streamed
+ * - No example: generates from schema with _stream metadata
+ *
  * SSE Examples:
- * - Single object example: generates multiple events from schema
- * - Array example: each item is an SSE event with optional event/id/retry fields
+ * - Array of SSE events: each item with event/data fields is streamed
+ * - No example: generates from schema
  */
 
 import type { SchemaRegistry } from "@steady/json-schema";
@@ -96,6 +101,73 @@ export function isSSEEventSequence(example: unknown): example is SSEEvent[] {
 }
 
 /**
+ * Check if an example is a valid NDJSON example.
+ * Valid formats:
+ * - Array of objects (that are NOT SSE events)
+ * - Multiline string where each line is a valid JSON object
+ * - Single-line string that is a valid JSON object
+ */
+export function isNDJSONExample(example: unknown): boolean {
+  // Array of objects (but not SSE event sequences)
+  if (Array.isArray(example)) {
+    if (example.length === 0) {
+      return false;
+    }
+    // If it looks like SSE events, it's not NDJSON
+    if (isSSEEventSequence(example)) {
+      return false;
+    }
+    // Must be array of objects
+    return example.every(
+      (item) => typeof item === "object" && item !== null,
+    );
+  }
+
+  // Multiline string of JSON objects
+  if (typeof example === "string") {
+    const lines = example.split("\n").filter((line) => line.trim() !== "");
+    if (lines.length === 0) {
+      return false;
+    }
+    // Try to parse each line as JSON
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line);
+        // Each line must be an object (not array, string, number, etc.)
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          return false;
+        }
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Parse an NDJSON example into an array of objects.
+ * Handles both array format and multiline string format.
+ */
+export function parseNDJSONExample(example: unknown): unknown[] {
+  // Array format - return as-is
+  if (Array.isArray(example)) {
+    return example;
+  }
+
+  // Multiline string format - parse each line
+  if (typeof example === "string") {
+    const lines = example.split("\n").filter((line) => line.trim() !== "");
+    return lines.map((line) => JSON.parse(line));
+  }
+
+  // Fallback - should not reach here if isNDJSONExample was checked
+  return [];
+}
+
+/**
  * Creates a streaming response body as a ReadableStream
  */
 export function createStreamingResponse(
@@ -110,6 +182,11 @@ export function createStreamingResponse(
     format === "sse" && options.example && isSSEEventSequence(options.example)
   ) {
     return createSSEFromExample(options.example, options);
+  }
+
+  // For NDJSON with examples (array of objects or multiline string), use example-based streaming
+  if (format === "ndjson" && options.example && isNDJSONExample(options.example)) {
+    return createNDJSONFromExample(options.example, options);
   }
 
   // Otherwise, generate from schema
@@ -177,6 +254,56 @@ function createSSEFromExample(
 
       // Start emitting
       emitEvent();
+    },
+    cancel() {
+      cancelled = true;
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+    },
+  });
+}
+
+/**
+ * Create NDJSON stream from a pre-defined example (array or multiline string).
+ * Unlike schema-generated NDJSON, example-based NDJSON does NOT add _stream metadata.
+ */
+function createNDJSONFromExample(
+  example: unknown,
+  options: StreamingOptions,
+): ReadableStream<Uint8Array> {
+  const items = parseNDJSONExample(example);
+  const interval = options.interval ?? DEFAULT_STREAM_INTERVAL;
+  const encoder = new TextEncoder();
+  let itemIndex = 0;
+  let cancelled = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const emitItem = () => {
+        if (cancelled || itemIndex >= items.length) {
+          controller.close();
+          return;
+        }
+
+        const item = items[itemIndex]!;
+        // Output as JSON line without adding metadata
+        const line = JSON.stringify(item) + "\n";
+        controller.enqueue(encoder.encode(line));
+
+        itemIndex++;
+
+        // Schedule next item
+        if (itemIndex < items.length && !cancelled) {
+          timeoutId = setTimeout(emitItem, interval);
+        } else if (!cancelled) {
+          controller.close();
+        }
+      };
+
+      // Start emitting
+      emitItem();
     },
     cancel() {
       cancelled = true;

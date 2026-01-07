@@ -6,8 +6,10 @@ import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   createStreamingResponse,
   getStreamFormat,
+  isNDJSONExample,
   isSSEEventSequence,
   isStreamingContentType,
+  parseNDJSONExample,
   parseStreamingOptions,
   STREAMING_CONTENT_TYPES,
 } from "./streaming.ts";
@@ -479,4 +481,182 @@ Deno.test("createStreamingResponse: SSE schema-based adds done event", async () 
 
   // Schema-based SSE should end with done event
   assertStringIncludes(fullText, "event: done\ndata: {}");
+});
+
+// NDJSON Example Tests
+
+Deno.test("isNDJSONExample: recognizes array of objects", () => {
+  const arrayExample = [
+    { id: 1, name: "Alice" },
+    { id: 2, name: "Bob" },
+    { id: 3, name: "Charlie" },
+  ];
+  assertEquals(isNDJSONExample(arrayExample), true);
+});
+
+Deno.test("isNDJSONExample: recognizes multiline string of JSON objects", () => {
+  const multilineExample = `{"id":1,"name":"Alice"}
+{"id":2,"name":"Bob"}
+{"id":3,"name":"Charlie"}`;
+  assertEquals(isNDJSONExample(multilineExample), true);
+});
+
+Deno.test("isNDJSONExample: rejects SSE event sequences (has event/data fields)", () => {
+  const sseSequence = [
+    { event: "message", data: { text: "Hello" } },
+    { event: "done", data: {} },
+  ];
+  // Should be false - these are SSE events, not NDJSON objects
+  assertEquals(isNDJSONExample(sseSequence), false);
+});
+
+Deno.test("isNDJSONExample: rejects empty array", () => {
+  assertEquals(isNDJSONExample([]), false);
+});
+
+Deno.test("isNDJSONExample: rejects non-object array items", () => {
+  assertEquals(isNDJSONExample([1, 2, 3]), false);
+  assertEquals(isNDJSONExample(["a", "b", "c"]), false);
+});
+
+Deno.test("isNDJSONExample: rejects invalid JSON multiline string", () => {
+  const invalidJson = `not valid json
+also not valid`;
+  assertEquals(isNDJSONExample(invalidJson), false);
+});
+
+Deno.test("isNDJSONExample: rejects single-line non-JSON string", () => {
+  assertEquals(isNDJSONExample("just a string"), false);
+});
+
+Deno.test("isNDJSONExample: accepts single JSON object string", () => {
+  assertEquals(isNDJSONExample('{"id":1}'), true);
+});
+
+Deno.test("parseNDJSONExample: parses multiline string to array", () => {
+  const multilineExample = `{"id":1,"name":"Alice"}
+{"id":2,"name":"Bob"}
+{"id":3,"name":"Charlie"}`;
+  const parsed = parseNDJSONExample(multilineExample);
+  assertEquals(parsed, [
+    { id: 1, name: "Alice" },
+    { id: 2, name: "Bob" },
+    { id: 3, name: "Charlie" },
+  ]);
+});
+
+Deno.test("parseNDJSONExample: skips empty lines", () => {
+  const withEmptyLines = `{"id":1}
+
+{"id":2}
+`;
+  const parsed = parseNDJSONExample(withEmptyLines);
+  assertEquals(parsed, [{ id: 1 }, { id: 2 }]);
+});
+
+Deno.test("parseNDJSONExample: returns array as-is", () => {
+  const arrayExample = [{ id: 1 }, { id: 2 }];
+  const parsed = parseNDJSONExample(arrayExample);
+  assertEquals(parsed, arrayExample);
+});
+
+Deno.test("createStreamingResponse: NDJSON with array example", async () => {
+  const doc = { type: "object" };
+  const registry = new SchemaRegistry({ schema: doc });
+
+  const exampleData = [
+    { id: 1, status: "pending" },
+    { id: 2, status: "processing" },
+    { id: 3, status: "complete" },
+  ];
+
+  const stream = createStreamingResponse(
+    registry,
+    doc,
+    "#/schema",
+    "ndjson",
+    { example: exampleData, interval: 0 },
+  );
+
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    fullText += decoder.decode(value);
+  }
+
+  const lines = fullText.trim().split("\n");
+  assertEquals(lines.length, 3);
+
+  // Each line should match the example objects exactly
+  assertEquals(JSON.parse(lines[0]!), { id: 1, status: "pending" });
+  assertEquals(JSON.parse(lines[1]!), { id: 2, status: "processing" });
+  assertEquals(JSON.parse(lines[2]!), { id: 3, status: "complete" });
+});
+
+Deno.test("createStreamingResponse: NDJSON with multiline string example", async () => {
+  const doc = { type: "object" };
+  const registry = new SchemaRegistry({ schema: doc });
+
+  const multilineExample = `{"event":"start","data":{"jobId":"123"}}
+{"event":"progress","data":{"percent":50}}
+{"event":"done","data":{"result":"success"}}`;
+
+  const stream = createStreamingResponse(
+    registry,
+    doc,
+    "#/schema",
+    "ndjson",
+    { example: multilineExample, interval: 0 },
+  );
+
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    fullText += decoder.decode(value);
+  }
+
+  const lines = fullText.trim().split("\n");
+  assertEquals(lines.length, 3);
+
+  assertEquals(JSON.parse(lines[0]!), { event: "start", data: { jobId: "123" } });
+  assertEquals(JSON.parse(lines[1]!), { event: "progress", data: { percent: 50 } });
+  assertEquals(JSON.parse(lines[2]!), { event: "done", data: { result: "success" } });
+});
+
+Deno.test("createStreamingResponse: NDJSON example does not add _stream metadata", async () => {
+  const doc = { type: "object" };
+  const registry = new SchemaRegistry({ schema: doc });
+
+  const exampleData = [{ id: 1, name: "test" }];
+
+  const stream = createStreamingResponse(
+    registry,
+    doc,
+    "#/schema",
+    "ndjson",
+    { example: exampleData, interval: 0 },
+  );
+
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    fullText += decoder.decode(value);
+  }
+
+  const parsed = JSON.parse(fullText.trim());
+  // Example-based NDJSON should NOT have _stream metadata
+  assertEquals(parsed._stream, undefined);
+  assertEquals(parsed, { id: 1, name: "test" });
 });
