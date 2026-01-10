@@ -214,6 +214,7 @@ export interface ServerConfig {
   mode: "strict" | "relaxed";
   verbose: boolean;
   logLevel: LogLevel;
+  logFormat?: "text" | "json";
   logBodies?: boolean;
   showValidation?: boolean;
   interactive?: boolean;
@@ -223,16 +224,39 @@ export interface ServerConfig {
 }
 
 // Validation types
+
+/**
+ * Attribution information for a validation error.
+ * Indicates whether the issue is likely caused by the SDK or the spec.
+ */
+export interface Attribution {
+  type: "sdk-issue" | "spec-issue" | "ambiguous";
+  confidence: number; // 0.0-1.0
+  reasoning: string;
+}
+
 /**
  * Represents a single validation issue found during request validation.
- * This is a simple data structure for reporting validation problems,
- * not an Error class that gets thrown.
+ * Contains full context for debugging and error attribution.
  */
 export interface ValidationIssue {
+  // Where
   path: string; // e.g., "body.email" or "query.limit"
-  message: string;
-  expected?: unknown;
-  actual?: unknown;
+  specPointer?: string; // e.g., "#/components/schemas/User/properties/email"
+
+  // What
+  keyword?: string; // JSON Schema keyword that failed (format, type, required, etc.)
+  message: string; // Human-readable message
+
+  // Expected vs Actual
+  expected?: string; // Human-readable expected value
+  actual?: unknown; // The specific failing value
+
+  // Attribution
+  attribution?: Attribution;
+
+  // Fix
+  suggestion?: string;
 }
 
 // Re-export types that are used in multiple places

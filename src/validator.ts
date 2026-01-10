@@ -31,7 +31,7 @@ import {
   parseFormData,
   parseUrlEncoded,
 } from "./form-parser.ts";
-import type { ValidationResult } from "./logging/mod.ts";
+import { formatExpected } from "./logging/format-expected.ts";
 import type {
   QueryArrayFormat,
   QueryObjectFormat,
@@ -45,6 +45,15 @@ import {
 } from "./types.ts";
 
 /**
+ * Result of validating a request
+ */
+export interface ValidationResult {
+  valid: boolean;
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+}
+
+/**
  * Get resolved request body (not $ref)
  */
 function getResolvedRequestBody(
@@ -52,16 +61,6 @@ function getResolvedRequestBody(
 ): RequestBodyObject | null {
   if (!body || isReference(body)) return null;
   return body;
-}
-
-/**
- * Safely get the type from a schema that might be a reference
- */
-function getSchemaType(
-  schema: SchemaObject | ReferenceObject | undefined,
-): SchemaObject["type"] | undefined {
-  if (!schema || isReference(schema)) return undefined;
-  return schema.type;
 }
 
 /** Maximum request body size (10MB) to prevent DoS attacks */
@@ -701,8 +700,9 @@ export class RequestValidator {
       if (spec.required && !hasValue) {
         errors.push({
           path: `query.${spec.name}`,
+          keyword: "required",
           message: "Required parameter missing",
-          expected: getSchemaType(spec.schema) || "string",
+          expected: formatExpected("required", { missingProperty: spec.name }),
           actual: undefined,
         });
       } else if (hasValue && spec.schema) {
@@ -786,7 +786,12 @@ export class RequestValidator {
       const isNested = key.includes("[") || key.includes(".");
       errors.push({
         path: `query.${baseName}`,
+        keyword: "additionalProperties",
         message: isNested ? `Unknown parameter: ${key}` : "Unknown parameter",
+        expected: formatExpected("additionalProperties", {
+          additionalProperty: key,
+        }),
+        actual: key,
       });
     }
 
@@ -809,8 +814,9 @@ export class RequestValidator {
       if (spec.required && value === undefined) {
         errors.push({
           path: `path.${spec.name}`,
+          keyword: "required",
           message: "Required path parameter missing",
-          expected: getSchemaType(spec.schema) || "string",
+          expected: formatExpected("required", { missingProperty: spec.name }),
           actual: undefined,
         });
       } else if (value !== undefined && spec.schema) {
@@ -846,8 +852,9 @@ export class RequestValidator {
       if (spec.required && value === null) {
         errors.push({
           path: `header.${spec.name}`,
+          keyword: "required",
           message: "Required header missing",
-          expected: getSchemaType(spec.schema) || "string",
+          expected: formatExpected("required", { missingProperty: spec.name }),
           actual: undefined,
         });
       } else if (value !== null && spec.schema) {
@@ -931,8 +938,9 @@ export class RequestValidator {
       if (spec.required && value === undefined) {
         errors.push({
           path: `cookie.${spec.name}`,
+          keyword: "required",
           message: "Required cookie missing",
-          expected: getSchemaType(spec.schema) || "string",
+          expected: formatExpected("required", { missingProperty: spec.name }),
           actual: undefined,
         });
       } else if (value !== undefined && spec.schema) {
@@ -1145,7 +1153,8 @@ export class RequestValidator {
   }
 
   /**
-   * Validate a value against a JSON Schema using the document-aware validator
+   * Validate a value against a JSON Schema using the document-aware validator.
+   * Preserves rich error context from SchemaValidationError.
    */
   private validateValue(
     value: unknown,
@@ -1156,11 +1165,33 @@ export class RequestValidator {
     const result = this.validator.validateData(schema, value, path);
 
     const errors: ValidationIssue[] = result.errors.map((err) => ({
-      // instancePath already includes the base path, use it directly
+      // Where
       path: err.instancePath || path,
+      specPointer: err.schemaPath,
+
+      // What
+      keyword: err.keyword,
       message: err.message,
-      expected: err.schemaPath,
-      actual: value,
+
+      // Expected vs Actual
+      expected: formatExpected(err.keyword, err.params),
+      actual: err.data !== undefined ? err.data : value,
+
+      // Attribution (from SchemaValidationError if present)
+      attribution: err.attribution
+        ? {
+          type: err.attribution.type === "sdk-error"
+            ? "sdk-issue"
+            : err.attribution.type === "spec-error"
+            ? "spec-issue"
+            : "ambiguous",
+          confidence: err.attribution.confidence,
+          reasoning: err.attribution.reasoning,
+        }
+        : undefined,
+
+      // Fix
+      suggestion: err.suggestion,
     }));
 
     return {

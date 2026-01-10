@@ -1,22 +1,56 @@
-// Shared utilities for Steady mock server
+/**
+ * Logging Module - Exports all logging utilities
+ */
 
-// Logging
-export { RequestLogger } from "./logger.ts";
-export { SimpleLogger } from "./simple-logger.ts";
-export { InkSimpleLogger, startInkSimpleLogger } from "./ink-logger.tsx";
+// Logger interface and base class
+export { BaseLogger } from "./logger.ts";
+export type { Logger, LoggerOptions, LogLevel } from "./logger.ts";
+
+// Logger implementations
+export { TextLogger } from "./text-logger.ts";
+export { JsonLogger } from "./json-logger.ts";
+export { TuiLogger } from "./tui-logger.ts";
 
 // Types
-export type { LogLevel, LogValidationResult, StoredRequest } from "./types.ts";
-// Re-export ValidationResult alias for backwards compatibility
-export type { ValidationResult } from "./logger.ts";
+export type {
+  Attribution,
+  LogEvent,
+  RequestEvent,
+  ShutdownEvent,
+  SpecDiagnostic,
+  StartupEvent,
+  TopIssue,
+  ValidationError,
+  ValidationResult,
+} from "./types.ts";
 
-// ANSI color codes
-const YELLOW = "\x1b[33m";
-const RESET = "\x1b[0m";
+// Formatting utilities
+export { formatActual, formatExpected, formatPath } from "./format-expected.ts";
+export {
+  createCircularRefDiagnostic,
+  createMissingExampleDiagnostic,
+  createRefSiblingsDiagnostic,
+  createUnresolvedRefDiagnostic,
+  formatDiagnostic,
+  formatDiagnostics,
+  formatDiagnosticSummary,
+} from "./format-diagnostic.ts";
+
+// Colors
+export {
+  attributionColor,
+  attributionLabel,
+  colorize,
+  colors,
+  formatStatus,
+  statusColor,
+} from "./colors.ts";
 
 /**
  * Log a warning message with [Steady] prefix
  */
 export function warn(message: string): void {
+  const YELLOW = "\x1b[33m";
+  const RESET = "\x1b[0m";
   console.warn(`${YELLOW}[Steady] Warning: ${message}${RESET}`);
 }

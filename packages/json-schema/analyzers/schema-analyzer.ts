@@ -60,35 +60,8 @@ export class SchemaAnalyzer implements Analyzer {
       diagnostics.push(...this.checkRefSiblings(registry));
     }
 
-    // Check complexity and nesting
-    const { complexity, maxNesting } = this.analyzeComplexity(registry);
-
-    if (complexity > (this.config.maxComplexity ?? 1000)) {
-      diagnostics.push({
-        code: "schema-complexity",
-        severity: "info",
-        pointer: "#",
-        message: `Schema complexity score is ${complexity} (threshold: ${
-          this.config.maxComplexity ?? 1000
-        })`,
-        attribution: getAttribution("schema-complexity"),
-        suggestion:
-          "Consider simplifying schemas or splitting into smaller documents",
-      });
-    }
-
-    if (maxNesting > (this.config.maxNesting ?? 20)) {
-      diagnostics.push({
-        code: "schema-nesting",
-        severity: "info",
-        pointer: "#",
-        message: `Maximum schema nesting is ${maxNesting} levels (threshold: ${
-          this.config.maxNesting ?? 20
-        })`,
-        attribution: getAttribution("schema-nesting"),
-        suggestion: "Deep nesting can impact validation performance",
-      });
-    }
+    // Check complexity and nesting per schema
+    diagnostics.push(...this.checkSchemaComplexity(registry));
 
     return diagnostics;
   }
@@ -153,15 +126,104 @@ export class SchemaAnalyzer implements Analyzer {
   }
 
   /**
-   * Analyze schema complexity
+   * Check individual schemas for complexity and nesting issues
    */
-  private analyzeComplexity(registry: SchemaRegistry): {
+  private checkSchemaComplexity(registry: SchemaRegistry): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+    const document = registry.document;
+    const maxComplexity = this.config.maxComplexity ?? 1000;
+    const maxNesting = this.config.maxNesting ?? 20;
+
+    // Get schemas from #/components/schemas
+    const schemas = this.getComponentSchemas(document);
+
+    for (const [name, schema] of schemas) {
+      const pointer = `#/components/schemas/${escapeSegment(name)}`;
+      const { complexity, nesting, complexityDetails } = this.analyzeSchema(
+        schema,
+      );
+
+      if (complexity > maxComplexity) {
+        diagnostics.push({
+          code: "schema-complexity",
+          severity: "info",
+          pointer,
+          message:
+            `Schema '${name}' has complexity ${complexity} (threshold: ${maxComplexity})`,
+          attribution: getAttribution("schema-complexity"),
+          suggestion: this.formatComplexityDetails(complexityDetails),
+        });
+      }
+
+      if (nesting > maxNesting) {
+        diagnostics.push({
+          code: "schema-nesting",
+          severity: "info",
+          pointer,
+          message:
+            `Schema '${name}' has nesting depth ${nesting} (threshold: ${maxNesting})`,
+          attribution: getAttribution("schema-nesting"),
+          suggestion: "Consider flattening nested structures or using $ref",
+        });
+      }
+    }
+
+    return diagnostics;
+  }
+
+  /**
+   * Get component schemas from the document
+   */
+  private getComponentSchemas(
+    document: unknown,
+  ): Map<string, Record<string, unknown>> {
+    const schemas = new Map<string, Record<string, unknown>>();
+
+    if (typeof document !== "object" || document === null) {
+      return schemas;
+    }
+
+    const doc = document as Record<string, unknown>;
+    const components = doc.components;
+    if (typeof components !== "object" || components === null) {
+      return schemas;
+    }
+
+    const schemasObj = (components as Record<string, unknown>).schemas;
+    if (typeof schemasObj !== "object" || schemasObj === null) {
+      return schemas;
+    }
+
+    for (
+      const [name, schema] of Object.entries(
+        schemasObj as Record<string, unknown>,
+      )
+    ) {
+      if (typeof schema === "object" && schema !== null) {
+        schemas.set(name, schema as Record<string, unknown>);
+      }
+    }
+
+    return schemas;
+  }
+
+  /**
+   * Analyze a single schema's complexity
+   */
+  private analyzeSchema(schema: Record<string, unknown>): {
     complexity: number;
-    maxNesting: number;
+    nesting: number;
+    complexityDetails: {
+      properties: number;
+      allOf: number;
+      anyOf: number;
+      oneOf: number;
+      refs: number;
+    };
   } {
     let complexity = 0;
     let maxNesting = 0;
-    const document = registry.document;
+    const details = { properties: 0, allOf: 0, anyOf: 0, oneOf: 0, refs: 0 };
 
     const analyze = (value: unknown, depth: number): void => {
       if (value === null || typeof value !== "object") {
@@ -179,21 +241,74 @@ export class SchemaAnalyzer implements Analyzer {
       const obj = value as Record<string, unknown>;
       complexity += Object.keys(obj).length;
 
-      // Extra complexity for certain keywords
-      if ("allOf" in obj) complexity += 5;
-      if ("anyOf" in obj) complexity += 5;
-      if ("oneOf" in obj) complexity += 5;
+      // Track complexity sources
+      if ("properties" in obj) {
+        const props = obj.properties;
+        if (typeof props === "object" && props !== null) {
+          details.properties += Object.keys(props).length;
+        }
+      }
+      if ("allOf" in obj) {
+        complexity += 5;
+        details.allOf++;
+      }
+      if ("anyOf" in obj) {
+        complexity += 5;
+        details.anyOf++;
+      }
+      if ("oneOf" in obj) {
+        complexity += 5;
+        details.oneOf++;
+      }
       if ("if" in obj) complexity += 3;
-      if ("$ref" in obj) complexity += 2;
+      if ("$ref" in obj) {
+        complexity += 2;
+        details.refs++;
+      }
 
       for (const val of Object.values(obj)) {
         analyze(val, depth + 1);
       }
     };
 
-    analyze(document, 0);
+    analyze(schema, 0);
 
-    return { complexity, maxNesting };
+    return { complexity, nesting: maxNesting, complexityDetails: details };
+  }
+
+  /**
+   * Format complexity details into a suggestion
+   */
+  private formatComplexityDetails(details: {
+    properties: number;
+    allOf: number;
+    anyOf: number;
+    oneOf: number;
+    refs: number;
+  }): string {
+    const parts: string[] = [];
+
+    if (details.properties > 20) {
+      parts.push(`${details.properties} properties`);
+    }
+    if (details.allOf > 3) {
+      parts.push(`${details.allOf} allOf compositions`);
+    }
+    if (details.anyOf > 3) {
+      parts.push(`${details.anyOf} anyOf variants`);
+    }
+    if (details.oneOf > 3) {
+      parts.push(`${details.oneOf} oneOf variants`);
+    }
+    if (details.refs > 10) {
+      parts.push(`${details.refs} $ref references`);
+    }
+
+    if (parts.length === 0) {
+      return "Consider splitting into smaller schemas";
+    }
+
+    return `Has ${parts.join(", ")}. Consider splitting into smaller schemas`;
   }
 
   /**

@@ -18,17 +18,20 @@ import type {
 } from "@steady/openapi";
 import { MatchError, missingExampleError } from "./errors.ts";
 import {
-  formatSessionSummary,
-  formatStartupDiagnostics,
   OpenAPIDocument,
   RegistryResponseGenerator,
 } from "@steady/json-schema";
 import type { GenerateOptions } from "@steady/json-schema";
-import {
-  InkSimpleLogger,
-  RequestLogger,
-  startInkSimpleLogger,
-} from "./logging/mod.ts";
+import type { Logger } from "./logging/logger.ts";
+import type {
+  RequestEvent,
+  ShutdownEvent,
+  StartupEvent,
+  ValidationError,
+} from "./logging/types.ts";
+import { TextLogger } from "./logging/text-logger.ts";
+import { JsonLogger } from "./logging/json-logger.ts";
+import { TuiLogger } from "./logging/tui-logger.ts";
 import { RequestValidator } from "./validator.ts";
 import { DiagnosticCollector } from "./diagnostics/collector.ts";
 import {
@@ -43,11 +46,6 @@ import {
   parseStreamingOptions,
   type StreamingOptions,
 } from "./streaming.ts";
-
-// ANSI colors for startup message
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
-const RESET = "\x1b[0m";
 
 /** HTTP methods supported by OpenAPI */
 const HTTP_METHODS = [
@@ -73,10 +71,13 @@ export class MockServer {
   /** Document-centric OpenAPI processing */
   private document: OpenAPIDocument;
   private abortController: AbortController;
-  private logger: RequestLogger;
+  private logger: Logger;
   private validator: RequestValidator;
   private diagnosticCollector: DiagnosticCollector;
   private serverFinished: Promise<void> | null = null;
+  private startTime: Date = new Date();
+  private requestCount = 0;
+  private failedCount = 0;
 
   // Pre-compiled routes for O(1) exact matches and efficient pattern matching
   private exactRoutes = new Map<string, PathItemObject>();
@@ -92,11 +93,13 @@ export class MockServer {
     this.abortController = new AbortController();
     this.diagnosticCollector = new DiagnosticCollector();
 
-    // Use interactive logger if requested
+    // Create logger based on mode and format
     if (config.interactive) {
-      this.logger = new InkSimpleLogger(config.logLevel, config.logBodies);
+      this.logger = new TuiLogger({ level: config.logLevel, color: true });
+    } else if (config.logFormat === "json") {
+      this.logger = new JsonLogger({ level: config.logLevel });
     } else {
-      this.logger = new RequestLogger(config.logLevel, config.logBodies);
+      this.logger = new TextLogger({ level: config.logLevel, color: true });
     }
 
     this.validator = new RequestValidator(
@@ -140,9 +143,11 @@ export class MockServer {
   }
 
   start(): void {
+    this.startTime = new Date();
+
     // Start interactive logger if enabled
-    if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
-      startInkSimpleLogger(this.logger);
+    if (this.config.interactive && this.logger instanceof TuiLogger) {
+      this.logger.start();
     }
 
     const server = Deno.serve({
@@ -150,7 +155,7 @@ export class MockServer {
       hostname: this.config.host,
       signal: this.abortController.signal,
       onListen: () => {
-        this.printStartupMessage();
+        this.logStartup();
       },
     }, (req) => this.handleRequest(req));
 
@@ -158,14 +163,15 @@ export class MockServer {
     this.serverFinished = server.finished;
 
     // Handle graceful shutdown
-    if (!this.config.interactive) {
-      Deno.addSignalListener("SIGINT", () => {
-        console.log("\n\nShutting down gracefully...");
-        this.printSessionSummary();
-        this.stop();
-        Deno.exit(0);
-      });
-    }
+    Deno.addSignalListener("SIGINT", () => {
+      // Stop TUI if running
+      if (this.config.interactive && this.logger instanceof TuiLogger) {
+        this.logger.stop();
+      }
+      this.logShutdown();
+      this.stop();
+      Deno.exit(0);
+    });
   }
 
   /**
@@ -174,100 +180,73 @@ export class MockServer {
    */
   async stop(): Promise<void> {
     this.abortController.abort();
-    if (this.config.interactive && this.logger instanceof InkSimpleLogger) {
-      this.logger.stop();
-    }
     // Wait for the server to fully stop
     if (this.serverFinished) {
       await this.serverFinished;
     }
   }
 
-  private printSessionSummary(): void {
-    const staticDiagnostics = this.diagnosticCollector.getStaticDiagnostics();
-    const runtimeDiagnostics = this.diagnosticCollector.getRuntimeDiagnostics();
-    const stats = this.diagnosticCollector.getStats();
-
-    if (stats.requestCount > 0 || runtimeDiagnostics.length > 0) {
-      console.log(
-        "\n" + formatSessionSummary(
-          staticDiagnostics,
-          runtimeDiagnostics,
-          stats.requestCount,
-          true,
-        ),
-      );
-    }
-  }
-
-  private printStartupMessage(): void {
-    if (this.config.interactive) {
-      return;
-    }
-
-    const stats = this.document.getStats();
+  /**
+   * Log startup event
+   */
+  private logStartup(): void {
     const diagnostics = this.diagnosticCollector.getStaticDiagnostics();
 
-    console.log(`\n${BOLD}Steady Mock Server v${VERSION}${RESET}`);
-    console.log(
-      `Loaded spec: ${this.spec.info.title} v${this.spec.info.version}`,
-    );
-    console.log(
-      `Server running at http://${this.config.host}:${this.config.port}`,
-    );
-
-    console.log(`\n${BOLD}Configuration:${RESET}`);
-    console.log(
-      `  Mode: ${this.config.mode === "strict" ? "strict" : "relaxed"}`,
-    );
-    console.log(
-      `  Logging: ${this.config.verbose ? this.config.logLevel : "disabled"}`,
-    );
-    if (this.config.logBodies) {
-      console.log(`  Bodies: shown`);
-    }
-    if (this.config.interactive) {
-      console.log(`  Interactive: enabled`);
+    // Count endpoints
+    let endpointCount = 0;
+    for (const pathItem of Object.values(this.spec.paths)) {
+      endpointCount += this.getMethodsForPath(pathItem).length;
     }
 
-    // Show ref graph stats
-    console.log(`\n${BOLD}Schema Analysis:${RESET}`);
-    console.log(`  Total refs: ${stats.totalRefs}`);
-    console.log(`  Cyclic refs: ${stats.cyclicRefs}`);
-    if (stats.cycles > 0) {
-      console.log(`  ${DIM}(cycles handled gracefully)${RESET}`);
-    }
-
-    // Show diagnostics
-    if (diagnostics.length > 0) {
-      console.log(`\n${BOLD}Diagnostics:${RESET}`);
-      console.log(formatStartupDiagnostics(diagnostics, true));
-    } else {
-      console.log(`\n${DIM}✓ No diagnostic issues found${RESET}`);
-    }
-
-    // List available endpoints
-    console.log(`\n${BOLD}Available endpoints:${RESET}`);
-    const endpointCount = {
-      exact: this.exactRoutes.size,
-      pattern: this.patternRoutes.length,
+    const event: StartupEvent = {
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      type: "startup",
+      spec: {
+        title: this.spec.info.title,
+        version: this.spec.info.version,
+        endpointCount,
+      },
+      server: {
+        url: `http://${this.config.host}:${this.config.port}`,
+        mode: this.config.mode,
+      },
+      diagnostics: diagnostics.map((d) => ({
+        severity: d.severity,
+        code: d.code,
+        pointer: d.pointer,
+        message: d.message,
+        // Convert related diagnostics to chain format
+        chain: d.related?.map((r) => `${r.pointer}: ${r.message}`),
+        suggestion: d.suggestion,
+      })),
     };
 
-    for (const [path, pathItem] of Object.entries(this.spec.paths)) {
-      const methods = this.getMethodsForPath(pathItem);
-      for (const method of methods) {
-        console.log(`  ${method.toUpperCase().padEnd(7)} ${path}`);
-      }
-    }
+    this.logger.startup(event);
+  }
 
-    console.log(`\n${DIM}Special endpoints:${RESET}`);
-    console.log(`  ${DIM}GET     /_x-steady/health${RESET}`);
-    console.log(`  ${DIM}GET     /_x-steady/spec${RESET}`);
+  /**
+   * Log shutdown event with session summary
+   */
+  private logShutdown(): void {
+    const duration = Date.now() - this.startTime.getTime();
 
-    console.log(
-      `\n${DIM}Routes compiled: ${endpointCount.exact} exact, ${endpointCount.pattern} patterns${RESET}`,
-    );
-    console.log(`${DIM}Press Ctrl+C to stop${RESET}\n`);
+    // TODO: Build top issues from diagnostic collector
+    const topIssues: ShutdownEvent["topIssues"] = [];
+
+    const event: ShutdownEvent = {
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      type: "shutdown",
+      session: {
+        duration,
+        requestCount: this.requestCount,
+        failedCount: this.failedCount,
+      },
+      topIssues,
+    };
+
+    this.logger.shutdown(event);
   }
 
   private getMethodsForPath(pathItem: PathItemObject): HttpMethod[] {
@@ -303,13 +282,25 @@ export class MockServer {
         pathParams,
       );
 
-      // Log request
-      this.logger.logRequest(req, path, method, validation);
+      // Track request count
+      this.requestCount++;
 
       // If validation failed in strict mode, return error
       if (!validation.valid && effectiveMode === "strict") {
+        this.failedCount++;
         const timing = Math.round(performance.now() - startTime);
-        this.logger.logResponse(400, timing, validation);
+
+        // Log the request event
+        this.logRequestEvent(
+          req,
+          path,
+          pathPattern,
+          method,
+          400,
+          "Bad Request",
+          timing,
+          validation,
+        );
 
         return new Response(
           JSON.stringify({
@@ -341,19 +332,37 @@ export class MockServer {
       );
 
       const timing = Math.round(performance.now() - startTime);
-      this.logger.logResponse(parseInt(statusCode, 10), timing, validation);
+      const status = parseInt(statusCode, 10);
+
+      // Track failed responses
+      if (status >= 400) {
+        this.failedCount++;
+      }
+
+      // Log the request event
+      this.logRequestEvent(
+        req,
+        path,
+        pathPattern,
+        method,
+        status,
+        response.statusText || this.getStatusText(status),
+        timing,
+        validation,
+        response.headers,
+      );
 
       // Add mode header to response
       return this.addModeHeader(response, effectiveMode);
     } catch (error) {
       const timing = Math.round(performance.now() - startTime);
+      this.requestCount++;
+      this.failedCount++;
 
       if (error instanceof MatchError) {
-        this.logger.logRequest(req, path, method);
-        this.logger.logResponse(404, timing);
-        if (this.config.logLevel !== "summary") {
-          console.error(error.format());
-        }
+        // Log 404 error
+        this.logRequestEvent(req, path, path, method, 404, "Not Found", timing);
+
         return new Response(
           JSON.stringify({
             error: error.message,
@@ -366,9 +375,18 @@ export class MockServer {
         );
       }
 
-      this.logger.logRequest(req, path, method);
-      this.logger.logResponse(500, timing);
+      // Log 500 error
+      this.logRequestEvent(
+        req,
+        path,
+        path,
+        method,
+        500,
+        "Internal Server Error",
+        timing,
+      );
       console.error(error);
+
       return new Response(
         JSON.stringify({ error: "Internal server error" }),
         {
@@ -377,6 +395,95 @@ export class MockServer {
         },
       );
     }
+  }
+
+  /**
+   * Convert ValidationIssue to ValidationError with defaults for missing fields
+   */
+  private toValidationError(
+    issue: import("./types.ts").ValidationIssue,
+  ): ValidationError {
+    return {
+      path: issue.path,
+      specPointer: issue.specPointer || "",
+      keyword: issue.keyword || "unknown",
+      message: issue.message,
+      expected: issue.expected || "",
+      actual: issue.actual,
+      attribution: issue.attribution || {
+        type: "ambiguous",
+        confidence: 0.5,
+        reasoning: "Attribution not determined",
+      },
+      suggestion: issue.suggestion,
+    };
+  }
+
+  /**
+   * Build and log a RequestEvent
+   */
+  private logRequestEvent(
+    req: Request,
+    path: string,
+    pathPattern: string,
+    method: string,
+    status: number,
+    statusText: string,
+    timing: number,
+    validation?: {
+      valid: boolean;
+      errors: import("./types.ts").ValidationIssue[];
+      warnings: import("./types.ts").ValidationIssue[];
+    },
+    responseHeaders?: Headers,
+  ): void {
+    const url = new URL(req.url);
+
+    const event: RequestEvent = {
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      type: "request",
+      request: {
+        method: method.toUpperCase(),
+        path,
+        pathPattern,
+        query: url.search,
+        headers: req.headers,
+      },
+      response: {
+        status,
+        statusText,
+        timing,
+        headers: responseHeaders || new Headers(),
+      },
+      validation: validation
+        ? {
+          valid: validation.valid,
+          errors: validation.errors.map((e) => this.toValidationError(e)),
+          warnings: validation.warnings.map((w) => this.toValidationError(w)),
+        }
+        : { valid: true, errors: [], warnings: [] },
+    };
+
+    this.logger.request(event);
+  }
+
+  /**
+   * Get HTTP status text for a status code
+   */
+  private getStatusText(status: number): string {
+    const statusTexts: Record<number, string> = {
+      200: "OK",
+      201: "Created",
+      204: "No Content",
+      400: "Bad Request",
+      401: "Unauthorized",
+      403: "Forbidden",
+      404: "Not Found",
+      405: "Method Not Allowed",
+      500: "Internal Server Error",
+    };
+    return statusTexts[status] || "Unknown";
   }
 
   private handleHealth(): Response {

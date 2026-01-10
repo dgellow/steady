@@ -68,6 +68,9 @@
     "strictNullChecks": true,
     "strictPropertyInitialization": true
   },
+  "exclude": [
+    "test-fixtures/openapi-directory/"
+  ],
   "fmt": {
     "exclude": [
       "packages/json-schema/test-suite/",

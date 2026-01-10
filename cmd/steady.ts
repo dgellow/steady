@@ -1,6 +1,6 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { parseSpecFromFile, SteadyError } from "@steady/openapi";
-import { LogLevel } from "../src/logging/mod.ts";
+import type { LogLevel } from "../src/logging/mod.ts";
 import {
   DEFAULT_PORT,
   type QueryArrayFormat,
@@ -10,6 +10,8 @@ import {
   VALID_ARRAY_FORMATS,
   VALID_OBJECT_FORMATS,
 } from "../src/types.ts";
+
+type LogFormat = "text" | "json";
 
 // ANSI colors
 const BOLD = "\x1b[1m";
@@ -31,6 +33,7 @@ export async function main() {
     string: [
       "port",
       "log-level",
+      "log-format",
       "validator-query-array-format",
       "validator-query-object-format",
       "generator-array-size",
@@ -48,6 +51,7 @@ export async function main() {
     },
     default: {
       "log-level": "summary",
+      "log-format": "text",
       "log": true,
     },
     negatable: ["log"],
@@ -67,8 +71,18 @@ export async function main() {
 
   // Parse options
   const specPath = firstArg;
-  const logLevel = args["log-level"] as "summary" | "details" | "full";
+  const logLevel = args["log-level"] as LogLevel;
+  const logFormat = args["log-format"] as LogFormat;
   const portOverride = args.port ? parseInt(args.port, 10) : undefined;
+
+  // Validate log format
+  if (logFormat !== "text" && logFormat !== "json") {
+    console.error(
+      `${RED}${BOLD}ERROR:${RESET} Invalid --log-format: ${logFormat}`,
+    );
+    console.error(`Valid values: text, json`);
+    Deno.exit(1);
+  }
 
   // Determine mode
   let mode: "strict" | "relaxed" = "strict";
@@ -154,6 +168,7 @@ export async function main() {
 
   const options = {
     logLevel,
+    logFormat,
     logBodies: args["log-bodies"],
     log: args.log,
     mode,
@@ -202,6 +217,7 @@ async function startServer(
   specPath: string,
   options: {
     logLevel: LogLevel;
+    logFormat: LogFormat;
     logBodies: boolean;
     log: boolean;
     mode: "strict" | "relaxed";
@@ -248,6 +264,7 @@ async function startServer(
     mode: options.mode,
     verbose: options.log,
     logLevel: options.log ? options.logLevel : "summary",
+    logFormat: options.logFormat,
     logBodies: options.logBodies,
     showValidation: true,
     interactive: options.interactive,
@@ -266,6 +283,7 @@ async function startWithWatch(
   specPath: string,
   options: {
     logLevel: LogLevel;
+    logFormat: LogFormat;
     logBodies: boolean;
     log: boolean;
     mode: "strict" | "relaxed";
@@ -400,6 +418,7 @@ Options:
   -r, --auto-reload        Auto-reload on spec file changes
   -i, --interactive        Interactive mode with expandable logs
   --log-level <level>      Set logging detail: summary|details|full (default: summary)
+  --log-format <format>    Output format: text|json (default: text)
   --log-bodies             Show request/response bodies in summary mode
   --no-log                 Disable request logging
   --strict                 Strict validation mode (default)
@@ -461,6 +480,7 @@ Examples:
   steady -p 4010 api.yaml                  # Start on port 4010
   steady validate api.yaml                 # Validate specification
   steady --log-level=details api.yaml      # Show detailed logs
+  steady --log-format=json api.yaml        # NDJSON output for CI
   steady --log-bodies api.yaml             # Show bodies in summary mode
   steady --relaxed api.yaml                # Allow validation warnings
   steady -r api.yaml                       # Auto-reload on file changes
