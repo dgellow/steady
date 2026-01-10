@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1
+
+### Chores
+
+- Potential fix for code scanning alert no. 7: Incomplete string escaping or encoding <details><summary>Details</summary>
+  Co-authored-by: Copilot Autofix powered by AI &lt;62310815+github-advanced-security[bot]@users.noreply.github.com&gt;
+</details>
+
+
 ## 0.7.0
 
 ### Features
