@@ -1,0 +1,646 @@
+openapi: 3.0.3
+info:
+  title: Benchmark Test API
+  version: 1.0.0
+  description: A test API for benchmarking Steady vs Prism
+servers:
+  - url: http://localhost:4010
+paths:
+  /users:
+    get:
+      summary: List users
+      operationId: listUsers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+    post:
+      summary: Create user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUser'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /users/{userId}:
+    get:
+      summary: Get user by ID
+      operationId: getUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: Update user
+      operationId: updateUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUser'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    delete:
+      summary: Delete user
+      operationId: deleteUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: User deleted
+  /users/{userId}/posts:
+    get:
+      summary: Get user posts
+      operationId: getUserPosts
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published, archived]
+      responses:
+        '200':
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostList'
+  /posts:
+    get:
+      summary: List all posts
+      operationId: listPosts
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: author
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostList'
+    post:
+      summary: Create post
+      operationId: createPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePost'
+      responses:
+        '201':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+  /posts/{postId}:
+    get:
+      summary: Get post by ID
+      operationId: getPost
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+  /posts/{postId}/comments:
+    get:
+      summary: Get post comments
+      operationId: getPostComments
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentList'
+    post:
+      summary: Add comment
+      operationId: addComment
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComment'
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  timestamp:
+                    type: string
+                    format: date-time
+  /accounts:
+    get:
+      summary: List accounts
+      operationId: listAccounts
+      responses:
+        '200':
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountList'
+  /accounts/{accountId}:
+    get:
+      summary: Get account
+      operationId: getAccount
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+  /accounts/{accountId}/settings:
+    get:
+      summary: Get account settings
+      operationId: getAccountSettings
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+    patch:
+      summary: Update settings
+      operationId: updateAccountSettings
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettings'
+      responses:
+        '200':
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+  /zones:
+    get:
+      summary: List zones
+      operationId: listZones
+      parameters:
+        - name: account
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, pending, deleted]
+      responses:
+        '200':
+          description: List of zones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZoneList'
+  /zones/{zoneId}:
+    get:
+      summary: Get zone
+      operationId: getZone
+      parameters:
+        - name: zoneId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Zone details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Zone'
+  /zones/{zoneId}/dns:
+    get:
+      summary: Get DNS records
+      operationId: getDnsRecords
+      parameters:
+        - name: zoneId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [A, AAAA, CNAME, MX, TXT, NS]
+      responses:
+        '200':
+          description: DNS records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DnsRecordList'
+components:
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        avatar:
+          type: string
+          format: uri
+        bio:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UserList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    CreateUser:
+      type: object
+      required:
+        - email
+        - name
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        password:
+          type: string
+          minLength: 8
+    UpdateUser:
+      type: object
+      properties:
+        name:
+          type: string
+        bio:
+          type: string
+    Post:
+      type: object
+      required:
+        - id
+        - title
+        - authorId
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, archived]
+        authorId:
+          type: string
+          format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: string
+          format: date-time
+    PostList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Post'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    CreatePost:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+    Comment:
+      type: object
+      required:
+        - id
+        - content
+        - authorId
+      properties:
+        id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        authorId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    CommentList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    CreateComment:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [free, pro, business, enterprise]
+        createdAt:
+          type: string
+          format: date-time
+    AccountList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Account'
+    Settings:
+      type: object
+      properties:
+        timezone:
+          type: string
+        locale:
+          type: string
+        notifications:
+          type: object
+          properties:
+            email:
+              type: boolean
+            sms:
+              type: boolean
+            push:
+              type: boolean
+    UpdateSettings:
+      type: object
+      properties:
+        timezone:
+          type: string
+        locale:
+          type: string
+        notifications:
+          type: object
+          properties:
+            email:
+              type: boolean
+            sms:
+              type: boolean
+            push:
+              type: boolean
+    Zone:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, pending, deleted]
+        accountId:
+          type: string
+        nameServers:
+          type: array
+          items:
+            type: string
+    ZoneList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Zone'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    DnsRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [A, AAAA, CNAME, MX, TXT, NS]
+        name:
+          type: string
+        content:
+          type: string
+        ttl:
+          type: integer
+        proxied:
+          type: boolean
+    DnsRecordList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DnsRecord'
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        perPage:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
