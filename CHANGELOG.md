@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.7.0
+
+### Features
+
+- add CLI flags for streaming defaults <details><summary>Details</summary>
+  Add --stream-count and --stream-interval CLI flags to set server-wide
+  defaults for streaming responses. Headers still override per-request.<br>
+  - Add StreamingConfig interface to types.ts
+  - Add --stream-count=&lt;n&gt; (default: 5, max: 1000)
+  - Add --stream-interval=&lt;n&gt; (default: 100ms, max: 10000ms)
+  - Add getEffectiveStreamingOptions() to merge config with headers
+  - Document in CLI help under "Streaming Options"
+</details>
+
+- add warn function to logging and use for invalid NDJSON examples <details><summary>Details</summary>
+  - Add warn() function to logging/mod.ts for general warnings
+  - Use warn() in streaming.ts when NDJSON example is invalid
+  - Warning includes yellow color and [Steady] prefix
+</details>
+
+- add NDJSON example support for multiline strings and arrays <details><summary>Details</summary>
+  Add support for spec examples in JSONL/NDJSON streaming responses:
+  - Array of objects: each object is streamed as a JSON line
+  - Multiline string: each line is parsed as JSON and streamed<br>
+  Unlike schema-generated NDJSON, example-based responses do not include
+  _stream metadata, preserving the exact example content.<br>
+  New exports:
+  - isNDJSONExample(): detects valid NDJSON examples
+  - parseNDJSONExample(): parses multiline strings or arrays
+</details>
+
+
+### Code Refactoring
+
+- redesign logging system with unified event model <details><summary>Details</summary>
+  - Replace old loggers with Logger interface and implementations
+    (TextLogger, JsonLogger, TuiLogger)
+  - Add complete validation context: path, specPointer, keyword,
+    expected, actual, attribution, suggestion
+  - Schema analyzer now reports per-schema complexity/nesting with
+    specific pointers instead of useless global metrics
+  - Add --log-format flag for text/json output selection
+  - Fix SIGINT handling: server owns shutdown in all modes
+  - Exclude test-fixtures/openapi-directory from deno commands
+</details>
+
+
+### Documentation
+
+- add streaming headers to CLI help output <details><summary>Details</summary>
+  Document X-Steady-Stream-Count and X-Steady-Stream-Interval-Ms headers
+  in the CLI help for consistency with other per-request override headers.
+</details>
+
+
 ## 0.6.0
 
 ### Features
