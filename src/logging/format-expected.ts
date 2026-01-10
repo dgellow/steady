@@ -176,7 +176,7 @@ export function formatPath(instancePath: string): string {
 
       // Check if property name needs quoting (contains dots or special chars)
       if (/[.\[\]"]/.test(unescaped)) {
-        return `["${unescaped.replace(/"/g, '\\"')}"]`;
+        return `["${unescaped.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`;
       }
 
       // Regular property name
