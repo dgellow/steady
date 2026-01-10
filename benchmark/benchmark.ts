@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-all
 /**
- * Benchmark: Steady vs Prism Performance Comparison
+ * Benchmark: Steady vs Prism vs Fern Performance Comparison
  *
  * Tests:
  * 1. Startup time (cold start with large spec)
@@ -12,6 +12,7 @@
 const SPEC_PATH = "./test-spec.yaml";
 const STEADY_PORT = 4011;
 const PRISM_PORT = 4012;
+const FERN_PORT = 4013;
 const WARMUP_REQUESTS = 10;
 const BENCHMARK_REQUESTS = 100;
 
@@ -219,6 +220,70 @@ async function benchmarkPrism(): Promise<BenchmarkResult> {
   };
 }
 
+async function benchmarkFern(): Promise<BenchmarkResult> {
+  console.log("\n🟢 Benchmarking Fern...");
+
+  // Measure startup time
+  const startupStart = performance.now();
+  const process = new Deno.Command("npx", {
+    args: ["fern-api", "mock", "--port", String(FERN_PORT)],
+    cwd: Deno.cwd() + "/fern-test",
+    stdout: "piped",
+    stderr: "piped",
+  }).spawn();
+
+  const ready = await waitForServer(FERN_PORT, 120000); // Fern may take longer
+  const startupTimeMs = performance.now() - startupStart;
+
+  if (!ready) {
+    console.error("❌ Fern failed to start");
+    try { process.kill("SIGTERM"); } catch { /* already dead */ }
+    await process.status.catch(() => {});
+    return {
+      name: "Fern",
+      startupTimeMs: -1,
+      avgLatencyMs: -1,
+      p50LatencyMs: -1,
+      p95LatencyMs: -1,
+      p99LatencyMs: -1,
+      minLatencyMs: -1,
+      maxLatencyMs: -1,
+      requestsPerSecond: -1,
+    };
+  }
+
+  console.log(`  ✓ Started in ${startupTimeMs.toFixed(0)}ms`);
+
+  // Warmup
+  console.log("  Warming up...");
+  await measureLatencies(FERN_PORT, TEST_ENDPOINTS, WARMUP_REQUESTS);
+
+  // Benchmark
+  console.log(`  Running ${BENCHMARK_REQUESTS * TEST_ENDPOINTS.length} requests...`);
+  const benchStart = performance.now();
+  const latencies = await measureLatencies(FERN_PORT, TEST_ENDPOINTS, BENCHMARK_REQUESTS);
+  const benchDuration = performance.now() - benchStart;
+
+  // Cleanup
+  try { process.kill("SIGTERM"); } catch { /* already dead */ }
+  await process.status.catch(() => {});
+
+  const totalRequests = latencies.length;
+  const avgLatencyMs = latencies.reduce((a, b) => a + b, 0) / totalRequests;
+
+  return {
+    name: "Fern",
+    startupTimeMs,
+    avgLatencyMs,
+    p50LatencyMs: percentile(latencies, 50),
+    p95LatencyMs: percentile(latencies, 95),
+    p99LatencyMs: percentile(latencies, 99),
+    minLatencyMs: Math.min(...latencies),
+    maxLatencyMs: Math.max(...latencies),
+    requestsPerSecond: (totalRequests / benchDuration) * 1000,
+  };
+}
+
 function printResults(results: BenchmarkResult[]) {
   console.log("\n" + "=".repeat(70));
   console.log("BENCHMARK RESULTS");
@@ -254,19 +319,24 @@ function printResults(results: BenchmarkResult[]) {
   }
 
   // Print comparison
-  if (results.length === 2 && results[0]!.startupTimeMs > 0 && results[1]!.startupTimeMs > 0) {
-    const [steady, prism] = results;
+  const steady = results.find(r => r.name === "Steady");
+  const others = results.filter(r => r.name !== "Steady" && r.startupTimeMs > 0);
+
+  if (steady && steady.startupTimeMs > 0 && others.length > 0) {
     console.log("\n" + "=".repeat(70));
-    console.log("COMPARISON (Steady vs Prism)");
+    console.log("COMPARISON (Steady vs Others)");
     console.log("=".repeat(70));
 
-    const startupRatio = prism!.startupTimeMs / steady!.startupTimeMs;
-    const latencyRatio = prism!.avgLatencyMs / steady!.avgLatencyMs;
-    const throughputRatio = steady!.requestsPerSecond / prism!.requestsPerSecond;
+    for (const other of others) {
+      const startupRatio = other.startupTimeMs / steady.startupTimeMs;
+      const latencyRatio = other.avgLatencyMs / steady.avgLatencyMs;
+      const throughputRatio = steady.requestsPerSecond / other.requestsPerSecond;
 
-    console.log(`Startup: Steady is ${startupRatio.toFixed(1)}x faster`);
-    console.log(`Latency: Steady is ${latencyRatio.toFixed(1)}x faster`);
-    console.log(`Throughput: Steady handles ${throughputRatio.toFixed(1)}x more requests/sec`);
+      console.log(`\nSteady vs ${other.name}:`);
+      console.log(`  Startup: Steady is ${startupRatio.toFixed(1)}x faster`);
+      console.log(`  Latency: Steady is ${latencyRatio.toFixed(1)}x faster`);
+      console.log(`  Throughput: Steady handles ${throughputRatio.toFixed(1)}x more requests/sec`);
+    }
   }
 }
 
@@ -289,6 +359,8 @@ async function main() {
   results.push(await benchmarkSteady());
   await sleep(2000); // Wait between tests
   results.push(await benchmarkPrism());
+  await sleep(2000); // Wait between tests
+  results.push(await benchmarkFern());
 
   // Print results
   printResults(results);

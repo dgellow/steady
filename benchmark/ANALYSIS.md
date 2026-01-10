@@ -1,20 +1,95 @@
-# Steady vs Prism: Performance Analysis
+# Steady vs Prism vs Fern: Performance Analysis
 
 ## Executive Summary
 
-Steady significantly outperforms Prism in startup time and achieves better throughput:
+Steady significantly outperforms Prism and Fern in startup time:
 
-| Metric | Steady | Prism | Steady Advantage |
-|--------|--------|-------|------------------|
-| **Startup Time** | 340ms | 11,024ms | **32.4x faster** |
-| **Avg Latency** | 1.31ms | 1.46ms | **1.1x faster** |
-| **Throughput** | 764.5 req/s | 683.3 req/s | **1.1x more** |
+| Metric | Steady | Prism | Fern |
+|--------|--------|-------|------|
+| **Startup Time** | 605ms | 12,188ms | 12,511ms |
+| **Avg Latency** | 1.30ms | 1.49ms | 0.50ms |
+| **Throughput** | 766.6 req/s | 670.8 req/s | 2,006.2 req/s |
 
-The primary performance advantage comes from **startup time** - Steady loads specs **32x faster** than Prism.
+### Key Findings:
+
+1. **Startup**: Steady is **~20x faster** than both Prism and Fern
+2. **Runtime Latency**: Fern is actually faster once started (Express.js optimization)
+3. **Throughput**: Fern handles 2.6x more requests/sec than Steady
+
+### Why Fern Has Fast Runtime but Slow Startup
+
+Fern uses **Express.js** (highly optimized HTTP server) for runtime, but requires:
+- Loading the full `fern-api` npm package (includes SDK generators, IR compiler, etc.)
+- Generating an **Intermediate Representation (IR)** from the API spec
+- Validating the workspace configuration
+
+This is a **cold-start problem** - once running, Fern is very fast.
 
 ---
 
 ## Architectural Differences
+
+### Fern Mock Server Architecture
+
+Fern's mock server (`packages/cli/mock/`) uses **Express.js**:
+
+```typescript
+// runMockServer.ts
+export class MockServer {
+    private app = express();
+
+    constructor({ context, ir, port }) {
+        this.app.use(express.json({ limit: "50mb" }));
+
+        // Register routes from IR (Intermediate Representation)
+        for (const service of Object.values(ir.services)) {
+            for (const endpoint of service.endpoints) {
+                const path = getFullPathForEndpoint(endpoint);
+                // Register handler based on HTTP method
+                this.app.get(path, getRequestHandler(endpoints));
+            }
+        }
+    }
+}
+```
+
+**Key characteristics:**
+- Uses Express.js (mature, highly optimized)
+- Requires Fern's Intermediate Representation (IR) format
+- Example-based matching (returns pre-defined examples)
+- Path parameters use Express `:param` syntax
+
+**Request handling:**
+```typescript
+function getRequestHandler(endpoints: HttpEndpoint[]): RequestHandler {
+    return (req, res) => {
+        for (const endpoint of endpoints) {
+            for (const example of endpoint.examples) {
+                const match = requestEqual({ request: req, example });
+                if (match.type === "equal") {
+                    res.json(example.response.body.jsonExample);
+                    return;
+                }
+            }
+        }
+        res.status(404).send({ message: "No matching example" });
+    };
+}
+```
+
+### Why Fern is Fast at Runtime
+
+1. **Express.js is production-grade**: Millions of installs, heavily optimized
+2. **Simple matching logic**: Just compares request against pre-defined examples
+3. **No schema validation**: Only checks if request matches an example
+4. **No response generation**: Returns pre-defined example data
+
+### Why Fern is Slow at Startup
+
+1. **npm package loading**: `fern-api` includes SDK generators, docs tools, etc.
+2. **IR generation**: Converts OpenAPI → Fern IR (complex transformation)
+3. **Workspace validation**: Validates `fern.config.json` and `generators.yml`
+4. **Node.js cold start**: V8 JIT compilation overhead
 
 ### 1. Route Matching Algorithm
 
@@ -248,7 +323,54 @@ Where:
 3. Add response caching for deterministic generation
 
 ### Key Takeaways:
-1. **Startup optimization matters** - 32x difference shows importance of pre-compilation
+1. **Startup optimization matters** - 20x difference shows importance of pre-compilation
 2. **Document-centric architecture** - Single source of truth simplifies caching
 3. **Minimal dependencies** - Each import adds startup cost
 4. **Avoid per-request allocations** - Pre-compile, pre-index, cache
+
+---
+
+## Full Comparison: Steady vs Prism vs Fern
+
+| Aspect | Steady | Prism | Fern |
+|--------|--------|-------|------|
+| **Language** | TypeScript (Deno) | TypeScript (Node.js) | TypeScript (Node.js) |
+| **HTTP Server** | Deno native | Fastify | Express.js |
+| **Startup Time** | ~600ms | ~12s | ~12.5s |
+| **Runtime Latency** | 1.30ms | 1.49ms | 0.50ms |
+| **Throughput** | 767 req/s | 671 req/s | 2,006 req/s |
+| **Input Format** | OpenAPI 3.x direct | OpenAPI 3.x direct | Fern IR (from OpenAPI) |
+| **Path Matching** | Pre-compiled patterns | Per-request regex | Express router |
+| **Schema Validation** | Full JSON Schema 2020-12 | AJV (external) | Example matching only |
+| **Response Generation** | Schema-based + examples | json-schema-faker | Pre-defined examples |
+| **Dependencies** | Minimal (Deno std) | Heavy (fp-ts, lodash, etc.) | Heavy (full Fern toolkit) |
+
+### When to Use Each
+
+**Steady** - Best for:
+- Fast iteration during development (quick startup)
+- SDK testing with schema validation
+- Deterministic response generation
+- Minimal footprint environments
+
+**Prism** - Best for:
+- Contract testing with detailed validation
+- When you need OpenAPI 2.0 support
+- Integration with Stoplight ecosystem
+
+**Fern** - Best for:
+- High-throughput testing (once warmed up)
+- SDK development with Fern ecosystem
+- When you're already using Fern for SDK generation
+
+### Startup Time Breakdown (Estimated)
+
+| Phase | Steady | Prism | Fern |
+|-------|--------|-------|------|
+| Module loading | ~100ms | ~5s | ~6s |
+| Spec parsing | ~50ms | ~2s | ~1s |
+| Route compilation | ~10ms | N/A | N/A |
+| Schema indexing | ~10ms | N/A | N/A |
+| IR generation | N/A | N/A | ~4s |
+| Server binding | ~50ms | ~1s | ~1s |
+| **Total** | **~600ms** | **~12s** | **~12.5s** |
