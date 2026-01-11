@@ -4834,6 +4834,259 @@
         }
       }
     },
+    "/invoices/summary": {
+      "get": {
+        "tags": ["Invoice"],
+        "summary": "List invoices summary",
+        "description": "This is a lighter-weight endpoint that returns a list of all [`Invoice`](/core-concepts#invoice) summaries for an account in a\nlist format.\n\nThese invoice summaries do not include line item details, minimums, maximums, and discounts, making this endpoint more\nefficient.\n\nThe list of invoices is ordered starting from the most recently issued invoice date. The response also includes\n[`pagination_metadata`](/api-reference/pagination), which lets the caller retrieve the next page of results if they\nexist.\n\nBy default, this only returns invoices that are `issued`, `paid`, or `synced`.\n\nWhen fetching any `draft` invoices, this returns the last-computed invoice values for each draft invoice, which may\nnot always be up-to-date since Orb regularly refreshes invoices asynchronously.",
+        "operationId": "list-invoices-summary",
+        "parameters": [
+          {
+            "required": false,
+            "style": "form",
+            "schema": { "oneOf": [{ "type": "string" }, { "type": "null" }], "title": "Customer Id" },
+            "name": "customer_id",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "External Customer Id"
+            },
+            "name": "external_customer_id",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": { "oneOf": [{ "type": "string" }, { "type": "null" }], "title": "Subscription Id" },
+            "name": "subscription_id",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [
+                { "type": "string", "enum": ["draft", "issued", "paid", "synced", "void"] },
+                { "type": "null" }
+              ],
+              "title": "Status"
+            },
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "oneOf": [
+                {
+                  "items": { "type": "string", "enum": ["draft", "issued", "paid", "synced", "void"] },
+                  "type": "array"
+                },
+                { "type": "null" }
+              ],
+              "title": "Status[]"
+            },
+            "name": "status[]",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Due Date Window",
+              "description": "Filters invoices by their due dates within a specific time range in the past. Specify the range as a number followed by 'd' (days) or 'm' (months). For example, '7d' filters invoices due in the last 7 days, and '2m' filters those due in the last 2 months."
+            },
+            "name": "due_date_window",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string", "enum": ["due_date", "invoice_date"] }, { "type": "null" }],
+              "title": "Date Type",
+              "default": "invoice_date"
+            },
+            "name": "date_type",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string", "format": "date" }, { "type": "null" }],
+              "title": "Due Date"
+            },
+            "name": "due_date",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string", "format": "date" }, { "type": "null" }],
+              "title": "Due Date[Gt]"
+            },
+            "name": "due_date[gt]",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string", "format": "date" }, { "type": "null" }],
+              "title": "Due Date[Lt]"
+            },
+            "name": "due_date[lt]",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": { "oneOf": [{ "type": "string" }, { "type": "null" }], "title": "Amount" },
+            "name": "amount",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": { "oneOf": [{ "type": "string" }, { "type": "null" }], "title": "Amount[Gt]" },
+            "name": "amount[gt]",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": { "oneOf": [{ "type": "string" }, { "type": "null" }], "title": "Amount[Lt]" },
+            "name": "amount[lt]",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": { "oneOf": [{ "type": "boolean" }, { "type": "null" }], "title": "Is Recurring" },
+            "name": "is_recurring",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "description": "The number of items to fetch. Defaults to 20.",
+              "default": 20
+            },
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Cursor",
+              "description": "Cursor for pagination. This can be populated by the `next_cursor` value returned from the initial request."
+            },
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+              "title": "Invoice Date[Gte]"
+            },
+            "name": "invoice_date[gte]",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+              "title": "Invoice Date[Gt]"
+            },
+            "name": "invoice_date[gt]",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+              "title": "Invoice Date[Lt]"
+            },
+            "name": "invoice_date[lt]",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "style": "form",
+            "schema": {
+              "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+              "title": "Invoice Date[Lte]"
+            },
+            "name": "invoice_date[lte]",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {},
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/InvoiceSummarys" } }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "headers": {},
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/400Error" } } }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "headers": {},
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/401Error" } } }
+          },
+          "404": {
+            "description": "Not Found",
+            "headers": {},
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/404Error" } } }
+          },
+          "409": {
+            "description": "Conflict",
+            "headers": {},
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/409Error" } } }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "headers": {},
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/413Error" } } }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {},
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/429Error" } } }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "headers": {},
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/500Error" } } }
+          }
+        }
+      }
+    },
     "/invoices/upcoming": {
       "get": {
         "tags": ["Invoice"],
@@ -12464,7 +12717,7 @@
       },
       "CumulativeGroupedBulkConfig": {
         "properties": {
-          "group": { "type": "string", "title": "Group", "description": "Grouping key name" },
+          "group": { "type": "string", "title": "Group" },
           "dimension_values": {
             "items": { "$ref": "#/components/schemas/CumulativeGroupedBulkDimensionValue" },
             "type": "array",
@@ -14783,7 +15036,7 @@
             "title": "Tiers",
             "description": "Apply tiered pricing after rounding up the quantity to the package size. Tiers are defined using exclusive lower bounds."
           },
-          "package_size": { "type": "string", "title": "Package Size", "description": "Package size" },
+          "package_size": { "type": "string", "title": "Package Size" },
           "grouping_key": {
             "type": "string",
             "minLength": 1,
@@ -14799,12 +15052,8 @@
       },
       "GroupedTieredPackageTierItem": {
         "properties": {
-          "tier_lower_bound": {
-            "type": "string",
-            "title": "Tier Lower Bound",
-            "description": "Tier lower bound"
-          },
-          "per_unit": { "type": "string", "title": "Per Unit", "description": "Price per package" }
+          "tier_lower_bound": { "type": "string", "title": "Tier Lower Bound" },
+          "per_unit": { "type": "string", "title": "Per Unit", "description": "Per package" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -14948,11 +15197,7 @@
       },
       "GroupedTieredTier": {
         "properties": {
-          "tier_lower_bound": {
-            "type": "string",
-            "title": "Tier Lower Bound",
-            "description": "Tier lower bound"
-          },
+          "tier_lower_bound": { "type": "string", "title": "Tier Lower Bound" },
           "unit_amount": { "type": "string", "title": "Unit Amount", "description": "Per unit amount" }
         },
         "additionalProperties": false,
@@ -15148,8 +15393,8 @@
       },
       "GroupedWithMeteredMinimumScalingFactorItem": {
         "properties": {
-          "scaling_value": { "type": "string", "title": "Scaling Value", "description": "Scaling value" },
-          "scaling_factor": { "type": "string", "title": "Scaling Factor", "description": "Scaling factor" }
+          "scaling_value": { "type": "string", "title": "Scaling Value" },
+          "scaling_factor": { "type": "string", "title": "Scaling Factor" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -15159,7 +15404,7 @@
       },
       "GroupedWithMeteredMinimumUnitAmountItem": {
         "properties": {
-          "pricing_value": { "type": "string", "title": "Pricing Value", "description": "Pricing value" },
+          "pricing_value": { "type": "string", "title": "Pricing Value" },
           "unit_amount": { "type": "string", "title": "Unit Amount", "description": "Per unit amount" }
         },
         "additionalProperties": false,
@@ -16132,6 +16377,215 @@
             "tier": "#/components/schemas/TierSubLineItem"
           }
         }
+      },
+      "InvoiceSummary": {
+        "properties": {
+          "metadata": {
+            "additionalProperties": { "type": "string" },
+            "type": "object",
+            "title": "Metadata",
+            "description": "User specified key-value pairs for the resource. If not present, this defaults to an empty dictionary. Individual keys can be removed by setting the value to `null`, and the entire metadata mapping can be cleared by setting `metadata` to `null`."
+          },
+          "voided_at": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Voided At",
+            "description": "If the invoice has a status of `void`, this gives a timestamp when the invoice was voided."
+          },
+          "paid_at": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Paid At",
+            "description": "If the invoice has a status of `paid`, this gives a timestamp when the invoice was paid."
+          },
+          "issued_at": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Issued At",
+            "description": "If the invoice has been issued, this will be the time it transitioned to `issued` (even if it is now in a different state.)"
+          },
+          "scheduled_issue_at": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Scheduled Issue At",
+            "description": "If the invoice is in draft, this timestamp will reflect when the invoice is scheduled to be issued."
+          },
+          "auto_collection": { "$ref": "#/components/schemas/AutoCollection" },
+          "issue_failed_at": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Issue Failed At",
+            "description": "If the invoice failed to issue, this will be the last time it failed to issue (even if it is now in a different state.)"
+          },
+          "sync_failed_at": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Sync Failed At",
+            "description": "If the invoice failed to sync, this will be the last time an external invoicing provider sync was attempted. This field will always be `null` for invoices using Orb Invoicing."
+          },
+          "payment_failed_at": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Payment Failed At",
+            "description": "If payment was attempted on this invoice but failed, this will be the time of the most recent attempt."
+          },
+          "payment_started_at": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Payment Started At",
+            "description": "If payment was attempted on this invoice, this will be the start time of the most recent attempt. This field is especially useful for delayed-notification payment mechanisms (like bank transfers), where payment can take 3 days or more."
+          },
+          "amount_due": {
+            "type": "string",
+            "title": "Amount Due",
+            "description": "This is the final amount required to be charged to the customer and reflects the application of the customer balance to the `total` of the invoice.",
+            "examples": ["8.00"]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "The creation time of the resource in Orb.",
+            "examples": ["2022-05-01T07:01:31+00:00"]
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "description": "An ISO 4217 currency string or `credits`",
+            "examples": ["USD"]
+          },
+          "customer": { "$ref": "#/components/schemas/CustomerMinified" },
+          "due_date": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Due Date",
+            "description": "When the invoice payment is due. The due date is null if the invoice is not yet finalized.",
+            "examples": ["2022-05-30T07:00:00+00:00"]
+          },
+          "id": { "type": "string", "title": "Id" },
+          "invoice_pdf": {
+            "oneOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Invoice Pdf",
+            "description": "The link to download the PDF representation of the `Invoice`.",
+            "examples": ["https://assets.withorb.com/invoice/rUHdhmg45vY45DX/qEAeuYePaphGMdFb"]
+          },
+          "invoice_number": {
+            "type": "string",
+            "title": "Invoice Number",
+            "description": "Automatically generated invoice number to help track and reconcile invoices. Invoice numbers have a prefix such as `RFOBWG`. These can be sequential per account or customer.",
+            "examples": ["JYEFHK-00001"]
+          },
+          "subscription": {
+            "oneOf": [{ "$ref": "#/components/schemas/SubscriptionMinified" }, { "type": "null" }]
+          },
+          "total": {
+            "type": "string",
+            "title": "Total",
+            "description": "The total after any minimums and discounts have been applied.",
+            "examples": ["8.00"]
+          },
+          "customer_balance_transactions": {
+            "items": { "$ref": "#/components/schemas/CustomerBalanceTransaction" },
+            "type": "array",
+            "title": "Customer Balance Transactions"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["issued", "paid", "synced", "void", "draft"],
+            "title": "Status"
+          },
+          "invoice_source": {
+            "type": "string",
+            "enum": ["subscription", "partial", "one_off"],
+            "title": "Invoice Source"
+          },
+          "shipping_address": { "oneOf": [{ "$ref": "#/components/schemas/Address" }, { "type": "null" }] },
+          "billing_address": { "oneOf": [{ "$ref": "#/components/schemas/Address" }, { "type": "null" }] },
+          "hosted_invoice_url": {
+            "oneOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Hosted Invoice Url",
+            "description": "A URL for the customer-facing invoice portal. This URL expires 30 days after the invoice's due date, or 60 days after being re-generated through the UI."
+          },
+          "will_auto_issue": {
+            "type": "boolean",
+            "title": "Will Auto Issue",
+            "description": "This is true if the invoice will be automatically issued in the future, and false otherwise."
+          },
+          "eligible_to_issue_at": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Eligible To Issue At",
+            "description": "If the invoice has a status of `draft`, this will be the time that the invoice will be eligible to be issued, otherwise it will be `null`. If `auto-issue` is true, the invoice will automatically begin issuing at this time."
+          },
+          "customer_tax_id": {
+            "oneOf": [{ "$ref": "#/components/schemas/CustomerTaxId" }, { "type": "null" }]
+          },
+          "memo": {
+            "oneOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Memo",
+            "description": "Free-form text which is available on the invoice PDF and the Orb invoice portal."
+          },
+          "credit_notes": {
+            "items": { "$ref": "#/components/schemas/CreditNoteSummary" },
+            "type": "array",
+            "title": "Credit Notes",
+            "description": "A list of credit notes associated with the invoice"
+          },
+          "payment_attempts": {
+            "items": { "$ref": "#/components/schemas/PaymentAttempt" },
+            "type": "array",
+            "title": "Payment Attempts",
+            "description": "A list of payment attempts associated with the invoice"
+          },
+          "invoice_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Invoice Date",
+            "description": "The scheduled date of the invoice",
+            "examples": ["2022-05-01T07:00:00+00:00"]
+          }
+        },
+        "type": "object",
+        "required": [
+          "metadata",
+          "voided_at",
+          "paid_at",
+          "issued_at",
+          "scheduled_issue_at",
+          "auto_collection",
+          "issue_failed_at",
+          "sync_failed_at",
+          "payment_failed_at",
+          "payment_started_at",
+          "amount_due",
+          "created_at",
+          "currency",
+          "customer",
+          "due_date",
+          "id",
+          "invoice_pdf",
+          "invoice_number",
+          "subscription",
+          "total",
+          "customer_balance_transactions",
+          "status",
+          "invoice_source",
+          "shipping_address",
+          "billing_address",
+          "hosted_invoice_url",
+          "will_auto_issue",
+          "eligible_to_issue_at",
+          "customer_tax_id",
+          "memo",
+          "credit_notes",
+          "payment_attempts",
+          "invoice_date"
+        ],
+        "title": "InvoiceSummary",
+        "description": "#InvoiceApiResourceWithoutLineItems"
+      },
+      "InvoiceSummarys": {
+        "properties": {
+          "data": {
+            "items": { "$ref": "#/components/schemas/InvoiceSummary" },
+            "type": "array",
+            "title": "Data"
+          },
+          "pagination_metadata": { "$ref": "#/components/schemas/PaginationMetadata" }
+        },
+        "type": "object",
+        "required": ["data", "pagination_metadata"],
+        "title": "InvoiceSummarys"
       },
       "InvoiceTiny": {
         "properties": {
@@ -17287,7 +17741,7 @@
             "title": "Tiers",
             "description": "Apply tiered pricing to the largest group after grouping with the provided key."
           },
-          "package_size": { "type": "string", "title": "Package Size", "description": "Package size" },
+          "package_size": { "type": "string", "title": "Package Size" },
           "grouping_key": {
             "type": "string",
             "minLength": 1,
@@ -17437,11 +17891,7 @@
       },
       "MaxGroupTieredTierItem": {
         "properties": {
-          "tier_lower_bound": {
-            "type": "string",
-            "title": "Tier Lower Bound",
-            "description": "Tier lower bound"
-          },
+          "tier_lower_bound": { "type": "string", "title": "Tier Lower Bound" },
           "unit_amount": { "type": "string", "title": "Unit Amount", "description": "Per unit amount" }
         },
         "additionalProperties": false,
@@ -18552,7 +19002,7 @@
       "NewCouponPercentageDiscount": {
         "properties": {
           "discount_type": { "type": "string", "enum": ["percentage"], "title": "Discount Type" },
-          "percentage_discount": { "type": "number", "title": "Percentage Discount" }
+          "percentage_discount": { "type": "number", "title": "Percentage Discount", "ge": 0, "le": 1 }
         },
         "type": "object",
         "required": ["discount_type", "percentage_discount"],
@@ -22252,7 +22702,7 @@
             "enum": ["percentage_discount"],
             "title": "Adjustment Type"
           },
-          "percentage_discount": { "type": "number", "title": "Percentage Discount" }
+          "percentage_discount": { "type": "number", "title": "Percentage Discount", "ge": 0, "le": 1 }
         },
         "type": "object",
         "required": ["adjustment_type", "percentage_discount"],
@@ -29476,7 +29926,7 @@
             "default": true
           },
           "adjustment_type": { "type": "string", "enum": ["usage_discount"], "title": "Adjustment Type" },
-          "usage_discount": { "type": "number", "minimum": 0, "title": "Usage Discount" }
+          "usage_discount": { "type": "number", "title": "Usage Discount" }
         },
         "type": "object",
         "required": ["adjustment_type", "usage_discount"],
@@ -29654,13 +30104,9 @@
       },
       "PackageWithAllocationConfig": {
         "properties": {
-          "package_amount": {
-            "type": "string",
-            "title": "Package Amount",
-            "description": "Price per package"
-          },
-          "package_size": { "type": "string", "title": "Package Size", "description": "Package size" },
-          "allocation": { "type": "string", "title": "Allocation", "description": "Usage allocation" }
+          "package_amount": { "type": "string", "title": "Package Amount" },
+          "package_size": { "type": "string", "title": "Package Size" },
+          "allocation": { "type": "string", "title": "Allocation" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -30110,7 +30556,9 @@
             "type": "number",
             "title": "Percentage Discount",
             "description": "Only available if discount_type is `percentage`. This is a number between 0 and 1.",
-            "examples": [0.15]
+            "examples": [0.15],
+            "ge": 0,
+            "le": 1
           }
         },
         "type": "object",
@@ -31463,8 +31911,7 @@
             "items": { "$ref": "#/components/schemas/ScalableMatrixWithTieredTierEntry" },
             "type": "array",
             "minItems": 2,
-            "title": "Tiers",
-            "description": "Tier pricing structure"
+            "title": "Tiers"
           },
           "first_dimension": {
             "type": "string",
@@ -31626,17 +32073,12 @@
       },
       "ScalableMatrixWithTieredScalingFactor": {
         "properties": {
-          "first_dimension_value": {
-            "type": "string",
-            "title": "First Dimension Value",
-            "description": "First dimension value"
-          },
+          "first_dimension_value": { "type": "string", "title": "First Dimension Value" },
           "second_dimension_value": {
             "oneOf": [{ "type": "string" }, { "type": "null" }],
-            "title": "Second Dimension Value",
-            "description": "Second dimension value (optional)"
+            "title": "Second Dimension Value"
           },
-          "scaling_factor": { "type": "string", "title": "Scaling Factor", "description": "Scaling factor" }
+          "scaling_factor": { "type": "string", "title": "Scaling Factor" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -31646,12 +32088,8 @@
       },
       "ScalableMatrixWithTieredTierEntry": {
         "properties": {
-          "tier_lower_bound": {
-            "type": "string",
-            "title": "Tier Lower Bound",
-            "description": "Tier lower bound"
-          },
-          "unit_amount": { "type": "string", "title": "Unit Amount", "description": "Per unit amount" }
+          "tier_lower_bound": { "type": "string", "title": "Tier Lower Bound" },
+          "unit_amount": { "type": "string", "title": "Unit Amount" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -31832,17 +32270,12 @@
       },
       "ScalableMatrixWithUnitScalingFactor": {
         "properties": {
-          "first_dimension_value": {
-            "type": "string",
-            "title": "First Dimension Value",
-            "description": "First dimension value"
-          },
+          "first_dimension_value": { "type": "string", "title": "First Dimension Value" },
           "second_dimension_value": {
             "oneOf": [{ "type": "string" }, { "type": "null" }],
-            "title": "Second Dimension Value",
-            "description": "Second dimension value (optional)"
+            "title": "Second Dimension Value"
           },
-          "scaling_factor": { "type": "string", "title": "Scaling Factor", "description": "Scaling factor" }
+          "scaling_factor": { "type": "string", "title": "Scaling Factor" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -32141,10 +32574,35 @@
           },
           "subscription": {
             "oneOf": [{ "$ref": "#/components/schemas/MutatedSubscription" }, { "type": "null" }]
+          },
+          "change_type": {
+            "type": "string",
+            "title": "Change Type",
+            "description": "The type of change (e.g., 'schedule_plan_change', 'create_subscription')."
+          },
+          "effective_date": {
+            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }],
+            "title": "Effective Date",
+            "description": "When this change will take effect."
+          },
+          "change_option": {
+            "oneOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Change Option",
+            "description": "How the change is scheduled (e.g., 'immediate', 'end_of_subscription_term', 'requested_date')."
+          },
+          "plan_id": {
+            "oneOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Plan Id",
+            "description": "The target plan ID for plan changes."
+          },
+          "billing_cycle_alignment": {
+            "oneOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Billing Cycle Alignment",
+            "description": "Billing cycle alignment for plan changes."
           }
         },
         "type": "object",
-        "required": ["id", "status", "expiration_time", "subscription"],
+        "required": ["id", "status", "expiration_time", "subscription", "change_type"],
         "title": "SubscriptionChangeResponse",
         "description": "A subscription change represents a desired new subscription / pending change to an existing subscription. It\nis a way to first preview the effects on the subscription as well as any changes/creation of invoices\n(see `subscription.changed_resources`)."
       },
@@ -32873,7 +33331,7 @@
             "title": "Tiers",
             "description": "Apply tiered pricing after rounding up the quantity to the package size. Tiers are defined using exclusive lower bounds. The tier bounds are defined based on the total quantity rather than the number of packages, so they must be multiples of the package size."
           },
-          "package_size": { "type": "string", "title": "Package Size", "description": "Package size" }
+          "package_size": { "type": "string", "title": "Package Size" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -32890,7 +33348,7 @@
             "title": "Tiers",
             "description": "Apply tiered pricing after rounding up the quantity to the package size. Tiers are defined using exclusive lower bounds."
           },
-          "package_size": { "type": "number", "title": "Package Size", "description": "Package size" }
+          "package_size": { "type": "number", "title": "Package Size" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -32900,11 +33358,7 @@
       },
       "TieredPackageTierItem": {
         "properties": {
-          "tier_lower_bound": {
-            "type": "string",
-            "title": "Tier Lower Bound",
-            "description": "Tier lower bound"
-          },
+          "tier_lower_bound": { "type": "string", "title": "Tier Lower Bound" },
           "per_unit": { "type": "string", "title": "Per Unit", "description": "Price per package" }
         },
         "additionalProperties": false,
@@ -33049,13 +33503,9 @@
       },
       "TieredPackageWithMinimumTierItem": {
         "properties": {
-          "tier_lower_bound": {
-            "type": "string",
-            "title": "Tier Lower Bound",
-            "description": "Tier lower bound"
-          },
-          "per_unit": { "type": "string", "title": "Per Unit", "description": "Price per package" },
-          "minimum_amount": { "type": "string", "title": "Minimum Amount", "description": "Minimum amount" }
+          "tier_lower_bound": { "type": "string", "title": "Tier Lower Bound" },
+          "per_unit": { "type": "string", "title": "Per Unit" },
+          "minimum_amount": { "type": "string", "title": "Minimum Amount" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -33222,13 +33672,9 @@
       },
       "TieredPricingWithMinimumTierItem": {
         "properties": {
-          "tier_lower_bound": {
-            "type": "string",
-            "title": "Tier Lower Bound",
-            "description": "Tier lower bound"
-          },
+          "tier_lower_bound": { "type": "string", "title": "Tier Lower Bound" },
           "unit_amount": { "type": "string", "title": "Unit Amount", "description": "Per unit amount" },
-          "minimum_amount": { "type": "string", "title": "Minimum Amount", "description": "Minimum amount" }
+          "minimum_amount": { "type": "string", "title": "Minimum Amount" }
         },
         "additionalProperties": false,
         "type": "object",
@@ -33238,7 +33684,7 @@
       },
       "TieredTotalThreshold": {
         "properties": {
-          "threshold": { "type": "string", "title": "Threshold", "description": "Quantity threshold" },
+          "threshold": { "type": "string", "title": "Threshold" },
           "total_amount": {
             "type": "string",
             "title": "Total Amount",

@@ -364,7 +364,7 @@
         "x-title-plural": "Account Number Lists"
       },
       "account_statement": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "description": "Account Statements are generated monthly for every active Account. You can access the statement's data via the API or retrieve a PDF with its details via its associated File.",
         "example": {
           "account_id": "account_in71c4amph0vgo2qllky",
@@ -2662,6 +2662,37 @@
             "x-event-categories": [],
             "x-stainless-empty-object": false
           },
+          "card_balance_inquiry": {
+            "additionalProperties": false,
+            "description": "If the Real-Time Decision relates to a card balance inquiry attempt, this object contains your response to the inquiry.",
+            "properties": {
+              "approval": {
+                "additionalProperties": false,
+                "description": "If your application approves the balance inquiry, this contains metadata about your decision to approve.",
+                "properties": {
+                  "balance": {
+                    "description": "The balance on the card in the settlement currency of the transaction.",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": ["balance"],
+                "type": "object",
+                "x-event-categories": [],
+                "x-stainless-empty-object": false
+              },
+              "decision": {
+                "description": "Whether the card balance inquiry should be approved or declined.",
+                "enum": ["approve", "decline"],
+                "type": "string",
+                "x-enum-descriptions": ["Approve the authorization.", "Decline the authorization."]
+              }
+            },
+            "required": ["decision"],
+            "type": "object",
+            "x-event-categories": [],
+            "x-stainless-empty-object": false
+          },
           "digital_wallet_authentication": {
             "additionalProperties": false,
             "description": "If the Real-Time Decision relates to a digital wallet authentication attempt, this object contains your response to the authentication.",
@@ -2769,7 +2800,7 @@
         "x-stainless-empty-object": false
       },
       "balance_lookup": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "description": "Represents a request to lookup the balance of an Account at a given point in time.",
         "example": {
           "account_id": "account_in71c4amph0vgo2qllky",
@@ -4343,6 +4374,7 @@
               "quasi_cash",
               "refund",
               "cash_disbursement",
+              "balance_inquiry",
               "unknown"
             ],
             "type": "string",
@@ -4355,6 +4387,7 @@
               "Quasi-cash transactions represent purchases of items which may be convertible to cash.",
               "A refund card authorization, sometimes referred to as a credit voucher authorization, where funds are credited to the cardholder.",
               "Cash disbursement transactions are used to withdraw cash from an ATM or a point of sale.",
+              "A balance inquiry transaction is used to check the balance of an account associated with a card.",
               "The processing category is unknown."
             ]
           },
@@ -4578,6 +4611,786 @@
         "x-stainless-empty-object": false,
         "x-title-plural": "Card Authorization Expirations"
       },
+      "card_balance_inquiry": {
+        "additionalProperties": true,
+        "description": "Card Balance Inquiries are transactions that allow merchants to check the available balance on a card without placing a hold on funds, commonly used when a customer requests their balance at an ATM.",
+        "example": {
+          "additional_amounts": {
+            "clinic": null,
+            "dental": null,
+            "original": null,
+            "prescription": null,
+            "surcharge": { "amount": 10, "currency": "USD" },
+            "total_cumulative": null,
+            "total_healthcare": null,
+            "transit": null,
+            "unknown": null,
+            "vision": null
+          },
+          "balance": 100,
+          "card_payment_id": "card_payment_nd3k2kacrqjli8482ave",
+          "currency": "USD",
+          "digital_wallet_token_id": null,
+          "id": "card_balance_inquiry_pt06vq4e7qzvv01je0yt",
+          "merchant_acceptor_id": "5665270011000168",
+          "merchant_category_code": "5734",
+          "merchant_city": "New York",
+          "merchant_country": "US",
+          "merchant_descriptor": "AMAZON.COM",
+          "merchant_postal_code": "10045",
+          "merchant_state": "NY",
+          "network_details": {
+            "category": "visa",
+            "pulse": null,
+            "visa": {
+              "electronic_commerce_indicator": "secure_electronic_commerce",
+              "point_of_service_entry_mode": "manual",
+              "stand_in_processing_reason": null
+            }
+          },
+          "network_identifiers": {
+            "authorization_identification_response": null,
+            "retrieval_reference_number": "785867080153",
+            "trace_number": "487941",
+            "transaction_id": "627199945183184"
+          },
+          "network_risk_score": 10,
+          "physical_card_id": null,
+          "real_time_decision_id": null,
+          "terminal_id": "RCN5VNXS",
+          "type": "card_balance_inquiry",
+          "verification": {
+            "card_verification_code": { "result": "match" },
+            "cardholder_address": {
+              "actual_line1": "33 Liberty Street",
+              "actual_postal_code": "94131",
+              "provided_line1": "33 Liberty Street",
+              "provided_postal_code": "94132",
+              "result": "postal_code_no_match_address_match"
+            }
+          }
+        },
+        "properties": {
+          "additional_amounts": {
+            "additionalProperties": false,
+            "description": "Additional amounts associated with the card authorization, such as ATM surcharges fees. These are usually a subset of the `amount` field and are used to provide more detailed information about the transaction.",
+            "properties": {
+              "clinic": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The part of this transaction amount that was for clinic-related services.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "dental": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The part of this transaction amount that was for dental-related services.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "original": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The original pre-authorized amount.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "prescription": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The part of this transaction amount that was for healthcare prescriptions.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "surcharge": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The surcharge amount charged for this transaction by the merchant.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "total_cumulative": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The total amount of a series of incremental authorizations, optionally provided.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "total_healthcare": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The total amount of healthcare-related additional amounts.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "transit": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The part of this transaction amount that was for transit-related services.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "unknown": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "An unknown additional amount.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "vision": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The part of this transaction amount that was for vision-related services.",
+                    "properties": {
+                      "amount": {
+                        "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["amount", "currency"],
+                    "title": "AdditionalAmount",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "required": [
+              "total_healthcare",
+              "total_cumulative",
+              "surcharge",
+              "transit",
+              "vision",
+              "clinic",
+              "dental",
+              "prescription",
+              "original",
+              "unknown"
+            ],
+            "title": "AdditionalAmounts",
+            "type": "object",
+            "x-event-categories": [],
+            "x-stainless-empty-object": false,
+            "x-title-plural": "s"
+          },
+          "balance": {
+            "description": "The balance amount in the minor unit of the account's currency. For dollars, for example, this is cents.",
+            "type": "integer"
+          },
+          "card_payment_id": {
+            "description": "The ID of the Card Payment this transaction belongs to.",
+            "type": "string",
+            "x-id-reference-to": "Card Payments"
+          },
+          "currency": {
+            "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the account's currency.",
+            "enum": ["USD"],
+            "type": "string",
+            "x-enum-descriptions": ["US Dollar (USD)"]
+          },
+          "digital_wallet_token_id": {
+            "anyOf": [
+              {
+                "description": "If the authorization was made via a Digital Wallet Token (such as an Apple Pay purchase), the identifier of the token that was used.",
+                "type": "string",
+                "x-id-reference-to": "Digital Wallet Tokens"
+              },
+              { "type": "null" }
+            ]
+          },
+          "id": {
+            "description": "The Card Balance Inquiry identifier.",
+            "type": "string",
+            "x-id-reference-to": "Card Balance Inquiries"
+          },
+          "merchant_acceptor_id": {
+            "description": "The merchant identifier (commonly abbreviated as MID) of the merchant the card is transacting with.",
+            "type": "string"
+          },
+          "merchant_category_code": {
+            "description": "The Merchant Category Code (commonly abbreviated as MCC) of the merchant the card is transacting with.",
+            "type": "string"
+          },
+          "merchant_city": {
+            "anyOf": [
+              { "description": "The city the merchant resides in.", "type": "string" },
+              { "type": "null" }
+            ]
+          },
+          "merchant_country": { "description": "The country the merchant resides in.", "type": "string" },
+          "merchant_descriptor": {
+            "description": "The merchant descriptor of the merchant the card is transacting with.",
+            "type": "string"
+          },
+          "merchant_postal_code": {
+            "anyOf": [
+              {
+                "description": "The merchant's postal code. For US merchants this is either a 5-digit or 9-digit ZIP code, where the first 5 and last 4 are separated by a dash.",
+                "type": "string"
+              },
+              { "type": "null" }
+            ]
+          },
+          "merchant_state": {
+            "anyOf": [
+              { "description": "The state the merchant resides in.", "type": "string" },
+              { "type": "null" }
+            ]
+          },
+          "network_details": {
+            "additionalProperties": false,
+            "description": "Fields specific to the `network`.",
+            "properties": {
+              "category": {
+                "description": "The payment network used to process this card authorization.",
+                "enum": ["visa", "pulse"],
+                "type": "string",
+                "x-enum-descriptions": ["Visa", "Pulse"]
+              },
+              "pulse": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Fields specific to the `pulse` network.",
+                    "properties": {},
+                    "title": "Pulse",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": true,
+                    "x-title-plural": "Pulses"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "visa": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "Fields specific to the `visa` network.",
+                    "properties": {
+                      "electronic_commerce_indicator": {
+                        "anyOf": [
+                          {
+                            "description": "For electronic commerce transactions, this identifies the level of security used in obtaining the customer's payment credential. For mail or telephone order transactions, identifies the type of mail or telephone order.",
+                            "enum": [
+                              "mail_phone_order",
+                              "recurring",
+                              "installment",
+                              "unknown_mail_phone_order",
+                              "secure_electronic_commerce",
+                              "non_authenticated_security_transaction_at_3ds_capable_merchant",
+                              "non_authenticated_security_transaction",
+                              "non_secure_transaction"
+                            ],
+                            "type": "string",
+                            "x-enum-descriptions": [
+                              "Single transaction of a mail/phone order: Use to indicate that the transaction is a mail/phone order purchase, not a recurring transaction or installment payment. For domestic transactions in the US region, this value may also indicate one bill payment transaction in the card-present or card-absent environments.",
+                              "Recurring transaction: Payment indicator used to indicate a recurring transaction that originates from an acquirer in the US region.",
+                              "Installment payment: Payment indicator used to indicate one purchase of goods or services that is billed to the account in multiple charges over a period of time agreed upon by the cardholder and merchant from transactions that originate from an acquirer in the US region.",
+                              "Unknown classification: other mail order: Use to indicate that the type of mail/telephone order is unknown.",
+                              "Secure electronic commerce transaction: Use to indicate that the electronic commerce transaction has been authenticated using e.g., 3-D Secure",
+                              "Non-authenticated security transaction at a 3-D Secure-capable merchant, and merchant attempted to authenticate the cardholder using 3-D Secure: Use to identify an electronic commerce transaction where the merchant attempted to authenticate the cardholder using 3-D Secure, but was unable to complete the authentication because the issuer or cardholder does not participate in the 3-D Secure program.",
+                              "Non-authenticated security transaction: Use to identify an electronic commerce transaction that uses data encryption for security however, cardholder authentication is not performed using 3-D Secure.",
+                              "Non-secure transaction: Use to identify an electronic commerce transaction that has no data protection."
+                            ]
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "point_of_service_entry_mode": {
+                        "anyOf": [
+                          {
+                            "description": "The method used to enter the cardholder's primary account number and card expiration date.",
+                            "enum": [
+                              "unknown",
+                              "manual",
+                              "magnetic_stripe_no_cvv",
+                              "optical_code",
+                              "integrated_circuit_card",
+                              "contactless",
+                              "credential_on_file",
+                              "magnetic_stripe",
+                              "contactless_magnetic_stripe",
+                              "integrated_circuit_card_no_cvv"
+                            ],
+                            "type": "string",
+                            "x-enum-descriptions": [
+                              "Unknown",
+                              "Manual key entry",
+                              "Magnetic stripe read, without card verification value",
+                              "Optical code",
+                              "Contact chip card",
+                              "Contactless read of chip card",
+                              "Transaction initiated using a credential that has previously been stored on file",
+                              "Magnetic stripe read",
+                              "Contactless read of magnetic stripe data",
+                              "Contact chip card, without card verification value"
+                            ]
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "stand_in_processing_reason": {
+                        "anyOf": [
+                          {
+                            "description": "Only present when `actioner: network`. Describes why a card authorization was approved or declined by Visa through stand-in processing.",
+                            "enum": [
+                              "issuer_error",
+                              "invalid_physical_card",
+                              "invalid_cardholder_authentication_verification_value",
+                              "internal_visa_error",
+                              "merchant_transaction_advisory_service_authentication_required",
+                              "payment_fraud_disruption_acquirer_block",
+                              "other"
+                            ],
+                            "type": "string",
+                            "x-enum-descriptions": [
+                              "Increase failed to process the authorization in a timely manner.",
+                              "The physical card read had an invalid CVV, dCVV, or authorization request cryptogram.",
+                              "The 3DS cardholder authentication verification value was invalid.",
+                              "An internal Visa error occurred. Visa uses this reason code for certain expected occurrences as well, such as Application Transaction Counter (ATC) replays.",
+                              "The merchant has enabled Visa's Transaction Advisory Service and requires further authentication to perform the transaction. In practice this is often utilized at fuel pumps to tell the cardholder to see the cashier.",
+                              "The transaction was blocked by Visa's Payment Fraud Disruption service due to fraudulent Acquirer behavior, such as card testing.",
+                              "An unspecific reason for stand-in processing."
+                            ]
+                          },
+                          { "type": "null" }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "electronic_commerce_indicator",
+                      "point_of_service_entry_mode",
+                      "stand_in_processing_reason"
+                    ],
+                    "title": "Visa",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "Visas"
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "required": ["category", "visa", "pulse"],
+            "title": "NetworkDetails",
+            "type": "object",
+            "x-event-categories": [],
+            "x-stainless-empty-object": false,
+            "x-title-plural": "s"
+          },
+          "network_identifiers": {
+            "additionalProperties": false,
+            "description": "Network-specific identifiers for a specific request or transaction.",
+            "example": {
+              "authorization_identification_response": null,
+              "retrieval_reference_number": "785867080153",
+              "trace_number": "487941",
+              "transaction_id": "627199945183184"
+            },
+            "properties": {
+              "authorization_identification_response": {
+                "anyOf": [
+                  {
+                    "description": "The randomly generated 6-character Authorization Identification Response code sent back to the acquirer in an approved response.",
+                    "type": "string"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "retrieval_reference_number": {
+                "anyOf": [
+                  {
+                    "description": "A life-cycle identifier used across e.g., an authorization and a reversal. Expected to be unique per acquirer within a window of time. For some card networks the retrieval reference number includes the trace counter.",
+                    "type": "string"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "trace_number": {
+                "anyOf": [
+                  {
+                    "description": "A counter used to verify an individual authorization. Expected to be unique per acquirer within a window of time.",
+                    "type": "string"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "transaction_id": {
+                "anyOf": [
+                  {
+                    "description": "A globally unique transaction identifier provided by the card network, used across multiple life-cycle requests.",
+                    "type": "string"
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "required": [
+              "transaction_id",
+              "trace_number",
+              "retrieval_reference_number",
+              "authorization_identification_response"
+            ],
+            "title": "NetworkIdentifiers",
+            "type": "object",
+            "x-event-categories": [],
+            "x-stainless-empty-object": false,
+            "x-title-plural": "s"
+          },
+          "network_risk_score": {
+            "anyOf": [
+              {
+                "description": "The risk score generated by the card network. For Visa this is the Visa Advanced Authorization risk score, from 0 to 99, where 99 is the riskiest. For Pulse the score is from 0 to 999, where 999 is the riskiest.",
+                "type": "integer"
+              },
+              { "type": "null" }
+            ]
+          },
+          "physical_card_id": {
+            "anyOf": [
+              {
+                "description": "If the authorization was made in-person with a physical card, the Physical Card that was used.",
+                "type": "string",
+                "x-id-reference-to": "Physical Cards"
+              },
+              { "type": "null" }
+            ]
+          },
+          "real_time_decision_id": {
+            "anyOf": [
+              {
+                "description": "The identifier of the Real-Time Decision sent to approve or decline this transaction.",
+                "type": "string",
+                "x-id-reference-to": "Real-Time Decisions"
+              },
+              { "type": "null" }
+            ]
+          },
+          "terminal_id": {
+            "anyOf": [
+              {
+                "description": "The terminal identifier (commonly abbreviated as TID) of the terminal the card is transacting with.",
+                "type": "string"
+              },
+              { "type": "null" }
+            ]
+          },
+          "type": {
+            "description": "A constant representing the object's type. For this resource it will always be `card_balance_inquiry`.",
+            "enum": ["card_balance_inquiry"],
+            "type": "string"
+          },
+          "verification": {
+            "additionalProperties": false,
+            "description": "Fields related to verification of cardholder-provided values.",
+            "properties": {
+              "card_verification_code": {
+                "additionalProperties": false,
+                "description": "Fields related to verification of the Card Verification Code, a 3-digit code on the back of the card.",
+                "properties": {
+                  "result": {
+                    "description": "The result of verifying the Card Verification Code.",
+                    "enum": ["not_checked", "match", "no_match"],
+                    "type": "string",
+                    "x-enum-descriptions": [
+                      "No card verification code was provided in the authorization request.",
+                      "The card verification code matched the one on file.",
+                      "The card verification code did not match the one on file."
+                    ]
+                  }
+                },
+                "required": ["result"],
+                "title": "CardVerificationCode",
+                "type": "object",
+                "x-event-categories": [],
+                "x-stainless-empty-object": false,
+                "x-title-plural": "CardVerificationCodes"
+              },
+              "cardholder_address": {
+                "additionalProperties": false,
+                "description": "Cardholder address provided in the authorization request and the address on file we verified it against.",
+                "properties": {
+                  "actual_line1": {
+                    "anyOf": [
+                      {
+                        "description": "Line 1 of the address on file for the cardholder.",
+                        "type": "string"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "actual_postal_code": {
+                    "anyOf": [
+                      {
+                        "description": "The postal code of the address on file for the cardholder.",
+                        "type": "string"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "provided_line1": {
+                    "anyOf": [
+                      {
+                        "description": "The cardholder address line 1 provided for verification in the authorization request.",
+                        "type": "string"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "provided_postal_code": {
+                    "anyOf": [
+                      {
+                        "description": "The postal code provided for verification in the authorization request.",
+                        "type": "string"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "result": {
+                    "description": "The address verification result returned to the card network.",
+                    "enum": [
+                      "not_checked",
+                      "postal_code_match_address_no_match",
+                      "postal_code_no_match_address_match",
+                      "match",
+                      "no_match",
+                      "postal_code_match_address_not_checked"
+                    ],
+                    "type": "string",
+                    "x-enum-descriptions": [
+                      "No address information was provided in the authorization request.",
+                      "Postal code matches, but the street address does not match or was not provided.",
+                      "Postal code does not match, but the street address matches or was not provided.",
+                      "Postal code and street address match.",
+                      "Postal code and street address do not match.",
+                      "Postal code matches, but the street address was not verified. (deprecated)"
+                    ]
+                  }
+                },
+                "required": [
+                  "provided_postal_code",
+                  "provided_line1",
+                  "actual_postal_code",
+                  "actual_line1",
+                  "result"
+                ],
+                "title": "CardholderAddress",
+                "type": "object",
+                "x-event-categories": [],
+                "x-stainless-empty-object": false,
+                "x-title-plural": "CardholderAddresses"
+              }
+            },
+            "required": ["cardholder_address", "card_verification_code"],
+            "title": "Verification",
+            "type": "object",
+            "x-event-categories": [],
+            "x-stainless-empty-object": false,
+            "x-title-plural": "s"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "card_payment_id",
+          "merchant_acceptor_id",
+          "merchant_descriptor",
+          "merchant_category_code",
+          "terminal_id",
+          "merchant_city",
+          "merchant_state",
+          "merchant_postal_code",
+          "merchant_country",
+          "digital_wallet_token_id",
+          "physical_card_id",
+          "verification",
+          "additional_amounts",
+          "network_identifiers",
+          "network_risk_score",
+          "network_details",
+          "balance",
+          "currency",
+          "real_time_decision_id"
+        ],
+        "title": "Card Balance Inquiry",
+        "type": "object",
+        "x-event-categories": [],
+        "x-stainless-empty-object": false,
+        "x-title-plural": "Card Balance Inquiries"
+      },
       "card_details": {
         "additionalProperties": false,
         "description": "An object containing the sensitive details (card number, CVC, PIN, etc) for a Card. These details are not included in the Card object. If you'd prefer to never access these details directly, you can use the [embedded iframe](/documentation/embedded-card-component) to display the information to your users.",
@@ -4678,6 +5491,7 @@
                   "processing_error": null
                 },
                 "created_at": "2020-01-31T23:59:59Z",
+                "explanation": null,
                 "further_information_requested_at": null,
                 "further_information_requested_reason": null,
                 "status": "pending_reviewing",
@@ -4950,6 +5764,7 @@
                       "processing_error": null
                     },
                     "created_at": "2020-01-31T23:59:59Z",
+                    "explanation": null,
                     "further_information_requested_at": null,
                     "further_information_requested_reason": null,
                     "status": "pending_reviewing",
@@ -7910,6 +8725,10 @@
                             "x-stainless-empty-object": false,
                             "x-title-plural": "Cardholder Cancellations"
                           },
+                          "explanation": {
+                            "description": "Explanation of what was ordered and was not as described.",
+                            "type": "string"
+                          },
                           "merchant_resolution_attempted": {
                             "description": "Merchant resolution attempted.",
                             "enum": ["attempted", "prohibited_by_local_law"],
@@ -7920,6 +8739,7 @@
                         },
                         "required": [
                           "cardholder_cancellation",
+                          "explanation",
                           "merchant_resolution_attempted",
                           "received_at"
                         ],
@@ -8256,6 +9076,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "explanation": {
+            "anyOf": [
+              {
+                "description": "The free-form explanation provided to Increase to provide more context for the user submission. This field is not sent directly to the card networks.",
+                "type": "string"
+              },
+              { "type": "null" }
+            ]
+          },
           "further_information_requested_at": {
             "anyOf": [
               {
@@ -8410,6 +9239,7 @@
           "created_at",
           "updated_at",
           "amount",
+          "explanation",
           "attachment_files",
           "status",
           "accepted_at",
@@ -9088,6 +9918,7 @@
               "quasi_cash",
               "refund",
               "cash_disbursement",
+              "balance_inquiry",
               "unknown"
             ],
             "type": "string",
@@ -9100,6 +9931,7 @@
               "Quasi-cash transactions represent purchases of items which may be convertible to cash.",
               "A refund card authorization, sometimes referred to as a credit voucher authorization, where funds are credited to the cardholder.",
               "Cash disbursement transactions are used to withdraw cash from an ATM or a point of sale.",
+              "A balance inquiry transaction is used to check the balance of an account associated with a card.",
               "The processing category is unknown."
             ]
           },
@@ -10317,6 +11149,15 @@
                     { "type": "null" }
                   ]
                 },
+                "card_balance_inquiry": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/card_balance_inquiry",
+                      "description": "A Card Balance Inquiry object. This field will be present in the JSON response if and only if `category` is equal to `card_balance_inquiry`. Card Balance Inquiries are transactions that allow merchants to check the available balance on a card without placing a hold on funds, commonly used when a customer requests their balance at an ATM."
+                    },
+                    { "type": "null" }
+                  ]
+                },
                 "card_decline": {
                   "anyOf": [
                     {
@@ -11001,6 +11842,7 @@
                             "quasi_cash",
                             "refund",
                             "cash_disbursement",
+                            "balance_inquiry",
                             "unknown"
                           ],
                           "type": "string",
@@ -11013,6 +11855,7 @@
                             "Quasi-cash transactions represent purchases of items which may be convertible to cash.",
                             "A refund card authorization, sometimes referred to as a credit voucher authorization, where funds are credited to the cardholder.",
                             "Cash disbursement transactions are used to withdraw cash from an ATM or a point of sale.",
+                            "A balance inquiry transaction is used to check the balance of an account associated with a card.",
                             "The processing category is unknown."
                           ]
                         },
@@ -11325,6 +12168,7 @@
                   "enum": [
                     "card_authorization",
                     "card_authentication",
+                    "card_balance_inquiry",
                     "card_validation",
                     "card_decline",
                     "card_reversal",
@@ -11340,6 +12184,7 @@
                   "x-enum-descriptions": [
                     "Card Authorization: details will be under the `card_authorization` object.",
                     "Card Authentication: details will be under the `card_authentication` object.",
+                    "Card Balance Inquiry: details will be under the `card_balance_inquiry` object.",
                     "Inbound Card Validation: details will be under the `card_validation` object.",
                     "Card Decline: details will be under the `card_decline` object.",
                     "Card Reversal: details will be under the `card_reversal` object.",
@@ -11377,6 +12222,7 @@
                 "category",
                 "card_authorization",
                 "card_authentication",
+                "card_balance_inquiry",
                 "card_validation",
                 "card_decline",
                 "card_reversal",
@@ -17147,7 +17993,7 @@
               "line1": "33 Liberty Street",
               "line2": null,
               "name": "Ian Crease",
-              "phone": null,
+              "phone": "+16505046304",
               "postal_code": "10045",
               "state": "NY"
             },
@@ -17164,6 +18010,7 @@
               "line1": "33 Liberty Street",
               "line2": null,
               "name": "Ian Crease",
+              "phone": "+16505046304",
               "postal_code": "10045",
               "state": "NY"
             },
@@ -17632,6 +18479,15 @@
                               { "type": "null" }
                             ]
                           },
+                          "phone": {
+                            "anyOf": [
+                              {
+                                "description": "The shipper's phone number to be used in case of delivery issues. Only used for FedEx overnight shipping.",
+                                "type": "string"
+                              },
+                              { "type": "null" }
+                            ]
+                          },
                           "postal_code": {
                             "anyOf": [
                               {
@@ -17648,7 +18504,7 @@
                             ]
                           }
                         },
-                        "required": ["name", "line1", "line2", "city", "state", "postal_code"],
+                        "required": ["name", "line1", "line2", "city", "state", "postal_code", "phone"],
                         "title": "ReturnAddress",
                         "type": "object",
                         "x-event-categories": [],
@@ -17685,12 +18541,19 @@
                       "properties": {
                         "category": {
                           "description": "The type of tracking event.",
-                          "enum": ["in_transit", "processed_for_delivery", "delivered", "returned_to_sender"],
+                          "enum": [
+                            "in_transit",
+                            "processed_for_delivery",
+                            "delivered",
+                            "delivery_issue",
+                            "returned_to_sender"
+                          ],
                           "type": "string",
                           "x-enum-descriptions": [
                             "The check is in transit.",
                             "The check has been processed for delivery.",
                             "The check has been delivered.",
+                            "There is an issue preventing delivery. The delivery will be attempted again if possible. If the issue cannot be resolved, the check will be returned to sender.",
                             "Delivery failed and the check was returned to sender."
                           ]
                         },
@@ -18055,7 +18918,7 @@
                   "line1": "33 Liberty Street",
                   "line2": null,
                   "name": "Ian Crease",
-                  "phone": null,
+                  "phone": "+16505046304",
                   "postal_code": "10045",
                   "state": "NY"
                 },
@@ -18072,6 +18935,7 @@
                   "line1": "33 Liberty Street",
                   "line2": null,
                   "name": "Ian Crease",
+                  "phone": "+16505046304",
                   "postal_code": "10045",
                   "state": "NY"
                 },
@@ -18712,6 +19576,12 @@
             "description": "The Transaction you wish to dispute. This Transaction must have a `source_type` of `card_settlement`.",
             "type": "string",
             "x-id-reference-to": "Transactions"
+          },
+          "explanation": {
+            "description": "The free-form explanation provided to Increase to provide more context for the user submission. This field is not sent directly to the card networks.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
           },
           "network": {
             "description": "The network of the disputed transaction. Details specific to the network are required under the sub-object with the same identifier as the network.",
@@ -20083,6 +20953,12 @@
                     "x-event-categories": [],
                     "x-stainless-empty-object": false
                   },
+                  "explanation": {
+                    "description": "Explanation of what was ordered and was not as described.",
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  },
                   "merchant_resolution_attempted": {
                     "description": "Merchant resolution attempted.",
                     "enum": ["attempted", "prohibited_by_local_law"],
@@ -20091,7 +20967,12 @@
                   },
                   "received_at": { "description": "Received at.", "format": "date", "type": "string" }
                 },
-                "required": ["cardholder_cancellation", "merchant_resolution_attempted", "received_at"],
+                "required": [
+                  "cardholder_cancellation",
+                  "explanation",
+                  "merchant_resolution_attempted",
+                  "received_at"
+                ],
                 "type": "object",
                 "x-event-categories": [],
                 "x-stainless-empty-object": false
@@ -21161,7 +22042,7 @@
                     "type": "string"
                   },
                   "phone": {
-                    "description": "The phone number to associate with the check's destination address. The number is only used when `shipping_method` is `fedex_overnight` and will be supplied to FedEx to be used in case of delivery issues.",
+                    "description": "The phone number to associate with the check's destination address. The phone number is only used when `shipping_method` is `fedex_overnight` and will be supplied to FedEx to be used in case of delivery issues.",
                     "maxLength": 200,
                     "minLength": 1,
                     "type": "string"
@@ -21246,6 +22127,12 @@
                   "name": {
                     "description": "The name of the return address.",
                     "maxLength": 35,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "phone": {
+                    "description": "The phone number to associate with the shipper. The phone number is only used when `shipping_method` is `fedex_overnight` and will be supplied to FedEx to be used in case of delivery issues.",
+                    "maxLength": 200,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -21415,63 +22302,6 @@
           "background_image_file_id",
           "app_icon_file_id"
         ],
-        "type": "object",
-        "x-event-categories": [],
-        "x-stainless-empty-object": false
-      },
-      "create_a_document_parameters": {
-        "additionalProperties": true,
-        "example": {
-          "account_verification_letter": {
-            "account_number_id": "account_number_v18nkfqm6afpsrvy82b2",
-            "balance_date": "2024-12-31"
-          },
-          "category": "account_verification_letter"
-        },
-        "properties": {
-          "account_verification_letter": {
-            "additionalProperties": false,
-            "description": "An account verification letter. Required if and only if `category` is `account_verification_letter`.",
-            "properties": {
-              "account_number_id": {
-                "description": "The Account Number the bank letter should be generated for.",
-                "type": "string",
-                "x-id-reference-to": "Account Numbers"
-              },
-              "balance_date": {
-                "description": "If provided, the letter will include the Account's balance as of the date.",
-                "format": "date",
-                "type": "string"
-              }
-            },
-            "required": ["account_number_id"],
-            "type": "object",
-            "x-event-categories": [],
-            "x-stainless-empty-object": false
-          },
-          "category": {
-            "description": "The type of document to create.",
-            "enum": ["account_verification_letter", "funding_instructions"],
-            "type": "string",
-            "x-enum-descriptions": ["An account verification letter.", "Funding instructions."]
-          },
-          "funding_instructions": {
-            "additionalProperties": false,
-            "description": "Funding instructions. Required if and only if `category` is `funding_instructions`.",
-            "properties": {
-              "account_number_id": {
-                "description": "The Account Number the funding instructions should be generated for.",
-                "type": "string",
-                "x-id-reference-to": "Account Numbers"
-              }
-            },
-            "required": ["account_number_id"],
-            "type": "object",
-            "x-event-categories": [],
-            "x-stainless-empty-object": false
-          }
-        },
-        "required": ["category"],
         "type": "object",
         "x-event-categories": [],
         "x-stainless-empty-object": false
@@ -21694,7 +22524,7 @@
               "An image of the front of a check, used for check deposits.",
               "An image of the back of a check, used for check deposits.",
               "An image of a check that was mailed to a recipient.",
-              "A document to be printed on an additional page and mailed with a check that you've requested Increase print.",
+              "A document to be printed on an additional page and mailed with a check that you've requested Increase print. This must be a PDF whose pages are all US letter size and all have the same orientation.",
               "An image to be used as the check voucher image, which is printed in the middle of the trifold area of a check. This must be a 2550x1100 pixel PNG.",
               "IRS Form SS-4.",
               "An image of a government-issued ID.",
@@ -23320,6 +24150,13 @@
                   "Any other reason why this entity is exempt from the requirement to submit beneficial owners. You can only use this exemption after approval from your bank partner."
                 ]
               },
+              "email": {
+                "description": "An email address for the business. Not every program requires an email for submitted Entities.",
+                "format": "email",
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
               "incorporation_state": {
                 "description": "The two-letter United States Postal Service (USPS) abbreviation for the corporation's state of incorporation.",
                 "maxLength": 200,
@@ -23904,6 +24741,36 @@
             },
             "type": "array"
           },
+          "terms_agreements": {
+            "description": "The terms that the Entity agreed to. Not all programs are required to submit this data.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "agreed_at": {
+                  "description": "The timestamp of when the Entity agreed to the terms.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "ip_address": {
+                  "description": "The IP address the Entity accessed reviewed the terms from.",
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "terms_url": {
+                  "description": "The URL of the terms agreement. This link will be provided by your bank partner.",
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": ["terms_url", "ip_address", "agreed_at"],
+              "type": "object",
+              "x-event-categories": [],
+              "x-stainless-empty-object": false
+            },
+            "type": "array"
+          },
           "third_party_verification": {
             "additionalProperties": false,
             "description": "If you are using a third-party service for identity verification, you can use this field to associate this Entity with the identifier that represents them in that service.",
@@ -23916,12 +24783,13 @@
               },
               "vendor": {
                 "description": "The vendor that was used to perform the verification.",
-                "enum": ["alloy", "middesk", "oscilar"],
+                "enum": ["alloy", "middesk", "oscilar", "persona"],
                 "type": "string",
                 "x-enum-descriptions": [
                   "Alloy. See https://alloy.com for more information.",
                   "Middesk. See https://middesk.com for more information.",
-                  "Oscilar. See https://oscilar.com for more information."
+                  "Oscilar. See https://oscilar.com for more information.",
+                  "Persona. See https://withpersona.com for more information."
                 ]
               }
             },
@@ -24521,6 +25389,7 @@
               "proof_of_authorization_request.created",
               "proof_of_authorization_request.updated",
               "real_time_decision.card_authorization_requested",
+              "real_time_decision.card_balance_inquiry_requested",
               "real_time_decision.digital_wallet_token_requested",
               "real_time_decision.digital_wallet_authentication_requested",
               "real_time_decision.card_authentication_requested",
@@ -24624,6 +25493,7 @@
               "Occurs whenever a Proof of Authorization Request is created.",
               "Occurs whenever a Proof of Authorization Request is updated.",
               "Occurs whenever a Real-Time Decision is created in response to a card authorization.",
+              "Occurs whenever a Real-Time Decision is created in response to a card balance inquiry.",
               "Occurs whenever a Real-Time Decision is created in response to a digital wallet provisioning attempt.",
               "Occurs whenever a Real-Time Decision is created in response to a digital wallet requiring two-factor authentication.",
               "Occurs whenever a Real-Time Decision is created in response to 3DS authentication.",
@@ -24738,6 +25608,26 @@
             "x-event-categories": [],
             "x-stainless-empty-object": false
           },
+          "account_verification_letter": {
+            "additionalProperties": false,
+            "description": "Options for the created export. Required if `category` is equal to `account_verification_letter`.",
+            "properties": {
+              "account_number_id": {
+                "description": "The Account Number to create a letter for.",
+                "type": "string",
+                "x-id-reference-to": "Account Numbers"
+              },
+              "balance_date": {
+                "description": "The date of the balance to include in the letter. Defaults to the current date.",
+                "format": "date",
+                "type": "string"
+              }
+            },
+            "required": ["account_number_id"],
+            "type": "object",
+            "x-event-categories": [],
+            "x-stainless-empty-object": false
+          },
           "balance_csv": {
             "additionalProperties": false,
             "description": "Options for the created export. Required if `category` is equal to `balance_csv`.",
@@ -24838,7 +25728,9 @@
               "balance_csv",
               "bookkeeping_account_balance_csv",
               "entity_csv",
-              "vendor_csv"
+              "vendor_csv",
+              "account_verification_letter",
+              "funding_instructions"
             ],
             "type": "string",
             "x-enum-descriptions": [
@@ -24848,7 +25740,9 @@
               "Export a CSV of account balances for the dates in a given range.",
               "Export a CSV of bookkeeping account balances for the dates in a given range.",
               "Export a CSV of entities with a given status.",
-              "Export a CSV of vendors added to the third-party risk management dashboard."
+              "Export a CSV of vendors added to the third-party risk management dashboard.",
+              "A PDF of an account verification letter.",
+              "A PDF of funding instructions."
             ]
           },
           "entity_csv": {
@@ -24879,6 +25773,21 @@
                 "x-stainless-empty-object": false
               }
             },
+            "type": "object",
+            "x-event-categories": [],
+            "x-stainless-empty-object": false
+          },
+          "funding_instructions": {
+            "additionalProperties": false,
+            "description": "Options for the created export. Required if `category` is equal to `funding_instructions`.",
+            "properties": {
+              "account_number_id": {
+                "description": "The Account Number to create funding instructions for.",
+                "type": "string",
+                "x-id-reference-to": "Account Numbers"
+              }
+            },
+            "required": ["account_number_id"],
             "type": "object",
             "x-event-categories": [],
             "x-stainless-empty-object": false
@@ -25894,6 +26803,7 @@
                           "quasi_cash",
                           "refund",
                           "cash_disbursement",
+                          "balance_inquiry",
                           "unknown"
                         ],
                         "type": "string",
@@ -25906,6 +26816,7 @@
                           "Quasi-cash transactions represent purchases of items which may be convertible to cash.",
                           "A refund card authorization, sometimes referred to as a credit voucher authorization, where funds are credited to the cardholder.",
                           "Cash disbursement transactions are used to withdraw cash from an ATM or a point of sale.",
+                          "A balance inquiry transaction is used to check the balance of an account associated with a card.",
                           "The processing category is unknown."
                         ]
                       },
@@ -27122,182 +28033,6 @@
         "x-stainless-empty-object": false,
         "x-title-plural": "Digital Wallet Token Lists"
       },
-      "document": {
-        "additionalProperties": false,
-        "description": "Increase generates certain documents / forms automatically for your application; they can be listed here.",
-        "example": {
-          "account_verification_letter": { "account_number_id": "account_number_v18nkfqm6afpsrvy82b2" },
-          "category": "account_verification_letter",
-          "created_at": "2020-01-31T23:59:59Z",
-          "entity_id": "entity_n8y8tnk2p9339ti393yi",
-          "file_id": "file_makxrc67oh9l6sg7w9yc",
-          "funding_instructions": null,
-          "id": "document_qjtqc6s4c14ve2q89izm",
-          "idempotency_key": null,
-          "type": "document"
-        },
-        "properties": {
-          "account_verification_letter": {
-            "anyOf": [
-              {
-                "additionalProperties": false,
-                "description": "Properties of an account verification letter document.",
-                "properties": {
-                  "account_number_id": {
-                    "description": "The identifier of the Account Number the document was generated for.",
-                    "type": "string",
-                    "x-id-reference-to": "Account Numbers"
-                  }
-                },
-                "required": ["account_number_id"],
-                "title": "AccountVerificationLetter",
-                "type": "object",
-                "x-event-categories": [],
-                "x-stainless-empty-object": false,
-                "x-title-plural": "AccountVerificationLetters"
-              },
-              { "type": "null" }
-            ]
-          },
-          "category": {
-            "description": "The type of document.",
-            "enum": [
-              "form_1099_int",
-              "form_1099_misc",
-              "proof_of_authorization",
-              "company_information",
-              "account_verification_letter",
-              "funding_instructions"
-            ],
-            "type": "string",
-            "x-enum-descriptions": [
-              "Internal Revenue Service Form 1099-INT.",
-              "Internal Revenue Service Form 1099-MISC.",
-              "A document submitted in response to a proof of authorization request for an ACH transfer.",
-              "Company information, such a policies or procedures, typically submitted during our due diligence process.",
-              "An account verification letter.",
-              "Funding instructions."
-            ]
-          },
-          "created_at": {
-            "description": "The [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) time at which the Document was created.",
-            "format": "date-time",
-            "type": "string"
-          },
-          "entity_id": {
-            "anyOf": [
-              {
-                "description": "The identifier of the Entity the document was generated for.",
-                "type": "string",
-                "x-id-reference-to": "Entities"
-              },
-              { "type": "null" }
-            ]
-          },
-          "file_id": {
-            "description": "The identifier of the File containing the Document's contents.",
-            "type": "string",
-            "x-id-reference-to": "Files"
-          },
-          "funding_instructions": {
-            "anyOf": [
-              {
-                "additionalProperties": false,
-                "description": "Properties of a funding instructions document.",
-                "properties": {
-                  "account_number_id": {
-                    "description": "The identifier of the Account Number the document was generated for.",
-                    "type": "string",
-                    "x-id-reference-to": "Account Numbers"
-                  }
-                },
-                "required": ["account_number_id"],
-                "title": "FundingInstructions",
-                "type": "object",
-                "x-event-categories": [],
-                "x-stainless-empty-object": false,
-                "x-title-plural": "FundingInstructions"
-              },
-              { "type": "null" }
-            ]
-          },
-          "id": {
-            "description": "The Document identifier.",
-            "type": "string",
-            "x-id-reference-to": "Documents"
-          },
-          "idempotency_key": {
-            "anyOf": [
-              {
-                "description": "The idempotency key you chose for this object. This value is unique across Increase and is used to ensure that a request is only processed once. Learn more about [idempotency](https://increase.com/documentation/idempotency-keys).",
-                "type": "string"
-              },
-              { "type": "null" }
-            ]
-          },
-          "type": {
-            "description": "A constant representing the object's type. For this resource it will always be `document`.",
-            "enum": ["document"],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "id",
-          "category",
-          "created_at",
-          "entity_id",
-          "file_id",
-          "account_verification_letter",
-          "funding_instructions",
-          "idempotency_key"
-        ],
-        "title": "Document",
-        "type": "object",
-        "x-event-categories": ["document.created"],
-        "x-stainless-empty-object": false,
-        "x-tag": "Documents",
-        "x-title-plural": "Documents"
-      },
-      "document_list": {
-        "additionalProperties": true,
-        "description": "A list of Document objects.",
-        "example": {
-          "data": [
-            {
-              "account_verification_letter": { "account_number_id": "account_number_v18nkfqm6afpsrvy82b2" },
-              "category": "account_verification_letter",
-              "created_at": "2020-01-31T23:59:59Z",
-              "entity_id": "entity_n8y8tnk2p9339ti393yi",
-              "file_id": "file_makxrc67oh9l6sg7w9yc",
-              "funding_instructions": null,
-              "id": "document_qjtqc6s4c14ve2q89izm",
-              "idempotency_key": null,
-              "type": "document"
-            }
-          ],
-          "next_cursor": "v57w5d"
-        },
-        "properties": {
-          "data": {
-            "description": "The contents of the list.",
-            "items": { "$ref": "#/components/schemas/document" },
-            "type": "array"
-          },
-          "next_cursor": {
-            "anyOf": [
-              { "description": "A pointer to a place in the list.", "type": "string" },
-              { "type": "null" }
-            ]
-          }
-        },
-        "required": ["data", "next_cursor"],
-        "title": "Document List",
-        "type": "object",
-        "x-event-categories": [],
-        "x-stainless-empty-object": false,
-        "x-title-plural": "Document Lists"
-      },
       "enroll_an_account_in_the_intrafi_deposit_sweep_network_parameters": {
         "additionalProperties": true,
         "example": { "account_id": "account_in71c4amph0vgo2qllky", "email_address": "user@example.com" },
@@ -27352,6 +28087,7 @@
                 "prong": "control"
               }
             ],
+            "email": null,
             "incorporation_state": "NY",
             "industry_code": null,
             "name": "National Phonograph Company",
@@ -27376,6 +28112,13 @@
               "file_id": "file_makxrc67oh9l6sg7w9yc",
               "idempotency_key": null,
               "type": "entity_supplemental_document"
+            }
+          ],
+          "terms_agreements": [
+            {
+              "agreed_at": "2020-01-31T23:59:59Z",
+              "ip_address": "128.32.0.1",
+              "terms_url": "https://increase.com/example_terms"
             }
           ],
           "third_party_verification": null,
@@ -27571,6 +28314,12 @@
                     },
                     "type": "array"
                   },
+                  "email": {
+                    "anyOf": [
+                      { "description": "An email address for the business.", "type": "string" },
+                      { "type": "null" }
+                    ]
+                  },
                   "incorporation_state": {
                     "anyOf": [
                       {
@@ -27609,6 +28358,7 @@
                 "required": [
                   "name",
                   "website",
+                  "email",
                   "tax_identifier",
                   "incorporation_state",
                   "industry_code",
@@ -28015,6 +28765,34 @@
             "items": { "$ref": "#/components/schemas/entity_supplemental_document" },
             "type": "array"
           },
+          "terms_agreements": {
+            "description": "The terms that the Entity agreed to. Not all programs are required to submit this data.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "agreed_at": {
+                  "description": "The timestamp of when the Entity agreed to the terms.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "ip_address": {
+                  "description": "The IP address the Entity accessed reviewed the terms from.",
+                  "type": "string"
+                },
+                "terms_url": {
+                  "description": "The URL of the terms agreement. This link will be provided by your bank partner.",
+                  "type": "string"
+                }
+              },
+              "required": ["terms_url", "ip_address", "agreed_at"],
+              "title": "TermsAgreementsElement",
+              "type": "object",
+              "x-event-categories": [],
+              "x-stainless-empty-object": false,
+              "x-title-plural": "TermsAgreementsElements"
+            },
+            "type": "array"
+          },
           "third_party_verification": {
             "anyOf": [
               {
@@ -28027,12 +28805,13 @@
                   },
                   "vendor": {
                     "description": "The vendor that was used to perform the verification.",
-                    "enum": ["alloy", "middesk", "oscilar"],
+                    "enum": ["alloy", "middesk", "oscilar", "persona"],
                     "type": "string",
                     "x-enum-descriptions": [
                       "Alloy. See https://alloy.com for more information.",
                       "Middesk. See https://middesk.com for more information.",
-                      "Oscilar. See https://oscilar.com for more information."
+                      "Oscilar. See https://oscilar.com for more information.",
+                      "Persona. See https://withpersona.com for more information."
                     ]
                   }
                 },
@@ -28365,6 +29144,7 @@
           "idempotency_key",
           "third_party_verification",
           "risk_rating",
+          "terms_agreements",
           "description",
           "status",
           "details_confirmed_at",
@@ -28412,6 +29192,7 @@
                     "prong": "control"
                   }
                 ],
+                "email": null,
                 "incorporation_state": "NY",
                 "industry_code": null,
                 "name": "National Phonograph Company",
@@ -28436,6 +29217,13 @@
                   "file_id": "file_makxrc67oh9l6sg7w9yc",
                   "idempotency_key": null,
                   "type": "entity_supplemental_document"
+                }
+              ],
+              "terms_agreements": [
+                {
+                  "agreed_at": "2020-01-31T23:59:59Z",
+                  "ip_address": "128.32.0.1",
+                  "terms_url": "https://increase.com/example_terms"
                 }
               ],
               "third_party_verification": null,
@@ -28615,6 +29403,7 @@
                 "enum": [
                   "deleted_credential",
                   "expired_credential",
+                  "ip_not_allowed",
                   "no_credential",
                   "no_header",
                   "no_api_access",
@@ -28624,6 +29413,7 @@
                 "x-enum-descriptions": [
                   "deleted_credential",
                   "expired_credential",
+                  "ip_not_allowed",
                   "no_credential",
                   "no_header",
                   "no_api_access",
@@ -28828,6 +29618,7 @@
               "proof_of_authorization_request.created",
               "proof_of_authorization_request.updated",
               "real_time_decision.card_authorization_requested",
+              "real_time_decision.card_balance_inquiry_requested",
               "real_time_decision.digital_wallet_token_requested",
               "real_time_decision.digital_wallet_authentication_requested",
               "real_time_decision.card_authentication_requested",
@@ -28931,6 +29722,7 @@
               "Occurs whenever a Proof of Authorization Request is created.",
               "Occurs whenever a Proof of Authorization Request is updated.",
               "Occurs whenever a Real-Time Decision is created in response to a card authorization.",
+              "Occurs whenever a Real-Time Decision is created in response to a card balance inquiry.",
               "Occurs whenever a Real-Time Decision is created in response to a digital wallet provisioning attempt.",
               "Occurs whenever a Real-Time Decision is created in response to a digital wallet requiring two-factor authentication.",
               "Occurs whenever a Real-Time Decision is created in response to 3DS authentication.",
@@ -29144,6 +29936,7 @@
                   "proof_of_authorization_request.created",
                   "proof_of_authorization_request.updated",
                   "real_time_decision.card_authorization_requested",
+                  "real_time_decision.card_balance_inquiry_requested",
                   "real_time_decision.digital_wallet_token_requested",
                   "real_time_decision.digital_wallet_authentication_requested",
                   "real_time_decision.card_authentication_requested",
@@ -29247,6 +30040,7 @@
                   "Occurs whenever a Proof of Authorization Request is created.",
                   "Occurs whenever a Proof of Authorization Request is updated.",
                   "Occurs whenever a Real-Time Decision is created in response to a card authorization.",
+                  "Occurs whenever a Real-Time Decision is created in response to a card balance inquiry.",
                   "Occurs whenever a Real-Time Decision is created in response to a digital wallet provisioning attempt.",
                   "Occurs whenever a Real-Time Decision is created in response to a digital wallet requiring two-factor authentication.",
                   "Occurs whenever a Real-Time Decision is created in response to 3DS authentication.",
@@ -29342,7 +30136,7 @@
       },
       "export": {
         "additionalProperties": false,
-        "description": "Exports are batch summaries of your Increase data. You can make them from the API or dashboard. Since they can take a while, they are generated asynchronously. We send a webhook when they are ready. For more information, please read our [Exports documentation](https://increase.com/documentation/exports).",
+        "description": "Exports are generated files. Some exports can contain a lot of data, like a CSV of your transactions. Others can be a single document, like a tax form. Since they can take a while, they are generated asynchronously. We send a webhook when they are ready. For more information, please read our [Exports documentation](https://increase.com/documentation/exports).",
         "example": {
           "category": "transaction_csv",
           "created_at": "2020-01-31T23:59:59Z",
@@ -29364,7 +30158,11 @@
               "bookkeeping_account_balance_csv",
               "entity_csv",
               "vendor_csv",
-              "dashboard_table_csv"
+              "dashboard_table_csv",
+              "account_verification_letter",
+              "funding_instructions",
+              "form_1099_int",
+              "form_1099_misc"
             ],
             "type": "string",
             "x-enum-descriptions": [
@@ -29375,7 +30173,11 @@
               "Export a CSV of bookkeeping account balances for the dates in a given range.",
               "Export a CSV of entities with a given status.",
               "Export a CSV of vendors added to the third-party risk management dashboard.",
-              "Certain dashboard tables are available as CSV exports. This export cannot be created via the API."
+              "Certain dashboard tables are available as CSV exports. This export cannot be created via the API.",
+              "A PDF of an account verification letter.",
+              "A PDF of funding instructions.",
+              "A PDF of an Internal Revenue Service Form 1099-INT.",
+              "A PDF of an Internal Revenue Service Form 1099-MISC."
             ]
           },
           "created_at": {
@@ -30180,7 +30982,7 @@
               "An image of the front of a deposited check after processing by Increase and submission to the Federal Reserve.",
               "An image of the back of a deposited check after processing by Increase and submission to the Federal Reserve.",
               "An image of a check that was mailed to a recipient.",
-              "A document to be printed on an additional page and mailed with a check that you've requested Increase print.",
+              "A document to be printed on an additional page and mailed with a check that you've requested Increase print. This must be a PDF whose pages are all US letter size and all have the same orientation.",
               "An image to be used as the check voucher image, which is printed in the middle of the trifold area of a check. This must be a 2550x1100 pixel PNG.",
               "A scanned mail item sent to Increase.",
               "IRS Form 1099-INT.",
@@ -33802,11 +34604,12 @@
                 "properties": {
                   "reason": {
                     "description": "The reason for the reversal.",
-                    "enum": ["duplicate", "creditor_request"],
+                    "enum": ["duplicate", "creditor_request", "transaction_forbidden"],
                     "type": "string",
                     "x-enum-descriptions": [
                       "The inbound wire transfer was a duplicate.",
-                      "The recipient of the wire transfer requested the funds be returned to the sender."
+                      "The recipient of the wire transfer requested the funds be returned to the sender.",
+                      "The account cannot currently receive inbound wires."
                     ]
                   },
                   "reversed_at": {
@@ -35589,6 +36392,7 @@
                                 "in_transit",
                                 "processed_for_delivery",
                                 "delivered",
+                                "delivery_issue",
                                 "returned_to_sender"
                               ],
                               "type": "string",
@@ -35596,6 +36400,7 @@
                                 "The physical card is in transit.",
                                 "The physical card has been processed for delivery.",
                                 "The physical card has been delivered.",
+                                "There is an issue preventing delivery. The delivery will be attempted again if possible. If the issue cannot be resolved, the physical card will be returned to sender.",
                                 "Delivery failed and the physical card was returned to sender."
                               ]
                             },
@@ -35957,7 +36762,7 @@
         "x-title-plural": "Physical Card Profile Lists"
       },
       "program": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "description": "Programs determine the compliance and commercial terms of Accounts. By default, you have a Commercial Banking program for managing your own funds. If you are lending or managing funds on behalf of your customers, or otherwise engaged in regulated activity, we will work together to create additional Programs for you.",
         "example": {
           "bank": "first_internet_bank",
@@ -36155,6 +36960,7 @@
               }
             }
           },
+          "card_balance_inquiry": null,
           "category": "card_authorization_requested",
           "created_at": "2020-01-31T23:59:59Z",
           "digital_wallet_authentication": null,
@@ -36930,6 +37736,7 @@
                       "quasi_cash",
                       "refund",
                       "cash_disbursement",
+                      "balance_inquiry",
                       "unknown"
                     ],
                     "type": "string",
@@ -36942,6 +37749,7 @@
                       "Quasi-cash transactions represent purchases of items which may be convertible to cash.",
                       "A refund card authorization, sometimes referred to as a credit voucher authorization, where funds are credited to the cardholder.",
                       "Cash disbursement transactions are used to withdraw cash from an ATM or a point of sale.",
+                      "A balance inquiry transaction is used to check the balance of an account associated with a card.",
                       "The processing category is unknown."
                     ]
                   },
@@ -37179,10 +37987,754 @@
               { "type": "null" }
             ]
           },
+          "card_balance_inquiry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "description": "Fields related to a card balance inquiry.",
+                "properties": {
+                  "account_id": {
+                    "description": "The identifier of the Account the authorization will debit.",
+                    "type": "string",
+                    "x-id-reference-to": "Accounts"
+                  },
+                  "additional_amounts": {
+                    "additionalProperties": false,
+                    "description": "Additional amounts associated with the card authorization, such as ATM surcharges fees. These are usually a subset of the `amount` field and are used to provide more detailed information about the transaction.",
+                    "properties": {
+                      "clinic": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "The part of this transaction amount that was for clinic-related services.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "dental": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "The part of this transaction amount that was for dental-related services.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "original": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "The original pre-authorized amount.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "prescription": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "The part of this transaction amount that was for healthcare prescriptions.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "surcharge": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "The surcharge amount charged for this transaction by the merchant.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "total_cumulative": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "The total amount of a series of incremental authorizations, optionally provided.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "total_healthcare": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "The total amount of healthcare-related additional amounts.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "transit": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "The part of this transaction amount that was for transit-related services.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "unknown": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "An unknown additional amount.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "vision": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "The part of this transaction amount that was for vision-related services.",
+                            "properties": {
+                              "amount": {
+                                "description": "The amount in minor units of the `currency` field. The amount is positive if it is added to the amount (such as an ATM surcharge fee) and negative if it is subtracted from the amount (such as a discount).",
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "description": "The [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217) code for the additional amount's currency.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["amount", "currency"],
+                            "title": "AdditionalAmount",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "s"
+                          },
+                          { "type": "null" }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "total_healthcare",
+                      "total_cumulative",
+                      "surcharge",
+                      "transit",
+                      "vision",
+                      "clinic",
+                      "dental",
+                      "prescription",
+                      "original",
+                      "unknown"
+                    ],
+                    "title": "AdditionalAmounts",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  "approval": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "description": "Present if and only if `decision` is `approve`. Contains information related to the approval of the balance inquiry.",
+                        "properties": {
+                          "balance": {
+                            "description": "If the balance inquiry was approved, this field contains the balance in the minor unit of the settlement currency.",
+                            "type": "integer"
+                          }
+                        },
+                        "required": ["balance"],
+                        "title": "Approval",
+                        "type": "object",
+                        "x-event-categories": [],
+                        "x-stainless-empty-object": false,
+                        "x-title-plural": "Approvals"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "card_id": {
+                    "description": "The identifier of the Card that is being authorized.",
+                    "type": "string",
+                    "x-id-reference-to": "Cards"
+                  },
+                  "decision": {
+                    "anyOf": [
+                      {
+                        "description": "Whether or not the authorization was approved.",
+                        "enum": ["approve", "decline"],
+                        "type": "string",
+                        "x-enum-descriptions": ["Approve the authorization.", "Decline the authorization."]
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "digital_wallet_token_id": {
+                    "anyOf": [
+                      {
+                        "description": "If the authorization was made via a Digital Wallet Token (such as an Apple Pay purchase), the identifier of the token that was used.",
+                        "type": "string",
+                        "x-id-reference-to": "Digital Wallet Tokens"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "merchant_acceptor_id": {
+                    "description": "The merchant identifier (commonly abbreviated as MID) of the merchant the card is transacting with.",
+                    "type": "string"
+                  },
+                  "merchant_category_code": {
+                    "description": "The Merchant Category Code (commonly abbreviated as MCC) of the merchant the card is transacting with.",
+                    "type": "string"
+                  },
+                  "merchant_city": {
+                    "anyOf": [
+                      { "description": "The city the merchant resides in.", "type": "string" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "merchant_country": {
+                    "description": "The country the merchant resides in.",
+                    "type": "string"
+                  },
+                  "merchant_descriptor": {
+                    "description": "The merchant descriptor of the merchant the card is transacting with.",
+                    "type": "string"
+                  },
+                  "merchant_postal_code": {
+                    "anyOf": [
+                      {
+                        "description": "The merchant's postal code. For US merchants this is either a 5-digit or 9-digit ZIP code, where the first 5 and last 4 are separated by a dash.",
+                        "type": "string"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "merchant_state": {
+                    "anyOf": [
+                      { "description": "The state the merchant resides in.", "type": "string" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "network_details": {
+                    "additionalProperties": false,
+                    "description": "Fields specific to the `network`.",
+                    "properties": {
+                      "category": {
+                        "description": "The payment network used to process this card authorization.",
+                        "enum": ["visa", "pulse"],
+                        "type": "string",
+                        "x-enum-descriptions": ["Visa", "Pulse"]
+                      },
+                      "pulse": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "Fields specific to the `pulse` network.",
+                            "properties": {},
+                            "title": "Pulse",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": true,
+                            "x-title-plural": "Pulses"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "visa": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "description": "Fields specific to the `visa` network.",
+                            "properties": {
+                              "electronic_commerce_indicator": {
+                                "anyOf": [
+                                  {
+                                    "description": "For electronic commerce transactions, this identifies the level of security used in obtaining the customer's payment credential. For mail or telephone order transactions, identifies the type of mail or telephone order.",
+                                    "enum": [
+                                      "mail_phone_order",
+                                      "recurring",
+                                      "installment",
+                                      "unknown_mail_phone_order",
+                                      "secure_electronic_commerce",
+                                      "non_authenticated_security_transaction_at_3ds_capable_merchant",
+                                      "non_authenticated_security_transaction",
+                                      "non_secure_transaction"
+                                    ],
+                                    "type": "string",
+                                    "x-enum-descriptions": [
+                                      "Single transaction of a mail/phone order: Use to indicate that the transaction is a mail/phone order purchase, not a recurring transaction or installment payment. For domestic transactions in the US region, this value may also indicate one bill payment transaction in the card-present or card-absent environments.",
+                                      "Recurring transaction: Payment indicator used to indicate a recurring transaction that originates from an acquirer in the US region.",
+                                      "Installment payment: Payment indicator used to indicate one purchase of goods or services that is billed to the account in multiple charges over a period of time agreed upon by the cardholder and merchant from transactions that originate from an acquirer in the US region.",
+                                      "Unknown classification: other mail order: Use to indicate that the type of mail/telephone order is unknown.",
+                                      "Secure electronic commerce transaction: Use to indicate that the electronic commerce transaction has been authenticated using e.g., 3-D Secure",
+                                      "Non-authenticated security transaction at a 3-D Secure-capable merchant, and merchant attempted to authenticate the cardholder using 3-D Secure: Use to identify an electronic commerce transaction where the merchant attempted to authenticate the cardholder using 3-D Secure, but was unable to complete the authentication because the issuer or cardholder does not participate in the 3-D Secure program.",
+                                      "Non-authenticated security transaction: Use to identify an electronic commerce transaction that uses data encryption for security however, cardholder authentication is not performed using 3-D Secure.",
+                                      "Non-secure transaction: Use to identify an electronic commerce transaction that has no data protection."
+                                    ]
+                                  },
+                                  { "type": "null" }
+                                ]
+                              },
+                              "point_of_service_entry_mode": {
+                                "anyOf": [
+                                  {
+                                    "description": "The method used to enter the cardholder's primary account number and card expiration date.",
+                                    "enum": [
+                                      "unknown",
+                                      "manual",
+                                      "magnetic_stripe_no_cvv",
+                                      "optical_code",
+                                      "integrated_circuit_card",
+                                      "contactless",
+                                      "credential_on_file",
+                                      "magnetic_stripe",
+                                      "contactless_magnetic_stripe",
+                                      "integrated_circuit_card_no_cvv"
+                                    ],
+                                    "type": "string",
+                                    "x-enum-descriptions": [
+                                      "Unknown",
+                                      "Manual key entry",
+                                      "Magnetic stripe read, without card verification value",
+                                      "Optical code",
+                                      "Contact chip card",
+                                      "Contactless read of chip card",
+                                      "Transaction initiated using a credential that has previously been stored on file",
+                                      "Magnetic stripe read",
+                                      "Contactless read of magnetic stripe data",
+                                      "Contact chip card, without card verification value"
+                                    ]
+                                  },
+                                  { "type": "null" }
+                                ]
+                              },
+                              "stand_in_processing_reason": {
+                                "anyOf": [
+                                  {
+                                    "description": "Only present when `actioner: network`. Describes why a card authorization was approved or declined by Visa through stand-in processing.",
+                                    "enum": [
+                                      "issuer_error",
+                                      "invalid_physical_card",
+                                      "invalid_cardholder_authentication_verification_value",
+                                      "internal_visa_error",
+                                      "merchant_transaction_advisory_service_authentication_required",
+                                      "payment_fraud_disruption_acquirer_block",
+                                      "other"
+                                    ],
+                                    "type": "string",
+                                    "x-enum-descriptions": [
+                                      "Increase failed to process the authorization in a timely manner.",
+                                      "The physical card read had an invalid CVV, dCVV, or authorization request cryptogram.",
+                                      "The 3DS cardholder authentication verification value was invalid.",
+                                      "An internal Visa error occurred. Visa uses this reason code for certain expected occurrences as well, such as Application Transaction Counter (ATC) replays.",
+                                      "The merchant has enabled Visa's Transaction Advisory Service and requires further authentication to perform the transaction. In practice this is often utilized at fuel pumps to tell the cardholder to see the cashier.",
+                                      "The transaction was blocked by Visa's Payment Fraud Disruption service due to fraudulent Acquirer behavior, such as card testing.",
+                                      "An unspecific reason for stand-in processing."
+                                    ]
+                                  },
+                                  { "type": "null" }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "electronic_commerce_indicator",
+                              "point_of_service_entry_mode",
+                              "stand_in_processing_reason"
+                            ],
+                            "title": "Visa",
+                            "type": "object",
+                            "x-event-categories": [],
+                            "x-stainless-empty-object": false,
+                            "x-title-plural": "Visas"
+                          },
+                          { "type": "null" }
+                        ]
+                      }
+                    },
+                    "required": ["category", "visa", "pulse"],
+                    "title": "NetworkDetails",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  "network_identifiers": {
+                    "additionalProperties": false,
+                    "description": "Network-specific identifiers for a specific request or transaction.",
+                    "example": {
+                      "authorization_identification_response": null,
+                      "retrieval_reference_number": "785867080153",
+                      "trace_number": "487941",
+                      "transaction_id": "627199945183184"
+                    },
+                    "properties": {
+                      "authorization_identification_response": {
+                        "anyOf": [
+                          {
+                            "description": "The randomly generated 6-character Authorization Identification Response code sent back to the acquirer in an approved response.",
+                            "type": "string"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "retrieval_reference_number": {
+                        "anyOf": [
+                          {
+                            "description": "A life-cycle identifier used across e.g., an authorization and a reversal. Expected to be unique per acquirer within a window of time. For some card networks the retrieval reference number includes the trace counter.",
+                            "type": "string"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "trace_number": {
+                        "anyOf": [
+                          {
+                            "description": "A counter used to verify an individual authorization. Expected to be unique per acquirer within a window of time.",
+                            "type": "string"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "transaction_id": {
+                        "anyOf": [
+                          {
+                            "description": "A globally unique transaction identifier provided by the card network, used across multiple life-cycle requests.",
+                            "type": "string"
+                          },
+                          { "type": "null" }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "transaction_id",
+                      "trace_number",
+                      "retrieval_reference_number",
+                      "authorization_identification_response"
+                    ],
+                    "title": "NetworkIdentifiers",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  },
+                  "network_risk_score": {
+                    "anyOf": [
+                      {
+                        "description": "The risk score generated by the card network. For Visa this is the Visa Advanced Authorization risk score, from 0 to 99, where 99 is the riskiest. For Pulse the score is from 0 to 999, where 999 is the riskiest.",
+                        "type": "integer"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "physical_card_id": {
+                    "anyOf": [
+                      {
+                        "description": "If the authorization was made in-person with a physical card, the Physical Card that was used.",
+                        "type": "string",
+                        "x-id-reference-to": "Physical Cards"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "terminal_id": {
+                    "anyOf": [
+                      {
+                        "description": "The terminal identifier (commonly abbreviated as TID) of the terminal the card is transacting with.",
+                        "type": "string"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "upcoming_card_payment_id": {
+                    "description": "The identifier of the Card Payment this authorization will belong to. Available in the API once the card authorization has completed.",
+                    "type": "string",
+                    "x-id-reference-to": "Card Payments"
+                  },
+                  "verification": {
+                    "additionalProperties": false,
+                    "description": "Fields related to verification of cardholder-provided values.",
+                    "properties": {
+                      "card_verification_code": {
+                        "additionalProperties": false,
+                        "description": "Fields related to verification of the Card Verification Code, a 3-digit code on the back of the card.",
+                        "properties": {
+                          "result": {
+                            "description": "The result of verifying the Card Verification Code.",
+                            "enum": ["not_checked", "match", "no_match"],
+                            "type": "string",
+                            "x-enum-descriptions": [
+                              "No card verification code was provided in the authorization request.",
+                              "The card verification code matched the one on file.",
+                              "The card verification code did not match the one on file."
+                            ]
+                          }
+                        },
+                        "required": ["result"],
+                        "title": "CardVerificationCode",
+                        "type": "object",
+                        "x-event-categories": [],
+                        "x-stainless-empty-object": false,
+                        "x-title-plural": "CardVerificationCodes"
+                      },
+                      "cardholder_address": {
+                        "additionalProperties": false,
+                        "description": "Cardholder address provided in the authorization request and the address on file we verified it against.",
+                        "properties": {
+                          "actual_line1": {
+                            "anyOf": [
+                              {
+                                "description": "Line 1 of the address on file for the cardholder.",
+                                "type": "string"
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "actual_postal_code": {
+                            "anyOf": [
+                              {
+                                "description": "The postal code of the address on file for the cardholder.",
+                                "type": "string"
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "provided_line1": {
+                            "anyOf": [
+                              {
+                                "description": "The cardholder address line 1 provided for verification in the authorization request.",
+                                "type": "string"
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "provided_postal_code": {
+                            "anyOf": [
+                              {
+                                "description": "The postal code provided for verification in the authorization request.",
+                                "type": "string"
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "result": {
+                            "description": "The address verification result returned to the card network.",
+                            "enum": [
+                              "not_checked",
+                              "postal_code_match_address_no_match",
+                              "postal_code_no_match_address_match",
+                              "match",
+                              "no_match",
+                              "postal_code_match_address_not_checked"
+                            ],
+                            "type": "string",
+                            "x-enum-descriptions": [
+                              "No address information was provided in the authorization request.",
+                              "Postal code matches, but the street address does not match or was not provided.",
+                              "Postal code does not match, but the street address matches or was not provided.",
+                              "Postal code and street address match.",
+                              "Postal code and street address do not match.",
+                              "Postal code matches, but the street address was not verified. (deprecated)"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "provided_postal_code",
+                          "provided_line1",
+                          "actual_postal_code",
+                          "actual_line1",
+                          "result"
+                        ],
+                        "title": "CardholderAddress",
+                        "type": "object",
+                        "x-event-categories": [],
+                        "x-stainless-empty-object": false,
+                        "x-title-plural": "CardholderAddresses"
+                      }
+                    },
+                    "required": ["cardholder_address", "card_verification_code"],
+                    "title": "Verification",
+                    "type": "object",
+                    "x-event-categories": [],
+                    "x-stainless-empty-object": false,
+                    "x-title-plural": "s"
+                  }
+                },
+                "required": [
+                  "merchant_acceptor_id",
+                  "merchant_descriptor",
+                  "merchant_category_code",
+                  "terminal_id",
+                  "merchant_city",
+                  "merchant_state",
+                  "merchant_postal_code",
+                  "merchant_country",
+                  "digital_wallet_token_id",
+                  "physical_card_id",
+                  "verification",
+                  "additional_amounts",
+                  "network_identifiers",
+                  "network_risk_score",
+                  "network_details",
+                  "decision",
+                  "approval",
+                  "card_id",
+                  "upcoming_card_payment_id",
+                  "account_id"
+                ],
+                "title": "CardBalanceInquiry",
+                "type": "object",
+                "x-event-categories": [],
+                "x-stainless-empty-object": false,
+                "x-title-plural": "CardBalanceInquiries"
+              },
+              { "type": "null" }
+            ]
+          },
           "category": {
             "description": "The category of the Real-Time Decision.",
             "enum": [
               "card_authorization_requested",
+              "card_balance_inquiry_requested",
               "card_authentication_requested",
               "card_authentication_challenge_requested",
               "digital_wallet_token_requested",
@@ -37191,6 +38743,7 @@
             "type": "string",
             "x-enum-descriptions": [
               "A card is being authorized.",
+              "A balance inquiry is being made on a card.",
               "3DS authentication is requested.",
               "3DS authentication challenge requires cardholder involvement.",
               "A card is being loaded into a digital wallet.",
@@ -37380,6 +38933,7 @@
           "status",
           "category",
           "card_authorization",
+          "card_balance_inquiry",
           "card_authentication",
           "card_authentication_challenge",
           "digital_wallet_token",
@@ -38030,11 +39584,12 @@
         "properties": {
           "reason": {
             "description": "Reason for the reversal.",
-            "enum": ["duplicate", "creditor_request"],
+            "enum": ["duplicate", "creditor_request", "transaction_forbidden"],
             "type": "string",
             "x-enum-descriptions": [
               "The inbound wire transfer was a duplicate.",
-              "The recipient of the wire transfer requested the funds be returned to the sender."
+              "The recipient of the wire transfer requested the funds be returned to the sender.",
+              "The account cannot currently receive inbound wires."
             ]
           }
         },
@@ -38615,7 +40170,8 @@
                   "purchase",
                   "quasi_cash",
                   "refund",
-                  "cash_disbursement"
+                  "cash_disbursement",
+                  "balance_inquiry"
                 ],
                 "type": "string",
                 "x-enum-descriptions": [
@@ -38626,7 +40182,8 @@
                   "A regular purchase.",
                   "Quasi-cash transactions represent purchases of items which may be convertible to cash.",
                   "A refund card authorization, sometimes referred to as a credit voucher authorization, where funds are credited to the cardholder.",
-                  "Cash disbursement transactions are used to withdraw cash from an ATM or a point of sale."
+                  "Cash disbursement transactions are used to withdraw cash from an ATM or a point of sale.",
+                  "A balance inquiry transaction is used to check the balance of an account associated with a card."
                 ]
               },
               "refund": {
@@ -38657,6 +40214,188 @@
           }
         },
         "required": ["amount"],
+        "type": "object",
+        "x-event-categories": [],
+        "x-stainless-empty-object": false
+      },
+      "sandbox_create_a_card_balance_inquiry_parameters": {
+        "additionalProperties": false,
+        "example": {
+          "balance": 1000000,
+          "card_id": "card_oubs0hwk5rn6knuecxg2",
+          "event_subscription_id": "event_subscription_001dzz0r20rcdxgb013zqb8m04g",
+          "merchant_acceptor_id": "5665270011000168",
+          "merchant_category_code": "5734",
+          "merchant_city": "New York",
+          "merchant_country": "US",
+          "merchant_descriptor": "CITIBANK",
+          "merchant_state": "NY"
+        },
+        "properties": {
+          "balance": {
+            "description": "The balance amount in cents. The account balance will be used if not provided.",
+            "maximum": 1000000000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "card_id": {
+            "description": "The identifier of the Card to be authorized.",
+            "type": "string",
+            "x-id-reference-to": "Cards"
+          },
+          "decline_reason": {
+            "description": "Forces a card decline with a specific reason. No real time decision will be sent.",
+            "enum": [
+              "account_closed",
+              "card_not_active",
+              "card_canceled",
+              "physical_card_not_active",
+              "entity_not_active",
+              "group_locked",
+              "insufficient_funds",
+              "cvv2_mismatch",
+              "pin_mismatch",
+              "card_expiration_mismatch",
+              "transaction_not_allowed",
+              "breaches_limit",
+              "webhook_declined",
+              "webhook_timed_out",
+              "declined_by_stand_in_processing",
+              "invalid_physical_card",
+              "missing_original_authorization",
+              "failed_3ds_authentication",
+              "suspected_card_testing",
+              "suspected_fraud"
+            ],
+            "type": "string",
+            "x-enum-descriptions": [
+              "The account has been closed.",
+              "The Card was not active.",
+              "The Card has been canceled.",
+              "The Physical Card was not active.",
+              "The account's entity was not active.",
+              "The account was inactive.",
+              "The Card's Account did not have a sufficient available balance.",
+              "The given CVV2 did not match the card's value.",
+              "The given PIN did not match the card's value.",
+              "The given expiration date did not match the card's value. Only applies when a CVV2 is present.",
+              "The attempted card transaction is not allowed per Increase's terms.",
+              "The transaction was blocked by a Limit.",
+              "Your application declined the transaction via webhook.",
+              "Your application webhook did not respond without the required timeout.",
+              "Declined by stand-in processing.",
+              "The card read had an invalid CVV, dCVV, or authorization request cryptogram.",
+              "The original card authorization for this incremental authorization does not exist.",
+              "The transaction was declined because the 3DS authentication failed.",
+              "The transaction was suspected to be used by a card tester to test for valid card numbers.",
+              "The transaction was suspected to be fraudulent. Please reach out to support@increase.com for more information."
+            ]
+          },
+          "digital_wallet_token_id": {
+            "description": "The identifier of the Digital Wallet Token to be authorized.",
+            "type": "string",
+            "x-id-reference-to": "Digital Wallet Tokens"
+          },
+          "event_subscription_id": {
+            "description": "The identifier of the Event Subscription to use. If provided, will override the default real time event subscription. Because you can only create one real time decision event subscription, you can use this field to route events to any specified event subscription for testing purposes.",
+            "type": "string",
+            "x-id-reference-to": "Event Subscriptions"
+          },
+          "merchant_acceptor_id": {
+            "description": "The merchant identifier (commonly abbreviated as MID) of the merchant the card is transacting with.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "merchant_category_code": {
+            "description": "The Merchant Category Code (commonly abbreviated as MCC) of the merchant the card is transacting with.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "merchant_city": {
+            "description": "The city the merchant resides in.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "merchant_country": {
+            "description": "The country the merchant resides in.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "merchant_descriptor": {
+            "description": "The merchant descriptor of the merchant the card is transacting with.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "merchant_state": {
+            "description": "The state the merchant resides in.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "network_details": {
+            "additionalProperties": false,
+            "description": "Fields specific to a given card network.",
+            "properties": {
+              "visa": {
+                "additionalProperties": false,
+                "description": "Fields specific to the Visa network.",
+                "properties": {
+                  "stand_in_processing_reason": {
+                    "description": "The reason code for the stand-in processing.",
+                    "enum": [
+                      "issuer_error",
+                      "invalid_physical_card",
+                      "invalid_cardholder_authentication_verification_value",
+                      "internal_visa_error",
+                      "merchant_transaction_advisory_service_authentication_required",
+                      "payment_fraud_disruption_acquirer_block",
+                      "other"
+                    ],
+                    "type": "string",
+                    "x-enum-descriptions": [
+                      "Increase failed to process the authorization in a timely manner.",
+                      "The physical card read had an invalid CVV, dCVV, or authorization request cryptogram.",
+                      "The 3DS cardholder authentication verification value was invalid.",
+                      "An internal Visa error occurred. Visa uses this reason code for certain expected occurrences as well, such as Application Transaction Counter (ATC) replays.",
+                      "The merchant has enabled Visa's Transaction Advisory Service and requires further authentication to perform the transaction. In practice this is often utilized at fuel pumps to tell the cardholder to see the cashier.",
+                      "The transaction was blocked by Visa's Payment Fraud Disruption service due to fraudulent Acquirer behavior, such as card testing.",
+                      "An unspecific reason for stand-in processing."
+                    ]
+                  }
+                },
+                "type": "object",
+                "x-event-categories": [],
+                "x-stainless-empty-object": false
+              }
+            },
+            "required": ["visa"],
+            "type": "object",
+            "x-event-categories": [],
+            "x-stainless-empty-object": false
+          },
+          "network_risk_score": {
+            "description": "The risk score generated by the card network. For Visa this is the Visa Advanced Authorization risk score, from 0 to 99, where 99 is the riskiest.",
+            "maximum": 99,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "physical_card_id": {
+            "description": "The identifier of the Physical Card to be authorized.",
+            "type": "string",
+            "x-id-reference-to": "Physical Cards"
+          },
+          "terminal_id": {
+            "description": "The terminal identifier (commonly abbreviated as TID) of the terminal the card is transacting with.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
         "type": "object",
         "x-event-categories": [],
         "x-stainless-empty-object": false
@@ -38824,12 +40563,19 @@
           },
           "category": {
             "description": "The type of tracking event.",
-            "enum": ["in_transit", "processed_for_delivery", "delivered", "returned_to_sender"],
+            "enum": [
+              "in_transit",
+              "processed_for_delivery",
+              "delivered",
+              "delivery_issue",
+              "returned_to_sender"
+            ],
             "type": "string",
             "x-enum-descriptions": [
               "The physical card is in transit.",
               "The physical card has been processed for delivery.",
               "The physical card has been delivered.",
+              "There is an issue preventing delivery. The delivery will be attempted again if possible. If the issue cannot be resolved, the physical card will be returned to sender.",
               "Delivery failed and the physical card was returned to sender."
             ]
           },
@@ -38894,21 +40640,6 @@
           }
         },
         "required": ["name"],
-        "type": "object",
-        "x-event-categories": [],
-        "x-stainless-empty-object": false
-      },
-      "sandbox_create_a_tax_document_parameters": {
-        "additionalProperties": false,
-        "example": { "account_id": "account_in71c4amph0vgo2qllky" },
-        "properties": {
-          "account_id": {
-            "description": "The identifier of the Account the tax document is for.",
-            "type": "string",
-            "x-id-reference-to": "Accounts"
-          }
-        },
-        "required": ["account_id"],
         "type": "object",
         "x-event-categories": [],
         "x-stainless-empty-object": false
@@ -39536,6 +41267,40 @@
         "x-event-categories": [],
         "x-stainless-empty-object": false
       },
+      "sandbox_generate_a_tax_form_export_parameters": {
+        "additionalProperties": false,
+        "example": {
+          "category": "form_1099_int",
+          "form_1099_int": { "account_id": "account_in71c4amph0vgo2qllky" }
+        },
+        "properties": {
+          "category": {
+            "description": "The type of Export to create.",
+            "enum": ["form_1099_int"],
+            "type": "string",
+            "x-enum-descriptions": ["A PDF of an Internal Revenue Service Form 1099-INT."]
+          },
+          "form_1099_int": {
+            "additionalProperties": false,
+            "description": "Options for the created export. Required if `category` is equal to `form_1099_int`.",
+            "properties": {
+              "account_id": {
+                "description": "The identifier of the Account the tax document is for.",
+                "type": "string",
+                "x-id-reference-to": "Accounts"
+              }
+            },
+            "required": ["account_id"],
+            "type": "object",
+            "x-event-categories": [],
+            "x-stainless-empty-object": false
+          }
+        },
+        "required": ["category"],
+        "type": "object",
+        "x-event-categories": [],
+        "x-stainless-empty-object": false
+      },
       "sandbox_increment_a_card_authorization_parameters": {
         "additionalProperties": false,
         "example": { "amount": 500, "card_payment_id": "card_payment_nd3k2kacrqjli8482ave" },
@@ -39865,6 +41630,12 @@
               "x-stainless-empty-object": false
             },
             "type": "array"
+          },
+          "explanation": {
+            "description": "The free-form explanation provided to Increase to provide more context for the user submission. This field is not sent directly to the card networks.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
           },
           "network": {
             "description": "The network of the Card Dispute. Details specific to the network are required under the sub-object with the same identifier as the network.",
@@ -41325,6 +43096,12 @@
                         "x-event-categories": [],
                         "x-stainless-empty-object": false
                       },
+                      "explanation": {
+                        "description": "Explanation of what was ordered and was not as described.",
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      },
                       "merchant_resolution_attempted": {
                         "description": "Merchant resolution attempted.",
                         "enum": ["attempted", "prohibited_by_local_law"],
@@ -41333,7 +43110,12 @@
                       },
                       "received_at": { "description": "Received at.", "format": "date", "type": "string" }
                     },
-                    "required": ["cardholder_cancellation", "merchant_resolution_attempted", "received_at"],
+                    "required": [
+                      "cardholder_cancellation",
+                      "explanation",
+                      "merchant_resolution_attempted",
+                      "received_at"
+                    ],
                     "type": "object",
                     "x-event-categories": [],
                     "x-stainless-empty-object": false
@@ -43142,7 +44924,7 @@
                       "return_reason_code": {
                         "anyOf": [
                           {
-                            "description": "A code provided by the sending bank giving a reason for the reversal. It will generally be one of the codes defined in the ISO20022 `ExternalReturnReason1Code` code set, but this is not enforced by the network.",
+                            "description": "A code provided by the sending bank giving a reason for the reversal. The common return reason codes are [documented here](/documentation/wire-reversals#reversal-reason-codes).",
                             "type": "string"
                           },
                           { "type": "null" }
@@ -44084,7 +45866,7 @@
         "x-stainless-empty-object": false
       },
       "update_an_account_parameters": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "example": { "name": "My renamed account" },
         "properties": {
           "credit_limit": {
@@ -44161,6 +45943,19 @@
                 "type": "object",
                 "x-event-categories": [],
                 "x-stainless-empty-object": false
+              },
+              "email": {
+                "description": "An email address for the business. Not every program requires an email for submitted Entities.",
+                "format": "email",
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "incorporation_state": {
+                "description": "The two-letter United States Postal Service (USPS) abbreviation for the corporation's state of incorporation.",
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
               },
               "industry_code": {
                 "description": "The North American Industry Classification System (NAICS) code for the corporation's primary line of business. This is a number, like `5132` for `Software Publishers`. A full list of classification codes is available [here](https://increase.com/documentation/data-dictionary#north-american-industry-classification-system-codes).",
@@ -44331,12 +46126,13 @@
               },
               "vendor": {
                 "description": "The vendor that was used to perform the verification.",
-                "enum": ["alloy", "middesk", "oscilar"],
+                "enum": ["alloy", "middesk", "oscilar", "persona"],
                 "type": "string",
                 "x-enum-descriptions": [
                   "Alloy. See https://alloy.com for more information.",
                   "Middesk. See https://middesk.com for more information.",
-                  "Oscilar. See https://oscilar.com for more information."
+                  "Oscilar. See https://oscilar.com for more information.",
+                  "Persona. See https://withpersona.com for more information."
                 ]
               }
             },
@@ -45394,7 +47190,7 @@
                   "return_reason_code": {
                     "anyOf": [
                       {
-                        "description": "A code provided by the sending bank giving a reason for the reversal. It will generally be one of the codes defined in the ISO20022 `ExternalReturnReason1Code` code set, but this is not enforced by the network.",
+                        "description": "A code provided by the sending bank giving a reason for the reversal. The common return reason codes are [documented here](/documentation/wire-reversals#reversal-reason-codes).",
                         "type": "string"
                       },
                       { "type": "null" }
@@ -49675,186 +51471,6 @@
         "x-tag": "Digital Wallet Tokens"
       }
     },
-    "/documents": {
-      "get": {
-        "operationId": "list_documents",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": { "description": "Return the page of entries after this one.", "type": "string" }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "description": "Limit the size of the list that is returned. The default (and maximum) is 100 objects.",
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "entity_id",
-            "required": false,
-            "schema": {
-              "description": "Filter Documents to ones belonging to the specified Entity.",
-              "type": "string",
-              "x-id-reference-to": "Entities"
-            }
-          },
-          {
-            "in": "query",
-            "name": "category.in",
-            "required": false,
-            "schema": {
-              "description": "Filter Documents for those with the specified category or categories. For GET requests, this should be encoded as a comma-delimited string, such as `?in=one,two,three`.",
-              "items": {
-                "enum": [
-                  "form_1099_int",
-                  "form_1099_misc",
-                  "proof_of_authorization",
-                  "company_information",
-                  "account_verification_letter",
-                  "funding_instructions"
-                ],
-                "type": "string",
-                "x-enum-descriptions": [
-                  "Internal Revenue Service Form 1099-INT.",
-                  "Internal Revenue Service Form 1099-MISC.",
-                  "A document submitted in response to a proof of authorization request for an ACH transfer.",
-                  "Company information, such a policies or procedures, typically submitted during our due diligence process.",
-                  "An account verification letter.",
-                  "Funding instructions."
-                ]
-              },
-              "type": "array"
-            },
-            "explode": false
-          },
-          {
-            "in": "query",
-            "name": "created_at.after",
-            "required": false,
-            "schema": {
-              "description": "Return results after this [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) timestamp.",
-              "format": "date-time",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "created_at.before",
-            "required": false,
-            "schema": {
-              "description": "Return results before this [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) timestamp.",
-              "format": "date-time",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "created_at.on_or_after",
-            "required": false,
-            "schema": {
-              "description": "Return results on or after this [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) timestamp.",
-              "format": "date-time",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "created_at.on_or_before",
-            "required": false,
-            "schema": {
-              "description": "Return results on or before this [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) timestamp.",
-              "format": "date-time",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "idempotency_key",
-            "required": false,
-            "schema": {
-              "description": "Filter records to the one with the specified `idempotency_key` you chose for that object. This value is unique across Increase and is used to ensure that a request is only processed once. Learn more about [idempotency](https://increase.com/documentation/idempotency-keys).",
-              "maxLength": 200,
-              "minLength": 1,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/document_list" } } },
-            "description": "Document List"
-          },
-          "default": {
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } },
-            "description": "Error"
-          }
-        },
-        "summary": "List Documents",
-        "x-sandbox-only": false,
-        "x-tag": "Documents"
-      },
-      "post": {
-        "operationId": "create_a_document",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": { "schema": { "$ref": "#/components/schemas/create_a_document_parameters" } }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/document" } } },
-            "description": "Document"
-          },
-          "default": {
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } },
-            "description": "Error"
-          }
-        },
-        "summary": "Create a Document",
-        "x-sandbox-only": false,
-        "x-tag": "Documents"
-      }
-    },
-    "/documents/{document_id}": {
-      "get": {
-        "operationId": "retrieve_a_document",
-        "parameters": [
-          {
-            "example": "document_qjtqc6s4c14ve2q89izm",
-            "in": "path",
-            "name": "document_id",
-            "required": true,
-            "schema": {
-              "description": "The identifier of the Document to retrieve.",
-              "type": "string",
-              "x-id-reference-to": "Documents"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/document" } } },
-            "description": "Document"
-          },
-          "default": {
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } },
-            "description": "Error"
-          }
-        },
-        "summary": "Retrieve a Document",
-        "x-sandbox-only": false,
-        "x-tag": "Documents"
-      }
-    },
     "/entities": {
       "get": {
         "operationId": "list_entities",
@@ -50720,6 +52336,7 @@
                   "proof_of_authorization_request.created",
                   "proof_of_authorization_request.updated",
                   "real_time_decision.card_authorization_requested",
+                  "real_time_decision.card_balance_inquiry_requested",
                   "real_time_decision.digital_wallet_token_requested",
                   "real_time_decision.digital_wallet_authentication_requested",
                   "real_time_decision.card_authentication_requested",
@@ -50823,6 +52440,7 @@
                   "Occurs whenever a Proof of Authorization Request is created.",
                   "Occurs whenever a Proof of Authorization Request is updated.",
                   "Occurs whenever a Real-Time Decision is created in response to a card authorization.",
+                  "Occurs whenever a Real-Time Decision is created in response to a card balance inquiry.",
                   "Occurs whenever a Real-Time Decision is created in response to a digital wallet provisioning attempt.",
                   "Occurs whenever a Real-Time Decision is created in response to a digital wallet requiring two-factor authentication.",
                   "Occurs whenever a Real-Time Decision is created in response to 3DS authentication.",
@@ -50975,7 +52593,11 @@
                   "bookkeeping_account_balance_csv",
                   "entity_csv",
                   "vendor_csv",
-                  "dashboard_table_csv"
+                  "dashboard_table_csv",
+                  "account_verification_letter",
+                  "funding_instructions",
+                  "form_1099_int",
+                  "form_1099_misc"
                 ],
                 "type": "string",
                 "x-enum-descriptions": [
@@ -50986,7 +52608,11 @@
                   "Export a CSV of bookkeeping account balances for the dates in a given range.",
                   "Export a CSV of entities with a given status.",
                   "Export a CSV of vendors added to the third-party risk management dashboard.",
-                  "Certain dashboard tables are available as CSV exports. This export cannot be created via the API."
+                  "Certain dashboard tables are available as CSV exports. This export cannot be created via the API.",
+                  "A PDF of an account verification letter.",
+                  "A PDF of funding instructions.",
+                  "A PDF of an Internal Revenue Service Form 1099-INT.",
+                  "A PDF of an Internal Revenue Service Form 1099-MISC."
                 ]
               },
               "type": "array"
@@ -51674,7 +53300,7 @@
                   "An image of the front of a deposited check after processing by Increase and submission to the Federal Reserve.",
                   "An image of the back of a deposited check after processing by Increase and submission to the Federal Reserve.",
                   "An image of a check that was mailed to a recipient.",
-                  "A document to be printed on an additional page and mailed with a check that you've requested Increase print.",
+                  "A document to be printed on an additional page and mailed with a check that you've requested Increase print. This must be a PDF whose pages are all US letter size and all have the same orientation.",
                   "An image to be used as the check voucher image, which is printed in the middle of the trifold area of a check. This must be a 2550x1100 pixel PNG.",
                   "A scanned mail item sent to Increase.",
                   "IRS Form 1099-INT.",
@@ -53938,7 +55564,7 @@
         "x-tag": "Pending Transactions"
       },
       "post": {
-        "description": "Creates a pending transaction on an account. This can be useful to hold funds for an external payment or known future transaction outside of Increase. The resulting Pending Transaction will have a `category` of `user_initiated_hold` and can be released via the API to unlock the held funds.",
+        "description": "Creates a pending transaction on an account. This can be useful to hold funds for an external payment or known future transaction outside of Increase (only negative amounts are supported). The resulting Pending Transaction will have a `category` of `user_initiated_hold` and can be released via the API to unlock the held funds.",
         "operationId": "create_a_pending_transaction",
         "parameters": [],
         "requestBody": {
@@ -55213,6 +56839,34 @@
         "x-tag": "Card Payments"
       }
     },
+    "/simulations/card_balance_inquiries": {
+      "post": {
+        "description": "Simulates a balance inquiry on a [Card](#cards).",
+        "operationId": "sandbox_create_a_card_balance_inquiry",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/sandbox_create_a_card_balance_inquiry_parameters" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/card_payment" } } },
+            "description": "Card Payment"
+          },
+          "default": {
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } },
+            "description": "Error"
+          }
+        },
+        "summary": "Sandbox: Create a Card Balance Inquiry",
+        "x-sandbox-only": true,
+        "x-tag": "Card Payments"
+      }
+    },
     "/simulations/card_disputes/{card_dispute_id}/action": {
       "post": {
         "description": "After a [Card Dispute](#card-disputes) is created in production, the dispute will initially be in a `pending_user_submission_reviewing` state. Since no review or further action happens in sandbox, this endpoint simulates moving a Card Dispute through its various states.",
@@ -55591,32 +57245,32 @@
         "x-tag": "Digital Wallet Tokens"
       }
     },
-    "/simulations/documents": {
+    "/simulations/exports": {
       "post": {
-        "description": "Simulates an tax document being created for an account.",
-        "operationId": "sandbox_create_a_tax_document",
+        "description": "Many exports are created by you via POST /exports or in the Dashboard. Some exports are created automatically by Increase. For example, tax documents are published once a year. In sandbox, you can trigger the arrival of an export that would normally only be created automatically via this simulation.",
+        "operationId": "sandbox_generate_a_tax_form_export",
         "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/sandbox_create_a_tax_document_parameters" }
+              "schema": { "$ref": "#/components/schemas/sandbox_generate_a_tax_form_export_parameters" }
             }
           },
           "required": true
         },
         "responses": {
           "200": {
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/document" } } },
-            "description": "Document"
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/export" } } },
+            "description": "Export"
           },
           "default": {
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/error" } } },
             "description": "Error"
           }
         },
-        "summary": "Sandbox: Create a tax document",
+        "summary": "Sandbox: Generate a Tax Form Export",
         "x-sandbox-only": true,
-        "x-tag": "Documents"
+        "x-tag": "Exports"
       }
     },
     "/simulations/inbound_ach_transfers": {
@@ -56920,11 +58574,7 @@
       "name": "File Links"
     },
     {
-      "description": "Increase generates certain documents / forms automatically for your application; they can be listed here.",
-      "name": "Documents"
-    },
-    {
-      "description": "Exports are batch summaries of your Increase data. You can make them from the API or dashboard. Since they can take a while, they are generated asynchronously. We send a webhook when they are ready. For more information, please read our [Exports documentation](https://increase.com/documentation/exports).",
+      "description": "Exports are generated files. Some exports can contain a lot of data, like a CSV of your transactions. Others can be a single document, like a tax form. Since they can take a while, they are generated asynchronously. We send a webhook when they are ready. For more information, please read our [Exports documentation](https://increase.com/documentation/exports).",
       "name": "Exports"
     },
     {
@@ -57029,10 +58679,7 @@
     { "name": "Compliance", "tags": ["Entities", "Supplemental Documents", "Programs"] },
     { "name": "Events and Webhooks", "tags": ["Events", "Event Subscriptions", "Real-Time Decisions"] },
     { "name": "External Accounts", "tags": ["Routing Numbers", "External Accounts"] },
-    {
-      "name": "Files and Exports",
-      "tags": ["Account Statements", "Files", "File Links", "Documents", "Exports"]
-    },
+    { "name": "Files and Exports", "tags": ["Account Statements", "Files", "File Links", "Exports"] },
     {
       "name": "Bookkeeping",
       "tags": ["Bookkeeping Accounts", "Bookkeeping Entry Sets", "Bookkeeping Entries"]
