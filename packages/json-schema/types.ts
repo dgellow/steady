@@ -278,7 +278,6 @@ export interface ErrorAttribution {
 }
 
 export interface GenerateOptions {
-  maxDepth?: number;
   seed?: number; // For deterministic generation
   locale?: string; // For localized data
   useExamples?: boolean; // Prefer examples over generated data

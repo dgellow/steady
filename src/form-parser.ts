@@ -120,7 +120,12 @@ export function parseFormData(
     if (stringValues.length === 0) continue;
 
     // Get the schema for this property (for type coercion)
-    const propertySchema = getPropertySchema(key, schema, formObjectFormat, resolveSchema);
+    const propertySchema = getPropertySchema(
+      key,
+      schema,
+      formObjectFormat,
+      resolveSchema,
+    );
 
     // Determine if this should be an array
     const isExplicitArray = explicitArrayFields.has(key);
@@ -133,9 +138,10 @@ export function parseFormData(
       propertySchema?.type === "array"
     ) {
       const parts = stringValues[0]!.split(",");
-      const itemSchema = propertySchema.items && !isReference(propertySchema.items)
-        ? propertySchema.items
-        : undefined;
+      const itemSchema =
+        propertySchema.items && !isReference(propertySchema.items)
+          ? propertySchema.items
+          : undefined;
       const finalValue = parts.map((v) => coerceValue(v.trim(), itemSchema));
       const path = parseKeyToPath(key, formObjectFormat);
       setNestedValue(result, path, finalValue);
@@ -185,11 +191,19 @@ export function parseUrlEncoded(
   for (const [key, value] of params.entries()) {
     stringEntries.push([key, value]);
   }
-  const { groups, explicitArrays } = groupFormEntries(stringEntries, formArrayFormat);
+  const { groups, explicitArrays } = groupFormEntries(
+    stringEntries,
+    formArrayFormat,
+  );
 
   // Process each field
   for (const [key, values] of groups) {
-    const propertySchema = getPropertySchema(key, schema, formObjectFormat, resolveSchema);
+    const propertySchema = getPropertySchema(
+      key,
+      schema,
+      formObjectFormat,
+      resolveSchema,
+    );
     const isExplicitArray = explicitArrays.has(key);
     const isArrayField = isExplicitArray ||
       shouldBeArray(propertySchema, values.length);

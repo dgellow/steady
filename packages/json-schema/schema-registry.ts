@@ -239,7 +239,6 @@ export class SchemaRegistry {
  */
 export class RegistryResponseGenerator {
   private visited = new Set<string>();
-  private maxDepth: number;
   private initialSeed: number;
   private seed: number;
   private arrayMin: number;
@@ -249,7 +248,6 @@ export class RegistryResponseGenerator {
     private registry: SchemaRegistry,
     private options: GenerateOptions = {},
   ) {
-    this.maxDepth = options.maxDepth ?? 10;
     this.initialSeed = options.seed ?? Math.random() * 1000000;
     this.seed = this.initialSeed;
     // Default to exactly 1 item (no randomness)
@@ -286,7 +284,7 @@ export class RegistryResponseGenerator {
     // Reset RNG state for deterministic output per-call
     this.seed = this.initialSeed;
     this.visited.clear();
-    return this.generateFromSchema(schema.raw, pointer, 0);
+    return this.generateFromSchema(schema.raw, pointer);
   }
 
   /**
@@ -295,12 +293,7 @@ export class RegistryResponseGenerator {
   generateFromSchema(
     schema: Schema | boolean,
     pointer: string,
-    depth: number,
   ): unknown {
-    if (depth > this.maxDepth) {
-      return null;
-    }
-
     // Handle boolean schemas
     if (typeof schema === "boolean") {
       return schema ? {} : null;
@@ -322,7 +315,7 @@ export class RegistryResponseGenerator {
       }
 
       this.visited.add(ref);
-      const result = this.generateFromSchema(resolved.raw, ref, depth + 1);
+      const result = this.generateFromSchema(resolved.raw, ref);
       this.visited.delete(ref);
       return result;
     }
@@ -361,19 +354,11 @@ export class RegistryResponseGenerator {
       const optionToUse = nonNullOptions.length > 0
         ? nonNullOptions[0]!
         : schema.anyOf[0]!;
-      return this.generateFromSchema(
-        optionToUse,
-        `${pointer}/anyOf/0`,
-        depth + 1,
-      );
+      return this.generateFromSchema(optionToUse, `${pointer}/anyOf/0`);
     }
 
     if (schema.oneOf?.length) {
-      return this.generateFromSchema(
-        schema.oneOf[0]!,
-        `${pointer}/oneOf/0`,
-        depth + 1,
-      );
+      return this.generateFromSchema(schema.oneOf[0]!, `${pointer}/oneOf/0`);
     }
 
     if (schema.allOf?.length) {
@@ -396,10 +381,15 @@ export class RegistryResponseGenerator {
         for (const [key, value] of Object.entries(resolved)) {
           if (key === "properties" && merged.properties) {
             // Merge properties objects
-            merged.properties = { ...merged.properties, ...(value as Schema["properties"]) };
+            merged.properties = {
+              ...merged.properties,
+              ...(value as Schema["properties"]),
+            };
           } else if (key === "required" && merged.required) {
             // Merge required arrays (union)
-            merged.required = [...new Set([...merged.required, ...(value as string[])])];
+            merged.required = [
+              ...new Set([...merged.required, ...(value as string[])]),
+            ];
           } else {
             (merged as Record<string, unknown>)[key] = value;
           }
@@ -407,7 +397,7 @@ export class RegistryResponseGenerator {
       }
       // Generate from merged schema (remove allOf to avoid infinite recursion)
       const { allOf: _, ...mergedWithoutAllOf } = merged;
-      return this.generateFromSchema(mergedWithoutAllOf, pointer, depth + 1);
+      return this.generateFromSchema(mergedWithoutAllOf, pointer);
     }
 
     // Priority 7: Generate based on type
@@ -425,16 +415,16 @@ export class RegistryResponseGenerator {
       case "string":
         return this.generateString(schema);
       case "array":
-        return this.generateArray(schema, pointer, depth);
+        return this.generateArray(schema, pointer);
       case "object":
-        return this.generateObject(schema, pointer, depth);
+        return this.generateObject(schema, pointer);
       default:
         // Infer from structure
         if (schema.properties || schema.additionalProperties) {
-          return this.generateObject(schema, pointer, depth);
+          return this.generateObject(schema, pointer);
         }
         if (schema.items || schema.prefixItems) {
-          return this.generateArray(schema, pointer, depth);
+          return this.generateArray(schema, pointer);
         }
         // Schema with nullable: true but no type - return null
         // This handles OpenAPI 3.0 style nullable modifiers in allOf
@@ -560,11 +550,7 @@ export class RegistryResponseGenerator {
     }
   }
 
-  private generateArray(
-    schema: Schema,
-    pointer: string,
-    depth: number,
-  ): unknown[] {
+  private generateArray(schema: Schema, pointer: string): unknown[] {
     // Use generator options, which override schema constraints
     const minItems = this.arrayMin;
     const maxItems = this.arrayMax;
@@ -581,7 +567,6 @@ export class RegistryResponseGenerator {
           this.generateFromSchema(
             schema.prefixItems[i]!,
             `${pointer}/prefixItems/${i}`,
-            depth + 1,
           ),
         );
       }
@@ -591,9 +576,7 @@ export class RegistryResponseGenerator {
     if (schema.items && array.length < length) {
       const itemSchema = schema.items as Schema;
       for (let i = array.length; i < length; i++) {
-        array.push(
-          this.generateFromSchema(itemSchema, `${pointer}/items`, depth + 1),
-        );
+        array.push(this.generateFromSchema(itemSchema, `${pointer}/items`));
       }
     }
 
@@ -603,7 +586,6 @@ export class RegistryResponseGenerator {
   private generateObject(
     schema: Schema,
     pointer: string,
-    depth: number,
   ): Record<string, unknown> {
     const obj: Record<string, unknown> = {};
 
@@ -614,7 +596,6 @@ export class RegistryResponseGenerator {
           obj[prop] = this.generateFromSchema(
             schema.properties[prop]!,
             `${pointer}/properties/${prop}`,
-            depth + 1,
           );
         } else {
           obj[prop] = this.pick(["value", 123, true, null]);
@@ -629,7 +610,6 @@ export class RegistryResponseGenerator {
           obj[prop] = this.generateFromSchema(
             propSchema,
             `${pointer}/properties/${prop}`,
-            depth + 1,
           );
         }
       }

@@ -275,7 +275,7 @@ export class OpenAPIDocument {
       }
 
       const generator = new RegistryResponseGenerator(this.schemas, options);
-      return generator.generateFromSchema(schema.raw, schemaPointer, 0);
+      return generator.generateFromSchema(schema.raw, schemaPointer);
     }
 
     return null;

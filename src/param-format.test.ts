@@ -35,28 +35,46 @@ Deno.test("resolveArrayFormat: auto defaults to repeat (form + explode)", () => 
 
 Deno.test("resolveArrayFormat: auto with style=form explode=true returns repeat", () => {
   assertEquals(
-    resolveArrayFormat("auto", { name: "x", in: "query", style: "form", explode: true }),
+    resolveArrayFormat("auto", {
+      name: "x",
+      in: "query",
+      style: "form",
+      explode: true,
+    }),
     "repeat",
   );
 });
 
 Deno.test("resolveArrayFormat: auto with style=form explode=false returns comma", () => {
   assertEquals(
-    resolveArrayFormat("auto", { name: "x", in: "query", style: "form", explode: false }),
+    resolveArrayFormat("auto", {
+      name: "x",
+      in: "query",
+      style: "form",
+      explode: false,
+    }),
     "comma",
   );
 });
 
 Deno.test("resolveArrayFormat: auto with style=spaceDelimited returns space", () => {
   assertEquals(
-    resolveArrayFormat("auto", { name: "x", in: "query", style: "spaceDelimited" }),
+    resolveArrayFormat("auto", {
+      name: "x",
+      in: "query",
+      style: "spaceDelimited",
+    }),
     "space",
   );
 });
 
 Deno.test("resolveArrayFormat: auto with style=pipeDelimited returns pipe", () => {
   assertEquals(
-    resolveArrayFormat("auto", { name: "x", in: "query", style: "pipeDelimited" }),
+    resolveArrayFormat("auto", {
+      name: "x",
+      in: "query",
+      style: "pipeDelimited",
+    }),
     "pipe",
   );
 });
@@ -77,21 +95,35 @@ Deno.test("resolveObjectFormat: auto defaults to flat (form + explode)", () => {
 
 Deno.test("resolveObjectFormat: auto with style=form explode=true returns flat", () => {
   assertEquals(
-    resolveObjectFormat("auto", { name: "x", in: "query", style: "form", explode: true }),
+    resolveObjectFormat("auto", {
+      name: "x",
+      in: "query",
+      style: "form",
+      explode: true,
+    }),
     "flat",
   );
 });
 
 Deno.test("resolveObjectFormat: auto with style=form explode=false returns flat-comma", () => {
   assertEquals(
-    resolveObjectFormat("auto", { name: "x", in: "query", style: "form", explode: false }),
+    resolveObjectFormat("auto", {
+      name: "x",
+      in: "query",
+      style: "form",
+      explode: false,
+    }),
     "flat-comma",
   );
 });
 
 Deno.test("resolveObjectFormat: auto with style=deepObject returns brackets", () => {
   assertEquals(
-    resolveObjectFormat("auto", { name: "x", in: "query", style: "deepObject" }),
+    resolveObjectFormat("auto", {
+      name: "x",
+      in: "query",
+      style: "deepObject",
+    }),
     "brackets",
   );
 });
@@ -104,35 +136,57 @@ Deno.test("getArrayValues: repeat format gets all values with same key", () => {
   const params = new URLSearchParams("colors=red&colors=green&colors=blue");
   const source = wrapURLSearchParams(params);
 
-  assertEquals(getArrayValues(source, "colors", "repeat"), ["red", "green", "blue"]);
+  assertEquals(getArrayValues(source, "colors", "repeat"), [
+    "red",
+    "green",
+    "blue",
+  ]);
 });
 
 Deno.test("getArrayValues: comma format splits single value", () => {
   const params = new URLSearchParams("colors=red,green,blue");
   const source = wrapURLSearchParams(params);
 
-  assertEquals(getArrayValues(source, "colors", "comma"), ["red", "green", "blue"]);
+  assertEquals(getArrayValues(source, "colors", "comma"), [
+    "red",
+    "green",
+    "blue",
+  ]);
 });
 
 Deno.test("getArrayValues: space format splits by space", () => {
   const params = new URLSearchParams("colors=red green blue");
   const source = wrapURLSearchParams(params);
 
-  assertEquals(getArrayValues(source, "colors", "space"), ["red", "green", "blue"]);
+  assertEquals(getArrayValues(source, "colors", "space"), [
+    "red",
+    "green",
+    "blue",
+  ]);
 });
 
 Deno.test("getArrayValues: pipe format splits by pipe", () => {
   const params = new URLSearchParams("colors=red|green|blue");
   const source = wrapURLSearchParams(params);
 
-  assertEquals(getArrayValues(source, "colors", "pipe"), ["red", "green", "blue"]);
+  assertEquals(getArrayValues(source, "colors", "pipe"), [
+    "red",
+    "green",
+    "blue",
+  ]);
 });
 
 Deno.test("getArrayValues: brackets format gets values with [] suffix", () => {
-  const params = new URLSearchParams("colors[]=red&colors[]=green&colors[]=blue");
+  const params = new URLSearchParams(
+    "colors[]=red&colors[]=green&colors[]=blue",
+  );
   const source = wrapURLSearchParams(params);
 
-  assertEquals(getArrayValues(source, "colors", "brackets"), ["red", "green", "blue"]);
+  assertEquals(getArrayValues(source, "colors", "brackets"), [
+    "red",
+    "green",
+    "blue",
+  ]);
 });
 
 Deno.test("getArrayValues: returns empty array if key not found", () => {
@@ -152,38 +206,62 @@ Deno.test("hasParamValue: detects simple param", () => {
   const params = new URLSearchParams("name=sam");
   const source = wrapURLSearchParams(params);
 
-  assertEquals(hasParamValue(source, "name", false, false, "repeat", "flat"), true);
-  assertEquals(hasParamValue(source, "other", false, false, "repeat", "flat"), false);
+  assertEquals(
+    hasParamValue(source, "name", false, false, "repeat", "flat"),
+    true,
+  );
+  assertEquals(
+    hasParamValue(source, "other", false, false, "repeat", "flat"),
+    false,
+  );
 });
 
 Deno.test("hasParamValue: detects array with repeat format", () => {
   const params = new URLSearchParams("tags=a&tags=b");
   const source = wrapURLSearchParams(params);
 
-  assertEquals(hasParamValue(source, "tags", true, false, "repeat", "flat"), true);
+  assertEquals(
+    hasParamValue(source, "tags", true, false, "repeat", "flat"),
+    true,
+  );
 });
 
 Deno.test("hasParamValue: detects array with brackets format", () => {
   const params = new URLSearchParams("tags[]=a&tags[]=b");
   const source = wrapURLSearchParams(params);
 
-  assertEquals(hasParamValue(source, "tags", true, false, "brackets", "flat"), true);
+  assertEquals(
+    hasParamValue(source, "tags", true, false, "brackets", "flat"),
+    true,
+  );
 });
 
 Deno.test("hasParamValue: detects object with brackets format", () => {
   const params = new URLSearchParams("user[name]=sam");
   const source = wrapURLSearchParams(params);
 
-  assertEquals(hasParamValue(source, "user", false, true, "repeat", "brackets"), true);
-  assertEquals(hasParamValue(source, "other", false, true, "repeat", "brackets"), false);
+  assertEquals(
+    hasParamValue(source, "user", false, true, "repeat", "brackets"),
+    true,
+  );
+  assertEquals(
+    hasParamValue(source, "other", false, true, "repeat", "brackets"),
+    false,
+  );
 });
 
 Deno.test("hasParamValue: detects object with dots format", () => {
   const params = new URLSearchParams("user.name=sam");
   const source = wrapURLSearchParams(params);
 
-  assertEquals(hasParamValue(source, "user", false, true, "repeat", "dots"), true);
-  assertEquals(hasParamValue(source, "other", false, true, "repeat", "dots"), false);
+  assertEquals(
+    hasParamValue(source, "user", false, true, "repeat", "dots"),
+    true,
+  );
+  assertEquals(
+    hasParamValue(source, "other", false, true, "repeat", "dots"),
+    false,
+  );
 });
 
 // =============================================================================
@@ -195,7 +273,10 @@ Deno.test("parseBracketPath: extracts single segment", () => {
 });
 
 Deno.test("parseBracketPath: extracts multiple segments", () => {
-  assertEquals(parseBracketPath("user[address][city]", "user"), ["address", "city"]);
+  assertEquals(parseBracketPath("user[address][city]", "user"), [
+    "address",
+    "city",
+  ]);
 });
 
 Deno.test("parseBracketPath: handles numeric indices", () => {
@@ -283,7 +364,9 @@ Deno.test("parseObjectValue: brackets format parses nested keys", () => {
 });
 
 Deno.test("parseObjectValue: brackets format handles deeply nested", () => {
-  const params = new URLSearchParams("user[address][city]=NYC&user[address][zip]=10001");
+  const params = new URLSearchParams(
+    "user[address][city]=NYC&user[address][zip]=10001",
+  );
   const source = wrapURLSearchParams(params);
 
   assertEquals(parseObjectValue(source, "user", "brackets"), {
@@ -302,7 +385,9 @@ Deno.test("parseObjectValue: dots format parses nested keys", () => {
 });
 
 Deno.test("parseObjectValue: dots format handles deeply nested", () => {
-  const params = new URLSearchParams("user.address.city=NYC&user.address.zip=10001");
+  const params = new URLSearchParams(
+    "user.address.city=NYC&user.address.zip=10001",
+  );
   const source = wrapURLSearchParams(params);
 
   assertEquals(parseObjectValue(source, "user", "dots"), {
@@ -372,12 +457,20 @@ Deno.test("parseKeyToPath: flat-comma format returns single-element array", () =
 Deno.test("parseKeyToPath: brackets format parses nested keys", () => {
   assertEquals(parseKeyToPath("user", "brackets"), ["user"]);
   assertEquals(parseKeyToPath("user[name]", "brackets"), ["user", "name"]);
-  assertEquals(parseKeyToPath("user[address][city]", "brackets"), ["user", "address", "city"]);
+  assertEquals(parseKeyToPath("user[address][city]", "brackets"), [
+    "user",
+    "address",
+    "city",
+  ]);
 });
 
 Deno.test("parseKeyToPath: brackets format handles numeric indices", () => {
   assertEquals(parseKeyToPath("items[0]", "brackets"), ["items", "0"]);
-  assertEquals(parseKeyToPath("items[0][name]", "brackets"), ["items", "0", "name"]);
+  assertEquals(parseKeyToPath("items[0][name]", "brackets"), [
+    "items",
+    "0",
+    "name",
+  ]);
 });
 
 Deno.test("parseKeyToPath: brackets format handles empty brackets", () => {
@@ -387,7 +480,11 @@ Deno.test("parseKeyToPath: brackets format handles empty brackets", () => {
 Deno.test("parseKeyToPath: dots format splits by dots", () => {
   assertEquals(parseKeyToPath("user", "dots"), ["user"]);
   assertEquals(parseKeyToPath("user.name", "dots"), ["user", "name"]);
-  assertEquals(parseKeyToPath("user.address.city", "dots"), ["user", "address", "city"]);
+  assertEquals(parseKeyToPath("user.address.city", "dots"), [
+    "user",
+    "address",
+    "city",
+  ]);
 });
 
 console.log("param-format tests loaded");

@@ -23,7 +23,7 @@ Deno.test("RegistryResponseGenerator - generates string for simple string schema
   const registry = createRegistry(schema);
   const generator = new RegistryResponseGenerator(registry);
 
-  const result = generator.generateFromSchema(schema, "#", 0);
+  const result = generator.generateFromSchema(schema, "#");
 
   assertEquals(typeof result, "string");
 });
@@ -33,7 +33,7 @@ Deno.test("RegistryResponseGenerator - generates number for integer schema", () 
   const registry = createRegistry(schema);
   const generator = new RegistryResponseGenerator(registry);
 
-  const result = generator.generateFromSchema(schema, "#", 0);
+  const result = generator.generateFromSchema(schema, "#");
 
   assertEquals(typeof result, "number");
   assertEquals(Number.isInteger(result), true);
@@ -44,7 +44,7 @@ Deno.test("RegistryResponseGenerator - uses example when provided", () => {
   const registry = createRegistry(schema);
   const generator = new RegistryResponseGenerator(registry);
 
-  const result = generator.generateFromSchema(schema, "#", 0);
+  const result = generator.generateFromSchema(schema, "#");
 
   assertEquals(result, "hello world");
 });
@@ -57,7 +57,7 @@ Deno.test("RegistryResponseGenerator - anyOf with string or null should generate
   const registry = createRegistry(schema);
   const generator = new RegistryResponseGenerator(registry);
 
-  const result = generator.generateFromSchema(schema, "#", 0);
+  const result = generator.generateFromSchema(schema, "#");
 
   // Result should be either a string or null, NOT an empty object
   const isStringOrNull = typeof result === "string" || result === null;
@@ -80,7 +80,7 @@ Deno.test("RegistryResponseGenerator - oneOf should pick first matching schema",
   const registry = createRegistry(schema);
   const generator = new RegistryResponseGenerator(registry);
 
-  const result = generator.generateFromSchema(schema, "#", 0);
+  const result = generator.generateFromSchema(schema, "#");
 
   // Should pick the first option (string)
   assertEquals(typeof result, "string");
@@ -100,7 +100,7 @@ Deno.test("RegistryResponseGenerator - allOf should merge schemas", () => {
   const registry = createRegistry(schema);
   const generator = new RegistryResponseGenerator(registry);
 
-  const result = generator.generateFromSchema(schema, "#", 0) as Record<
+  const result = generator.generateFromSchema(schema, "#") as Record<
     string,
     unknown
   >;
@@ -130,7 +130,7 @@ Deno.test("RegistryResponseGenerator - nested anyOf in object property", () => {
   const registry = createRegistry(schema);
   const generator = new RegistryResponseGenerator(registry);
 
-  const result = generator.generateFromSchema(schema, "#", 0) as Record<
+  const result = generator.generateFromSchema(schema, "#") as Record<
     string,
     unknown
   >;
@@ -394,6 +394,158 @@ Deno.test("SchemaRegistry - $id lookup does not do basename matching", () => {
   }
 });
 
+Deno.test("RegistryResponseGenerator - nested anyOf in array items should not return null", () => {
+  // Reproduces the OpenAI Response schema structure with allOf at top level:
+  // Response: allOf merging multiple schemas
+  // output: array of OutputItem
+  // OutputItem: anyOf with discriminator → OutputMessage
+  // OutputMessage.content: array of OutputMessageContent
+  // OutputMessageContent: anyOf with discriminator → OutputTextContent
+  const document = {
+    components: {
+      schemas: {
+        Response: {
+          // Use allOf like the real Response schema
+          allOf: [
+            { $ref: "#/components/schemas/BaseResponse" },
+            { $ref: "#/components/schemas/ResponseExtras" },
+            {
+              type: "object",
+              properties: {
+                output: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/OutputItem" },
+                },
+              },
+              required: ["output"],
+            },
+          ],
+        },
+        BaseResponse: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            object: { type: "string", enum: ["response"] },
+          },
+          required: ["id", "object"],
+        },
+        ResponseExtras: {
+          type: "object",
+          properties: {
+            model: { type: "string" },
+            created_at: { type: "number" },
+          },
+        },
+        OutputItem: {
+          anyOf: [
+            { $ref: "#/components/schemas/OutputMessage" },
+            { $ref: "#/components/schemas/ToolCall" },
+          ],
+          discriminator: { propertyName: "type" },
+        },
+        OutputMessage: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            type: { type: "string", enum: ["message"] },
+            role: { type: "string", enum: ["assistant"] },
+            content: {
+              type: "array",
+              items: { $ref: "#/components/schemas/OutputContent" },
+            },
+            status: { type: "string", enum: ["completed"] },
+          },
+          required: ["id", "type", "role", "content", "status"],
+        },
+        OutputContent: {
+          anyOf: [
+            { $ref: "#/components/schemas/TextContent" },
+            { $ref: "#/components/schemas/RefusalContent" },
+          ],
+          discriminator: { propertyName: "type" },
+        },
+        TextContent: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: ["output_text"] },
+            text: { type: "string" },
+            annotations: {
+              type: "array",
+              items: { $ref: "#/components/schemas/Annotation" },
+            },
+          },
+          required: ["type", "text", "annotations"],
+        },
+        Annotation: {
+          type: "object",
+          properties: {
+            type: { type: "string" },
+            text: { type: "string" },
+          },
+          required: ["type", "text"],
+        },
+        RefusalContent: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: ["refusal"] },
+            refusal: { type: "string" },
+          },
+          required: ["type", "refusal"],
+        },
+        ToolCall: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: ["tool_call"] },
+            name: { type: "string" },
+          },
+          required: ["type", "name"],
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(document);
+  const generator = new RegistryResponseGenerator(registry, { seed: 42 });
+
+  const result = generator.generate(
+    "#/components/schemas/Response",
+  ) as Record<string, unknown>;
+
+  assertEquals(typeof result, "object");
+  assertEquals(Array.isArray(result.output), true);
+
+  const output = result.output as unknown[];
+  assertEquals(output.length > 0, true, "output should have at least one item");
+
+  const firstItem = output[0] as Record<string, unknown>;
+  assertEquals(
+    firstItem !== null,
+    true,
+    `output[0] should not be null, got: ${JSON.stringify(firstItem)}`,
+  );
+
+  // If it's a message type, content should not contain null
+  if (firstItem.type === "message" && Array.isArray(firstItem.content)) {
+    for (let i = 0; i < firstItem.content.length; i++) {
+      const contentItem = firstItem.content[i];
+      assertEquals(
+        contentItem !== null,
+        true,
+        `output[0].content[${i}] should not be null, got: ${
+          JSON.stringify(contentItem)
+        }`,
+      );
+      assertEquals(
+        typeof contentItem === "object",
+        true,
+        `output[0].content[${i}] should be an object, got: ${
+          JSON.stringify(contentItem)
+        }`,
+      );
+    }
+  }
+});
+
 Deno.test("RegistryResponseGenerator - allOf with nullable should return valid value", () => {
   // This mirrors the actual OpenAI tool_choice schema structure:
   // tool_choice:
@@ -448,9 +600,13 @@ Deno.test("RegistryResponseGenerator - allOf with nullable should return valid v
   // tool_choice should be one of the enum values, NOT an empty object
   const toolChoice = result.tool_choice;
   assertEquals(
-    toolChoice === "none" || toolChoice === "auto" || toolChoice === "required" ||
-    (typeof toolChoice === "object" && toolChoice !== null && "type" in toolChoice),
+    toolChoice === "none" || toolChoice === "auto" ||
+      toolChoice === "required" ||
+      (typeof toolChoice === "object" && toolChoice !== null &&
+        "type" in toolChoice),
     true,
-    `tool_choice should be 'none', 'auto', 'required', or an object with 'type', got: ${JSON.stringify(toolChoice)}`,
+    `tool_choice should be 'none', 'auto', 'required', or an object with 'type', got: ${
+      JSON.stringify(toolChoice)
+    }`,
   );
 });

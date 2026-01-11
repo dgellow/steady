@@ -413,7 +413,7 @@ function createStreamFromSchema(
           const ref = (schema as { $ref: string }).$ref;
           const resolved = registry.resolveRef(ref);
           if (resolved) {
-            item = generator.generateFromSchema(resolved.raw, ref, 0);
+            item = generator.generateFromSchema(resolved.raw, ref);
           } else {
             item = { error: `Unresolved reference: ${ref}` };
           }
@@ -423,7 +423,6 @@ function createStreamFromSchema(
               RegistryResponseGenerator["generateFromSchema"]
             >[0],
             schemaPointer,
-            0,
           );
         }
 

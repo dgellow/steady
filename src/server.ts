@@ -716,7 +716,9 @@ export class MockServer {
       let selectedContentType: string | undefined;
       if (requestAcceptHeader) {
         // Parse Accept header (e.g., "application/json, text/event-stream")
-        const acceptTypes = requestAcceptHeader.split(",").map((t) => t.split(";")[0]?.trim());
+        const acceptTypes = requestAcceptHeader.split(",").map((t) =>
+          t.split(";")[0]?.trim()
+        );
         for (const acceptType of acceptTypes) {
           if (acceptType && contentKeys.includes(acceptType)) {
             selectedContentType = acceptType;
@@ -756,7 +758,8 @@ export class MockServer {
       // Use selected content type or fall back to JSON
       const mediaType = selectedContentType
         ? responseObj.content[selectedContentType]
-        : responseObj.content["application/json"] || Object.values(responseObj.content)[0];
+        : responseObj.content["application/json"] ||
+          Object.values(responseObj.content)[0];
 
       if (mediaType) {
         contentType = selectedContentType ?? "application/json";
@@ -911,7 +914,6 @@ export class MockServer {
       `#/paths/${
         this.escapePointer(pathPattern)
       }/${method}/responses/${statusCode}/content/application~1json/schema`,
-      0,
     );
   }
 

@@ -172,9 +172,10 @@ export class RequestValidator {
       : this.formArrayFormat;
 
     const formObjectFormatHeader = req.headers.get(HEADERS.FORM_OBJECT_FORMAT);
-    const effectiveFormObjectFormat = isValidObjectFormat(formObjectFormatHeader)
-      ? formObjectFormatHeader
-      : this.formObjectFormat;
+    const effectiveFormObjectFormat =
+      isValidObjectFormat(formObjectFormatHeader)
+        ? formObjectFormatHeader
+        : this.formObjectFormat;
 
     // Validate query parameters
     const queryResolved = this.resolveParams(operation.parameters, "query");
@@ -245,7 +246,6 @@ export class RequestValidator {
       warnings,
     };
   }
-
 
   /**
    * Parse object query parameter based on format.
@@ -974,8 +974,9 @@ export class RequestValidator {
     };
 
     // Resolve "auto" to concrete formats (OpenAPI form defaults: repeat arrays, flat objects)
-    const concreteArrayFormat: ConcreteArrayFormat =
-      formArrayFormat === "auto" ? "repeat" : formArrayFormat;
+    const concreteArrayFormat: ConcreteArrayFormat = formArrayFormat === "auto"
+      ? "repeat"
+      : formArrayFormat;
     const concreteObjectFormat: ConcreteObjectFormat =
       formObjectFormat === "auto" ? "flat" : formObjectFormat;
 

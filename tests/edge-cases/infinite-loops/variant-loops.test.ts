@@ -42,7 +42,7 @@ Deno.test({
     // Should generate response without infinite loop (with timeout protection)
     const registry = new SchemaRegistry(schema);
     const generator = new RegistryResponseGenerator(registry);
-    const response = generator.generateFromSchema(schema, "#", 0);
+    const response = generator.generateFromSchema(schema, "#");
 
     // Generated response should be finite
     const responseStr = JSON.stringify(response);
@@ -155,7 +155,7 @@ Deno.test({
     // Response generation should not loop infinitely
     const registry = new SchemaRegistry(schema);
     const generator = new RegistryResponseGenerator(registry);
-    const response = generator.generateFromSchema(schema, "#", 0);
+    const response = generator.generateFromSchema(schema, "#");
     const responseStr = JSON.stringify(response);
 
     assertEquals(
@@ -409,7 +409,7 @@ Deno.test({
 
     for (let i = 0; i < 10; i++) {
       const start = performance.now();
-      const response = generator.generateFromSchema(schema, "#", 0);
+      const response = generator.generateFromSchema(schema, "#");
       const duration = performance.now() - start;
 
       // Each generation should complete quickly

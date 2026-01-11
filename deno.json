@@ -69,12 +69,14 @@
     "strictPropertyInitialization": true
   },
   "exclude": [
-    "test-fixtures/openapi-directory/"
+    "test-fixtures/openapi-directory/",
+    "sdk-tests/"
   ],
   "fmt": {
     "exclude": [
       "packages/json-schema/test-suite/",
-      "tests/fixtures/"
+      "tests/fixtures/",
+      "sdk-tests/"
     ]
   },
   "lint": {
@@ -90,7 +92,8 @@
     "exclude": [
       "oas-tools/**",
       "packages/json-schema/test-suite/",
-      "research/**"
+      "research/**",
+      "sdk-tests/**"
     ]
   }
 }
