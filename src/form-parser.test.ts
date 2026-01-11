@@ -54,7 +54,7 @@ Deno.test("parseUrlEncoded: handles URL-encoded values", () => {
 
 Deno.test("parseUrlEncoded: parses nested dot notation", () => {
   const result = parseUrlEncoded("user.name=sam&user.email=sam@example.com", {
-    nestedFormat: "dots",
+    formObjectFormat: "dots",
   });
 
   assertEquals(result.data, {
@@ -69,7 +69,7 @@ Deno.test("parseUrlEncoded: parses deeply nested dot notation", () => {
   const result = parseUrlEncoded(
     "user.address.city=NYC&user.address.zip=10001",
     {
-      nestedFormat: "dots",
+      formObjectFormat: "dots",
     },
   );
 
@@ -89,7 +89,7 @@ Deno.test("parseUrlEncoded: parses deeply nested dot notation", () => {
 
 Deno.test("parseUrlEncoded: parses bracket notation", () => {
   const result = parseUrlEncoded("user[name]=sam&user[email]=sam@example.com", {
-    nestedFormat: "brackets",
+    formObjectFormat: "brackets",
   });
 
   assertEquals(result.data, {
@@ -104,7 +104,7 @@ Deno.test("parseUrlEncoded: parses deeply nested bracket notation", () => {
   const result = parseUrlEncoded(
     "user[address][city]=NYC&user[address][zip]=10001",
     {
-      nestedFormat: "brackets",
+      formObjectFormat: "brackets",
     },
   );
 
@@ -122,7 +122,7 @@ Deno.test("parseUrlEncoded: parses array indices in bracket notation", () => {
   const result = parseUrlEncoded(
     "items[0]=first&items[1]=second&items[2]=third",
     {
-      nestedFormat: "brackets",
+      formObjectFormat: "brackets",
     },
   );
 
@@ -225,7 +225,7 @@ Deno.test("parseUrlEncoded: invalid boolean stays as string", () => {
 
 Deno.test("parseUrlEncoded: handles nested schema for type coercion", () => {
   const result = parseUrlEncoded("user.age=30&user.active=true", {
-    nestedFormat: "dots",
+    formObjectFormat: "dots",
     schema: {
       type: "object",
       properties: {
@@ -297,7 +297,7 @@ Deno.test("parseFormData: parses nested dot notation", () => {
   formData.append("user.name", "sam");
   formData.append("user.email", "sam@example.com");
 
-  const result = parseFormData(formData, { nestedFormat: "dots" });
+  const result = parseFormData(formData, { formObjectFormat: "dots" });
 
   assertEquals(result.data, {
     user: {
@@ -312,7 +312,7 @@ Deno.test("parseFormData: parses nested bracket notation", () => {
   formData.append("user[name]", "sam");
   formData.append("user[email]", "sam@example.com");
 
-  const result = parseFormData(formData, { nestedFormat: "brackets" });
+  const result = parseFormData(formData, { formObjectFormat: "brackets" });
 
   assertEquals(result.data, {
     user: {
@@ -469,7 +469,7 @@ Deno.test("isJsonMediaType: returns false for text/plain", () => {
 Deno.test("parseUrlEncoded: handles mixed nested formats", () => {
   // When format is 'dots', brackets are treated literally
   const result = parseUrlEncoded("user.info[0]=test", {
-    nestedFormat: "dots",
+    formObjectFormat: "dots",
   });
 
   assertEquals(result.data, {
@@ -484,6 +484,291 @@ Deno.test("parseUrlEncoded: creates null-prototype objects", () => {
 
   // Should not have Object.prototype methods on the result
   assertEquals(Object.getPrototypeOf(result.data), null);
+});
+
+// =============================================================================
+// anyOf/oneOf schema coercion
+// =============================================================================
+
+Deno.test("parseUrlEncoded: coerces boolean with anyOf schema", () => {
+  // OpenAI's stream property uses anyOf: [{type: boolean}, {type: null}]
+  const result = parseUrlEncoded("stream=true", {
+    schema: {
+      type: "object",
+      properties: {
+        stream: {
+          anyOf: [{ type: "boolean" }, { type: "null" }],
+        },
+      },
+    },
+  });
+
+  assertEquals(result.data, { stream: true });
+  assertEquals(typeof result.data.stream, "boolean");
+});
+
+Deno.test("parseFormData: coerces boolean with anyOf schema", () => {
+  const formData = new FormData();
+  formData.append("stream", "false");
+
+  const result = parseFormData(formData, {
+    schema: {
+      type: "object",
+      properties: {
+        stream: {
+          anyOf: [{ type: "boolean" }, { type: "null" }],
+        },
+      },
+    },
+  });
+
+  assertEquals(result.data, { stream: false });
+  assertEquals(typeof result.data.stream, "boolean");
+});
+
+Deno.test("parseUrlEncoded: coerces number with oneOf schema", () => {
+  const result = parseUrlEncoded("value=42", {
+    schema: {
+      type: "object",
+      properties: {
+        value: {
+          oneOf: [{ type: "integer" }, { type: "string" }],
+        },
+      },
+    },
+  });
+
+  assertEquals(result.data, { value: 42 });
+  assertEquals(typeof result.data.value, "number");
+});
+
+// =============================================================================
+// Form array formats (formArrayFormat option)
+// =============================================================================
+
+Deno.test("parseFormData: formArrayFormat=repeat parses repeated keys (default)", () => {
+  const formData = new FormData();
+  formData.append("tags", "red");
+  formData.append("tags", "green");
+
+  const result = parseFormData(formData, { formArrayFormat: "repeat" });
+
+  assertEquals(result.data, { tags: ["red", "green"] });
+});
+
+Deno.test("parseFormData: formArrayFormat=brackets parses PHP-style notation", () => {
+  const formData = new FormData();
+  formData.append("tags[]", "red");
+  formData.append("tags[]", "green");
+
+  const result = parseFormData(formData, { formArrayFormat: "brackets" });
+
+  assertEquals(result.data, { tags: ["red", "green"] });
+});
+
+Deno.test("parseFormData: formArrayFormat=comma parses comma-separated values", () => {
+  const formData = new FormData();
+  formData.append("tags", "red,green,blue");
+
+  const result = parseFormData(formData, {
+    formArrayFormat: "comma",
+    schema: {
+      type: "object",
+      properties: { tags: { type: "array", items: { type: "string" } } },
+    },
+  });
+
+  assertEquals(result.data, { tags: ["red", "green", "blue"] });
+});
+
+Deno.test("parseUrlEncoded: formArrayFormat=brackets parses PHP-style notation", () => {
+  const result = parseUrlEncoded("tags[]=red&tags[]=green", {
+    formArrayFormat: "brackets",
+  });
+
+  assertEquals(result.data, { tags: ["red", "green"] });
+});
+
+Deno.test("parseUrlEncoded: formArrayFormat=brackets with single value", () => {
+  const result = parseUrlEncoded("include[]=logprobs", {
+    formArrayFormat: "brackets",
+  });
+
+  assertEquals(result.data, { include: ["logprobs"] });
+});
+
+// =============================================================================
+// Form object formats (formObjectFormat option)
+// =============================================================================
+
+Deno.test("parseFormData: formObjectFormat=brackets parses deepObject notation", () => {
+  const formData = new FormData();
+  formData.append("user[name]", "sam");
+  formData.append("user[age]", "30");
+
+  const result = parseFormData(formData, { formObjectFormat: "brackets" });
+
+  assertEquals(result.data, { user: { name: "sam", age: "30" } });
+});
+
+Deno.test("parseFormData: formObjectFormat=dots parses dot notation", () => {
+  const formData = new FormData();
+  formData.append("user.name", "sam");
+  formData.append("user.age", "30");
+
+  const result = parseFormData(formData, { formObjectFormat: "dots" });
+
+  assertEquals(result.data, { user: { name: "sam", age: "30" } });
+});
+
+Deno.test("parseUrlEncoded: formObjectFormat=brackets parses deepObject notation", () => {
+  const result = parseUrlEncoded("user[name]=sam&user[age]=30", {
+    formObjectFormat: "brackets",
+  });
+
+  assertEquals(result.data, { user: { name: "sam", age: "30" } });
+});
+
+// =============================================================================
+// Combined array + object formats
+// =============================================================================
+
+Deno.test("parseFormData: brackets for both arrays and objects", () => {
+  const formData = new FormData();
+  formData.append("user[name]", "sam");
+  formData.append("tags[]", "admin");
+  formData.append("tags[]", "active");
+
+  const result = parseFormData(formData, {
+    formArrayFormat: "brackets",
+    formObjectFormat: "brackets",
+  });
+
+  assertEquals(result.data, {
+    user: { name: "sam" },
+    tags: ["admin", "active"],
+  });
+});
+
+Deno.test("parseUrlEncoded: dots for objects, brackets for arrays", () => {
+  const result = parseUrlEncoded("user.name=sam&tags[]=red&tags[]=green", {
+    formArrayFormat: "brackets",
+    formObjectFormat: "dots",
+  });
+
+  assertEquals(result.data, {
+    user: { name: "sam" },
+    tags: ["red", "green"],
+  });
+});
+
+// =============================================================================
+// Indexed bracket arrays (include[0]=value style)
+// =============================================================================
+
+Deno.test("parseFormData: indexed brackets should create flat array", () => {
+  // This is how httpx serializes arrays: include[0]=logprobs
+  const formData = new FormData();
+  formData.append("include[0]", "logprobs");
+  formData.append("model", "gpt-4o-transcribe");
+
+  const result = parseFormData(formData, {
+    formArrayFormat: "brackets",
+    formObjectFormat: "brackets",
+  });
+
+  // Should be flat array, NOT nested [["logprobs"]]
+  assertEquals(result.data, {
+    include: ["logprobs"],
+    model: "gpt-4o-transcribe",
+  });
+});
+
+Deno.test("parseFormData: multiple indexed brackets", () => {
+  const formData = new FormData();
+  formData.append("tags[0]", "red");
+  formData.append("tags[1]", "green");
+  formData.append("tags[2]", "blue");
+
+  const result = parseFormData(formData, {
+    formArrayFormat: "brackets",
+    formObjectFormat: "brackets",
+  });
+
+  assertEquals(result.data, {
+    tags: ["red", "green", "blue"],
+  });
+});
+
+Deno.test("parseUrlEncoded: indexed brackets should create flat array", () => {
+  const result = parseUrlEncoded("include[0]=logprobs&include[1]=timestamps", {
+    formArrayFormat: "brackets",
+    formObjectFormat: "brackets",
+  });
+
+  assertEquals(result.data, {
+    include: ["logprobs", "timestamps"],
+  });
+});
+
+Deno.test("parseFormData: indexed brackets with array schema should not double-wrap", () => {
+  // Schema says include is an array of strings
+  const schema = {
+    type: "object" as const,
+    properties: {
+      include: {
+        type: "array" as const,
+        items: { type: "string" as const },
+      },
+      model: { type: "string" as const },
+    },
+  };
+
+  const formData = new FormData();
+  formData.append("include[0]", "logprobs");
+  formData.append("model", "gpt-4o-transcribe");
+
+  const result = parseFormData(formData, {
+    formArrayFormat: "brackets",
+    formObjectFormat: "brackets",
+    schema,
+  });
+
+  // Should be flat array, NOT nested [["logprobs"]]
+  assertEquals(result.data, {
+    include: ["logprobs"],
+    model: "gpt-4o-transcribe",
+  });
+});
+
+Deno.test("parseFormData: PHP-style brackets with array schema should not double-wrap", () => {
+  // This is the actual bug: include[]=logprobs gets double-wrapped to [["logprobs"]]
+  const schema = {
+    type: "object" as const,
+    properties: {
+      include: {
+        type: "array" as const,
+        items: { type: "string" as const },
+      },
+      model: { type: "string" as const },
+    },
+  };
+
+  const formData = new FormData();
+  formData.append("include[]", "logprobs");
+  formData.append("model", "gpt-4o-transcribe");
+
+  const result = parseFormData(formData, {
+    formArrayFormat: "brackets",
+    formObjectFormat: "brackets",
+    schema,
+  });
+
+  // Should be ["logprobs"], NOT [["logprobs"]]
+  assertEquals(result.data, {
+    include: ["logprobs"],
+    model: "gpt-4o-transcribe",
+  });
 });
 
 console.log("Form parser tests loaded");

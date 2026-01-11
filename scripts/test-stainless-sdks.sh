@@ -7,6 +7,21 @@ SDK_DIR="$STEADY_DIR/sdk-tests"
 PORT=4010
 RESULTS=()
 
+# Per-company validator flags (query array/object format, form array/object format)
+get_validator_flags() {
+  local sdk_name="$1"
+  # Extract company from sdk name (e.g., "openai-python" -> "openai")
+  local company="${sdk_name%%-*}"
+  case "$company" in
+    openai)
+      echo "--validator-query-array-format=brackets --validator-query-object-format=brackets --validator-form-array-format=brackets --validator-form-object-format=brackets"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -70,6 +85,10 @@ test_sdk() {
     ./scripts/bootstrap 2>&1 | tail -5 || { warn "  Bootstrap failed"; }
   fi
 
+  # Get company-specific validator flags
+  local validator_flags
+  validator_flags=$(get_validator_flags "$sdk_name")
+
   # Create mock script that uses Steady
   cat > "./scripts/mock" << MOCK_EOF
 #!/usr/bin/env bash
@@ -95,7 +114,7 @@ echo "==> Starting Steady mock server with spec \${SPEC}"
 
 # Run steady mock server on port 4010
 if [ "\$1" == "--daemon" ]; then
-  deno task --cwd "$STEADY_DIR" start --host 0.0.0.0 --port 4010 "\$SPEC" &> .steady.log &
+  deno task --cwd "$STEADY_DIR" start --host 0.0.0.0 --port 4010 $validator_flags "\$SPEC" &> .steady.log &
   echo -n "Waiting for server"
   for i in {1..50}; do
     if curl --silent "http://localhost:4010" >/dev/null 2>&1; then
@@ -110,7 +129,7 @@ if [ "\$1" == "--daemon" ]; then
   cat .steady.log
   exit 1
 else
-  deno task --cwd "$STEADY_DIR" start --host 0.0.0.0 --port 4010 "\$SPEC"
+  deno task --cwd "$STEADY_DIR" start --host 0.0.0.0 --port 4010 $validator_flags "\$SPEC"
 fi
 MOCK_EOF
   chmod +x "./scripts/mock"
@@ -124,15 +143,8 @@ MOCK_EOF
   if [ -x "./scripts/test" ]; then
     log "  Running ./scripts/test..."
 
-    # Find a simple test file
-    local test_file="tests/api_resources/test_models.py"
-    if [ ! -f "$test_file" ]; then
-      test_file=$(ls tests/api_resources/test_*.py 2>/dev/null | head -1)
-    fi
-
-    if [ -n "$test_file" ]; then
-      log "  Test file: $test_file"
-      ./scripts/test "$test_file" -x -q --tb=line 2>&1 | tee "$sdk_path/.test-output.log" | tail -20
+    if [ -d "tests/api_resources" ]; then
+      ./scripts/test 2>&1 | tee "$sdk_path/.test-output.log" | tail -30
 
       # Check for failures in order of priority
       if grep -qi "ModuleNotFoundError\|ImportError" "$sdk_path/.test-output.log"; then
@@ -243,7 +255,13 @@ SDK_NAMES=(
   knock-python
 )
 
+# Filter by name if argument provided (e.g., "openai" matches "openai-python")
+FILTER="${1:-}"
+
 for sdk in "${SDK_NAMES[@]}"; do
+  if [ -n "$FILTER" ] && [[ "$sdk" != *"$FILTER"* ]]; then
+    continue
+  fi
   test_sdk "$sdk" || true
   echo
 done

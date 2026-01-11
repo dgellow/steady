@@ -322,6 +322,7 @@ export class MockServer {
       streamingOptions.generatorOptions = generatorOptions;
 
       const response = this.generateResponse(
+        req.headers.get("Accept"),
         operation,
         statusCode,
         path,
@@ -624,6 +625,7 @@ export class MockServer {
    * Generate response using the document-centric architecture
    */
   private generateResponse(
+    requestAcceptHeader: string | null,
     operation: OperationObject,
     statusCode: string,
     path: string,
@@ -660,6 +662,7 @@ export class MockServer {
       }
       // Use resolved response
       return this.generateResponseFromObject(
+        requestAcceptHeader,
         resolved.raw as ResponseObject,
         statusCode,
         path,
@@ -671,6 +674,7 @@ export class MockServer {
     }
 
     return this.generateResponseFromObject(
+      requestAcceptHeader,
       responseObjOrRef as ResponseObject,
       statusCode,
       path,
@@ -685,6 +689,7 @@ export class MockServer {
    * Generate response from a resolved ResponseObject
    */
   private generateResponseFromObject(
+    requestAcceptHeader: string | null,
     responseObj: ResponseObject,
     statusCode: string,
     path: string,
@@ -706,10 +711,32 @@ export class MockServer {
         );
       }
 
-      // Check for streaming content types first
-      const streamingContentType = contentKeys.find(isStreamingContentType);
-      if (streamingContentType) {
-        const mediaType = responseObj.content[streamingContentType];
+      // Select content type based on Accept header
+      // Priority: Accept header match > first content type in spec
+      let selectedContentType: string | undefined;
+      if (requestAcceptHeader) {
+        // Parse Accept header (e.g., "application/json, text/event-stream")
+        const acceptTypes = requestAcceptHeader.split(",").map((t) => t.split(";")[0]?.trim());
+        for (const acceptType of acceptTypes) {
+          if (acceptType && contentKeys.includes(acceptType)) {
+            selectedContentType = acceptType;
+            break;
+          }
+          // Handle wildcards like "*/*" or "application/*"
+          if (acceptType === "*/*") {
+            selectedContentType = contentKeys[0];
+            break;
+          }
+        }
+      }
+      // Default to first content type in spec
+      if (!selectedContentType) {
+        selectedContentType = contentKeys[0];
+      }
+
+      // Check if selected content type is streaming
+      if (selectedContentType && isStreamingContentType(selectedContentType)) {
+        const mediaType = responseObj.content[selectedContentType];
         if (mediaType?.schema || mediaType?.example) {
           // Pass example to streaming options for SSE event sequences
           if (mediaType.example !== undefined) {
@@ -720,20 +747,19 @@ export class MockServer {
             pathPattern,
             method,
             statusCode,
-            streamingContentType,
+            selectedContentType,
             streamingOptions,
           );
         }
       }
 
-      // Prefer JSON, then any other content type
-      const mediaType = responseObj.content["application/json"] ||
-        Object.values(responseObj.content)[0];
+      // Use selected content type or fall back to JSON
+      const mediaType = selectedContentType
+        ? responseObj.content[selectedContentType]
+        : responseObj.content["application/json"] || Object.values(responseObj.content)[0];
 
       if (mediaType) {
-        contentType = responseObj.content["application/json"]
-          ? "application/json"
-          : contentKeys[0] ?? "application/json";
+        contentType = selectedContentType ?? "application/json";
 
         // Priority 1: Explicit example
         if (mediaType.example !== undefined) {

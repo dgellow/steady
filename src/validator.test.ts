@@ -1015,6 +1015,41 @@ Deno.test("Validator: detects object schema with only patternProperties", async 
   assertEquals(result.valid, true);
 });
 
+Deno.test("Validator: queryObjectFormat=brackets works with anyOf containing object schema", async () => {
+  // OpenAI's Metadata schema uses anyOf with an object inside
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "brackets",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "metadata",
+        in: "query",
+        schema: {
+          anyOf: [
+            {
+              type: "object",
+              additionalProperties: { type: "string" },
+            },
+            { type: "null" },
+          ],
+        },
+      },
+    ],
+  };
+
+  // Should recognize metadata[key]=value as valid bracket notation
+  const req = mockRequest(
+    "http://localhost/test?metadata[foo]=bar&metadata[baz]=qux",
+  );
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+});
+
 // =============================================================================
 // Additional Array Format Tests (space, pipe)
 // =============================================================================

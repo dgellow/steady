@@ -37,6 +37,8 @@ export async function main() {
       "log-format",
       "validator-query-array-format",
       "validator-query-object-format",
+      "validator-form-array-format",
+      "validator-form-object-format",
       "generator-array-size",
       "generator-array-min",
       "generator-array-max",
@@ -120,6 +122,36 @@ export async function main() {
     Deno.exit(1);
   }
 
+  // Validate form format args
+  const formArrayFormat = args["validator-form-array-format"] as
+    | QueryArrayFormat
+    | undefined;
+  const formObjectFormat = args["validator-form-object-format"] as
+    | QueryObjectFormat
+    | undefined;
+
+  if (
+    formArrayFormat &&
+    !VALID_ARRAY_FORMATS.includes(formArrayFormat)
+  ) {
+    console.error(
+      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-form-array-format: ${formArrayFormat}`,
+    );
+    console.error(`Valid values: ${VALID_ARRAY_FORMATS.join(", ")}`);
+    Deno.exit(1);
+  }
+
+  if (
+    formObjectFormat &&
+    !VALID_OBJECT_FORMATS.includes(formObjectFormat)
+  ) {
+    console.error(
+      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-form-object-format: ${formObjectFormat}`,
+    );
+    console.error(`Valid values: ${VALID_OBJECT_FORMATS.join(", ")}`);
+    Deno.exit(1);
+  }
+
   // Parse generator options
   const generatorArraySize = args["generator-array-size"]
     ? parseInt(args["generator-array-size"], 10)
@@ -180,6 +212,8 @@ export async function main() {
       strictOneOf: args["validator-strict-oneof"],
       queryArrayFormat,
       queryObjectFormat,
+      formArrayFormat,
+      formObjectFormat,
     },
     generator: {
       arrayMin: effectiveArrayMin,
@@ -230,6 +264,8 @@ async function startServer(
       strictOneOf?: boolean;
       queryArrayFormat?: QueryArrayFormat;
       queryObjectFormat?: QueryObjectFormat;
+      formArrayFormat?: QueryArrayFormat;
+      formObjectFormat?: QueryObjectFormat;
     };
     generator?: {
       arrayMin?: number;
@@ -297,6 +333,8 @@ async function startWithWatch(
       strictOneOf?: boolean;
       queryArrayFormat?: QueryArrayFormat;
       queryObjectFormat?: QueryObjectFormat;
+      formArrayFormat?: QueryArrayFormat;
+      formObjectFormat?: QueryObjectFormat;
     };
     generator?: {
       arrayMin?: number;
@@ -451,6 +489,23 @@ Validator Options:
                              - brackets: id[role]=admin&id[firstName]=Alex (style=deepObject)
                              - dots: id.role=admin&id.firstName=Alex (non-standard, SDK compat)
 
+  --validator-form-array-format=<format>
+                             How array form fields are serialized. Maps to OpenAPI style/explode:
+                             - auto: read from OpenAPI spec's style/explode (default)
+                             - repeat: tags=a&tags=b (style=form, explode=true)
+                             - comma: tags=a,b (style=form, explode=false)
+                             - space: tags=a%20b (style=spaceDelimited)
+                             - pipe: tags=a|b (style=pipeDelimited)
+                             - brackets: tags[]=a&tags[]=b (PHP/Rails style)
+
+  --validator-form-object-format=<format>
+                             How object form fields are serialized. Maps to OpenAPI style/explode:
+                             - auto: read from OpenAPI spec's style/explode (default)
+                             - flat: name=sam&age=30 (style=form, explode=true)
+                             - flat-comma: id=role,admin,firstName,Alex (style=form, explode=false)
+                             - brackets: user[name]=sam (style=deepObject)
+                             - dots: user.name=sam (non-standard, SDK compat)
+
 Generator Options:
   --generator-array-size=<n>   Exact array size for all arrays (sets both min and max)
   --generator-array-min=<n>    Minimum array size (default: 1)
@@ -468,6 +523,8 @@ Request Headers (per-request overrides):
   X-Steady-Mode: strict|relaxed   Override validation mode for this request
   X-Steady-Query-Array-Format     Override array query format for this request
   X-Steady-Query-Object-Format    Override object query format for this request
+  X-Steady-Form-Array-Format      Override array form format for this request
+  X-Steady-Form-Object-Format     Override object form format for this request
   X-Steady-Array-Size: <n>        Override array size (sets both min and max)
   X-Steady-Array-Min: <n>         Override minimum array size
   X-Steady-Array-Max: <n>         Override maximum array size

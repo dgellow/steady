@@ -25,6 +25,10 @@ export const HEADERS = {
   QUERY_ARRAY_FORMAT: "X-Steady-Query-Array-Format",
   /** Override object query param format */
   QUERY_OBJECT_FORMAT: "X-Steady-Query-Object-Format",
+  /** Override array form data format */
+  FORM_ARRAY_FORMAT: "X-Steady-Form-Array-Format",
+  /** Override object form data format */
+  FORM_OBJECT_FORMAT: "X-Steady-Form-Object-Format",
   /** Override array size for generated responses (sets both min and max) */
   ARRAY_SIZE: "X-Steady-Array-Size",
   /** Override minimum array size for generated responses */
@@ -172,6 +176,18 @@ export interface ValidatorConfig {
    * Default: 'auto' (read from OpenAPI spec)
    */
   queryObjectFormat?: QueryObjectFormat;
+
+  /**
+   * How to parse array form data fields.
+   * Default: 'auto' (read from OpenAPI spec encoding)
+   */
+  formArrayFormat?: QueryArrayFormat;
+
+  /**
+   * How to parse object form data fields (nested properties).
+   * Default: 'auto' (read from OpenAPI spec encoding)
+   */
+  formObjectFormat?: QueryObjectFormat;
 }
 
 export interface GeneratorConfig {

@@ -393,3 +393,64 @@ Deno.test("SchemaRegistry - $id lookup does not do basename matching", () => {
     );
   }
 });
+
+Deno.test("RegistryResponseGenerator - allOf with nullable should return valid value", () => {
+  // This mirrors the actual OpenAI tool_choice schema structure:
+  // tool_choice:
+  //   allOf:
+  //     - $ref: '#/components/schemas/AssistantsApiToolChoiceOption'
+  //     - nullable: true
+  // Where AssistantsApiToolChoiceOption is:
+  // anyOf:
+  //   - type: string
+  //     enum: [none, auto, required]
+  //   - $ref to an object type
+  const document = {
+    openapi: "3.1.0",
+    info: { title: "Test", version: "1.0" },
+    paths: {},
+    components: {
+      schemas: {
+        ToolChoiceOption: {
+          anyOf: [
+            { type: "string", enum: ["none", "auto", "required"] },
+            { $ref: "#/components/schemas/NamedToolChoice" },
+          ],
+        },
+        NamedToolChoice: {
+          type: "object",
+          properties: {
+            type: { type: "string" },
+          },
+        },
+        RunObject: {
+          type: "object",
+          properties: {
+            tool_choice: {
+              allOf: [
+                { $ref: "#/components/schemas/ToolChoiceOption" },
+                { nullable: true },
+              ],
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(document);
+  const generator = new RegistryResponseGenerator(registry, { seed: 42 });
+
+  const result = generator.generate(
+    "#/components/schemas/RunObject",
+  ) as Record<string, unknown>;
+
+  // tool_choice should be one of the enum values, NOT an empty object
+  const toolChoice = result.tool_choice;
+  assertEquals(
+    toolChoice === "none" || toolChoice === "auto" || toolChoice === "required" ||
+    (typeof toolChoice === "object" && toolChoice !== null && "type" in toolChoice),
+    true,
+    `tool_choice should be 'none', 'auto', 'required', or an object with 'type', got: ${JSON.stringify(toolChoice)}`,
+  );
+});

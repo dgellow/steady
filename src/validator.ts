@@ -32,6 +32,17 @@ import {
   parseUrlEncoded,
 } from "./form-parser.ts";
 import { formatExpected } from "./logging/format-expected.ts";
+import {
+  type ConcreteArrayFormat,
+  type ConcreteObjectFormat,
+  getArrayValues,
+  hasParamValue,
+  parseBracketPath,
+  resolveArrayFormat,
+  resolveObjectFormat,
+  setNestedValue,
+  wrapURLSearchParams,
+} from "./param-format.ts";
 import type {
   QueryArrayFormat,
   QueryObjectFormat,
@@ -77,6 +88,8 @@ const MAX_BODY_SIZE = 10 * 1024 * 1024;
 export interface RequestValidatorOptions extends RegistryValidatorOptions {
   queryArrayFormat?: QueryArrayFormat;
   queryObjectFormat?: QueryObjectFormat;
+  formArrayFormat?: QueryArrayFormat;
+  formObjectFormat?: QueryObjectFormat;
 }
 
 export class RequestValidator {
@@ -84,12 +97,16 @@ export class RequestValidator {
   private registry: SchemaRegistry;
   private queryArrayFormat: QueryArrayFormat;
   private queryObjectFormat: QueryObjectFormat;
+  private formArrayFormat: QueryArrayFormat;
+  private formObjectFormat: QueryObjectFormat;
 
   constructor(registry: SchemaRegistry, options?: RequestValidatorOptions) {
     this.registry = registry;
     this.validator = new RegistryValidator(registry, options);
     this.queryArrayFormat = options?.queryArrayFormat ?? "auto";
     this.queryObjectFormat = options?.queryObjectFormat ?? "auto";
+    this.formArrayFormat = options?.formArrayFormat ?? "auto";
+    this.formObjectFormat = options?.formObjectFormat ?? "auto";
   }
 
   /**
@@ -148,6 +165,17 @@ export class RequestValidator {
       ? objectFormatHeader
       : this.queryObjectFormat;
 
+    // Check for per-request override of form formats
+    const formArrayFormatHeader = req.headers.get(HEADERS.FORM_ARRAY_FORMAT);
+    const effectiveFormArrayFormat = isValidArrayFormat(formArrayFormatHeader)
+      ? formArrayFormatHeader
+      : this.formArrayFormat;
+
+    const formObjectFormatHeader = req.headers.get(HEADERS.FORM_OBJECT_FORMAT);
+    const effectiveFormObjectFormat = isValidObjectFormat(formObjectFormatHeader)
+      ? formObjectFormatHeader
+      : this.formObjectFormat;
+
     // Validate query parameters
     const queryResolved = this.resolveParams(operation.parameters, "query");
     warnings.push(...queryResolved.warnings);
@@ -204,6 +232,8 @@ export class RequestValidator {
       const bodyValidation = await this.validateRequestBodyFromRequest(
         req,
         requestBody,
+        effectiveFormArrayFormat,
+        effectiveFormObjectFormat,
       );
       errors.push(...bodyValidation.errors);
       warnings.push(...bodyValidation.warnings);
@@ -216,136 +246,6 @@ export class RequestValidator {
     };
   }
 
-  /**
-   * Resolve array format from 'auto' to concrete format based on parameter spec.
-   * When format is 'auto', reads from OpenAPI style/explode properties.
-   */
-  private resolveArrayFormat(
-    format: QueryArrayFormat,
-    paramSpec: ParameterObject,
-  ): Exclude<QueryArrayFormat, "auto"> {
-    if (format !== "auto") {
-      return format;
-    }
-
-    // Read from OpenAPI spec's style/explode
-    const style = paramSpec.style ?? "form";
-    const explode = paramSpec.explode ?? (style === "form");
-
-    switch (style) {
-      case "form":
-        return explode ? "repeat" : "comma";
-      case "spaceDelimited":
-        return "space";
-      case "pipeDelimited":
-        return "pipe";
-      default:
-        return "repeat";
-    }
-  }
-
-  /**
-   * Resolve object format from 'auto' to concrete format based on parameter spec.
-   * When format is 'auto', reads from OpenAPI style/explode properties.
-   */
-  private resolveObjectFormat(
-    format: QueryObjectFormat,
-    paramSpec: ParameterObject,
-  ): Exclude<QueryObjectFormat, "auto"> {
-    if (format !== "auto") {
-      return format;
-    }
-
-    // Read from OpenAPI spec's style/explode
-    const style = paramSpec.style ?? "form";
-    const explode = paramSpec.explode ?? (style === "form");
-
-    switch (style) {
-      case "form":
-        return explode ? "flat" : "flat-comma";
-      case "deepObject":
-        return "brackets";
-      default:
-        return "flat";
-    }
-  }
-
-  /**
-   * Get array values from query params based on format
-   */
-  private getArrayValues(
-    params: URLSearchParams,
-    name: string,
-    format: Exclude<QueryArrayFormat, "auto">,
-  ): string[] {
-    switch (format) {
-      case "repeat":
-        // colors=red&colors=green
-        return params.getAll(name);
-      case "comma": {
-        // colors=red,green,blue
-        const value = params.get(name);
-        return value ? value.split(",") : [];
-      }
-      case "space": {
-        // colors=red%20green%20blue
-        const value = params.get(name);
-        return value ? value.split(" ") : [];
-      }
-      case "pipe": {
-        // colors=red|green|blue
-        const value = params.get(name);
-        return value ? value.split("|") : [];
-      }
-      case "brackets": {
-        // colors[]=red&colors[]=green
-        return params.getAll(`${name}[]`);
-      }
-    }
-  }
-
-  private hasParamValue(
-    params: URLSearchParams,
-    name: string,
-    isArray: boolean,
-    isObject: boolean,
-    arrayFormat: Exclude<QueryArrayFormat, "auto">,
-    objectFormat: Exclude<QueryObjectFormat, "auto">,
-  ): boolean {
-    if (isObject) {
-      switch (objectFormat) {
-        case "flat":
-          // For flat format, we can't distinguish object params from regular params
-          // without knowing the schema properties. Assume present if any param exists.
-          return params.get(name) !== null;
-        case "flat-comma": {
-          // id=role,admin,firstName,Alex
-          const value = params.get(name);
-          return value !== null && value.includes(",");
-        }
-        case "brackets": {
-          const prefix = `${name}[`;
-          for (const [key] of params) {
-            if (key.startsWith(prefix)) return true;
-          }
-          return false;
-        }
-        case "dots": {
-          const prefix = `${name}.`;
-          for (const [key] of params) {
-            if (key.startsWith(prefix)) return true;
-          }
-          return false;
-        }
-      }
-    }
-
-    if (isArray) {
-      return this.getArrayValues(params, name, arrayFormat).length > 0;
-    }
-
-    return params.get(name) !== null;
-  }
 
   /**
    * Parse object query parameter based on format.
@@ -404,13 +304,13 @@ export class RequestValidator {
 
         for (const [key, value] of params) {
           if (key.startsWith(prefix)) {
-            const path = this.parseBracketPath(key, name);
+            const path = parseBracketPath(key, name);
             if (path.length > 0) {
               const propSchema = this.getNestedPropertySchema(resolved, path);
               const coercedValue = propSchema
                 ? this.parseParamValue(value, propSchema)
                 : value;
-              this.setNestedValue(result, path, coercedValue);
+              setNestedValue(result, path, coercedValue);
             }
           }
         }
@@ -430,37 +330,13 @@ export class RequestValidator {
               const coercedValue = propSchema
                 ? this.parseParamValue(value, propSchema)
                 : value;
-              this.setNestedValue(result, path, coercedValue);
+              setNestedValue(result, path, coercedValue);
             }
           }
         }
         return result;
       }
     }
-  }
-
-  /**
-   * Parse bracket notation path: filter[meta][level] -> ["meta", "level"]
-   */
-  private parseBracketPath(key: string, baseName: string): string[] {
-    const path: string[] = [];
-    const prefix = `${baseName}[`;
-
-    if (!key.startsWith(prefix)) return path;
-
-    // Extract everything after the base name
-    const rest = key.slice(baseName.length);
-    const bracketRegex = /\[([^\]]*)\]/g;
-    let match: RegExpExecArray | null;
-
-    while ((match = bracketRegex.exec(rest)) !== null) {
-      const segment = match[1];
-      if (segment !== undefined) {
-        path.push(segment);
-      }
-    }
-
-    return path;
   }
 
   /**
@@ -488,41 +364,6 @@ export class RequestValidator {
     return current;
   }
 
-  /**
-   * Set a value in a nested object using a path array.
-   * Safe from prototype pollution when obj is created with Object.create(null).
-   */
-  private setNestedValue(
-    obj: Record<string, unknown>,
-    path: string[],
-    value: unknown,
-  ): void {
-    if (path.length === 0) return;
-
-    let current: Record<string, unknown> = obj;
-
-    for (let i = 0; i < path.length - 1; i++) {
-      const segment = path[i];
-      if (segment === undefined) continue;
-
-      if (!(segment in current)) {
-        current[segment] = Object.create(null);
-      }
-
-      const next = current[segment];
-      if (typeof next !== "object" || next === null) {
-        current[segment] = Object.create(null);
-      }
-
-      current = current[segment] as Record<string, unknown>;
-    }
-
-    const lastKey = path[path.length - 1];
-    if (lastKey !== undefined) {
-      current[lastKey] = value;
-    }
-  }
-
   private getKnownParamKeys(
     paramSpecs: ParameterObject[],
     arrayFormat: QueryArrayFormat,
@@ -536,12 +377,12 @@ export class RequestValidator {
 
     for (const spec of paramSpecs) {
       const isArray = this.isArraySchema(spec.schema);
-      const isObject = this.isObjectSchema(spec.schema);
       const resolved = this.resolveSchema(spec.schema);
+      const objectSchema = this.getObjectSchemaFromComposition(resolved);
 
       // Resolve 'auto' to concrete format for this parameter
-      const resolvedArrayFormat = this.resolveArrayFormat(arrayFormat, spec);
-      const resolvedObjectFormat = this.resolveObjectFormat(objectFormat, spec);
+      const resolvedArrayFormat = resolveArrayFormat(arrayFormat, spec);
+      const resolvedObjectFormat = resolveObjectFormat(objectFormat, spec);
 
       known.add(spec.name);
 
@@ -551,10 +392,10 @@ export class RequestValidator {
 
       // For object params, add known keys based on format
       // Note: flat and flat-comma don't add prefixed keys (they use the param name or property names directly)
-      if (isObject && resolved) {
-        if (resolvedObjectFormat === "flat" && resolved.properties) {
+      if (objectSchema) {
+        if (resolvedObjectFormat === "flat" && objectSchema.properties) {
           // In flat format, object properties become top-level params
-          for (const propName of Object.keys(resolved.properties)) {
+          for (const propName of Object.keys(objectSchema.properties)) {
             known.add(propName);
           }
         }
@@ -564,8 +405,8 @@ export class RequestValidator {
           resolvedObjectFormat === "brackets" || resolvedObjectFormat === "dots"
         ) {
           if (
-            resolved.additionalProperties !== undefined ||
-            resolved.patternProperties !== undefined
+            objectSchema.additionalProperties !== undefined ||
+            objectSchema.patternProperties !== undefined
           ) {
             if (resolvedObjectFormat === "brackets") {
               dynamicPrefixes.add(`${spec.name}[`);
@@ -575,12 +416,12 @@ export class RequestValidator {
             }
           }
 
-          if (resolved.properties) {
+          if (objectSchema.properties) {
             this.addNestedPropertyKeys(
               known,
               dynamicPrefixes,
               spec.name,
-              resolved,
+              objectSchema,
               resolvedObjectFormat,
             );
           }
@@ -654,21 +495,54 @@ export class RequestValidator {
   }
 
   /**
+   * Get the object schema variant from a schema that might use anyOf/oneOf/allOf.
+   * Returns the first object variant found, or undefined if no object variant exists.
+   */
+  private getObjectSchemaFromComposition(
+    schema: SchemaObject | undefined,
+  ): SchemaObject | undefined {
+    if (!schema) return undefined;
+
+    // Direct object check
+    if (
+      schema.type === "object" ||
+      schema.properties !== undefined ||
+      schema.additionalProperties !== undefined ||
+      schema.patternProperties !== undefined
+    ) {
+      return schema;
+    }
+
+    // Check anyOf/oneOf/allOf for object variant
+    for (const sub of schema.anyOf ?? []) {
+      const resolved = this.resolveSchema(sub);
+      const variant = this.getObjectSchemaFromComposition(resolved);
+      if (variant) return variant;
+    }
+    for (const sub of schema.oneOf ?? []) {
+      const resolved = this.resolveSchema(sub);
+      const variant = this.getObjectSchemaFromComposition(resolved);
+      if (variant) return variant;
+    }
+    for (const sub of schema.allOf ?? []) {
+      const resolved = this.resolveSchema(sub);
+      const variant = this.getObjectSchemaFromComposition(resolved);
+      if (variant) return variant;
+    }
+
+    return undefined;
+  }
+
+  /**
    * Check if schema is an object type
    * Checks for type: "object" or object-specific keywords (properties, additionalProperties, patternProperties)
-   * Handles schema references by resolving them first.
+   * Handles schema references and anyOf/oneOf/allOf by checking sub-schemas.
    */
   private isObjectSchema(
     schema: SchemaObject | ReferenceObject | undefined,
   ): boolean {
     const resolved = this.resolveSchema(schema);
-    if (!resolved) return false;
-    return (
-      resolved.type === "object" ||
-      resolved.properties !== undefined ||
-      resolved.additionalProperties !== undefined ||
-      resolved.patternProperties !== undefined
-    );
+    return this.getObjectSchemaFromComposition(resolved) !== undefined;
   }
 
   private validateQueryParams(
@@ -679,17 +553,18 @@ export class RequestValidator {
   ): ValidationResult {
     const errors: ValidationIssue[] = [];
     const warnings: ValidationIssue[] = [];
+    const source = wrapURLSearchParams(params);
 
     for (const spec of paramSpecs) {
       const isArrayType = this.isArraySchema(spec.schema);
       const isObjectType = this.isObjectSchema(spec.schema);
 
       // Resolve 'auto' to concrete format for this parameter
-      const resolvedArrayFormat = this.resolveArrayFormat(arrayFormat, spec);
-      const resolvedObjectFormat = this.resolveObjectFormat(objectFormat, spec);
+      const resolvedArrayFormat = resolveArrayFormat(arrayFormat, spec);
+      const resolvedObjectFormat = resolveObjectFormat(objectFormat, spec);
 
-      const hasValue = this.hasParamValue(
-        params,
+      const hasValue = hasParamValue(
+        source,
         spec.name,
         isArrayType,
         isObjectType,
@@ -718,8 +593,8 @@ export class RequestValidator {
           );
         } else if (isArrayType) {
           // Parse array values
-          const values = this.getArrayValues(
-            params,
+          const values = getArrayValues(
+            source,
             spec.name,
             resolvedArrayFormat,
           );
@@ -971,6 +846,8 @@ export class RequestValidator {
       required?: boolean;
       content?: Record<string, MediaTypeObject>;
     },
+    formArrayFormat: QueryArrayFormat,
+    formObjectFormat: QueryObjectFormat,
   ): Promise<ValidationResult> {
     const errors: ValidationIssue[] = [];
     const warnings: ValidationIssue[] = [];
@@ -1028,6 +905,8 @@ export class RequestValidator {
           req.clone(),
           mediaType,
           mediaTypeSpec,
+          formArrayFormat,
+          formObjectFormat,
         );
       } else if (isJsonMediaType(mediaType)) {
         // Read as string and parse as JSON
@@ -1080,6 +959,8 @@ export class RequestValidator {
     req: Request,
     mediaType: string,
     mediaTypeSpec: MediaTypeObject,
+    formArrayFormat: QueryArrayFormat,
+    formObjectFormat: QueryObjectFormat,
   ): Promise<unknown> {
     // Create a schema resolver function
     const resolveSchema = (
@@ -1092,12 +973,19 @@ export class RequestValidator {
       return schema;
     };
 
+    // Resolve "auto" to concrete formats (OpenAPI form defaults: repeat arrays, flat objects)
+    const concreteArrayFormat: ConcreteArrayFormat =
+      formArrayFormat === "auto" ? "repeat" : formArrayFormat;
+    const concreteObjectFormat: ConcreteObjectFormat =
+      formObjectFormat === "auto" ? "flat" : formObjectFormat;
+
     if (mediaType === "multipart/form-data") {
       // Use native FormData API - it handles boundary parsing automatically
       const formData = await req.formData();
       const parsed = parseFormData(formData, {
         schema: mediaTypeSpec.schema,
-        nestedFormat: "dots",
+        formArrayFormat: concreteArrayFormat,
+        formObjectFormat: concreteObjectFormat,
         resolveSchema,
       });
       return parsed.data;
@@ -1106,7 +994,8 @@ export class RequestValidator {
       const body = await this.readBodyWithLimit(req);
       const parsed = parseUrlEncoded(body, {
         schema: mediaTypeSpec.schema,
-        nestedFormat: "dots",
+        formArrayFormat: concreteArrayFormat,
+        formObjectFormat: concreteObjectFormat,
         resolveSchema,
       });
       return parsed.data;

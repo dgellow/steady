@@ -14,6 +14,14 @@
 
 import type { ReferenceObject, SchemaObject } from "@steady/openapi";
 import { isReference } from "./types.ts";
+import {
+  type ConcreteArrayFormat,
+  type ConcreteObjectFormat,
+  groupFormEntries,
+  isNumericString,
+  parseKeyToPath,
+  setNestedValue,
+} from "./param-format.ts";
 
 /**
  * Result of parsing form data
@@ -25,14 +33,19 @@ export interface ParsedFormData {
   files: Map<string, File | File[]>;
 }
 
+// Re-export format types for external use
+export type { ConcreteArrayFormat, ConcreteObjectFormat };
+
 /**
  * Options for form parsing
  */
 export interface FormParserOptions {
   /** Schema for type coercion (optional) */
   schema?: SchemaObject | ReferenceObject;
-  /** How to handle nested keys - 'dots' for user.name, 'brackets' for user[name] */
-  nestedFormat?: "dots" | "brackets";
+  /** How array fields are serialized. Default: 'repeat' */
+  formArrayFormat?: ConcreteArrayFormat;
+  /** How object fields are serialized. Default: 'flat' */
+  formObjectFormat?: ConcreteObjectFormat;
   /** Schema resolver function for $ref resolution */
   resolveSchema?: (
     schema: SchemaObject | ReferenceObject,
@@ -50,14 +63,29 @@ export function parseFormData(
   formData: FormData,
   options: FormParserOptions = {},
 ): ParsedFormData {
-  const { schema, nestedFormat = "dots", resolveSchema } = options;
+  const {
+    schema,
+    formArrayFormat = "repeat",
+    formObjectFormat = "flat",
+    resolveSchema,
+  } = options;
   const result: Record<string, unknown> = Object.create(null);
   const files = new Map<string, File | File[]>();
+
+  // Track which fields are explicitly arrays (brackets notation)
+  const explicitArrayFields = new Set<string>();
 
   // Group all values by field name (handles repeated fields)
   const fieldValues = new Map<string, (string | File)[]>();
 
-  for (const [key, value] of formData.entries()) {
+  for (const [rawKey, value] of formData.entries()) {
+    // Normalize key based on array format
+    let key = rawKey;
+    if (formArrayFormat === "brackets" && rawKey.endsWith("[]")) {
+      key = rawKey.slice(0, -2);
+      explicitArrayFields.add(key);
+    }
+
     const existing = fieldValues.get(key) || [];
     existing.push(value);
     fieldValues.set(key, existing);
@@ -83,7 +111,8 @@ export function parseFormData(
       const filePlaceholder = fileValues.length === 1
         ? "[File]"
         : fileValues.map(() => "[File]");
-      setNestedValue(result, key, filePlaceholder, nestedFormat);
+      const path = parseKeyToPath(key, formObjectFormat);
+      setNestedValue(result, path, filePlaceholder);
       continue;
     }
 
@@ -91,10 +120,27 @@ export function parseFormData(
     if (stringValues.length === 0) continue;
 
     // Get the schema for this property (for type coercion)
-    const propertySchema = getPropertySchema(key, schema, resolveSchema);
+    const propertySchema = getPropertySchema(key, schema, formObjectFormat, resolveSchema);
 
     // Determine if this should be an array
-    const isArrayField = shouldBeArray(propertySchema, stringValues.length);
+    const isExplicitArray = explicitArrayFields.has(key);
+    const isArrayField = isExplicitArray ||
+      shouldBeArray(propertySchema, stringValues.length);
+
+    // Handle comma format: split single value into array if schema expects array
+    if (
+      formArrayFormat === "comma" && stringValues.length === 1 &&
+      propertySchema?.type === "array"
+    ) {
+      const parts = stringValues[0]!.split(",");
+      const itemSchema = propertySchema.items && !isReference(propertySchema.items)
+        ? propertySchema.items
+        : undefined;
+      const finalValue = parts.map((v) => coerceValue(v.trim(), itemSchema));
+      const path = parseKeyToPath(key, formObjectFormat);
+      setNestedValue(result, path, finalValue);
+      continue;
+    }
 
     // Coerce values based on schema
     let finalValue: unknown;
@@ -107,7 +153,8 @@ export function parseFormData(
         : undefined;
     }
 
-    setNestedValue(result, key, finalValue, nestedFormat);
+    const path = parseKeyToPath(key, formObjectFormat);
+    setNestedValue(result, path, finalValue);
   }
 
   return { data: result, files };
@@ -124,22 +171,28 @@ export function parseUrlEncoded(
   body: string,
   options: FormParserOptions = {},
 ): ParsedFormData {
-  const { schema, nestedFormat = "dots", resolveSchema } = options;
+  const {
+    schema,
+    formArrayFormat = "repeat",
+    formObjectFormat = "flat",
+    resolveSchema,
+  } = options;
   const params = new URLSearchParams(body);
   const result: Record<string, unknown> = Object.create(null);
 
-  // Group all values by key
-  const fieldValues = new Map<string, string[]>();
+  // Use shared groupFormEntries for array format normalization
+  const stringEntries: [string, string][] = [];
   for (const [key, value] of params.entries()) {
-    const existing = fieldValues.get(key) || [];
-    existing.push(value);
-    fieldValues.set(key, existing);
+    stringEntries.push([key, value]);
   }
+  const { groups, explicitArrays } = groupFormEntries(stringEntries, formArrayFormat);
 
   // Process each field
-  for (const [key, values] of fieldValues) {
-    const propertySchema = getPropertySchema(key, schema, resolveSchema);
-    const isArrayField = shouldBeArray(propertySchema, values.length);
+  for (const [key, values] of groups) {
+    const propertySchema = getPropertySchema(key, schema, formObjectFormat, resolveSchema);
+    const isExplicitArray = explicitArrays.has(key);
+    const isArrayField = isExplicitArray ||
+      shouldBeArray(propertySchema, values.length);
 
     let finalValue: unknown;
     if (isArrayField) {
@@ -151,122 +204,11 @@ export function parseUrlEncoded(
         : undefined;
     }
 
-    setNestedValue(result, key, finalValue, nestedFormat);
+    const path = parseKeyToPath(key, formObjectFormat);
+    setNestedValue(result, path, finalValue);
   }
 
   return { data: result, files: new Map() };
-}
-
-/**
- * Set a value in a nested object using dot or bracket notation
- *
- * Examples:
- * - "user.name" → obj.user.name
- * - "user[name]" → obj.user.name
- * - "items[0]" → obj.items[0]
- * - "user[address][city]" → obj.user.address.city
- *
- * Safe from prototype pollution when obj is created with Object.create(null).
- */
-function setNestedValue(
-  obj: Record<string, unknown>,
-  key: string,
-  value: unknown,
-  format: "dots" | "brackets",
-): void {
-  // Parse the key into path segments
-  const path = parseKeyPath(key, format);
-
-  if (path.length === 0) return;
-
-  // Navigate/create the nested structure
-  let current: Record<string, unknown> = obj;
-  for (let i = 0; i < path.length - 1; i++) {
-    const segment = path[i];
-    const nextSegment = path[i + 1];
-
-    // TypeScript safety: these are guaranteed to be strings from parseKeyPath
-    if (segment === undefined || nextSegment === undefined) continue;
-
-    if (!(segment in current)) {
-      // Create object or array based on next segment
-      current[segment] = isNumericString(nextSegment)
-        ? []
-        : Object.create(null);
-    }
-
-    const next = current[segment];
-    if (typeof next !== "object" || next === null) {
-      // Can't traverse further, overwrite
-      current[segment] = isNumericString(nextSegment)
-        ? []
-        : Object.create(null);
-    }
-
-    current = current[segment] as Record<string, unknown>;
-  }
-
-  // Set the final value
-  const lastKey = path[path.length - 1];
-  if (lastKey !== undefined) {
-    current[lastKey] = value;
-  }
-}
-
-/**
- * Parse a key into path segments
- *
- * "user.name" → ["user", "name"]
- * "user[name]" → ["user", "name"]
- * "items[0]" → ["items", "0"]
- * "user[address][city]" → ["user", "address", "city"]
- * "user.address.city" → ["user", "address", "city"]
- */
-function parseKeyPath(
-  key: string,
-  format: "dots" | "brackets",
-): string[] {
-  if (format === "dots") {
-    return key.split(".");
-  }
-
-  return parseBracketPath(key);
-}
-
-/**
- * Parse bracket notation path
- * "user[address][city]" → ["user", "address", "city"]
- * "user[0]" → ["user", "0"]
- */
-function parseBracketPath(key: string): string[] {
-  const result: string[] = [];
-
-  // Match: base name, then any number of [segment] parts
-  const match = key.match(/^([^\[]+)(.*)$/);
-  if (!match || match[1] === undefined) return [key];
-
-  result.push(match[1]);
-
-  // Extract all bracketed segments
-  const brackets = match[2] ?? "";
-  const bracketRegex = /\[([^\]]*)\]/g;
-  let bracketMatch: RegExpExecArray | null;
-
-  while ((bracketMatch = bracketRegex.exec(brackets)) !== null) {
-    const segment = bracketMatch[1];
-    if (segment !== undefined) {
-      result.push(segment);
-    }
-  }
-
-  return result;
-}
-
-/**
- * Check if a string is numeric (for array index detection)
- */
-function isNumericString(s: string): boolean {
-  return /^\d+$/.test(s);
 }
 
 /**
@@ -275,6 +217,7 @@ function isNumericString(s: string): boolean {
 function getPropertySchema(
   key: string,
   schema: SchemaObject | ReferenceObject | undefined,
+  objectFormat: ConcreteObjectFormat,
   resolveSchema?: (
     schema: SchemaObject | ReferenceObject,
   ) => SchemaObject | undefined,
@@ -291,8 +234,8 @@ function getPropertySchema(
 
   if (!resolved) return undefined;
 
-  // Parse the key path
-  const path = key.includes("[") ? parseBracketPath(key) : key.split(".");
+  // Parse the key path using the specified format
+  const path = parseKeyToPath(key, objectFormat);
 
   // Navigate to the nested property schema
   let current: SchemaObject | undefined = resolved;
@@ -344,6 +287,42 @@ function shouldBeArray(
 }
 
 /**
+ * Get the primary type from a schema, handling anyOf/oneOf compositions.
+ * Returns the first non-null type found.
+ */
+function getPrimaryType(schema: SchemaObject | undefined): string {
+  if (!schema) return "string";
+
+  // Direct type check
+  if (schema.type) {
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    for (const t of types) {
+      if (t !== "null") return t;
+    }
+  }
+
+  // Check anyOf/oneOf for a type (commonly used for nullable types)
+  if (schema.anyOf) {
+    for (const sub of schema.anyOf) {
+      if (!isReference(sub)) {
+        const subType = getPrimaryType(sub);
+        if (subType !== "string") return subType;
+      }
+    }
+  }
+  if (schema.oneOf) {
+    for (const sub of schema.oneOf) {
+      if (!isReference(sub)) {
+        const subType = getPrimaryType(sub);
+        if (subType !== "string") return subType;
+      }
+    }
+  }
+
+  return "string";
+}
+
+/**
  * Coerce a string value to the appropriate type based on schema
  */
 function coerceValue(
@@ -352,15 +331,7 @@ function coerceValue(
 ): unknown {
   if (!schema) return value;
 
-  // Get the effective type (handle arrays of types)
-  const types = Array.isArray(schema.type)
-    ? schema.type
-    : schema.type
-    ? [schema.type]
-    : [];
-
-  // Find the first non-null type
-  const primaryType = types.find((t) => t !== "null") || "string";
+  const primaryType = getPrimaryType(schema);
 
   switch (primaryType) {
     case "integer":
@@ -377,14 +348,15 @@ function coerceValue(
 
     case "array":
       // If the schema expects an array but we got a single string,
-      // it might be comma-separated
+      // it might be comma-separated - split and coerce each item
       if (value.includes(",")) {
         const items = schema.items;
         return value.split(",").map((v) =>
           items && !isReference(items) ? coerceValue(v.trim(), items) : v.trim()
         );
       }
-      return [value];
+      // Don't auto-wrap single values - caller handles array structure
+      return value;
 
     case "object":
       // Try to parse as JSON

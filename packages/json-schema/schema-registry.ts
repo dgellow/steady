@@ -377,24 +377,37 @@ export class RegistryResponseGenerator {
     }
 
     if (schema.allOf?.length) {
-      const merged: Record<string, unknown> = {};
+      // Merge all subschemas into one combined schema, then generate from it
+      const merged: Schema = {};
       for (let i = 0; i < schema.allOf.length; i++) {
         const subSchema = schema.allOf[i]!;
-        // Generate from each subschema - this handles $ref, inline schemas, etc.
-        const generated = this.generateFromSchema(
-          subSchema,
-          `${pointer}/allOf/${i}`,
-          depth + 1,
-        );
-        // Merge if it's an object
-        if (
-          generated && typeof generated === "object" &&
-          !Array.isArray(generated)
-        ) {
-          Object.assign(merged, generated);
+        if (typeof subSchema === "boolean") continue;
+
+        // Resolve $ref to get the actual schema
+        let resolved: Schema = subSchema;
+        if (subSchema.$ref) {
+          const refResult = this.registry.resolveRef(subSchema.$ref);
+          if (refResult) {
+            resolved = refResult.raw as Schema;
+          }
+        }
+
+        // Deep merge schema properties
+        for (const [key, value] of Object.entries(resolved)) {
+          if (key === "properties" && merged.properties) {
+            // Merge properties objects
+            merged.properties = { ...merged.properties, ...(value as Schema["properties"]) };
+          } else if (key === "required" && merged.required) {
+            // Merge required arrays (union)
+            merged.required = [...new Set([...merged.required, ...(value as string[])])];
+          } else {
+            (merged as Record<string, unknown>)[key] = value;
+          }
         }
       }
-      return merged;
+      // Generate from merged schema (remove allOf to avoid infinite recursion)
+      const { allOf: _, ...mergedWithoutAllOf } = merged;
+      return this.generateFromSchema(mergedWithoutAllOf, pointer, depth + 1);
     }
 
     // Priority 7: Generate based on type
@@ -422,6 +435,11 @@ export class RegistryResponseGenerator {
         }
         if (schema.items || schema.prefixItems) {
           return this.generateArray(schema, pointer, depth);
+        }
+        // Schema with nullable: true but no type - return null
+        // This handles OpenAPI 3.0 style nullable modifiers in allOf
+        if (schema.nullable === true) {
+          return null;
         }
         return {};
     }
