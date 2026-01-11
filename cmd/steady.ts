@@ -32,6 +32,7 @@ export async function main() {
     ],
     string: [
       "port",
+      "host",
       "log-level",
       "log-format",
       "validator-query-array-format",
@@ -174,6 +175,7 @@ export async function main() {
     mode,
     interactive: args.interactive,
     portOverride,
+    host: args.host,
     validator: {
       strictOneOf: args["validator-strict-oneof"],
       queryArrayFormat,
@@ -223,6 +225,7 @@ async function startServer(
     mode: "strict" | "relaxed";
     interactive: boolean;
     portOverride?: number;
+    host?: string;
     validator?: {
       strictOneOf?: boolean;
       queryArrayFormat?: QueryArrayFormat;
@@ -260,7 +263,7 @@ async function startServer(
   // Create server config
   const config: ServerConfig = {
     port,
-    host: "localhost",
+    host: options.host || "localhost",
     mode: options.mode,
     verbose: options.log,
     logLevel: options.log ? options.logLevel : "summary",
@@ -289,6 +292,7 @@ async function startWithWatch(
     mode: "strict" | "relaxed";
     interactive: boolean;
     portOverride?: number;
+    host?: string;
     validator?: {
       strictOneOf?: boolean;
       queryArrayFormat?: QueryArrayFormat;
@@ -415,6 +419,7 @@ Arguments:
 
 Options:
   -p, --port <port>        Override server port (default: from spec or 3000)
+  --host <host>            Bind to specific host (default: localhost)
   -r, --auto-reload        Auto-reload on spec file changes
   -i, --interactive        Interactive mode with expandable logs
   --log-level <level>      Set logging detail: summary|details|full (default: summary)

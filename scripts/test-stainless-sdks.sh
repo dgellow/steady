@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Source rye
-source "$HOME/.rye/env" 2>/dev/null || true
+# source "$HOME/.rye/env" 2>/dev/null || true
 
 cleanup() {
   lsof -ti:$PORT 2>/dev/null | xargs -r kill 2>/dev/null || true
@@ -44,7 +44,8 @@ test_sdk() {
   if [ -f "$sdk_path/openapi-spec.yml" ]; then
     spec="$sdk_path/openapi-spec.yml"
   elif [ -f "$sdk_path/.stats.yml" ]; then
-    local url=$(grep 'openapi_spec_url' "$sdk_path/.stats.yml" | cut -d' ' -f2)
+    local url
+    url=$(grep 'openapi_spec_url' "$sdk_path/.stats.yml" | cut -d' ' -f2)
     if [ -n "$url" ]; then
       log "  Downloading spec..."
       curl -s -o "$sdk_path/openapi-spec.yml" "$url" || { fail "  Failed to download spec"; return 1; }
@@ -94,7 +95,7 @@ echo "==> Starting Steady mock server with spec \${SPEC}"
 
 # Run steady mock server on port 4010
 if [ "\$1" == "--daemon" ]; then
-  deno task --cwd "$STEADY_DIR" start --port 4010 "\$SPEC" &> .steady.log &
+  deno task --cwd "$STEADY_DIR" start --host 0.0.0.0 --port 4010 "\$SPEC" &> .steady.log &
   echo -n "Waiting for server"
   for i in {1..50}; do
     if curl --silent "http://localhost:4010" >/dev/null 2>&1; then
@@ -109,10 +110,14 @@ if [ "\$1" == "--daemon" ]; then
   cat .steady.log
   exit 1
 else
-  deno task --cwd "$STEADY_DIR" start --port 4010 "\$SPEC"
+  deno task --cwd "$STEADY_DIR" start --host 0.0.0.0 --port 4010 "\$SPEC"
 fi
 MOCK_EOF
   chmod +x "./scripts/mock"
+
+  # Start the mock server
+  log "  Starting mock server..."
+  ./scripts/mock --daemon || { fail "  Failed to start mock server"; return 1; }
 
   # Run tests using SDK's test script
   local test_result=0
