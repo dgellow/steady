@@ -454,12 +454,13 @@ export class RequestValidator {
         known.add(`${basePath}.${propName}`);
       }
 
-      if (resolved && (resolved.type === "object" || resolved.properties)) {
+      const objectSchema = this.getObjectSchemaFromComposition(resolved);
+      if (objectSchema) {
         const nestedBase = objectFormat === "brackets"
           ? `${basePath}[${propName}]`
           : `${basePath}.${propName}`;
 
-        if (resolved.additionalProperties !== undefined) {
+        if (objectSchema.additionalProperties !== undefined) {
           if (objectFormat === "brackets") {
             dynamicPrefixes.add(`${nestedBase}[`);
           } else {
@@ -467,12 +468,12 @@ export class RequestValidator {
           }
         }
 
-        if (resolved.properties) {
+        if (objectSchema.properties) {
           this.addNestedPropertyKeys(
             known,
             dynamicPrefixes,
             nestedBase,
-            resolved,
+            objectSchema,
             objectFormat,
           );
         }
@@ -1111,16 +1112,46 @@ export class RequestValidator {
   }
 
   /**
+   * Extract all possible types from a schema, including from anyOf/oneOf/allOf variants.
+   * Returns an array of type strings.
+   */
+  private getSchemaTypes(schema?: SchemaObject | ReferenceObject): string[] {
+    const resolved = this.resolveSchema(schema);
+    if (!resolved) return [];
+
+    // Direct type declaration
+    if (resolved.type) {
+      return Array.isArray(resolved.type) ? resolved.type : [resolved.type];
+    }
+
+    // Check anyOf/oneOf/allOf for type variants
+    const types = new Set<string>();
+    for (const sub of resolved.anyOf ?? []) {
+      for (const t of this.getSchemaTypes(sub)) {
+        types.add(t);
+      }
+    }
+    for (const sub of resolved.oneOf ?? []) {
+      for (const t of this.getSchemaTypes(sub)) {
+        types.add(t);
+      }
+    }
+    for (const sub of resolved.allOf ?? []) {
+      for (const t of this.getSchemaTypes(sub)) {
+        types.add(t);
+      }
+    }
+
+    return [...types];
+  }
+
+  /**
    * Check if a schema represents an array type
    * Handles schema references by resolving them first.
    */
   private isArraySchema(schema?: SchemaObject | ReferenceObject): boolean {
-    const resolved = this.resolveSchema(schema);
-    if (!resolved) return false;
-    if (Array.isArray(resolved.type)) {
-      return resolved.type.includes("array");
-    }
-    return resolved.type === "array";
+    const types = this.getSchemaTypes(schema);
+    return types.includes("array");
   }
 
   /**
@@ -1130,17 +1161,20 @@ export class RequestValidator {
   private parseParamValue(
     value: string,
     schema: SchemaObject | ReferenceObject,
+    issues?: ValidationIssue[],
+    paramPath?: string,
   ): unknown {
-    const resolved = this.resolveSchema(schema);
-    // If we can't resolve the schema, treat as string
-    if (!resolved) return value;
+    const schemaTypes = this.getSchemaTypes(schema);
 
-    const types = Array.isArray(resolved.type)
-      ? resolved.type
-      : resolved.type
-      ? [resolved.type]
-      : ["string"];
+    // Report diagnostic if we can't determine types from schema
+    if (schemaTypes.length === 0 && issues && paramPath) {
+      issues.push({
+        path: paramPath,
+        message: "Could not determine parameter type from schema, treating as string",
+      });
+    }
 
+    const types = schemaTypes.length > 0 ? schemaTypes : ["string"];
     const type = types.find((t) => t !== "null") || "string";
 
     switch (type) {

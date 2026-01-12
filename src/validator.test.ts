@@ -1429,3 +1429,70 @@ Deno.test("Validator: invalid header format value is ignored", async () => {
 
   assertEquals(result.valid, true); // Should use config's repeat format
 });
+
+// =============================================================================
+// anyOf/oneOf Type Parsing
+// =============================================================================
+
+Deno.test("Validator: parses integer from anyOf with integer variant", async () => {
+  const validator = createValidator();
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "limit",
+        in: "query",
+        schema: {
+          anyOf: [{ type: "integer" }, { type: "null" }],
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?limit=0");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: parses number from oneOf with number variant", async () => {
+  const validator = createValidator();
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "threshold",
+        in: "query",
+        schema: {
+          oneOf: [{ type: "number" }, { type: "string" }],
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?threshold=3.14");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
+
+Deno.test("Validator: parses boolean from anyOf with boolean variant", async () => {
+  const validator = createValidator();
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "enabled",
+        in: "query",
+        schema: {
+          anyOf: [{ type: "boolean" }, { type: "null" }],
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest("http://localhost/test?enabled=true");
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+});
