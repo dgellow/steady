@@ -115,5 +115,13 @@ jobs:
         with:
           go-version: "1.22"
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Run SDK tests
-        run: deno task test:sdks --go
+        run: ./scripts/test-sdks

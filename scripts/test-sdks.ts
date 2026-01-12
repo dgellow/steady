@@ -3,20 +3,21 @@
  * Test Steady against SDK test suites
  *
  * Usage:
- *   deno run -A scripts/test-sdks.ts
- *   deno run -A scripts/test-sdks.ts --go
- *   deno run -A scripts/test-sdks.ts test-api-go
+ *   deno run -A scripts/test-sdks.ts              # Test all SDKs
+ *   deno run -A scripts/test-sdks.ts --go         # Test Go SDKs only
+ *   deno run -A scripts/test-sdks.ts --python     # Test Python SDKs only
+ *   deno run -A scripts/test-sdks.ts openai       # Test SDKs matching "openai"
  */
 
 import { parseArgs } from "@std/cli/parse-args";
 import * as path from "@std/path";
 import { ensureDir, exists } from "@std/fs";
-import { blue, green, red, yellow } from "@std/fmt/colors";
+import { blue, dim, green, red, yellow } from "@std/fmt/colors";
 
 const log = (msg: string) => console.log(`${blue("==>")} ${msg}`);
-const success = (msg: string) => console.log(`${green("✓")} ${msg}`);
-const fail = (msg: string) => console.log(`${red("✗")} ${msg}`);
-const warn = (msg: string) => console.log(`${yellow("⚠")} ${msg}`);
+const success = (msg: string) => console.log(`${green("✓")}   ${msg}`);
+const fail = (msg: string) => console.log(`${red("✗")}   ${msg}`);
+const warn = (msg: string) => console.log(`${yellow("⚠")}   ${msg}`);
 
 const STEADY_DIR = path.dirname(
   path.dirname(path.fromFileUrl(import.meta.url)),
@@ -24,17 +25,12 @@ const STEADY_DIR = path.dirname(
 const SDK_DIR = path.join(STEADY_DIR, "sdk-tests");
 const PORT = 4010;
 
-/**
- * Additional delay after mock server reports ready.
- * The bash script waits for health endpoint, but some SDKs need
- * a brief moment for their HTTP client pools to initialize.
- */
-const POST_SERVER_READY_DELAY_MS = 500;
-
 interface SDK {
   repo: string;
   name: string;
   language: "go" | "python";
+  /** Additional CLI flags for the validator */
+  validatorFlags?: string[];
 }
 
 // List of SDKs to test
@@ -44,6 +40,90 @@ const SDKS: SDK[] = [
     repo: "DefinitelyATestOrg/test-api-go",
     name: "test-api-go",
     language: "go",
+  },
+
+  // Python SDKs - AI/LLM providers
+  {
+    repo: "openai/openai-python",
+    name: "openai-python",
+    language: "python",
+    validatorFlags: [
+      "--validator-query-array-format=brackets",
+      "--validator-query-object-format=brackets",
+      "--validator-form-array-format=brackets",
+      "--validator-form-object-format=brackets",
+    ],
+  },
+  {
+    repo: "anthropics/anthropic-sdk-python",
+    name: "anthropic-sdk-python",
+    language: "python",
+  },
+  {
+    repo: "groq/groq-python",
+    name: "groq-python",
+    language: "python",
+  },
+  {
+    repo: "Cerebras/cerebras-cloud-sdk-python",
+    name: "cerebras-cloud-sdk-python",
+    language: "python",
+  },
+  {
+    repo: "meta-llama/llama-stack-client-python",
+    name: "llama-stack-client-python",
+    language: "python",
+  },
+  {
+    repo: "perplexityai/perplexity-py",
+    name: "perplexity-py",
+    language: "python",
+  },
+
+  // Python SDKs - Infrastructure
+  {
+    repo: "cloudflare/cloudflare-python",
+    name: "cloudflare-python",
+    language: "python",
+  },
+  {
+    repo: "browserbase/sdk-python",
+    name: "browserbase-python",
+    language: "python",
+  },
+
+  // Python SDKs - Fintech
+  {
+    repo: "lithic-com/lithic-python",
+    name: "lithic-python",
+    language: "python",
+  },
+  {
+    repo: "Modern-Treasury/modern-treasury-python",
+    name: "modern-treasury-python",
+    language: "python",
+  },
+  {
+    repo: "Finch-API/finch-api-python",
+    name: "finch-api-python",
+    language: "python",
+  },
+  {
+    repo: "orbcorp/orb-python",
+    name: "orb-python",
+    language: "python",
+  },
+
+  // Python SDKs - Other
+  {
+    repo: "writer/writer-python",
+    name: "writer-python",
+    language: "python",
+  },
+  {
+    repo: "knocklabs/knock-python",
+    name: "knock-python",
+    language: "python",
   },
 ];
 
@@ -81,7 +161,6 @@ async function cloneRepo(sdk: SDK): Promise<string> {
   const sdkPath = path.join(SDK_DIR, sdk.name);
 
   if (await exists(sdkPath)) {
-    log(`Using existing ${sdk.name} (rm -rf ${sdkPath} to refresh)`);
     return sdkPath;
   }
 
@@ -141,9 +220,12 @@ async function findSpec(sdkPath: string): Promise<string | null> {
 async function createMockScript(
   sdkPath: string,
   specPath: string,
+  sdk: SDK,
 ): Promise<void> {
   const scriptsDir = path.join(sdkPath, "scripts");
   await ensureDir(scriptsDir);
+
+  const validatorFlags = sdk.validatorFlags?.join(" ") ?? "";
 
   const mockScript = `#!/usr/bin/env bash
 set -e
@@ -154,12 +236,12 @@ SPEC="${specPath}"
 echo "==> Starting Steady mock server with spec \${SPEC}"
 
 if [ "$1" == "--daemon" ]; then
-  deno task --cwd "${STEADY_DIR}" start --port ${PORT} --mode relaxed --validator-query-object-format=dots "\${SPEC}" &> .steady.log &
+  deno task --cwd "${STEADY_DIR}" start --host 0.0.0.0 --port ${PORT} ${validatorFlags} "\${SPEC}" &> .steady.log &
 
   # Wait for server to come online
   echo -n "Waiting for server"
   for i in {1..50}; do
-    if curl --silent "http://localhost:${PORT}/_x-steady/health" >/dev/null 2>&1; then
+    if curl --silent "http://localhost:${PORT}" >/dev/null 2>&1; then
       echo " ready!"
       exit 0
     fi
@@ -171,7 +253,7 @@ if [ "$1" == "--daemon" ]; then
   cat .steady.log
   exit 1
 else
-  deno task --cwd "${STEADY_DIR}" start --port ${PORT} --mode relaxed --validator-query-object-format=dots "\${SPEC}"
+  deno task --cwd "${STEADY_DIR}" start --host 0.0.0.0 --port ${PORT} ${validatorFlags} "\${SPEC}"
 fi
 `;
 
@@ -193,14 +275,12 @@ async function runGoTests(sdkPath: string): Promise<boolean> {
 
   const mockResult = await mockCmd.output();
   if (!mockResult.success) {
-    fail("  Failed to start mock server");
+    fail("Failed to start mock server");
     return false;
   }
 
   // Brief delay after mock script reports ready
-  await new Promise((resolve) =>
-    setTimeout(resolve, POST_SERVER_READY_DELAY_MS)
-  );
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
   // Run go test
   const testCmd = new Deno.Command("go", {
@@ -215,9 +295,9 @@ async function runGoTests(sdkPath: string): Promise<boolean> {
   const stderr = new TextDecoder().decode(testResult.stderr);
   const output = stdout + stderr;
 
-  // Show last 50 lines
+  // Show last 30 lines
   const lines = output.trim().split("\n");
-  console.log(lines.slice(-50).join("\n"));
+  console.log(lines.slice(-30).join("\n"));
 
   // Save output for analysis
   await Deno.writeTextFile(path.join(sdkPath, ".test-output.log"), output);
@@ -225,22 +305,110 @@ async function runGoTests(sdkPath: string): Promise<boolean> {
   // Kill the server
   await killPort(PORT);
 
-  // Check results - go test output format: "ok  \t<package>" or "FAIL\t<package>"
-  const hasFailure = /^FAIL\s/m.test(output) || /FAIL\t/.test(output);
-  const hasSuccess = /^ok\s/m.test(output) || /\nok\s/.test(output);
-
-  if (hasFailure) {
-    // Show server logs on failure
+  if (!testResult.success) {
     const logPath = path.join(sdkPath, ".steady.log");
     if (await exists(logPath)) {
-      log("  Steady server log (last 20 lines):");
+      log("  Steady server log:");
       const logContent = await Deno.readTextFile(logPath);
-      console.log(logContent.split("\n").slice(-20).join("\n"));
+      console.log(dim(logContent.split("\n").slice(-5).join("\n")));
     }
+  }
+
+  return testResult.success;
+}
+
+async function runPythonTests(sdkPath: string): Promise<boolean> {
+  // Run bootstrap if available
+  const bootstrapPath = path.join(sdkPath, "scripts", "bootstrap");
+  if (await exists(bootstrapPath)) {
+    log("  Running bootstrap...");
+    const bootstrapCmd = new Deno.Command("bash", {
+      args: [bootstrapPath],
+      cwd: sdkPath,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const bootstrapResult = await bootstrapCmd.output();
+    const output = new TextDecoder().decode(bootstrapResult.stdout) +
+      new TextDecoder().decode(bootstrapResult.stderr);
+    // Show last few lines of bootstrap
+    console.log(output.trim().split("\n").slice(-5).join("\n"));
+
+    if (!bootstrapResult.success) {
+      warn("Bootstrap had issues, continuing anyway...");
+    }
+  }
+
+  // Start mock server
+  log("  Starting mock server...");
+  const mockCmd = new Deno.Command("bash", {
+    args: [path.join(sdkPath, "scripts", "mock"), "--daemon"],
+    cwd: sdkPath,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+
+  const mockResult = await mockCmd.output();
+  if (!mockResult.success) {
+    fail("Failed to start mock server");
     return false;
   }
 
-  return hasSuccess;
+  // Check if test script exists
+  const testScriptPath = path.join(sdkPath, "scripts", "test");
+  if (!(await exists(testScriptPath))) {
+    warn("No ./scripts/test found");
+    await killPort(PORT);
+    return false;
+  }
+
+  // Check if tests directory exists
+  const testsDir = path.join(sdkPath, "tests", "api_resources");
+  if (!(await exists(testsDir))) {
+    warn("No tests/api_resources directory found");
+    await killPort(PORT);
+    return false;
+  }
+
+  // Run tests
+  log("  Running ./scripts/test...");
+  const testCmd = new Deno.Command("bash", {
+    args: [testScriptPath],
+    cwd: sdkPath,
+    stdout: "piped",
+    stderr: "piped",
+    env: {
+      ...Deno.env.toObject(),
+      // Ensure tests use our mock server
+      TEST_API_BASE_URL: `http://127.0.0.1:${PORT}`,
+    },
+  });
+
+  const testResult = await testCmd.output();
+  const stdout = new TextDecoder().decode(testResult.stdout);
+  const stderr = new TextDecoder().decode(testResult.stderr);
+  const output = stdout + stderr;
+
+  // Save output
+  await Deno.writeTextFile(path.join(sdkPath, ".test-output.log"), output);
+
+  // Show last 30 lines
+  const lines = output.trim().split("\n");
+  console.log(lines.slice(-30).join("\n"));
+
+  // Show steady server log
+  const logPath = path.join(sdkPath, ".steady.log");
+  if (await exists(logPath)) {
+    log("  Steady server log:");
+    const logContent = await Deno.readTextFile(logPath);
+    console.log(dim(logContent.split("\n").slice(-5).join("\n")));
+  }
+
+  // Kill the server
+  await killPort(PORT);
+
+  return testResult.success;
 }
 
 async function testSDK(sdk: SDK): Promise<TestResult> {
@@ -251,24 +419,25 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
     const specPath = await findSpec(sdkPath);
 
     if (!specPath) {
-      fail("  No OpenAPI spec found");
+      fail("No OpenAPI spec found");
       return { name: sdk.name, passed: false, error: "No spec found" };
     }
-    success(`  Spec ready: ${specPath}`);
+    success("Spec ready");
 
     // Kill any existing server
     await killPort(PORT);
 
     // Create mock script
-    await createMockScript(sdkPath, specPath);
-    success("  Mock script created (using Steady)");
+    await createMockScript(sdkPath, specPath, sdk);
 
     // Run tests based on language
     let passed = false;
     if (sdk.language === "go") {
       passed = await runGoTests(sdkPath);
+    } else if (sdk.language === "python") {
+      passed = await runPythonTests(sdkPath);
     } else {
-      warn(`  Language ${sdk.language} not yet supported`);
+      warn(`Language ${sdk.language} not yet supported`);
       return { name: sdk.name, passed: false, error: "Language not supported" };
     }
 
@@ -276,14 +445,14 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
     await killPort(PORT);
 
     if (passed) {
-      success(`  ${sdk.name} PASSED`);
+      success(`${sdk.name} passed`);
       return { name: sdk.name, passed: true };
     } else {
-      fail(`  ${sdk.name} FAILED`);
+      fail(`${sdk.name} failed`);
       return { name: sdk.name, passed: false };
     }
   } catch (error) {
-    fail(`  ${sdk.name} ERROR: ${error}`);
+    fail(`${sdk.name} ERROR: ${error}`);
     return { name: sdk.name, passed: false, error: String(error) };
   }
 }
@@ -300,23 +469,26 @@ async function main() {
 Steady SDK Compatibility Test Runner
 
 Usage:
-  deno run -A scripts/test-sdks.ts [options] [sdk-name]
+  deno run -A scripts/test-sdks.ts [options] [filter]
 
 Options:
   --go        Test only Go SDKs
-  --python    Test only Python SDKs (not yet implemented)
+  --python    Test only Python SDKs
   -h, --help  Show this help
+
+Filter:
+  Optionally provide a string to filter SDK names (e.g., "openai", "anthropic")
 
 Examples:
   deno run -A scripts/test-sdks.ts              # Test all SDKs
   deno run -A scripts/test-sdks.ts --go         # Test Go SDKs only
-  deno run -A scripts/test-sdks.ts test-api-go  # Test specific SDK
+  deno run -A scripts/test-sdks.ts --python     # Test Python SDKs only
+  deno run -A scripts/test-sdks.ts openai       # Test SDKs matching "openai"
 `);
     Deno.exit(0);
   }
 
   log("Steady SDK Compatibility Test Runner");
-  log(`Using Steady from: ${STEADY_DIR}`);
   console.log();
 
   // Create SDK directory
@@ -327,18 +499,25 @@ Examples:
   let sdksToTest = SDKS;
 
   if (sdkFilter) {
-    sdksToTest = SDKS.filter((sdk) => sdk.name === sdkFilter);
+    sdksToTest = SDKS.filter((sdk) =>
+      sdk.name.toLowerCase().includes(sdkFilter.toLowerCase())
+    );
     if (sdksToTest.length === 0) {
-      fail(`SDK not found: ${sdkFilter}`);
+      fail(`No SDKs matching: ${sdkFilter}`);
+      console.log("\nAvailable SDKs:");
+      for (const sdk of SDKS) {
+        console.log(`  ${sdk.name} (${sdk.language})`);
+      }
       Deno.exit(1);
     }
-  } else if (args.go) {
-    sdksToTest = SDKS.filter((sdk) => sdk.language === "go");
-  } else if (args.python) {
-    sdksToTest = SDKS.filter((sdk) => sdk.language === "python");
   }
 
-  console.log();
+  if (args.go) {
+    sdksToTest = sdksToTest.filter((sdk) => sdk.language === "go");
+  } else if (args.python) {
+    sdksToTest = sdksToTest.filter((sdk) => sdk.language === "python");
+  }
+
   log("Running tests...");
   console.log();
 

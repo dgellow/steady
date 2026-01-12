@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Light wrapper around deno to run SDK tests
+# Usage: ./scripts/test-sdks [options] [filter]
+cd "$(dirname "$0")/.."
+exec deno run -A scripts/test-sdks.ts "$@"
