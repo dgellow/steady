@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.8.0
+
+### Features
+
+- support query strings in OpenAPI path definitions <details><summary>Details</summary>
+  Some APIs (like Anthropic) define paths with embedded query strings
+  (e.g., /files?beta=true) to distinguish between different API versions.<br>
+  - Parse query strings from paths during route compilation
+  - Match routes based on both path and required query params
+  - Pass consumed query params to validator to avoid false "unknown param" errors
+  - Add tests for query string in path matching
+</details>
+
+- add form data format options and fix allOf schema merging <details><summary>Details</summary>
+  - Add CLI flags for form data array/object formats (--validator-form-array-format,
+    --validator-form-object-format) matching existing query param format options
+  - Extract shared param-format.ts module for array/object serialization logic
+  - Fix form data double-wrapping bug where arrays like `include: [["logprobs"]]`
+    were generated instead of `include: ["logprobs"]`
+  - Fix allOf schema merging in response generator - now properly merges schemas
+    before generating, instead of generating from each subschema separately
+  - Add tests for allOf with nullable, form data formats, and bracket notation
+</details>
+
+- add --host CLI flag to fix IPv4/IPv6 binding issue <details><summary>Details</summary>
+  The server was binding to "localhost" which on macOS resolves to IPv6
+  only, causing connection refused errors when SDKs connect to 127.0.0.1.<br>
+  - Add --host flag to specify bind address (default: localhost)
+  - Update test script to use --host 0.0.0.0 for dual-stack support
+  - Fix test script to actually start mock server before running tests
+</details>
+
+
+### Bug Fixes
+
+- extract types from anyOf/oneOf/allOf for query param parsing <details><summary>Details</summary>
+  When a query parameter schema uses anyOf/oneOf (e.g., `anyOf: [{type: "integer"}, {type: "null"}]`),
+  the validator wasn't recognizing the types and defaulted to string. This caused values like `limit=0`
+  to fail validation because "0" was kept as a string instead of being parsed as an integer.<br>
+  - Add `getSchemaTypes()` helper to extract types from composition schemas
+  - Update `isArraySchema()` and `parseParamValue()` to use the helper
+  - Update `addNestedPropertyKeys()` to use `getObjectSchemaFromComposition()`
+  - Add diagnostic when schema types cannot be determined
+</details>
+
+- add rye to CI for SDK tests
+- remove maxDepth limit from response generator <details><summary>Details</summary>
+  The maxDepth limit was causing null values to be generated for deeply
+  nested schemas (like OpenAI's Response schema with 11+ levels). The
+  cycle detection via the visited set is sufficient - maxDepth was
+  redundant and harmful for legitimate deep schemas.<br>
+  Changes:
+  - Remove maxDepth field and parameter from RegistryResponseGenerator
+  - Remove depth parameter from generateFromSchema, generateArray, generateObject
+  - Update all call sites to remove depth argument
+  - Add test for deeply nested anyOf in array items
+</details>
+
+
+### Code Refactoring
+
+- merge SDK test scripts into single TypeScript implementation <details><summary>Details</summary>
+  - Combine test-stainless-sdks.sh and test-sdks.ts into one unified script
+  - Add light wrapper ./scripts/test-sdks for convenience
+  - Use exit codes instead of parsing output text for pass/fail detection
+  - Update CI to run all SDK tests (Go + Python) instead of just Go
+  - Add Python 3.12 and uv setup to CI workflow
+</details>
+
+
+### Chores
+
+- update OpenAPI fixtures and test-suite submodule
+
 ## 0.7.1
 
 ### Chores
