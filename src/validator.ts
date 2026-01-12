@@ -149,6 +149,7 @@ export class RequestValidator {
     req: Request,
     operation: OperationObject,
     pathParams: Record<string, string>,
+    consumedQueryParams?: string[],
   ): Promise<ValidationResult> {
     const errors: ValidationIssue[] = [];
     const warnings: ValidationIssue[] = [];
@@ -180,12 +181,13 @@ export class RequestValidator {
     // Validate query parameters
     const queryResolved = this.resolveParams(operation.parameters, "query");
     warnings.push(...queryResolved.warnings);
-    if (queryResolved.params.length > 0) {
+    if (queryResolved.params.length > 0 || consumedQueryParams) {
       const queryValidation = await this.validateQueryParams(
         url.searchParams,
         queryResolved.params,
         effectiveArrayFormat,
         effectiveObjectFormat,
+        consumedQueryParams,
       );
       errors.push(...queryValidation.errors);
       warnings.push(...queryValidation.warnings);
@@ -550,6 +552,7 @@ export class RequestValidator {
     paramSpecs: ParameterObject[],
     arrayFormat: QueryArrayFormat,
     objectFormat: QueryObjectFormat,
+    consumedQueryParams?: string[],
   ): ValidationResult {
     const errors: ValidationIssue[] = [];
     const warnings: ValidationIssue[] = [];
@@ -631,6 +634,9 @@ export class RequestValidator {
     for (const [key] of params) {
       // Check if key is known directly
       if (knownParams.has(key)) continue;
+
+      // Check if key was consumed by route matching (e.g., /files?beta=true)
+      if (consumedQueryParams?.includes(key)) continue;
 
       // Check if key matches any dynamic prefix (for additionalProperties/patternProperties)
       let isDynamic = false;

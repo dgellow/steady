@@ -65,6 +65,7 @@ interface CompiledPath {
   pathItem: PathItemObject;
   segments: PathSegment[];
   segmentCount: number;
+  requiredQuery?: Record<string, string>;
 }
 
 export class MockServer {
@@ -80,7 +81,8 @@ export class MockServer {
   private failedCount = 0;
 
   // Pre-compiled routes for O(1) exact matches and efficient pattern matching
-  private exactRoutes = new Map<string, PathItemObject>();
+  // exactRoutes: basePath -> array of routes (to handle /files and /files?beta=true)
+  private exactRoutes = new Map<string, CompiledPath[]>();
   private patternRoutes: CompiledPath[] = [];
 
   constructor(
@@ -121,24 +123,55 @@ export class MockServer {
    */
   private compileRoutes(): void {
     for (const [pattern, pathItem] of Object.entries(this.spec.paths)) {
-      // Check if this is an exact path (no parameters)
-      if (!pattern.includes("{")) {
-        this.exactRoutes.set(pattern, pathItem);
+      // Parse query string from path if present (e.g., /files?beta=true)
+      const queryIndex = pattern.indexOf("?");
+      const basePath = queryIndex >= 0 ? pattern.slice(0, queryIndex) : pattern;
+      const requiredQuery = queryIndex >= 0
+        ? Object.fromEntries(new URLSearchParams(pattern.slice(queryIndex + 1)))
+        : undefined;
+
+      if (!basePath.includes("{")) {
+        // Exact path - store in map by base path
+        const entry: CompiledPath = {
+          pattern,
+          pathItem,
+          segments: [],
+          segmentCount: 0,
+          requiredQuery,
+        };
+        const existing = this.exactRoutes.get(basePath) ?? [];
+        existing.push(entry);
+        this.exactRoutes.set(basePath, existing);
       } else {
-        // Compile the pattern using shared utility
-        const compiled = compilePathPattern(pattern);
+        // Parameterized path
+        const compiled = compilePathPattern(basePath);
         this.patternRoutes.push({
           ...compiled,
+          pattern,
           pathItem,
+          requiredQuery,
         });
       }
     }
 
+    // Sort exact route entries: routes with requiredQuery first (more specific)
+    for (const entries of this.exactRoutes.values()) {
+      entries.sort((a, b) => {
+        if (a.requiredQuery && !b.requiredQuery) return -1;
+        if (!a.requiredQuery && b.requiredQuery) return 1;
+        return 0;
+      });
+    }
+
     // Sort pattern routes by specificity (more literal segments first)
+    // Then by requiredQuery presence (more specific first)
     this.patternRoutes.sort((a, b) => {
       const aLiterals = a.segments.filter((s) => s.type === "literal").length;
       const bLiterals = b.segments.filter((s) => s.type === "literal").length;
-      return bLiterals - aLiterals;
+      if (bLiterals !== aLiterals) return bLiterals - aLiterals;
+      if (a.requiredQuery && !b.requiredQuery) return -1;
+      if (!a.requiredQuery && b.requiredQuery) return 1;
+      return 0;
     });
   }
 
@@ -272,14 +305,15 @@ export class MockServer {
     const effectiveMode = this.getEffectiveMode(req);
 
     try {
-      const { operation, statusCode, pathPattern, pathParams } = this
-        .findOperation(path, method);
+      const { operation, statusCode, pathPattern, pathParams, consumedQueryParams } =
+        this.findOperation(path, method, url.searchParams);
 
       // Validate request
       const validation = await this.validator.validateRequest(
         req,
         operation,
         pathParams,
+        consumedQueryParams,
       );
 
       // Track request count
@@ -521,29 +555,62 @@ export class MockServer {
   }
 
   /**
+   * Check if request query params satisfy route's required query params
+   */
+  private matchesQueryRequirements(
+    requestQuery: URLSearchParams,
+    requiredQuery?: Record<string, string>,
+  ): boolean {
+    if (!requiredQuery) return true;
+    for (const [key, value] of Object.entries(requiredQuery)) {
+      if (requestQuery.get(key) !== value) return false;
+    }
+    return true;
+  }
+
+  /**
    * Find matching operation using pre-compiled routes
    */
   private findOperation(
     path: string,
     method: string,
+    query: URLSearchParams,
   ): {
     operation: OperationObject;
     statusCode: string;
     pathPattern: string;
     pathParams: Record<string, string>;
+    consumedQueryParams?: string[];
   } {
     // Try exact match first (O(1) lookup)
-    const exactMatch = this.exactRoutes.get(path);
-    if (exactMatch) {
-      const operation = this.getOperationForMethod(exactMatch, method, path);
-      const statusCode = this.selectStatusCode(operation);
-      return { operation, statusCode, pathPattern: path, pathParams: {} };
+    const exactMatches = this.exactRoutes.get(path);
+    if (exactMatches) {
+      // Routes are sorted: requiredQuery first, then no requiredQuery
+      for (const entry of exactMatches) {
+        if (this.matchesQueryRequirements(query, entry.requiredQuery)) {
+          const operation = this.getOperationForMethod(
+            entry.pathItem,
+            method,
+            entry.pattern,
+          );
+          const statusCode = this.selectStatusCode(operation);
+          return {
+            operation,
+            statusCode,
+            pathPattern: entry.pattern,
+            pathParams: {},
+            consumedQueryParams: entry.requiredQuery
+              ? Object.keys(entry.requiredQuery)
+              : undefined,
+          };
+        }
+      }
     }
 
     // Try pattern matching with pre-compiled routes using shared utility
     for (const compiled of this.patternRoutes) {
       const params = matchCompiledPath(path, compiled);
-      if (params) {
+      if (params && this.matchesQueryRequirements(query, compiled.requiredQuery)) {
         const operation = this.getOperationForMethod(
           compiled.pathItem,
           method,
@@ -555,6 +622,9 @@ export class MockServer {
           statusCode,
           pathPattern: compiled.pattern,
           pathParams: params,
+          consumedQueryParams: compiled.requiredQuery
+            ? Object.keys(compiled.requiredQuery)
+            : undefined,
         };
       }
     }

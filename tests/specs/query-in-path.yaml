@@ -1,0 +1,77 @@
+openapi: "3.0.0"
+info:
+  title: Query String in Path Test
+  version: "1.0.0"
+paths:
+  /files:
+    get:
+      operationId: listFiles
+      responses:
+        "200":
+          description: List files
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [type]
+                properties:
+                  type:
+                    type: string
+                    example: "standard"
+  /files?beta=true:
+    get:
+      operationId: listFilesBeta
+      responses:
+        "200":
+          description: List files (beta)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [type]
+                properties:
+                  type:
+                    type: string
+                    example: "beta"
+  /models/{model_id}:
+    get:
+      operationId: getModel
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Get model
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [type]
+                properties:
+                  type:
+                    type: string
+                    example: "standard"
+  /models/{model_id}?beta=true:
+    get:
+      operationId: getModelBeta
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Get model (beta)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [type]
+                properties:
+                  type:
+                    type: string
+                    example: "beta"

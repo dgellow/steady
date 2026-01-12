@@ -607,3 +607,85 @@ Deno.test(
     });
   },
 );
+
+// =============================================================================
+// Query Strings in Paths
+// =============================================================================
+
+const QUERY_PATH_SPEC = "./tests/specs/query-in-path.yaml";
+
+async function withQueryPathServer(
+  fn: (server: MockServer, baseUrl: string) => Promise<void>,
+): Promise<void> {
+  const spec = await parseSpecFromFile(QUERY_PATH_SPEC);
+  const port = 3100 + Math.floor(Math.random() * 900);
+  const server = new MockServer(spec, {
+    port,
+    host: "localhost",
+    mode: "strict",
+    verbose: false,
+    logLevel: "summary",
+    interactive: false,
+  });
+
+  server.start();
+  await new Promise((r) => setTimeout(r, 10));
+  try {
+    await fn(server, `http://localhost:${port}`);
+  } finally {
+    server.stop();
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
+Deno.test({
+  name: "Server: matches path with query string when query param present",
+  ...serverTestOpts,
+}, async () => {
+  await withQueryPathServer(async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/files?beta=true`);
+    assertEquals(response.status, 200);
+
+    const data = await response.json();
+    assertEquals(data.type, "beta");
+  });
+});
+
+Deno.test({
+  name: "Server: matches path without query string when query param absent",
+  ...serverTestOpts,
+}, async () => {
+  await withQueryPathServer(async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/files`);
+    assertEquals(response.status, 200);
+
+    const data = await response.json();
+    assertEquals(data.type, "standard");
+  });
+});
+
+Deno.test({
+  name: "Server: matches parameterized path with query string",
+  ...serverTestOpts,
+}, async () => {
+  await withQueryPathServer(async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/models/abc?beta=true`);
+    assertEquals(response.status, 200);
+
+    const data = await response.json();
+    assertEquals(data.type, "beta");
+  });
+});
+
+Deno.test({
+  name: "Server: matches parameterized path without query string",
+  ...serverTestOpts,
+}, async () => {
+  await withQueryPathServer(async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/models/abc`);
+    assertEquals(response.status, 200);
+
+    const data = await response.json();
+    assertEquals(data.type, "standard");
+  });
+});
