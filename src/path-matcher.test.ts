@@ -251,3 +251,80 @@ Deno.test("matchPathPattern: handles longer embedded parameter values", () => {
 
   assertEquals(result, { version: "123", userId: "user-456" });
 });
+
+// =============================================================================
+// File Extension Path Tests
+// =============================================================================
+
+Deno.test("compilePathPattern: compiles literal path with file extension", () => {
+  const compiled = compilePathPattern("/openapi.json");
+
+  assertEquals(compiled.pattern, "/openapi.json");
+  assertEquals(compiled.segmentCount, 1);
+  assertEquals(compiled.segments, [
+    { type: "literal", value: "openapi.json" },
+  ]);
+});
+
+Deno.test("compilePathPattern: compiles parameterized path with file extension suffix", () => {
+  const compiled = compilePathPattern("/{filename}.json");
+
+  assertEquals(compiled.pattern, "/{filename}.json");
+  assertEquals(compiled.segmentCount, 1);
+  assertEquals(compiled.segments, [
+    { type: "mixed", prefix: "", paramName: "filename", suffix: ".json" },
+  ]);
+});
+
+Deno.test("matchPathPattern: matches literal path with file extension", () => {
+  const result = matchPathPattern("/openapi.json", "/openapi.json");
+  assertEquals(result, {});
+});
+
+Deno.test("matchPathPattern: extracts parameter from path with file extension suffix", () => {
+  const result = matchPathPattern("/myfile.json", "/{filename}.json");
+  assertEquals(result, { filename: "myfile" });
+});
+
+Deno.test("matchPathPattern: extracts parameter from multi-segment path with file extension", () => {
+  const result = matchPathPattern("/files/report.json", "/files/{name}.json");
+  assertEquals(result, { name: "report" });
+});
+
+Deno.test("matchPathPattern: handles multiple dots in file extension", () => {
+  const result = matchPathPattern("/app.min.js", "/{name}.min.js");
+  assertEquals(result, { name: "app" });
+});
+
+Deno.test("matchPathPattern: extracts full filename with extension as parameter", () => {
+  // When the entire segment is a parameter, dots are preserved
+  const result = matchPathPattern("/files/report.json", "/files/{path}");
+  assertEquals(result, { path: "report.json" });
+});
+
+Deno.test("matchPathPattern: handles dots in literal path segments", () => {
+  const result = matchPathPattern("/api.v1/users", "/api.v1/users");
+  assertEquals(result, {});
+});
+
+Deno.test("matchPathPattern: extracts parameter from segment with dot in prefix", () => {
+  const result = matchPathPattern("/api.v2/users", "/api.v{version}/users");
+  assertEquals(result, { version: "2" });
+});
+
+Deno.test("matchPathPattern: returns null for file extension mismatch", () => {
+  const result = matchPathPattern("/myfile.xml", "/{filename}.json");
+  assertEquals(result, null);
+});
+
+Deno.test("matchPathPattern: returns null for empty parameter before extension", () => {
+  // /.json should not match /{filename}.json (empty filename)
+  const result = matchPathPattern("/.json", "/{filename}.json");
+  assertEquals(result, null);
+});
+
+Deno.test("matchPathPattern: handles URL-encoded dot in parameter", () => {
+  // %2E is URL-encoded dot
+  const result = matchPathPattern("/files/test%2Ejson", "/files/{name}");
+  assertEquals(result, { name: "test.json" });
+});
