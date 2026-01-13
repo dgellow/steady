@@ -9,6 +9,7 @@ import {
   type StreamingConfig,
   VALID_ARRAY_FORMATS,
   VALID_OBJECT_FORMATS,
+  VERSION,
 } from "../src/types.ts";
 
 type LogFormat = "text" | "json";
@@ -22,6 +23,7 @@ export async function main() {
   const args = parseArgs(Deno.args, {
     boolean: [
       "help",
+      "version",
       "auto-reload",
       "log-bodies",
       "log",
@@ -61,6 +63,11 @@ export async function main() {
     },
     negatable: ["log"],
   });
+
+  if (args.version) {
+    console.log(`steady ${VERSION}`);
+    Deno.exit(0);
+  }
 
   if (args.help || args._.length === 0) {
     printHelp();
@@ -471,6 +478,7 @@ Options:
   --strict                 Strict validation mode (default)
   --relaxed                Relaxed validation mode
   -h, --help               Show this help message
+  --version                Show version number
 
 Validator Options:
   --validator-strict-oneof   Require exactly one oneOf variant to match (strict JSON Schema)
