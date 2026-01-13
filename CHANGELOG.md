@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.1
+
+### Chores
+
+- Log fatal error message before shutdown <details><summary>Details</summary>
+  Print something simple to parse
+</details>
+
+
 ## 0.8.0
 
 ### Features
