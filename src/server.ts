@@ -97,11 +97,22 @@ export class MockServer {
 
     // Create logger based on mode and format
     if (config.interactive) {
-      this.logger = new TuiLogger({ level: config.logLevel, color: true });
+      this.logger = new TuiLogger({
+        level: config.logLevel,
+        color: true,
+        logBodies: config.logBodies,
+      });
     } else if (config.logFormat === "json") {
-      this.logger = new JsonLogger({ level: config.logLevel });
+      this.logger = new JsonLogger({
+        level: config.logLevel,
+        logBodies: config.logBodies,
+      });
     } else {
-      this.logger = new TextLogger({ level: config.logLevel, color: true });
+      this.logger = new TextLogger({
+        level: config.logLevel,
+        color: true,
+        logBodies: config.logBodies,
+      });
     }
 
     this.validator = new RequestValidator(

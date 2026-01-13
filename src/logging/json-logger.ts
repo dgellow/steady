@@ -16,7 +16,7 @@ export class JsonLogger extends BaseLogger {
   }
 
   request(event: RequestEvent): void {
-    const output = {
+    const output: Record<string, unknown> = {
       type: "request",
       id: event.id,
       timestamp: event.timestamp.toISOString(),
@@ -25,11 +25,17 @@ export class JsonLogger extends BaseLogger {
         path: event.request.path,
         pathPattern: event.request.pathPattern,
         query: event.request.query || undefined,
+        ...(this.shouldShowBodies() && event.request.body !== undefined
+          ? { body: event.request.body }
+          : {}),
       },
       response: {
         status: event.response.status,
         statusText: event.response.statusText,
         timing: event.response.timing,
+        ...(this.shouldShowBodies() && event.response.body !== undefined
+          ? { body: event.response.body }
+          : {}),
       },
       validation: {
         valid: event.validation.valid,

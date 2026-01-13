@@ -46,10 +46,12 @@ export interface Logger {
 export abstract class BaseLogger implements Logger {
   protected readonly level: LogLevel;
   protected readonly useColor: boolean;
+  protected readonly logBodies: boolean;
 
   constructor(options: Partial<LoggerOptions> = {}) {
     this.level = options.level ?? "summary";
     this.useColor = options.color ?? true;
+    this.logBodies = options.logBodies ?? false;
   }
 
   abstract request(event: RequestEvent): void;
@@ -64,6 +66,10 @@ export abstract class BaseLogger implements Logger {
 
   protected showFull(): boolean {
     return this.level === "full";
+  }
+
+  protected shouldShowBodies(): boolean {
+    return this.logBodies || this.level === "full";
   }
 }
 

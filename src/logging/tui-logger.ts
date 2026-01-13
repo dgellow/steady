@@ -619,7 +619,7 @@ export class TuiLogger extends BaseLogger {
     }
 
     // Request body
-    if (entry.request.body !== undefined && this.showFull()) {
+    if (entry.request.body !== undefined && this.shouldShowBodies()) {
       lines.push(`${indent}  Body:`);
       const bodyLines = this.formatBody(entry.request.body, 5);
       for (const line of bodyLines) {
@@ -707,7 +707,7 @@ export class TuiLogger extends BaseLogger {
     }
 
     // Response body
-    if (entry.response.body !== undefined && this.showFull()) {
+    if (entry.response.body !== undefined && this.shouldShowBodies()) {
       lines.push(`${indent}  Body:`);
       const bodyLines = this.formatBody(entry.response.body, 5);
       for (const line of bodyLines) {

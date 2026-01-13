@@ -178,6 +178,7 @@ export interface LoggerOptions {
   level: LogLevel;
   format: LogFormat;
   color: boolean;
+  logBodies: boolean;
 }
 
 /**

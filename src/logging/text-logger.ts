@@ -76,6 +76,16 @@ export class TextLogger extends BaseLogger {
     }
 
     console.log(line);
+
+    // Show bodies in summary mode if logBodies is enabled
+    if (this.shouldShowBodies()) {
+      if (event.request.body !== undefined) {
+        console.log(`  Request Body: ${this.formatBody(event.request.body)}`);
+      }
+      if (event.response.body !== undefined) {
+        console.log(`  Response Body: ${this.formatBody(event.response.body)}`);
+      }
+    }
   }
 
   private logDetailed(
@@ -94,7 +104,7 @@ export class TextLogger extends BaseLogger {
     // Request details
     console.log("  Request:");
     this.logHeaders(event.request.headers, "    ");
-    if (event.request.body !== undefined && this.showFull()) {
+    if (event.request.body !== undefined && this.shouldShowBodies()) {
       console.log(`    Body: ${this.formatBody(event.request.body)}`);
     }
 
@@ -107,7 +117,7 @@ export class TextLogger extends BaseLogger {
     }
 
     // Response details
-    if (this.showFull()) {
+    if (this.showFull() || this.shouldShowBodies()) {
       console.log();
       console.log("  Response:");
       this.logHeaders(event.response.headers, "    ");
