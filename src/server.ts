@@ -481,6 +481,7 @@ export class MockServer {
       valid: boolean;
       errors: import("./types.ts").ValidationIssue[];
       warnings: import("./types.ts").ValidationIssue[];
+      requestBody?: unknown;
     },
     responseHeaders?: Headers,
     responseBody?: unknown,
@@ -497,6 +498,7 @@ export class MockServer {
         pathPattern,
         query: url.search,
         headers: req.headers,
+        body: validation?.requestBody,
       },
       response: {
         status,

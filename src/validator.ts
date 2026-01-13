@@ -62,6 +62,7 @@ export interface ValidationResult {
   valid: boolean;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
+  requestBody?: unknown;
 }
 
 /**
@@ -230,22 +231,25 @@ export class RequestValidator {
     }
 
     // Validate request body (if spec defines one, validate it regardless of HTTP method)
-    const requestBody = getResolvedRequestBody(operation.requestBody);
-    if (requestBody) {
+    let parsedRequestBody: unknown;
+    const requestBodySpec = getResolvedRequestBody(operation.requestBody);
+    if (requestBodySpec) {
       const bodyValidation = await this.validateRequestBodyFromRequest(
         req,
-        requestBody,
+        requestBodySpec,
         effectiveFormArrayFormat,
         effectiveFormObjectFormat,
       );
       errors.push(...bodyValidation.errors);
       warnings.push(...bodyValidation.warnings);
+      parsedRequestBody = bodyValidation.requestBody;
     }
 
     return {
       valid: errors.length === 0,
       errors,
       warnings,
+      requestBody: parsedRequestBody,
     };
   }
 
@@ -932,7 +936,7 @@ export class RequestValidator {
       );
       this.collectErrors(validation, errors);
 
-      return { valid: errors.length === 0, errors, warnings };
+      return { valid: errors.length === 0, errors, warnings, requestBody: parsedBody };
     } catch (error) {
       if (error instanceof BodyTooLargeError) {
         errors.push({
