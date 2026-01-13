@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.12.0
+
+### Features
+
+- add --version flag to CLI <details><summary>Details</summary>
+  Print version number and exit when --version is passed.
+</details>
+
+
+### Bug Fixes
+
+- --log-bodies flag now correctly shows request/response bodies <details><summary>Details</summary>
+  The logBodies option was defined in config but never passed to loggers.<br>
+  Changes:
+  - Add logBodies to LoggerOptions interface
+  - Add shouldShowBodies() helper to BaseLogger
+  - Pass logBodies from ServerConfig to all logger constructors
+  - Update TextLogger, TuiLogger, JsonLogger to use shouldShowBodies()
+  - Add tests for logBodies behavior in summary mode
+</details>
+
+
+### Tests
+
+- add comprehensive tests for file extension paths <details><summary>Details</summary>
+  Verify path matching works correctly with file extensions:
+  - Literal paths (/openapi.json)
+  - Parameterized paths with extension suffix (/{filename}.json)
+  - Multi-segment paths (/files/{name}.json)
+  - Multiple dots (/{name}.min.js)
+  - Dots in prefixes (/api.v{version}/users)
+  - Extension mismatches and edge cases
+</details>
+
+
 ## 0.11.0
 
 ### Features
