@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.0
+
+### Features
+
+- add descriptive server startup message <details><summary>Details</summary>
+  Display "Steady server listening on &lt;url&gt; (&lt;mode&gt; mode)" on startup
+  for clearer feedback when the server begins accepting connections.
+</details>
+
+
 Version changed from 0.10.0-alpha.0 to 0.10.0
 
 Version changed from 0.9.0 to 0.10.0-alpha.0
