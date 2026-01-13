@@ -366,7 +366,7 @@ export class MockServer {
       const streamingOptions = this.getEffectiveStreamingOptions(req);
       streamingOptions.generatorOptions = generatorOptions;
 
-      const response = this.generateResponse(
+      const { response, body: responseBody } = this.generateResponse(
         req.headers.get("Accept"),
         operation,
         statusCode,
@@ -396,6 +396,7 @@ export class MockServer {
         timing,
         validation,
         response.headers,
+        responseBody,
       );
 
       // Add mode header to response
@@ -482,6 +483,7 @@ export class MockServer {
       warnings: import("./types.ts").ValidationIssue[];
     },
     responseHeaders?: Headers,
+    responseBody?: unknown,
   ): void {
     const url = new URL(req.url);
 
@@ -501,6 +503,7 @@ export class MockServer {
         statusText,
         timing,
         headers: responseHeaders || new Headers(),
+        body: responseBody,
       },
       validation: validation
         ? {
@@ -714,7 +717,7 @@ export class MockServer {
     pathPattern: string,
     generatorOptions: GenerateOptions,
     streamingOptions: StreamingOptions,
-  ): Response {
+  ): { response: Response; body?: unknown } {
     const responseObjOrRef = operation.responses[statusCode];
     if (!responseObjOrRef) {
       throw new MatchError("Response not defined", {
@@ -778,7 +781,7 @@ export class MockServer {
     pathPattern: string,
     generatorOptions: GenerateOptions,
     streamingOptions: StreamingOptions,
-  ): Response {
+  ): { response: Response; body?: unknown } {
     let body: unknown = null;
     let contentType = "application/json";
 
@@ -825,14 +828,18 @@ export class MockServer {
           if (mediaType.example !== undefined) {
             streamingOptions.example = mediaType.example;
           }
-          return this.generateStreamingResponse(
-            mediaType.schema,
-            pathPattern,
-            method,
-            statusCode,
-            selectedContentType,
-            streamingOptions,
-          );
+          // Streaming responses don't capture body for logging
+          return {
+            response: this.generateStreamingResponse(
+              mediaType.schema,
+              pathPattern,
+              method,
+              statusCode,
+              selectedContentType,
+              streamingOptions,
+            ),
+            body: "[streaming]",
+          };
         }
       }
 
@@ -909,13 +916,16 @@ export class MockServer {
       }
     }
 
-    return new Response(
-      bodyString,
-      {
-        status: parseInt(statusCode, 10),
-        headers,
-      },
-    );
+    return {
+      response: new Response(
+        bodyString,
+        {
+          status: parseInt(statusCode, 10),
+          headers,
+        },
+      ),
+      body,
+    };
   }
 
   /**
