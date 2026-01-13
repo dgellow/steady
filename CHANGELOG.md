@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.0
+
+### Features
+
+- log request body with --log-bodies flag <details><summary>Details</summary>
+  The validator now returns the parsed request body in ValidationResult,
+  which is then passed to the logger for display when --log-bodies is set.<br>
+  Changes:
+  - Add requestBody field to ValidationResult in validator.ts
+  - Return parsed body from validateRequestBodyFromRequest
+  - Pass request body through logRequestEvent to the event
+</details>
+
+
 ## 0.12.1
 
 ### Bug Fixes
