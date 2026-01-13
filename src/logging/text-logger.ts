@@ -239,7 +239,7 @@ export class TextLogger extends BaseLogger {
 
     // Server info
     console.log();
-    console.log(`${server.url} (${server.mode} mode)`);
+    console.log(`Steady server listening on ${server.url} (${server.mode} mode)`);
     console.log();
   }
 
