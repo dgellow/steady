@@ -245,6 +245,7 @@ export async function main() {
         }`,
       );
     }
+    console.error("FATAL ERROR, steady shutting down")
     Deno.exit(1);
   }
 }
