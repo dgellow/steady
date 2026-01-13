@@ -76,7 +76,8 @@ export async function main() {
 
   // Parse options
   const specPath = firstArg;
-  const logLevel = args["log-level"] as LogLevel;
+  // Map "debug" to "full" for undocumented -v debug alias
+  const logLevel = (args["log-level"] === "debug" ? "full" : args["log-level"]) as LogLevel;
   const logFormat = args["log-format"] as LogFormat;
   const portOverride = args.port ? parseInt(args.port, 10) : undefined;
 
