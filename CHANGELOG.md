@@ -1,5 +1,7 @@
 # Changelog
 
+Version changed from 0.10.0-alpha.0 to 0.10.0
+
 Version changed from 0.9.0 to 0.10.0-alpha.0
 
 ## 0.9.0
