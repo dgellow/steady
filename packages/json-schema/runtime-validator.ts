@@ -730,6 +730,7 @@ export class RuntimeValidator {
                 schemaPath: `${context.schemaPath}/unevaluatedItems`,
               },
               { unevaluatedItem: i },
+              "warning", // unevaluatedItems violations are warnings, not errors
             ));
           } else if (typeof schema.unevaluatedItems === "object") {
             const unevalResult = this.validateWithSchema(
@@ -1018,6 +1019,7 @@ export class RuntimeValidator {
               schemaPath: `${context.schemaPath}/unevaluatedProperties`,
             },
             { unevaluatedProperty: prop },
+            "warning", // unevaluatedProperties violations are warnings, not errors
           ));
         }
       } else if (
@@ -1307,6 +1309,7 @@ export class RuntimeValidator {
     message: string,
     context: ValidationContext,
     params: Record<string, unknown>,
+    severity?: "error" | "warning",
   ): SchemaValidationError {
     return {
       instancePath: context.instancePath,
@@ -1316,6 +1319,7 @@ export class RuntimeValidator {
       params,
       schema: this.getSchemaAtPath(context.schemaPath),
       data: this.getDataAtPath(context.root, context.instancePath),
+      severity,
     };
   }
 

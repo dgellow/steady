@@ -1,0 +1,547 @@
+# We support 3.X formats. Read about the difference between 3.0 and 3.1
+# at https://www.openapis.org/blog/2021/02/16/migrating-from-openapi-3-0-to-3-1-0
+openapi: 3.1.0
+
+# Information in this section is used in the initial guess of the Stainless config, but not read afterwards.
+# For example, contact.email is used in the initial guess of the Stainless config for determining
+# `organization.contact`, which is linked to in each of the SDKs' README.md.
+info:
+  title: Acme Developer API
+  description: >
+    The Acme Developer API is designed to provide a predictable programmatic
+    interface for accessing your Acme account through an API and transaction webhooks.
+  version: 1.0.0
+  termsOfService: 'https://acme.com/legal#terms'
+  contact:
+    email: support@acme.com
+
+# The servers here is used in the initial guess of the Stainless config for determining `environments` which
+# allows users to change between various base URLs easily.
+servers:
+  - url: https://api.acme.com/v1
+    description: Acme production API server
+  - url: https://sandbox.acme.com/v1
+    description: Sandbox environment that provides key functionality mirroring production
+
+# Tags are not used by Stainless, but are recommended for other OpenAPI tools and book-keeping.
+tags:
+  - name: Account
+  - name: Friends
+  - name: Status
+
+# Paths define the endpoints and methods, their request/response types, and more.
+paths:
+  "/oas.json":
+    get:
+      summary: Get OAS
+      operationId: get_oas_json
+      responses:
+        '200':
+          description: Success
+          content:
+            "application/json":
+              schema: {}
+  /accounts:
+    get:
+      tags:
+        - Account
+      summary: List account
+      description: List account
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginationResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Account'
+    post:
+      tags:
+        - Account
+      summary: Create account
+      description: Create account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Account'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /accounts/{account_id}:
+    get:
+      tags:
+        - Account
+      summary: Get account
+      description: Get account
+      parameters:
+        - $ref: '#/components/parameters/AccountID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountConfiguration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    put:
+      tags:
+        - Account
+      summary: Update account
+      description: |
+        Update account configuration.
+      parameters:
+        - $ref: '#/components/parameters/AccountID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Account'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /accounts/{account_id}/link:
+    post:
+      tags:
+        - Account
+      summary: Link account to external account
+      description: Link account to external account, such as a Google or Facebook Account
+      parameters:
+        - $ref: '#/components/parameters/AccountID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountLink'
+            examples:
+              GoogleAccount:
+                account_type: 'google'
+                google_account_id: '123456789'
+              FacebookAccount:
+                account_type: 'facebook'
+                google_account_id: '123456789'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountLink'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /accounts/{account_id}/friends:
+    get:
+      tags:
+        - Friends
+      summary: Get friends for this an account
+      parameters:
+        - $ref: '#/components/parameters/AccountID'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginationResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FriendResponse'
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /accounts/{account_id}/friends/{friend_id}:
+    put:
+      tags:
+        - Friends
+      summary: Add a friend to this account
+      parameters:
+        - $ref: '#/components/parameters/AccountID'
+        - $ref: '#/components/parameters/FriendID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFriendRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    delete:
+      tags:
+        - Friends
+      summary: Remove a friend from this account
+      parameters:
+        - $ref: '#/components/parameters/AccountID'
+        - $ref: '#/components/parameters/FriendID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /status:
+    get:
+      tags:
+        - Status
+      summary: API status check
+      operationId: getStatus
+      security: [] # disable security
+      responses:
+        '200':
+          description: Endpoint for users to check whether they can reach the api.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+components:
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      description: A idempotency key to make retrying operations safe.
+      schema:
+        type: string
+      examples:
+        IdempotencyKeyExample:
+          value: my-random-key-848x8e8r1
+          summary: A sample idempotency key
+    Cursor:
+      in: query
+      name: cursor
+      nullable: true
+      description: The cursor for pagination, which can be populated by the `next_cursor` value of the initial request.
+      schema:
+        type: string
+    Limit:
+      in: query
+      name: limit
+      nullable: true
+      description: The number of elements to fetch in the page. Defaults to 20 if not provided.
+      schema:
+        type: integer
+    AccountID:
+      in: path
+      name: account_id
+      required: true
+      description: Globally unique identifier for account.
+      schema:
+        type: string
+        format: uuid
+      examples:
+        AccountIDExample:
+          value: d86a0a4d-7459-471a-83b4-431136320828
+          summary: A sample account id
+    FriendID:
+      in: path
+      name: friend_id
+      required: true
+      description: Globally unique identifier for friend.
+      schema:
+        type: string
+        format: uuid
+      examples:
+        FriendIDExample:
+          value: d86a0a4d-7459-471a-83b4-431136320828
+          summary: A sample friend id
+
+  schemas:
+    PaginationResponse:
+      type: object
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+      required:
+        - has_more
+        - next_cursor
+    Address:
+      type: object
+      properties:
+        address1:
+          type: string
+          description: Valid address.
+          example: 155 Water St
+        address2:
+          type: string
+          description: Unit or apartment number (if applicable).
+        city:
+          type: string
+          description: Name of city.
+          example: New York City
+        country:
+          type: string
+          description: >
+            Valid country code, entered in uppercase ISO 3166-1 alpha-3 three-character format.
+          example: USA
+        postal_code:
+          type: string
+          description: >
+            Valid postal code. Only USA ZIP codes are currently
+            supported, entered as a five-digit ZIP or nine-digit ZIP+4.
+          example: '11217'
+        state:
+          type: string
+          description: >
+            Valid state code. Only USA state codes are currently supported,
+            entered in uppercase ISO 3166-2 two-character format.
+          example: NY
+      required:
+        - address1
+        - city
+        - country
+        - postal_code
+        - state
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        plan:
+          type: string
+          enum:
+            - FREE
+            - PREMIUM
+          description: The plan that the user is on.
+        state:
+          type: string
+          enum:
+            - ACTIVE
+            - PAUSED
+          description: Account states.
+        address:
+          $ref: '#/components/schemas/Address'
+      required:
+        - name
+    AccountConfiguration:
+      type: object
+    AccountLink:
+      oneOf:
+        - type: object
+          title: 'Google'
+          properties:
+            type:
+              const: 'google'
+            google_account_id:
+              type: 'string'
+          required:
+            - type
+            - google_account_id
+        - type: object
+          title: 'Facebook'
+          properties:
+            type:
+              const: 'facebook'
+            facebook_account_id:
+              type: 'string'
+          required:
+            - type
+            - facebook_account_id
+      discriminator:
+        propertyName: type
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        data: {}
+    CreateFriendRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          writeOnly: true
+    FriendResponse:
+      type: object
+      properties:
+        mutuals:
+          type: integer
+          readOnly: true
+        friend_since:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - mutuals
+        - friend_since
+
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: 'X-Acme-Api-Key'
+
+  responses:
+    BadRequest:
+      description: A parameter in the query given in the request does not match the valid queries for the endpoint.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: The request could not be completed due to a conflict with the current state of the target resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalServerError:
+      description: There was a processing error on the server-side.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: The specified resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: |
+        Client has exceeded the number of allowed requests in a given time period.
+
+        |   |   |
+        |---|---|
+        | Rate limited, too many requests per second | User has exceeded their per second rate limit |
+        | Rate limited, reached daily limit | User has exceeded their daily rate limit |
+        | Rate limited, too many keys tried | One IP has queried too many different API keys |
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Client is not authorized to call the endpoint
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: User has not been authenticated. Invalid or missing API key.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnprocessableEntity:
+      description: Unprocessable entity.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# This defines which securitySchemes can be used in conjunction with each other.
+# See components.securitySchemes for their definition.
+security:
+  - BasicAuth: []
+  - ApiKeyAuth: []
+  - {} # Indicates that no-auth is a valid option.

@@ -3,6 +3,7 @@ import { OpenAPISpec } from "./openapi.ts";
 import { ErrorContext, ParseError, SpecValidationError } from "./errors.ts";
 import { JsonSchemaProcessor, type Schema } from "@steady/json-schema";
 import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
+import { warn } from "../../src/logging/mod.ts";
 
 const metaschema = metaschemaJson as unknown as Schema;
 
@@ -340,21 +341,40 @@ async function validateOpenAPISpec(
     });
 
     if (!validationResult.valid && validationResult.errors.length > 0) {
-      const error = validationResult.errors[0]!;
-      const isRefError = error.type === "ref-not-found" ||
-        error.keyword === "$ref" ||
-        error.message.toLowerCase().includes("ref");
-      throw new SpecValidationError(
-        isRefError
-          ? "Invalid reference in OpenAPI spec"
-          : "OpenAPI spec validation failed",
-        {
-          errorType: "validate",
-          schemaPath: error.schemaPath.split("/").slice(1),
-          reason: error.message,
-          suggestion: error.suggestion,
-        },
+      // Separate warnings from errors based on severity
+      const realErrors = validationResult.errors.filter(
+        (e) => e.severity !== "warning",
       );
+      const warnings = validationResult.errors.filter(
+        (e) => e.severity === "warning",
+      );
+
+      // Emit warnings
+      for (const warning of warnings) {
+        const schemaPath = warning.schemaPath.split("/").slice(1).join("/");
+        warn(
+          `OpenAPI 3.1 metaschema: ${warning.message} at ${schemaPath}`,
+        );
+      }
+
+      // Throw error for actual errors
+      if (realErrors.length > 0) {
+        const error = realErrors[0]!;
+        const isRefError = error.type === "ref-not-found" ||
+          error.keyword === "$ref" ||
+          error.message.toLowerCase().includes("ref");
+        throw new SpecValidationError(
+          isRefError
+            ? "Invalid reference in OpenAPI spec"
+            : "OpenAPI spec validation failed",
+          {
+            errorType: "validate",
+            schemaPath: error.schemaPath.split("/").slice(1),
+            reason: error.message,
+            suggestion: error.suggestion,
+          },
+        );
+      }
     }
   }
 

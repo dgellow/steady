@@ -136,6 +136,9 @@ export interface SchemaValidationError {
   schema?: unknown;
   data?: unknown;
 
+  // Severity level (defaults to "error" if not specified)
+  severity?: "error" | "warning";
+
   // WHERE in source (new)
   sourceLocation?: {
     file: string;
