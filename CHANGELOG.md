@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.12.1
+
+### Bug Fixes
+
+- pass response body to logger for --log-bodies to work <details><summary>Details</summary>
+  The previous fix added the logBodies option to loggers but the response
+  body was never passed to logRequestEvent. This change:<br>
+  - Updates generateResponse to return { response, body }
+  - Passes responseBody to logRequestEvent
+  - Adds body to the RequestEvent for logging
+</details>
+
+
 ## 0.12.0
 
 ### Features
