@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+### Features
+
+- add undocumented 'debug' as alias for 'full' log level
+- add undocumented -v and --verbose CLI flags as aliases for --log-level
+
 ## 0.8.1
 
 ### Chores
