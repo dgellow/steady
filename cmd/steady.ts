@@ -51,6 +51,8 @@ export async function main() {
       r: "auto-reload",
       i: "interactive",
       p: "port",
+      v: "log-level",
+      verbose: "log-level",
     },
     default: {
       "log-level": "summary",
