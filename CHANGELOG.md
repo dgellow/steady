@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.1
+
+### Bug Fixes
+
+- handle SIGTERM/SIGHUP for graceful server shutdown <details><summary>Details</summary>
+  - Server handles common shutdown signals (SIGINT, SIGTERM, SIGHUP, SIGQUIT)
+  - npm wrapper forwards all signals to child (transparent wrapper)
+  - Added bash test script for process cleanup (tests both deno and npm)
+</details>
+
+
 ## 0.13.0
 
 ### Features
