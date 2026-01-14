@@ -97,6 +97,9 @@ jobs:
           npx steady validate ${{ github.workspace }}/tests/specs/simple.yaml
           npx steady --help
 
+      - name: Package tests
+        run: ./tests/process-cleanup.sh
+
   test-sdks:
     name: SDK Integration Tests
     runs-on: ubuntu-latest

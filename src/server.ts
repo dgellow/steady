@@ -207,7 +207,7 @@ export class MockServer {
     this.serverFinished = server.finished;
 
     // Handle graceful shutdown
-    Deno.addSignalListener("SIGINT", () => {
+    const handleShutdown = () => {
       // Stop TUI if running
       if (this.config.interactive && this.logger instanceof TuiLogger) {
         this.logger.stop();
@@ -215,7 +215,15 @@ export class MockServer {
       this.logShutdown();
       this.stop();
       Deno.exit(0);
-    });
+    };
+    // Handle common shutdown signals
+    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"] as const) {
+      try {
+        Deno.addSignalListener(signal, handleShutdown);
+      } catch {
+        // Signal not supported on this platform
+      }
+    }
   }
 
   /**

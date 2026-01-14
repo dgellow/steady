@@ -154,9 +154,10 @@ await Deno.mkdir(mainPkgDir, { recursive: true });
 
 // Create the JavaScript wrapper
 const wrapperCode = `#!/usr/bin/env node
-const { execFileSync } = require("child_process");
+const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 
 const platform = process.platform;
 const arch = process.arch;
@@ -211,14 +212,21 @@ if (!binPath) {
   }
 }
 
-try {
-  execFileSync(binPath, process.argv.slice(2), { stdio: "inherit" });
-} catch (e) {
-  if (e.status !== undefined) {
-    process.exit(e.status);
-  }
-  throw e;
+const child = spawn(binPath, process.argv.slice(2), { stdio: "inherit" });
+
+child.on("error", (err) => {
+  console.error(\`Failed to start steady: \${err.message}\`);
+  process.exit(1);
+});
+
+for (const sig of Object.keys(os.constants.signals)) {
+  try { process.on(sig, () => child.kill(sig)); } catch {}
 }
+
+child.on("exit", (code, signal) => {
+  if (signal) process.kill(process.pid, signal);
+  else process.exit(code ?? 0);
+});
 `;
 
 await Deno.writeTextFile(`${mainPkgDir}/steady.js`, wrapperCode);

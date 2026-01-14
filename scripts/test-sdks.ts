@@ -227,6 +227,7 @@ async function createMockScript(
 
   const validatorFlags = sdk.validatorFlags?.join(" ") ?? "";
 
+  // Use deno run directly instead of deno task to avoid spawning child processes
   const mockScript = `#!/usr/bin/env bash
 set -e
 cd "$(dirname "$0")/.."
@@ -236,7 +237,7 @@ SPEC="${specPath}"
 echo "==> Starting Steady mock server with spec \${SPEC}"
 
 if [ "$1" == "--daemon" ]; then
-  deno task --cwd "${STEADY_DIR}" start --host 0.0.0.0 --port ${PORT} ${validatorFlags} "\${SPEC}" &> .steady.log &
+  deno run --allow-read --allow-net --allow-env --allow-write "${STEADY_DIR}/cmd/steady.ts" --host 0.0.0.0 --port ${PORT} ${validatorFlags} "\${SPEC}" &> .steady.log &
 
   # Wait for server to come online
   echo -n "Waiting for server"
@@ -253,7 +254,7 @@ if [ "$1" == "--daemon" ]; then
   cat .steady.log
   exit 1
 else
-  deno task --cwd "${STEADY_DIR}" start --host 0.0.0.0 --port ${PORT} ${validatorFlags} "\${SPEC}"
+  deno run --allow-read --allow-net --allow-env --allow-write "${STEADY_DIR}/cmd/steady.ts" --host 0.0.0.0 --port ${PORT} ${validatorFlags} "\${SPEC}"
 fi
 `;
 
