@@ -318,6 +318,53 @@ async function runGoTests(sdkPath: string): Promise<boolean> {
   return testResult.success;
 }
 
+/**
+ * Inject a conftest.py into tests/api_resources that removes skip markers.
+ * This ensures we run all tests, even ones marked with @pytest.mark.skip.
+ *
+ * Based on: https://github.com/pytest-dev/pytest/discussions/13311
+ */
+async function injectSkipRemovalConftest(sdkPath: string): Promise<void> {
+  const conftestPath = path.join(
+    sdkPath,
+    "tests",
+    "api_resources",
+    "conftest.py",
+  );
+
+  // Check if conftest already exists
+  let existingContent = "";
+  if (await exists(conftestPath)) {
+    existingContent = await Deno.readTextFile(conftestPath);
+    // Don't modify if we've already injected
+    if (existingContent.includes("steady_skip_removal")) {
+      return;
+    }
+  }
+
+  // Conftest hook that removes skip/skipif markers at collection time
+  const skipRemovalHook = `
+# steady_skip_removal: Injected by test-sdks.ts to run skipped tests
+import pytest
+
+def pytest_collection_modifyitems(config, items):
+    """Remove skip/skipif markers so all tests run against the mock server."""
+    for item in items:
+        # Only affect tests in api_resources directory
+        if "api_resources" not in str(item.fspath):
+            continue
+        original_markers = list(getattr(item, "own_markers", []))
+        filtered_markers = [m for m in original_markers if m.name not in ("skip", "skipif")]
+        if len(filtered_markers) != len(original_markers):
+            item.own_markers[:] = filtered_markers
+`;
+
+  // Prepend our hook to existing content (if any)
+  const newContent = skipRemovalHook + "\n" + existingContent;
+  await Deno.writeTextFile(conftestPath, newContent);
+  log("  Injected skip-removal conftest.py");
+}
+
 async function runPythonTests(sdkPath: string): Promise<boolean> {
   // Run bootstrap if available
   const bootstrapPath = path.join(sdkPath, "scripts", "bootstrap");
@@ -371,6 +418,9 @@ async function runPythonTests(sdkPath: string): Promise<boolean> {
     await killPort(PORT);
     return false;
   }
+
+  // Inject conftest.py to remove skip markers so all tests run
+  await injectSkipRemovalConftest(sdkPath);
 
   // Run tests
   log("  Running ./scripts/test...");

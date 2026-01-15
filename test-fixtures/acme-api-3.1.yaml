@@ -11,7 +11,7 @@ info:
     The Acme Developer API is designed to provide a predictable programmatic
     interface for accessing your Acme account through an API and transaction webhooks.
   version: 1.0.0
-  termsOfService: 'https://acme.com/legal#terms'
+  termsOfService: "https://acme.com/legal#terms"
   contact:
     email: support@acme.com
 
@@ -36,7 +36,7 @@ paths:
       summary: Get OAS
       operationId: get_oas_json
       responses:
-        '200':
+        "200":
           description: Success
           content:
             "application/json":
@@ -48,22 +48,22 @@ paths:
       summary: List account
       description: List account
       parameters:
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/PaginationResponse'
+                  - $ref: "#/components/schemas/PaginationResponse"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/Account'
+                          $ref: "#/components/schemas/Account"
     post:
       tags:
         - Account
@@ -74,24 +74,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Account'
+              $ref: "#/components/schemas/Account"
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /accounts/{account_id}:
     get:
@@ -100,24 +100,24 @@ paths:
       summary: Get account
       description: Get account
       parameters:
-        - $ref: '#/components/parameters/AccountID'
+        - $ref: "#/components/parameters/AccountID"
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountConfiguration'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+                $ref: "#/components/schemas/AccountConfiguration"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     put:
       tags:
         - Account
@@ -125,30 +125,30 @@ paths:
       description: |
         Update account configuration.
       parameters:
-        - $ref: '#/components/parameters/AccountID'
+        - $ref: "#/components/parameters/AccountID"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Account'
+              $ref: "#/components/schemas/Account"
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Account'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /accounts/{account_id}/link:
     post:
       tags:
@@ -156,127 +156,127 @@ paths:
       summary: Link account to external account
       description: Link account to external account, such as a Google or Facebook Account
       parameters:
-        - $ref: '#/components/parameters/AccountID'
-        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: "#/components/parameters/AccountID"
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AccountLink'
+              $ref: "#/components/schemas/AccountLink"
             examples:
               GoogleAccount:
-                account_type: 'google'
-                google_account_id: '123456789'
+                account_type: "google"
+                google_account_id: "123456789"
               FacebookAccount:
-                account_type: 'facebook'
-                google_account_id: '123456789'
+                account_type: "facebook"
+                google_account_id: "123456789"
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountLink'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+                $ref: "#/components/schemas/AccountLink"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /accounts/{account_id}/friends:
     get:
       tags:
         - Friends
       summary: Get friends for this an account
       parameters:
-        - $ref: '#/components/parameters/AccountID'
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/AccountID"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/PaginationResponse'
+                  - $ref: "#/components/schemas/PaginationResponse"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/FriendResponse'
+                          $ref: "#/components/schemas/FriendResponse"
 
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /accounts/{account_id}/friends/{friend_id}:
     put:
       tags:
         - Friends
       summary: Add a friend to this account
       parameters:
-        - $ref: '#/components/parameters/AccountID'
-        - $ref: '#/components/parameters/FriendID'
+        - $ref: "#/components/parameters/AccountID"
+        - $ref: "#/components/parameters/FriendID"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateFriendRequest'
+              $ref: "#/components/schemas/CreateFriendRequest"
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FriendResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+                $ref: "#/components/schemas/FriendResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     delete:
       tags:
         - Friends
       summary: Remove a friend from this account
       parameters:
-        - $ref: '#/components/parameters/AccountID'
-        - $ref: '#/components/parameters/FriendID'
+        - $ref: "#/components/parameters/AccountID"
+        - $ref: "#/components/parameters/FriendID"
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FriendResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+                $ref: "#/components/schemas/FriendResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /status:
     get:
@@ -286,7 +286,7 @@ paths:
       operationId: getStatus
       security: [] # disable security
       responses:
-        '200':
+        "200":
           description: Endpoint for users to check whether they can reach the api.
           content:
             application/json:
@@ -383,7 +383,7 @@ components:
           description: >
             Valid postal code. Only USA ZIP codes are currently
             supported, entered as a five-digit ZIP or nine-digit ZIP+4.
-          example: '11217'
+          example: "11217"
         state:
           type: string
           description: >
@@ -418,7 +418,7 @@ components:
             - PAUSED
           description: Account states.
         address:
-          $ref: '#/components/schemas/Address'
+          $ref: "#/components/schemas/Address"
       required:
         - name
     AccountConfiguration:
@@ -426,22 +426,22 @@ components:
     AccountLink:
       oneOf:
         - type: object
-          title: 'Google'
+          title: "Google"
           properties:
             type:
-              const: 'google'
+              const: "google"
             google_account_id:
-              type: 'string'
+              type: "string"
           required:
             - type
             - google_account_id
         - type: object
-          title: 'Facebook'
+          title: "Facebook"
           properties:
             type:
-              const: 'facebook'
+              const: "facebook"
             facebook_account_id:
-              type: 'string'
+              type: "string"
           required:
             - type
             - facebook_account_id
@@ -480,7 +480,7 @@ components:
     ApiKeyAuth:
       type: apiKey
       in: header
-      name: 'X-Acme-Api-Key'
+      name: "X-Acme-Api-Key"
 
   responses:
     BadRequest:
@@ -488,25 +488,25 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
     Conflict:
       description: The request could not be completed due to a conflict with the current state of the target resource.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
     InternalServerError:
       description: There was a processing error on the server-side.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
     NotFound:
       description: The specified resource was not found.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
     TooManyRequests:
       description: |
         Client has exceeded the number of allowed requests in a given time period.
@@ -519,25 +519,25 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
     Forbidden:
       description: Client is not authorized to call the endpoint
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
     Unauthorized:
       description: User has not been authenticated. Invalid or missing API key.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
     UnprocessableEntity:
       description: Unprocessable entity.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
 
 # This defines which securitySchemes can be used in conjunction with each other.
 # See components.securitySchemes for their definition.

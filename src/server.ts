@@ -324,8 +324,13 @@ export class MockServer {
     const effectiveMode = this.getEffectiveMode(req);
 
     try {
-      const { operation, statusCode, pathPattern, pathParams, consumedQueryParams } =
-        this.findOperation(path, method, url.searchParams);
+      const {
+        operation,
+        statusCode,
+        pathPattern,
+        pathParams,
+        consumedQueryParams,
+      } = this.findOperation(path, method, url.searchParams);
 
       // Validate request
       const validation = await this.validator.validateRequest(
@@ -634,7 +639,9 @@ export class MockServer {
     // Try pattern matching with pre-compiled routes using shared utility
     for (const compiled of this.patternRoutes) {
       const params = matchCompiledPath(path, compiled);
-      if (params && this.matchesQueryRequirements(query, compiled.requiredQuery)) {
+      if (
+        params && this.matchesQueryRequirements(query, compiled.requiredQuery)
+      ) {
         const operation = this.getOperationForMethod(
           compiled.pathItem,
           method,

@@ -84,7 +84,8 @@ export async function main() {
   // Parse options
   const specPath = firstArg;
   // Map "debug" to "full" for undocumented -v debug alias
-  const logLevel = (args["log-level"] === "debug" ? "full" : args["log-level"]) as LogLevel;
+  const logLevel =
+    (args["log-level"] === "debug" ? "full" : args["log-level"]) as LogLevel;
   const logFormat = args["log-format"] as LogFormat;
   const portOverride = args.port ? parseInt(args.port, 10) : undefined;
 
@@ -255,7 +256,7 @@ export async function main() {
         }`,
       );
     }
-    console.error("FATAL ERROR, steady shutting down")
+    console.error("FATAL ERROR, steady shutting down");
     Deno.exit(1);
   }
 }
