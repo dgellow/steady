@@ -1,0 +1,50 @@
+openapi: 3.1.0
+info:
+  title: Same Pattern Different Methods Test
+  version: 1.0.0
+  description: |
+    Tests the case where two paths have the same URL pattern structure
+    but different parameter names and different HTTP methods.
+    Both paths should be accessible.
+paths:
+  /v1/admin/secrets/{secret_id}:
+    delete:
+      summary: Delete a secret by ID
+      operationId: deleteSecret
+      parameters:
+        - name: secret_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Secret deleted
+
+  /v1/admin/secrets/{secret_key}:
+    post:
+      summary: Create or update a secret by key
+      operationId: upsertSecret
+      parameters:
+        - name: secret_key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: string
+      responses:
+        "200":
+          description: Secret created/updated
+          content:
+            application/json:
+              example:
+                key: my-secret
+                created: true

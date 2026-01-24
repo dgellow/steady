@@ -689,3 +689,69 @@ Deno.test({
     assertEquals(data.type, "standard");
   });
 });
+
+// =============================================================================
+// Same Pattern Different Methods Tests
+// =============================================================================
+
+const SAME_PATTERN_SPEC_PATH = "./tests/specs/same-pattern-different-methods.yaml";
+
+/** Helper for same-pattern-different-methods tests */
+async function withSamePatternServer(
+  fn: (server: MockServer, baseUrl: string) => Promise<void>,
+): Promise<void> {
+  const spec = await parseSpecFromFile(SAME_PATTERN_SPEC_PATH);
+  const port = 3100 + Math.floor(Math.random() * 900);
+  const server = new MockServer(spec, {
+    port,
+    host: "localhost",
+    mode: "strict",
+    verbose: false,
+    logLevel: "summary",
+    interactive: false,
+  });
+
+  server.start();
+  await new Promise((r) => setTimeout(r, 10));
+  try {
+    await fn(server, `http://localhost:${port}`);
+  } finally {
+    server.stop();
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
+Deno.test({
+  name: "Server: matches DELETE on first of two same-pattern paths",
+  ...serverTestOpts,
+}, async () => {
+  await withSamePatternServer(async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/admin/secrets/my-secret`, {
+      method: "DELETE",
+    });
+    assertEquals(response.status, 204);
+    await response.body?.cancel();
+  });
+});
+
+Deno.test({
+  name: "Server: matches POST on second of two same-pattern paths",
+  ...serverTestOpts,
+}, async () => {
+  await withSamePatternServer(async (_server, baseUrl) => {
+    // This tests the bug: POST should match the second path definition
+    // even though it has the same URL pattern as the first (DELETE) path
+    const response = await fetch(`${baseUrl}/v1/admin/secrets/my-secret`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: "secret-value" }),
+    });
+    assertEquals(
+      response.status,
+      200,
+      "POST should match the second path definition, not fail with 404",
+    );
+    const data = await response.json();
+    assertExists(data.key);
+  });
+});
