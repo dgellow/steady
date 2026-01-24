@@ -53,6 +53,14 @@ const ATTRIBUTION_RULES: Record<DiagnosticCode, AttributionRule> = {
     reasoning: "Schema nesting is very deep",
   },
 
+  // === STATIC - Path issues (always spec issues) ===
+  "path-duplicate-pattern": {
+    type: "spec-issue",
+    confidence: 1.0,
+    reasoning:
+      "Paths with identical structure but different parameter names violate OpenAPI 3.0 spec",
+  },
+
   // === STATIC - Mock readiness (spec issues) ===
   "mock-no-example": {
     type: "spec-issue",
