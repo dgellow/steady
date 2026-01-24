@@ -1,5 +1,83 @@
 # Changelog
 
+## 0.14.0
+
+### Features
+
+- add SDK test regression reporting to CI <details><summary>Details</summary>
+  - Add JSON output mode to test-sdks.ts with --json and --output flags
+  - Upload SDK test results as artifacts (retained for 90 days)
+  - Download baseline from main branch on PRs for comparison
+  - Post PR comment showing regressions, improvements, and new SDKs
+  - Fail CI if any SDK regresses from passing to failing
+  - Show vs main diff in summary table<br>
+  The PR comment includes:
+  - Summary table with total/passed/failed counts
+  - Regressions section (passing on main, now failing)
+  - Improvements section (failing on main, now passing)
+  - New SDKs section (not in baseline)
+  - Full results in collapsible details
+</details>
+
+
+### Bug Fixes
+
+- only generate required properties in response generator <details><summary>Details</summary>
+  Remove random inclusion of optional properties (previously 50% chance).
+  This ensures consistent, minimal responses and avoids flaky SDK tests
+  where pagination responses would randomly omit `items` arrays.<br>
+  Added TODO comment to revisit optional property generation strategy.
+  Updated tests that relied on optional properties being generated.
+</details>
+
+- support paths with same pattern but different methods <details><summary>Details</summary>
+  When an OpenAPI spec defines multiple paths with the same URL structure
+  but different parameter names and HTTP methods (e.g., DELETE on
+  /secrets/{secret_id} and POST on /secrets/{secret_key}), Steady now:<br>
+  1. Matches requests correctly at runtime by continuing to search through
+     pattern routes when a path structure matches but the method doesn't
+     exist on that particular path definition.<br>
+  2. Emits a warning at startup that these paths violate OpenAPI 3.0.3
+     ("Templated paths with the same hierarchy but different templated
+     names MUST NOT exist as they are identical").<br>
+  The warning is informational - both paths remain fully functional for
+  their respective methods. This ensures accurate error attribution: the
+  spec has a validity issue, but Steady handles it gracefully.<br>
+  Implementation details:
+  - PathAnalyzer detects duplicate patterns using normalized base paths
+  - Handles Steady's query-param routing extension (/path?key=val)
+  - Runtime matching tracks first path match for "method not allowed" errors
+  - All paths remain separate in data structures for correct diagnostics
+</details>
+
+
+### Tests
+
+- add ArcadeAI SDK to integration tests <details><summary>Details</summary>
+  ArcadeAI (arcade-py) is a Stainless-generated Python SDK with the
+  same structure as OpenAI, Anthropic, etc. Their spec triggered the
+  duplicate-path-patterns issue that led to this branch's fix.
+</details>
+
+
+### Chores
+
+- add cursed-specs collection for invalid OAS patterns <details><summary>Details</summary>
+  Move the duplicate-path-patterns spec to test-fixtures/cursed-specs/
+  with documentation explaining:
+  - What violation it demonstrates
+  - Real-world source (ArcadeAI)
+  - How different tools handle it
+  - Why Steady supports it gracefully<br>
+  This starts a collection for testing Steady against real-world
+  invalid specs that other tools struggle with.
+</details>
+
+
+### Styles
+
+- format code
+
 ## 0.13.1
 
 ### Bug Fixes
