@@ -136,6 +136,27 @@ interface TestResult {
   name: string;
   passed: boolean;
   error?: string;
+  /** Number of tests passed (if available) */
+  testsPassed?: number;
+  /** Number of tests failed (if available) */
+  testsFailed?: number;
+}
+
+interface TestReport {
+  /** ISO timestamp of when tests were run */
+  timestamp: string;
+  /** Git commit SHA if available */
+  commitSha?: string;
+  /** Git branch name if available */
+  branch?: string;
+  /** Summary counts */
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+  };
+  /** Individual SDK results */
+  results: TestResult[];
 }
 
 async function killPort(port: number): Promise<void> {
@@ -463,11 +484,35 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
   }
 }
 
+async function getGitInfo(): Promise<{ sha?: string; branch?: string }> {
+  try {
+    const shaCmd = new Deno.Command("git", {
+      args: ["rev-parse", "HEAD"],
+      stdout: "piped",
+      stderr: "null",
+    });
+    const shaResult = await shaCmd.output();
+    const sha = new TextDecoder().decode(shaResult.stdout).trim();
+
+    const branchCmd = new Deno.Command("git", {
+      args: ["rev-parse", "--abbrev-ref", "HEAD"],
+      stdout: "piped",
+      stderr: "null",
+    });
+    const branchResult = await branchCmd.output();
+    const branch = new TextDecoder().decode(branchResult.stdout).trim();
+
+    return { sha: sha || undefined, branch: branch || undefined };
+  } catch {
+    return {};
+  }
+}
+
 async function main() {
   const args = parseArgs(Deno.args, {
-    boolean: ["go", "python", "help"],
-    string: ["_"],
-    alias: { h: "help" },
+    boolean: ["go", "python", "help", "json"],
+    string: ["_", "output"],
+    alias: { h: "help", o: "output" },
   });
 
   if (args.help) {
@@ -478,21 +523,27 @@ Usage:
   deno run -A scripts/test-sdks.ts [options] [filter]
 
 Options:
-  --go        Test only Go SDKs
-  --python    Test only Python SDKs
-  -h, --help  Show this help
+  --go           Test only Go SDKs
+  --python       Test only Python SDKs
+  --json         Output results as JSON (to stdout or file with --output)
+  -o, --output   Write JSON results to file (implies --json)
+  -h, --help     Show this help
 
 Filter:
   Optionally provide a string to filter SDK names (e.g., "openai", "anthropic")
 
 Examples:
-  deno run -A scripts/test-sdks.ts              # Test all SDKs
-  deno run -A scripts/test-sdks.ts --go         # Test Go SDKs only
-  deno run -A scripts/test-sdks.ts --python     # Test Python SDKs only
-  deno run -A scripts/test-sdks.ts openai       # Test SDKs matching "openai"
+  deno run -A scripts/test-sdks.ts                    # Test all SDKs
+  deno run -A scripts/test-sdks.ts --go               # Test Go SDKs only
+  deno run -A scripts/test-sdks.ts --python           # Test Python SDKs only
+  deno run -A scripts/test-sdks.ts openai             # Test SDKs matching "openai"
+  deno run -A scripts/test-sdks.ts --json             # Output JSON to stdout
+  deno run -A scripts/test-sdks.ts -o results.json    # Save JSON to file
 `);
     Deno.exit(0);
   }
+
+  const jsonOutput = args.json || !!args.output;
 
   log("Steady SDK Compatibility Test Runner");
   console.log();
@@ -535,26 +586,50 @@ Examples:
     console.log();
   }
 
-  // Summary
-  console.log();
-  log("Summary");
-  console.log("========");
+  // Calculate summary
+  const passCount = results.filter((r) => r.passed).length;
+  const failCount = results.filter((r) => !r.passed).length;
 
-  let passCount = 0;
-  let failCount = 0;
+  // Build report
+  const gitInfo = await getGitInfo();
+  const report: TestReport = {
+    timestamp: new Date().toISOString(),
+    commitSha: gitInfo.sha,
+    branch: gitInfo.branch,
+    summary: {
+      total: results.length,
+      passed: passCount,
+      failed: failCount,
+    },
+    results,
+  };
 
-  for (const result of results) {
-    if (result.passed) {
-      success(`${result.name}: PASS`);
-      passCount++;
+  // Output results
+  if (jsonOutput) {
+    const jsonStr = JSON.stringify(report, null, 2);
+    if (args.output) {
+      await Deno.writeTextFile(args.output, jsonStr);
+      log(`Results written to ${args.output}`);
     } else {
-      fail(`${result.name}: FAIL${result.error ? ` (${result.error})` : ""}`);
-      failCount++;
+      console.log(jsonStr);
     }
-  }
+  } else {
+    // Text summary
+    console.log();
+    log("Summary");
+    console.log("========");
 
-  console.log();
-  log(`Total: ${passCount} passed, ${failCount} failed`);
+    for (const result of results) {
+      if (result.passed) {
+        success(`${result.name}: PASS`);
+      } else {
+        fail(`${result.name}: FAIL${result.error ? ` (${result.error})` : ""}`);
+      }
+    }
+
+    console.log();
+    log(`Total: ${passCount} passed, ${failCount} failed`);
+  }
 
   Deno.exit(failCount > 0 ? 1 : 0);
 }
