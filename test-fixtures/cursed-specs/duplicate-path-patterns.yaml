@@ -1,0 +1,93 @@
+# CURSED SPEC: Duplicate Path Patterns
+#
+# Violation: OpenAPI 3.0.3 Section "Path Templating"
+#   "Templated paths with the same hierarchy but different templated names
+#   MUST NOT exist as they are identical."
+#
+# Real-world occurrence: ArcadeAI API
+#
+# Why it's cursed:
+#   - Two paths have identical URL structure: /v1/admin/secrets/{param}
+#   - Only the parameter NAME differs (secret_id vs secret_key)
+#   - Parameter names are semantic only - they don't affect URL matching
+#   - Standard OpenAPI tooling may only match the first path
+#   - Codegen produces ambiguous SDK methods
+#
+# What happens:
+#   - Prism: Supports it (tries to make it work)
+#   - Steady: Supports it + warns at startup
+#   - Swagger UI: Shows both but routing is undefined
+#   - Most codegen: Generates both methods, runtime behavior varies
+#
+# How Steady handles it:
+#   - Emits "path-duplicate-pattern" warning at startup
+#   - Routes requests by checking all matching patterns for the method
+#   - Both DELETE and POST work correctly
+
+openapi: 3.1.0
+info:
+  title: Cursed API - Duplicate Path Patterns
+  version: 1.0.0
+  description: |
+    This spec demonstrates a common but invalid pattern where two paths
+    have identical URL structure but different parameter names.
+
+paths:
+  # First path: DELETE /v1/admin/secrets/{secret_id}
+  /v1/admin/secrets/{secret_id}:
+    delete:
+      summary: Delete a secret by ID
+      operationId: deleteSecret
+      parameters:
+        - name: secret_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the secret to delete
+      responses:
+        "204":
+          description: Secret deleted successfully
+
+  # Second path: POST /v1/admin/secrets/{secret_key}
+  # Same URL pattern as above, different param name, different method
+  /v1/admin/secrets/{secret_key}:
+    post:
+      summary: Create or update a secret by key
+      operationId: upsertSecret
+      parameters:
+        - name: secret_key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The key name for the secret
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - value
+              properties:
+                value:
+                  type: string
+                  description: The secret value
+            example:
+              value: "super-secret-value"
+      responses:
+        "200":
+          description: Secret created or updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  created:
+                    type: boolean
+              example:
+                key: my-secret
+                created: true
