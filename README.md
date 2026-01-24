@@ -1,7 +1,7 @@
 # Steady
 
-OpenAPI 3.0/3.1 mock server built to fast and reliable. Validates requests against specs
-and generates responses from schemas or examples.
+OpenAPI 3.0/3.1 mock server built to fast and reliable. Validates requests
+against specs and generates responses from schemas or examples.
 
 Note: this project is still experiemental and not ready for production use.
 

@@ -6,7 +6,9 @@ import { assertEquals } from "@std/assert";
 import { TextLogger } from "./text-logger.ts";
 import type { RequestEvent } from "./types.ts";
 
-function createMockRequestEvent(overrides: Partial<RequestEvent> = {}): RequestEvent {
+function createMockRequestEvent(
+  overrides: Partial<RequestEvent> = {},
+): RequestEvent {
   return {
     id: "test-1",
     timestamp: new Date("2024-01-01T12:00:00Z"),

@@ -936,7 +936,12 @@ export class RequestValidator {
       );
       this.collectErrors(validation, errors);
 
-      return { valid: errors.length === 0, errors, warnings, requestBody: parsedBody };
+      return {
+        valid: errors.length === 0,
+        errors,
+        warnings,
+        requestBody: parsedBody,
+      };
     } catch (error) {
       if (error instanceof BodyTooLargeError) {
         errors.push({
@@ -1174,7 +1179,8 @@ export class RequestValidator {
     if (schemaTypes.length === 0 && issues && paramPath) {
       issues.push({
         path: paramPath,
-        message: "Could not determine parameter type from schema, treating as string",
+        message:
+          "Could not determine parameter type from schema, treating as string",
       });
     }
 

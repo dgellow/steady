@@ -694,7 +694,8 @@ Deno.test({
 // Same Pattern Different Methods Tests
 // =============================================================================
 
-const SAME_PATTERN_SPEC_PATH = "./test-fixtures/cursed-specs/duplicate-path-patterns.yaml";
+const SAME_PATTERN_SPEC_PATH =
+  "./test-fixtures/cursed-specs/duplicate-path-patterns.yaml";
 
 /** Helper for same-pattern-different-methods tests */
 async function withSamePatternServer(

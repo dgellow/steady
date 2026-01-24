@@ -18,8 +18,8 @@ When adding a cursed spec, include:
 
 ## Catalog
 
-| File | Curse | OAS Section |
-|------|-------|-------------|
+| File                           | Curse                                       | OAS Section     |
+| ------------------------------ | ------------------------------------------- | --------------- |
 | `duplicate-path-patterns.yaml` | Same URL pattern with different param names | Path Templating |
 
 ## Ideas for Future Curses
