@@ -17,6 +17,8 @@ export type DiagnosticCode =
   | "schema-ref-siblings"
   | "schema-complexity"
   | "schema-nesting"
+  // === STATIC (Startup) - Path issues ===
+  | "path-duplicate-pattern"
   // === STATIC (Startup) - Mock readiness ===
   | "mock-no-example"
   | "mock-no-schema"

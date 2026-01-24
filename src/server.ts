@@ -632,25 +632,59 @@ export class MockServer {
     }
 
     // Try pattern matching with pre-compiled routes using shared utility
+    // Track first path match for better error reporting when method not found
+    let firstPathMatch: {
+      pathItem: PathItemObject;
+      pattern: string;
+    } | null = null;
+
     for (const compiled of this.patternRoutes) {
       const params = matchCompiledPath(path, compiled);
       if (params && this.matchesQueryRequirements(query, compiled.requiredQuery)) {
-        const operation = this.getOperationForMethod(
-          compiled.pathItem,
-          method,
-          compiled.pattern,
-        );
-        const statusCode = this.selectStatusCode(operation);
-        return {
-          operation,
-          statusCode,
-          pathPattern: compiled.pattern,
-          pathParams: params,
-          consumedQueryParams: compiled.requiredQuery
-            ? Object.keys(compiled.requiredQuery)
-            : undefined,
-        };
+        // Path matches - check if method exists
+        const operation = compiled.pathItem[method as keyof PathItemObject] as
+          | OperationObject
+          | undefined;
+
+        if (operation) {
+          // Found a matching path AND method
+          const statusCode = this.selectStatusCode(operation);
+          return {
+            operation,
+            statusCode,
+            pathPattern: compiled.pattern,
+            pathParams: params,
+            consumedQueryParams: compiled.requiredQuery
+              ? Object.keys(compiled.requiredQuery)
+              : undefined,
+          };
+        }
+
+        // Path matches but method doesn't exist on this path item
+        // Keep searching - another path with the same pattern might have the method
+        // (e.g., /secrets/{secret_id} DELETE vs /secrets/{secret_key} POST)
+        if (!firstPathMatch) {
+          firstPathMatch = {
+            pathItem: compiled.pathItem,
+            pattern: compiled.pattern,
+          };
+        }
       }
+    }
+
+    // If we found at least one path match but no method match, report "method not allowed"
+    if (firstPathMatch) {
+      const availableMethods = this.getMethodsForPath(firstPathMatch.pathItem);
+      throw new MatchError("Method not allowed", {
+        httpPath: firstPathMatch.pattern,
+        httpMethod: method.toUpperCase(),
+        errorType: "match",
+        reason:
+          `Method ${method.toUpperCase()} not defined for path "${firstPathMatch.pattern}"`,
+        suggestion: `Available methods: ${
+          availableMethods.map((m) => m.toUpperCase()).join(", ")
+        }`,
+      });
     }
 
     // No match found
