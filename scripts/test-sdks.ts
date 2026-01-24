@@ -79,6 +79,11 @@ const SDKS: SDK[] = [
     name: "perplexity-py",
     language: "python",
   },
+  {
+    repo: "ArcadeAI/arcade-py",
+    name: "arcade-py",
+    language: "python",
+  },
 
   // Python SDKs - Infrastructure
   {
