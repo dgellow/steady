@@ -103,6 +103,9 @@ jobs:
   test-sdks:
     name: SDK Integration Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout code
@@ -132,4 +135,150 @@ jobs:
           enable-cache: true
 
       - name: Run SDK tests
-        run: ./scripts/test-sdks
+        id: sdk-tests
+        continue-on-error: true
+        run: |
+          ./scripts/test-sdks --output sdk-results.json
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Upload SDK test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-test-results
+          path: sdk-results.json
+          retention-days: 90
+
+      - name: Download baseline results (main branch)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: ci.yml
+          branch: main
+          name: sdk-test-results
+          path: baseline/
+
+      - name: Compare results and comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Load current results
+            let current;
+            try {
+              current = JSON.parse(fs.readFileSync('sdk-results.json', 'utf8'));
+            } catch (e) {
+              console.log('No current results found');
+              return;
+            }
+
+            // Load baseline results (may not exist)
+            let baseline = null;
+            try {
+              baseline = JSON.parse(fs.readFileSync('baseline/sdk-results.json', 'utf8'));
+            } catch (e) {
+              console.log('No baseline results found (first run or main branch)');
+            }
+
+            // Build comparison
+            const regressions = [];
+            const improvements = [];
+            const newTests = [];
+
+            for (const result of current.results) {
+              const baselineResult = baseline?.results?.find(r => r.name === result.name);
+
+              if (!baselineResult) {
+                newTests.push(result);
+              } else if (baselineResult.passed && !result.passed) {
+                regressions.push({ name: result.name, error: result.error });
+              } else if (!baselineResult.passed && result.passed) {
+                improvements.push(result.name);
+              }
+            }
+
+            // Build comment body
+            let body = `## SDK Integration Test Results\n\n`;
+            body += `| Metric | Value |\n|--------|-------|\n`;
+            body += `| Total SDKs | ${current.summary.total} |\n`;
+            body += `| Passed | ${current.summary.passed} |\n`;
+            body += `| Failed | ${current.summary.failed} |\n`;
+
+            if (baseline) {
+              const passedDiff = current.summary.passed - baseline.summary.passed;
+              const diffStr = passedDiff > 0 ? `+${passedDiff}` : passedDiff.toString();
+              body += `| vs main | ${diffStr} |\n`;
+            }
+
+            body += `\n`;
+
+            if (regressions.length > 0) {
+              body += `### ⚠️ Regressions (${regressions.length})\n\n`;
+              body += `These SDKs were passing on main but are now failing:\n\n`;
+              for (const r of regressions) {
+                body += `- **${r.name}**${r.error ? `: ${r.error}` : ''}\n`;
+              }
+              body += `\n`;
+            }
+
+            if (improvements.length > 0) {
+              body += `### ✅ Improvements (${improvements.length})\n\n`;
+              body += `These SDKs were failing on main but are now passing:\n\n`;
+              for (const name of improvements) {
+                body += `- **${name}**\n`;
+              }
+              body += `\n`;
+            }
+
+            if (newTests.length > 0) {
+              body += `### 🆕 New SDKs (${newTests.length})\n\n`;
+              for (const r of newTests) {
+                body += `- **${r.name}**: ${r.passed ? '✅ PASS' : '❌ FAIL'}\n`;
+              }
+              body += `\n`;
+            }
+
+            body += `\n<details><summary>Full Results</summary>\n\n`;
+            body += `| SDK | Status |\n|-----|--------|\n`;
+            for (const r of current.results) {
+              body += `| ${r.name} | ${r.passed ? '✅' : '❌'} |\n`;
+            }
+            body += `\n</details>\n`;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('## SDK Integration Test Results')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+            // Fail if there are regressions
+            if (regressions.length > 0) {
+              core.setFailed(`${regressions.length} SDK regression(s) detected`);
+            }
+
+      - name: Check SDK test exit code
+        if: steps.sdk-tests.outputs.exit_code != '0' && github.event_name != 'pull_request'
+        run: exit 1

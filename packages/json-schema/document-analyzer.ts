@@ -11,6 +11,7 @@ import type { Analyzer } from "./analyzers/ref-analyzer.ts";
 import { RefAnalyzer } from "./analyzers/ref-analyzer.ts";
 import { SchemaAnalyzer } from "./analyzers/schema-analyzer.ts";
 import { MockAnalyzer } from "./analyzers/mock-analyzer.ts";
+import { PathAnalyzer } from "./analyzers/path-analyzer.ts";
 
 /**
  * Configuration for document analysis
@@ -21,6 +22,7 @@ export interface DocumentAnalyzerConfig {
     ref?: boolean;
     schema?: boolean;
     mock?: boolean;
+    path?: boolean;
   };
   /** RefAnalyzer config */
   refConfig?: {
@@ -41,6 +43,7 @@ const DEFAULT_CONFIG: Required<DocumentAnalyzerConfig> = {
     ref: true,
     schema: true,
     mock: true,
+    path: true,
   },
   refConfig: {
     maxChainDepth: 10,
@@ -73,6 +76,9 @@ export class DocumentAnalyzer {
     }
     if (merged.analyzers.mock) {
       this.analyzers.push(new MockAnalyzer());
+    }
+    if (merged.analyzers.path) {
+      this.analyzers.push(new PathAnalyzer());
     }
   }
 

@@ -577,6 +577,7 @@ Deno.test("RegistryResponseGenerator - allOf with nullable should return valid v
         },
         RunObject: {
           type: "object",
+          required: ["tool_choice"],
           properties: {
             tool_choice: {
               allOf: [

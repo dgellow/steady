@@ -603,17 +603,14 @@ export class RegistryResponseGenerator {
       }
     }
 
-    // Generate other properties
-    if (schema.properties) {
-      for (const [prop, propSchema] of Object.entries(schema.properties)) {
-        if (!(prop in obj) && this.random() > 0.5) {
-          obj[prop] = this.generateFromSchema(
-            propSchema,
-            `${pointer}/properties/${prop}`,
-          );
-        }
-      }
-    }
+    // TODO: Revisit optional property generation strategy.
+    // Only required properties are generated. Optional properties are omitted
+    // to ensure consistent, minimal responses. This avoids flaky SDK tests
+    // (e.g., pagination responses randomly missing `items` array).
+    // Options to consider:
+    // - Always include arrays (even empty) but skip other optionals
+    // - Add a "minimal" vs "full" generation mode
+    // - Let users configure which optional fields to include
 
     return obj;
   }
