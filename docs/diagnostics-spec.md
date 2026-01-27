@@ -439,6 +439,139 @@ Steady supports two output formats:
 
 **Confidence: 95%** — These cover the needs. No other formats planned.
 
+### 5.6 SDK Test Integration: Sessions
+
+**The problem:** SDK abstractions hide HTTP details. When a test calls
+`client.users.create(email=123)`, it returns a parsed `User` object — no
+access to response headers. Validation errors get buried in stack traces:
+
+```
+groq.BadRequestError: Error code: 400 - {'error': 'Validation failed', ...}
+```
+
+...after 150 lines of stack trace. The actual issue is lost.
+
+**The solution:** Session-based error aggregation with a query endpoint.
+
+#### 5.6.1 Session Flow
+
+```
+1. Test framework generates session ID (UUID)
+2. Configures SDK client to send X-Steady-Session header
+3. Runs test (requests accumulate in session)
+4. Queries GET /_steady/sessions/{id} for validation report
+5. Reports errors cleanly, fails test if SDK issues present
+```
+
+Sessions are created implicitly on first request with a session ID.
+
+#### 5.6.2 API
+
+**Request header:**
+
+```http
+X-Steady-Session: 550e8400-e29b-41d4-a716-446655440000
+```
+
+**Query endpoint:**
+
+```http
+GET /_steady/sessions/{session_id}
+```
+
+**Response:**
+
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "requests": 3,
+  "sdk_issues": [
+    {
+      "code": "E3012",
+      "message": "Request doesn't match oneOf schema",
+      "method": "POST",
+      "path": "/openai/v1/audio/transcriptions",
+      "request_path": "body",
+      "request_body": {"model": "whisper-large-v3-turbo"},
+      "spec_pointer": "#/components/schemas/CreateTranscriptionRequest/oneOf",
+      "suggestion": "Required: 'file' OR 'url' must be present"
+    }
+  ],
+  "content_notes": [],
+  "ambiguous": []
+}
+```
+
+Sessions are stored in memory and cleared on server shutdown. Session data is
+small (validation errors only), so no explicit cleanup API is needed. If memory
+becomes an issue in practice, we'll measure first and add cleanup mechanisms
+based on real usage patterns.
+
+#### 5.6.3 Test Framework Integration
+
+**Python (pytest fixture):**
+
+```python
+import uuid
+import httpx
+import pytest
+
+@pytest.fixture(autouse=True)
+def steady_session(client):
+    session_id = str(uuid.uuid4())
+
+    # Configure SDK client to include session header
+    client._custom_headers["X-Steady-Session"] = session_id
+
+    yield
+
+    # After test: check for validation errors
+    report = httpx.get(
+        f"http://localhost:4010/_steady/sessions/{session_id}"
+    ).json()
+
+    if report["sdk_issues"]:
+        pytest.fail(format_steady_errors(report["sdk_issues"]))
+
+def format_steady_errors(issues):
+    lines = [f"Steady validation failed ({len(issues)} SDK issue(s)):\n"]
+    for issue in issues:
+        lines.append(f"  [{issue['code']}] {issue['method']} {issue['path']}")
+        lines.append(f"          {issue['message']}")
+        if issue.get('suggestion'):
+            lines.append(f"          {issue['suggestion']}")
+        lines.append("")
+    return "\n".join(lines)
+```
+
+**Test output on failure:**
+
+```
+FAILED test_method_create
+
+  Steady validation failed (1 SDK issue):
+
+  [E3012] POST /openai/v1/audio/transcriptions
+          Request doesn't match oneOf schema
+          Required: 'file' OR 'url' must be present
+
+  Spec: #/components/schemas/CreateTranscriptionRequest/oneOf
+```
+
+Clean, actionable, no stack trace noise.
+
+#### 5.6.4 Why Sessions?
+
+| Approach | Problem |
+|----------|---------|
+| Check response headers | SDK abstracts away HTTP, no header access |
+| Global error log | Parallel tests interfere with each other |
+| Parse stack traces | Fragile, language-specific, noisy |
+| **Sessions** | Isolated per-test, language-agnostic, clean |
+
+**Confidence: 80%** — The design is sound. Implementation details (timeout,
+max sessions, etc.) need tuning based on real usage.
+
 ---
 
 ## 6. Control Surface
@@ -654,11 +787,12 @@ interface SessionReport {
 
 ### 9.1 Resolved
 
-| Question                | Decision                                              |
-| ----------------------- | ----------------------------------------------------- |
-| Strict vs relaxed mode  | Replaced with `--on-error` flag                       |
+| Question | Decision |
+|----------|----------|
+| Strict vs relaxed mode | Replaced with `--on-error` flag |
 | Exit code for ambiguous | Removed (exit 2). Use `--fail-on-ambiguous` if needed |
-| JUnit XML output        | Not supported. JSON covers machine-readable needs     |
+| JUnit XML output | Not supported. JSON covers machine-readable needs |
+| SDK test error reporting | Session-based aggregation with query endpoint (Section 5.6). Solves parallel tests, SDK abstraction hiding headers, and stack trace noise. |
 
 ### 9.2 Deferred
 
@@ -673,7 +807,7 @@ interface SessionReport {
 
 | Question | Considerations |
 |----------|----------------|
-| **HTTP response behavior** | Current design: mock when routing succeeds, 4xx when routing fails. Headers always present. Needs validation with real SDK tests (`./scripts/test-sdks`) to confirm this produces clean error reporting across languages. |
+| **Session implementation details** | Session timeout, max sessions, memory limits. Need tuning based on real usage patterns. |
 | Flaky issue detection | Same issue appearing intermittently — track consistency? |
 | Mid-session fix detection | Issue stops appearing — note in report? |
 
