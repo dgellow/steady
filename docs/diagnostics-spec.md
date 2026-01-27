@@ -337,19 +337,66 @@ systems may require iteration.
 
 ### 5.4 HTTP Response Output
 
-When validation fails, diagnostics are available via:
+Diagnostics are available via response headers. The design prioritizes **clean
+error reporting in SDK tests** over simulating real API behavior.
 
-1. **Response headers** — Summary for quick programmatic access
-2. **Response body** — Full details in JSON
+**The problem with returning 4xx for validation failures:**
 
-Header design principles:
+```python
+def test_create_user():
+    response = sdk.create_user(email=12345)  # Bug: integer not string
+    user = response.parse()  # BOOM - can't parse 400 as User
+    # Giant stack trace, actual validation issue buried
+```
+
+**The solution: return mock responses, report via headers:**
+
+```python
+def test_create_user():
+    response = sdk.create_user(email=12345)  # Bug: integer not string
+    user = response.parse()  # Works - got mock User
+    assert user.id is not None  # Passes
+    check_steady_headers(response)  # Clean: "E3008 field type mismatch"
+```
+
+Returning mock responses lets tests complete. Diagnostic headers surface issues
+at a well-defined checkpoint, avoiding stack trace noise.
+
+**Response behavior by category:**
+
+| Category | Can Mock? | Response | Rationale |
+|----------|-----------|----------|-----------|
+| E3xxx (transport) | Yes | Mock + headers | Endpoint matched, can generate response |
+| E4xxx (content) | Yes | Mock + headers | SDK correct, just noting issues |
+| E5xxx (ambiguous) | Yes | Mock + headers | SDK might be correct |
+| E2001 (path not found) | No | 404 + headers | No endpoint matched, no schema to mock |
+| E2002 (method not allowed) | No | 405 + headers | Wrong method, can't mock meaningfully |
+
+**Key rule:** If routing succeeds, return mock response. If routing fails,
+return error status. **Headers are always present** regardless of status code.
+
+**Generalized test framework check (any language):**
+
+```
+after_each_request(response):
+    if "X-Steady-Error-Count" in response.headers:
+        report_steady_diagnostics(response.headers)
+        if has_sdk_issues(response.headers):
+            fail_test("SDK validation failed")
+```
+
+This works regardless of HTTP status because headers are always available.
+
+**Confidence: 70%** — The "mock when possible, headers always" rule is sound.
+Exact behavior needs validation with real SDK test scenarios.
+
+**Header design principles:**
 
 - Prefix all headers with `X-Steady-`
 - Keep individual headers small (for proxy compatibility)
-- Provide full diagnostics in body, not headers
+- Full diagnostics in body (when returning error status) or via header link
 
-**Confidence: 75%** — Principles are sound. Exact header names and structure
-need refinement. Current sketch:
+Current sketch (subject to change):
 
 ```http
 X-Steady-Valid: false
@@ -408,24 +455,34 @@ Control mechanisms are:
 
 ### 6.2 Validation Response Behavior
 
-Controls what HTTP response Steady returns when validation fails.
+**Default behavior (no flags needed):**
 
-| Setting              | Behavior                                       |
-| -------------------- | ---------------------------------------------- |
-| `--on-error=respond` | Return mock response, log diagnostic (default) |
-| `--on-error=reject`  | Return 400 with diagnostic in body             |
+| Situation | Response | Why |
+|-----------|----------|-----|
+| Routing succeeds (E3xxx/E4xxx/E5xxx) | Mock response + headers | Test completes, headers report issues cleanly |
+| Routing fails (E2xxx) | 4xx + headers | Can't mock non-existent endpoint |
+
+This is category-aware by default. No `--on-error` flag needed for the common
+case.
+
+**Optional override for strict validation:**
+
+```
+--reject-on-sdk-error    # E3xxx issues return 400 instead of mock
+```
+
+Use case: CI certification mode where any SDK bug should fail the HTTP request
+immediately, not just appear in headers.
 
 Per-request override via header:
 
 ```http
-X-Steady-On-Error: reject
+X-Steady-Reject-On-Error: true
 ```
 
-**Confidence: 85%** — Replaces strict/relaxed with focused control. The two
-modes cover the primary use cases:
-
-- Development: want responses even with bugs (`respond`)
-- CI/certification: want hard failures (`reject`)
+**Confidence: 70%** — The default "mock when possible" behavior optimizes for
+clean SDK test reporting. Override flag provides strictness when needed. Needs
+validation with real SDK test scenarios.
 
 ### 6.3 Content Validation
 
@@ -614,10 +671,11 @@ interface SessionReport {
 
 ### 9.3 Open
 
-| Question                  | Considerations                                           |
-| ------------------------- | -------------------------------------------------------- |
-| Flaky issue detection     | Same issue appearing intermittently — track consistency? |
-| Mid-session fix detection | Issue stops appearing — note in report?                  |
+| Question | Considerations |
+|----------|----------------|
+| **HTTP response behavior** | Current design: mock when routing succeeds, 4xx when routing fails. Headers always present. Needs validation with real SDK tests (`./scripts/test-sdks`) to confirm this produces clean error reporting across languages. |
+| Flaky issue detection | Same issue appearing intermittently — track consistency? |
+| Mid-session fix detection | Issue stops appearing — note in report? |
 
 ---
 
