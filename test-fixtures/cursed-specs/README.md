@@ -18,9 +18,10 @@ When adding a cursed spec, include:
 
 ## Catalog
 
-| File                           | Curse                                       | OAS Section     |
-| ------------------------------ | ------------------------------------------- | --------------- |
-| `duplicate-path-patterns.yaml` | Same URL pattern with different param names | Path Templating |
+| File                           | Curse                                       | OAS Section      |
+| ------------------------------ | ------------------------------------------- | ---------------- |
+| `duplicate-path-patterns.yaml` | Same URL pattern with different param names | Path Templating  |
+| `missing-responses.yaml`       | Endpoint with no responses defined          | Responses Object |
 
 ## Ideas for Future Curses
 

@@ -1,0 +1,83 @@
+# CURSED SPEC: Missing Responses Object
+#
+# Violation: OpenAPI 3.1.0 Section 4.8.16 "Responses Object"
+#   Quote: "The Responses Object MUST contain at least one response code,
+#   and if only one response code is provided it SHOULD be the response
+#   for a successful operation call."
+#
+# Also: OpenAPI 3.0.3 Section "Responses Object" - same requirement
+#
+# Real-world occurrence: Found in the wild - specs with path, method, and
+# parameters but literally no responses defined.
+#
+# Why it's cursed:
+#   - OpenAPI explicitly requires the responses field
+#   - Mock servers have nothing to return
+#   - SDK generators can't determine return types
+#   - Validators may crash accessing undefined.property
+#
+# What happens:
+#   - Prism: Returns 500 Internal Server Error
+#   - Swagger UI: Shows the endpoint but response section is empty
+#   - Most codegen: Generates void/None return type or crashes
+#   - Steady: Should handle gracefully with clear error message
+#
+# How Steady handles it:
+#   - Empty responses `{}`: Rejected at parse time with clear error
+#   - Missing responses field: BUG - currently accepted, should be rejected
+#   - Error (when working): "Must NOT have fewer than 1 properties"
+
+openapi: 3.1.0
+info:
+  title: Cursed API - Missing Responses
+  version: 1.0.0
+  description: |
+    This spec demonstrates endpoints with no responses object defined.
+    This violates the OpenAPI spec but occurs in real-world specs.
+
+paths:
+  # Endpoint with parameters but no responses at all
+  /webhooks/{webhook_id}:
+    delete:
+      summary: Delete a webhook
+      operationId: deleteWebhook
+      parameters:
+        - name: webhook_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The webhook ID to delete
+      # responses: <-- completely missing!
+
+  # Endpoint with empty responses object
+  /events/{event_id}/replay:
+    post:
+      summary: Replay an event
+      operationId: replayEvent
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses: {} # Empty object - no status codes defined
+
+  # Normal endpoint for comparison
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+              example:
+                status: healthy

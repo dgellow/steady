@@ -1,0 +1,44 @@
+export const snapshot = {};
+
+snapshot[`parseSpec - cursed: empty responses object 1`] = `
+{
+  errorType: "validate",
+  reason: "Must NOT have fewer than 1 properties",
+  schemaPath: [
+    "properties",
+    "paths",
+    "\$ref",
+    "patternProperties",
+    "^~1",
+    "\$ref",
+    "properties",
+    "get",
+    "\$ref",
+    "properties",
+    "responses",
+    "\$ref",
+    "minProperties",
+  ],
+  suggestion: "Fix the schema to comply with JSON Schema specification",
+}
+`;
+
+snapshot[`parseSpec - cursed: missing responses object 1`] = `
+{
+  errorType: "validate",
+  reason: "Missing required property: responses",
+  schemaPath: [
+    "properties",
+    "paths",
+    "\$ref",
+    "patternProperties",
+    "^~1",
+    "\$ref",
+    "properties",
+    "get",
+    "\$ref",
+    "required",
+  ],
+  suggestion: "Add a responses object with at least one status code",
+}
+`;
