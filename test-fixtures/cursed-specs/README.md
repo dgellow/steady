@@ -21,6 +21,7 @@ When adding a cursed spec, include:
 | File                           | Curse                                       | OAS Section      |
 | ------------------------------ | ------------------------------------------- | ---------------- |
 | `duplicate-path-patterns.yaml` | Same URL pattern with different param names | Path Templating  |
+| `duplicate-param-name.yaml`    | Same param name twice: `/a/{id}/b/{id}`     | Path Templating  |
 | `missing-responses.yaml`       | Endpoint with no responses defined          | Responses Object |
 
 ## Ideas for Future Curses

@@ -356,6 +356,36 @@ Deno.test("parseSpec - cursed: accepts operation with at least one response", as
   );
 });
 
+// BUG: Duplicate path parameter names should be rejected.
+// OAS 3.1.0 Section 4.8.9.1: "Each parameter MUST have a unique name
+// within the path template."
+Deno.test("parseSpec - cursed: duplicate path parameter names", async (t) => {
+  const spec = validSpec({
+    paths: {
+      "/users/{id}/posts/{id}": {
+        get: {
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: { "200": { description: "OK" } },
+        },
+      },
+    },
+  });
+  try {
+    await parseSpec(json(spec));
+    throw new Error("Should have thrown");
+  } catch (e) {
+    assertEquals(e instanceof SpecValidationError, true);
+    await assertSnapshot(t, (e as SpecValidationError).context);
+  }
+});
+
 Deno.test("parseSpec - OpenAPI 3.1 specific fields", async (t) => {
   await t.step("validates jsonSchemaDialect type", async () => {
     await assertRejects(

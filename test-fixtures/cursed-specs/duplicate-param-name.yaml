@@ -1,0 +1,98 @@
+# CURSED SPEC: Duplicate Path Parameter Names
+#
+# Violation: OpenAPI 3.1.0 Section 4.8.9.1 "Path Templating"
+#   "A URL path MAY contain multiple path parameters, each delimited by
+#   curly braces {}. Each parameter MUST have a unique name within the
+#   path template."
+#
+# Real-world occurrence: Yes - seen in auto-generated specs from ORMs
+# that nest resources without renaming parameters.
+#
+# Why it's cursed:
+#   - `/users/{id}/posts/{id}` - which `id` is which?!
+#   - Routers can't distinguish the two parameters
+#   - Code generators produce broken code with duplicate variable names
+#   - The second {id} silently overwrites the first in most frameworks
+#   - Debugging nightmare: "why is userId always equal to postId?"
+#
+# What happens:
+#   - Prism: Accepts it, both params get same value
+#   - Swagger UI: Shows two "id" params, confusing users
+#   - Most codegen: Generates `id` param twice, compile errors
+#   - Express/Rails: Second param overwrites first silently
+#
+# How Steady handles it:
+#   - TODO: Should warn about duplicate parameter names
+#   - Currently: Silently accepts (BUG)
+
+openapi: 3.1.0
+info:
+  title: Cursed API - Duplicate Parameter Names
+  version: 1.0.0
+  description: |
+    This spec uses the same parameter name twice in a path.
+    Which {id} is which? Nobody knows!
+
+paths:
+  # The cursed path - {id} appears TWICE
+  /users/{id}/posts/{id}:
+    get:
+      summary: Get a post by a user
+      operationId: getUserPost
+      description: |
+        But wait... which {id} is the user ID and which is the post ID?
+        The answer may surprise you (it's undefined behavior).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Is this the user ID or post ID? Yes.
+      responses:
+        "200":
+          description: A post, maybe
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  title:
+                    type: string
+                  authorId:
+                    type: string
+              example:
+                id: "post-123"
+                title: "Why I stopped using {id} twice"
+                authorId: "user-456"
+
+  # What it SHOULD look like
+  /authors/{authorId}/articles/{articleId}:
+    get:
+      summary: Get an article by an author (the right way)
+      operationId: getAuthorArticle
+      parameters:
+        - name: authorId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: articleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: An article
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  title:
+                    type: string

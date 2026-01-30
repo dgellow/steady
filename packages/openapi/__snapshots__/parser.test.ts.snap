@@ -42,3 +42,16 @@ snapshot[`parseSpec - cursed: missing responses object 1`] = `
   suggestion: "Add a responses object with at least one status code",
 }
 `;
+
+snapshot[`parseSpec - cursed: duplicate path parameter names 1`] = `
+{
+  errorType: "validate",
+  reason: "Duplicate path parameter name: id",
+  schemaPath: [
+    "properties",
+    "paths",
+    "patternProperties",
+  ],
+  suggestion: "Each path parameter must have a unique name within the path template",
+}
+`;
