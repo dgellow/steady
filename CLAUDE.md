@@ -76,6 +76,15 @@ Name"` (percent-decoded before JSON Pointer parsing).
    never use `|`, `&&`, or `||`. Run each command as a separate, distinct
    invocation
 
+## Skills
+
+### /design-review
+
+Review a design/spec document by finding real-world patterns that stress it.
+Use with: `/design-review docs/diagnostics-spec.md`
+
+See `.claude/skills/design-review/SKILL.md` for full process.
+
 ## Investigation Standards
 
 **INVESTIGATE BEFORE IMPLEMENTING**: Always research the correct behavior first.
