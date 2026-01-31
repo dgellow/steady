@@ -209,7 +209,7 @@ export class RuntimeValidator {
       if (resolved) {
         const refContext = {
           ...context,
-          schemaPath: `${context.schemaPath}/$ref`,
+          schemaPath: schema.$ref,
         };
         const refResult = this.validateWithSchema(data, resolved, refContext);
         // $ref evaluation is visible to parent (merge into result)

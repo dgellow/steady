@@ -603,3 +603,71 @@ Deno.test("conditional: if/then/else", async () => {
     1, // missing personalId
   );
 });
+
+// =============================================================================
+// Schema Path Tests ($ref resolution in error paths)
+// =============================================================================
+
+Deno.test("schemaPath: should resolve through nested $refs to actual schema location", async () => {
+  // Mimics OpenAPI metaschema structure: paths -> pathItem -> operation -> responses -> response
+  // Each level uses $ref
+  const schema = {
+    $defs: {
+      Response: {
+        type: "object",
+        properties: {
+          description: { type: "string" },
+          content: { type: "object" },
+        },
+      },
+      Responses: {
+        type: "object",
+        additionalProperties: { $ref: "#/$defs/Response" },
+      },
+      Operation: {
+        type: "object",
+        properties: {
+          responses: { $ref: "#/$defs/Responses" },
+        },
+      },
+      PathItem: {
+        type: "object",
+        properties: {
+          get: { $ref: "#/$defs/Operation" },
+        },
+      },
+    },
+    type: "object",
+    properties: {
+      paths: {
+        type: "object",
+        additionalProperties: { $ref: "#/$defs/PathItem" },
+      },
+    },
+  };
+
+  const validator = await createValidator(schema);
+
+  // Pass a string where Response (object) is expected - clear type error
+  const data = {
+    paths: {
+      "/users": {
+        get: {
+          responses: {
+            "200": "not an object",
+          },
+        },
+      },
+    },
+  };
+
+  const errors = validator.validate(data);
+
+  assertEquals(errors.length, 1, "Should have one error for type mismatch");
+  assertEquals(errors[0]?.keyword, "type");
+  assertEquals(
+    errors[0]?.schemaPath,
+    "#/$defs/Response/type",
+    "schemaPath should point to the actual schema location where 'type' is defined",
+  );
+});
