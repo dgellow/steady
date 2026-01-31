@@ -87,13 +87,18 @@ grow as we encounter more edge cases.
 
 ### 3.1 Issue Categories
 
-Every validation issue is assigned to one of three categories:
+Every validation issue is assigned to one of four categories:
 
 | Category         | Meaning                                      | Affects Pass/Fail |
 | ---------------- | -------------------------------------------- | ----------------- |
 | **SDK Issue**    | Structural failure — SDK must fix            | Yes               |
 | **Content Note** | Content validation — informational only      | No                |
+| **Spec Issue**   | Problem with the OpenAPI spec itself         | No                |
 | **Ambiguous**    | Could be SDK, spec, or user — needs judgment | Configurable      |
+
+Spec Issues are reported alongside request validation diagnostics when relevant
+(e.g., E1010 "Missing responses" is reported at runtime when that endpoint is
+hit). They don't fail the test but inform the SDK developer of coverage gaps.
 
 **Confidence: 90%** — Categories are correct. Whether ambiguous affects
 pass/fail is a policy decision (see Section 6).
@@ -117,11 +122,19 @@ pass/fail is a policy decision (see Section 6).
 - Numeric range violation
 - Array size violation
 
+**Spec Issue (spec author's problem):**
+
+- Missing responses object (E1010)
+- Duplicate path patterns (E1008, when hit at runtime)
+- Duplicate path parameter names (E1009, when hit at runtime)
+- Invalid schema that Steady worked around
+
 **Ambiguous (requires judgment):**
 
 - Null sent for non-nullable field (spec might be incomplete)
 - Enum value invalid (SDK might expose typed enum or pass-through)
 - Additional properties when spec doesn't set `additionalProperties`
+- Schema composition failures where all variants fail on required fields
 
 **Confidence: 85%** — Rules are sound. Specific cases may be reclassified as we
 learn from real-world usage.
@@ -198,12 +211,15 @@ Format: `E` + 4 digits
 First digit encodes category (attribution):
 
 ```
-E1xxx — Spec       (spec author's problem, found at startup)
+E1xxx — Spec       (spec author's problem)
 E2xxx — Routing    (SDK hitting wrong endpoint)
-E3xxx — Transport  (SDK packaging data wrong)
+E3xxx — Transport  (SDK packaging data wrong — see confidence notes)
 E4xxx — Content    (not SDK's fault — server validates)
 E5xxx — Ambiguous  (needs human judgment)
 ```
+
+Note: E1xxx codes may be reported at startup only, runtime only, or both. See
+the Context column in Section 4.3 for per-code details.
 
 **Confidence: 90%** — Format is stable. Categories align with attribution model.
 
@@ -216,46 +232,90 @@ These are the initial codes. The list will grow over time.
 Fatal errors prevent server startup (exit 3). Non-fatal errors are reported but
 the server continues.
 
-| Code  | Title                           | Severity | Fatal |
-| ----- | ------------------------------- | -------- | ----- |
-| E1001 | Invalid syntax                  | error    | yes   |
-| E1002 | Unsupported OpenAPI version     | error    | yes   |
-| E1003 | Missing required spec field     | error    | no    |
-| E1004 | Unresolved reference            | error    | yes   |
-| E1005 | Circular reference              | warning  | no    |
-| E1006 | Invalid schema definition       | error    | yes   |
-| E1007 | Keywords alongside $ref ignored | warning  | no    |
-| E1008 | Duplicate path patterns         | warning  | no    |
+| Code  | Title                           | Severity | Fatal | Context |
+| ----- | ------------------------------- | -------- | ----- | ------- |
+| E1001 | Invalid syntax                  | error    | yes   | startup |
+| E1002 | Unsupported OpenAPI version     | error    | yes   | startup |
+| E1003 | Missing required spec field     | error    | no    | startup |
+| E1004 | Unresolved reference            | error    | yes   | startup |
+| E1005 | Circular reference              | warning  | no    | startup |
+| E1006 | Invalid schema definition       | error    | yes   | startup |
+| E1007 | Keywords alongside $ref ignored | warning  | no    | startup |
+| E1008 | Duplicate path patterns         | warning  | no    | both    |
+| E1009 | Duplicate path parameter name   | warning  | no    | both    |
+| E1010 | Missing responses object        | warning  | no    | both    |
 
 Note on E1003: Missing `openapi`, `info.title`, or `info.version` is clearly an
 error but Steady can assume reasonable defaults (3.1.0, "Untitled", "unknown")
 and continue. The spec author should fix this, but it doesn't prevent serving.
 
+Note on E1009: Path `/users/{id}/posts/{id}` uses `{id}` twice. Parameter names
+must be unique within a path template per OpenAPI spec. When both segments
+match, behavior is undefined (second typically overwrites first). Real-world
+occurrence: auto-generated specs from ORMs that nest resources.
+
+Note on E1010: Endpoint has no `responses` defined. Steady returns 204 No
+Content for these endpoints. At runtime, E1010 is reported alongside any
+request validation diagnostics—they are independent. This surfaces response
+coverage gaps to SDK developers who might otherwise assume a passing test means
+full coverage.
+
 **E2xxx — Routing**
 
-| Code  | Title                        | Severity |
-| ----- | ---------------------------- | -------- |
-| E2001 | Path not found               | error    |
-| E2002 | Method not allowed           | error    |
-| E2003 | Undocumented query parameter | warning  |
+| Code  | Title              | Severity |
+| ----- | ------------------ | -------- |
+| E2001 | Path not found     | error    |
+| E2002 | Method not allowed | error    |
 
 **E3xxx — Transport Failures**
 
-| Code  | Title                             |
-| ----- | --------------------------------- |
-| E3001 | Path parameter type mismatch      |
-| E3002 | Missing required query parameter  |
-| E3003 | Query parameter type mismatch     |
-| E3004 | Missing required header           |
-| E3005 | Missing request body              |
-| E3006 | Wrong Content-Type                |
-| E3007 | Missing required field            |
-| E3008 | Field type mismatch               |
-| E3009 | Additional property not allowed   |
-| E3010 | Invalid array item type           |
-| E3011 | Invalid discriminator value       |
-| E3012 | Schema composition mismatch       |
-| E3013 | Required field in optional parent |
+> **Category confidence: 60%** — The "Transport" framing may not be the right
+> abstraction. Some codes (E3001-E3006) clearly indicate SDK packaging errors.
+> Others (E3009, E3012) are less clear—they could be SDK bugs, spec issues, or
+> test data problems. We will revisit this category after more real-world usage.
+> The goal is meaningful attribution, not forcing everything into "SDK's fault."
+
+| Code  | Title                             | Confidence |
+| ----- | --------------------------------- | ---------- |
+| E3001 | Path parameter type mismatch      | high       |
+| E3002 | Missing required query parameter  | high       |
+| E3003 | Query parameter type mismatch     | high       |
+| E3004 | Missing required header           | high       |
+| E3005 | Missing request body              | high       |
+| E3006 | Wrong Content-Type                | high       |
+| E3007 | Missing required field            | medium     |
+| E3008 | Field type mismatch               | high       |
+| E3009 | Additional property not allowed   | low        |
+| E3010 | Invalid array item type           | high       |
+| E3011 | Invalid discriminator value       | medium     |
+| E3012 | Schema composition mismatch       | low        |
+| E3013 | Required field in optional parent | medium     |
+| E3014 | Parameter serialization mismatch  | low        |
+| E3015 | Undocumented query parameter      | low        |
+
+Note on confidence levels:
+- **high**: Almost certainly an SDK structural error
+- **medium**: Likely SDK error, but could be spec ambiguity or test setup
+- **low**: Often ambiguous; may belong in E5xxx after further analysis
+
+Note on E3009: "Additional property not allowed" is often a serialization
+format mismatch rather than a true extra property. Example: SDK sends
+`items[]` (bracket notation) but spec expects `items`. The property exists
+in both, just encoded differently. Consider E3014 for these cases.
+
+Note on E3012: Schema composition (oneOf/anyOf/allOf) failures are complex.
+When all oneOf variants fail due to missing required fields, it's unclear
+whether the SDK should have included those fields or the test data is
+incomplete. May warrant E5xxx classification in some cases.
+
+Note on E3014: Detected when a parameter name differs only by serialization
+suffix (`[]`, `.key`, `[key]`). Confidence is low because detection is
+heuristic—we look for known suffix patterns, but can't always distinguish
+"wrong format" from "truly unknown parameter."
+
+Note on E3015: SDK sent a query parameter not defined in the spec. Confidence
+is low because: (1) spec might be incomplete, (2) server might ignore unknown
+params, (3) SDK might legitimately add debug/tracing params.
 
 **E4xxx — Content Validation Notes**
 
@@ -366,11 +426,17 @@ at a well-defined checkpoint, avoiding stack trace noise.
 
 | Category | Can Mock? | Response | Rationale |
 |----------|-----------|----------|-----------|
+| E1xxx (spec, runtime) | Depends | See notes | Spec issue, but request still processed |
 | E3xxx (transport) | Yes | Mock + headers | Endpoint matched, can generate response |
 | E4xxx (content) | Yes | Mock + headers | SDK correct, just noting issues |
 | E5xxx (ambiguous) | Yes | Mock + headers | SDK might be correct |
 | E2001 (path not found) | No | 404 + headers | No endpoint matched, no schema to mock |
 | E2002 (method not allowed) | No | 405 + headers | Wrong method, can't mock meaningfully |
+
+Note on E1xxx at runtime: Spec issues like E1010 (missing responses) are
+reported alongside request validation. If responses are missing, return 204 No
+Content. Other E1xxx codes (E1008, E1009) don't affect response generation—the
+mock response is still returned, with the spec issue noted in diagnostics.
 
 **Key rule:** If routing succeeds, return mock response. If routing fails,
 return error status. **Headers are always present** regardless of status code.
@@ -487,18 +553,40 @@ GET /_steady/sessions/{session_id}
   "requests": 3,
   "sdk_issues": [
     {
-      "code": "E3012",
-      "message": "Request doesn't match oneOf schema",
+      "code": "E3007",
+      "message": "Missing required field",
       "method": "POST",
       "path": "/openai/v1/audio/transcriptions",
-      "request_path": "body",
-      "request_body": {"model": "whisper-large-v3-turbo"},
-      "spec_pointer": "#/components/schemas/CreateTranscriptionRequest/oneOf",
-      "suggestion": "Required: 'file' OR 'url' must be present"
+      "request_path": "body.file",
+      "spec_pointer": "#/components/schemas/FileVariant/required",
+      "attribution": {
+        "category": "sdk-issue",
+        "confidence": 0.9,
+        "reasoning": [
+          "Field 'file' is marked required in schema",
+          "Request body did not include 'file'",
+          "SDK should ensure required fields are present"
+        ]
+      },
+      "suggestion": "Include 'file' field in request body"
     }
   ],
   "content_notes": [],
-  "ambiguous": []
+  "ambiguous": [],
+  "spec_issues": [
+    {
+      "code": "E1010",
+      "message": "Endpoint has no responses defined",
+      "method": "DELETE",
+      "path": "/webhooks/{webhook_id}",
+      "attribution": {
+        "category": "spec-issue",
+        "confidence": 1.0,
+        "reasoning": ["Operation has no responses object"]
+      },
+      "suggestion": "Add responses to spec; response parsing is untested"
+    }
+  ]
 }
 ```
 
@@ -530,16 +618,27 @@ def steady_session(client):
         f"http://localhost:4010/_steady/sessions/{session_id}"
     ).json()
 
+    # Warn about spec issues (informational, doesn't fail test)
+    if report["spec_issues"]:
+        for issue in report["spec_issues"]:
+            print(f"  [SPEC] {issue['code']}: {issue['message']}")
+
+    # Fail on SDK issues
     if report["sdk_issues"]:
         pytest.fail(format_steady_errors(report["sdk_issues"]))
 
 def format_steady_errors(issues):
     lines = [f"Steady validation failed ({len(issues)} SDK issue(s)):\n"]
     for issue in issues:
-        lines.append(f"  [{issue['code']}] {issue['method']} {issue['path']}")
-        lines.append(f"          {issue['message']}")
+        attr = issue.get('attribution', {})
+        confidence = attr.get('confidence', 0)
+        lines.append(f"  [{issue['code']} {confidence:.0%}] {issue['method']} {issue['path']}")
+        lines.append(f"      {issue['message']}")
         if issue.get('suggestion'):
-            lines.append(f"          {issue['suggestion']}")
+            lines.append(f"      → {issue['suggestion']}")
+        # Show reasoning chain for debugging
+        for reason in attr.get('reasoning', []):
+            lines.append(f"        • {reason}")
         lines.append("")
     return "\n".join(lines)
 ```
@@ -551,14 +650,15 @@ FAILED test_method_create
 
   Steady validation failed (1 SDK issue):
 
-  [E3012] POST /openai/v1/audio/transcriptions
-          Request doesn't match oneOf schema
-          Required: 'file' OR 'url' must be present
-
-  Spec: #/components/schemas/CreateTranscriptionRequest/oneOf
+  [E3007 90%] POST /openai/v1/audio/transcriptions
+      Missing required field
+      → Include 'file' field in request body
+        • Field 'file' is marked required in schema
+        • Request body did not include 'file'
+        • SDK should ensure required fields are present
 ```
 
-Clean, actionable, no stack trace noise.
+Clean, actionable, shows reasoning chain for debugging.
 
 #### 5.6.4 Why Sessions?
 
@@ -712,12 +812,17 @@ Untested: 20 endpoints
 ### 8.1 Core Types
 
 ```typescript
-type IssueCategory = "sdk-issue" | "content-note" | "ambiguous";
+type IssueCategory = "sdk-issue" | "content-note" | "ambiguous" | "spec-issue";
 type Severity = "error" | "warning" | "info";
+
+interface Attribution {
+  category: IssueCategory;
+  confidence: number; // 0.0-1.0
+  reasoning: string[]; // Chain of reasoning that led to this attribution
+}
 
 interface Diagnostic {
   code: string; // E3008
-  category: IssueCategory;
   severity: Severity;
 
   // Location
@@ -729,10 +834,37 @@ interface Diagnostic {
   expected: unknown;
   actual: unknown;
 
+  // Attribution (how we determined who's responsible)
+  attribution: Attribution;
+
   // Help
   suggestion?: string;
 }
 ```
+
+The `attribution.reasoning` field is an array of strings showing the logic
+chain that led to the final category. Example:
+
+```json
+{
+  "code": "E3012",
+  "attribution": {
+    "category": "ambiguous",
+    "confidence": 0.5,
+    "reasoning": [
+      "oneOf validation failed: 0 of 2 variants matched",
+      "Variant 1 (FileVariant): missing required field 'file'",
+      "Variant 2 (UrlVariant): missing required field 'url'",
+      "All variants failed due to missing required fields",
+      "Could be: SDK not sending required data, test data incomplete, or spec wrong",
+      "Classified as ambiguous (low confidence in SDK attribution)"
+    ]
+  }
+}
+```
+
+This allows debugging why a particular attribution was chosen, especially
+for complex cases like schema composition failures.
 
 **Confidence: 85%** — Core structure is stable. Fields may be added.
 
@@ -766,9 +898,10 @@ interface SessionReport {
   };
 
   issues: {
-    sdk: AggregatedIssue[];
-    contentNotes: AggregatedIssue[];
-    ambiguous: AggregatedIssue[];
+    sdkIssues: AggregatedIssue[];     // JSON: sdk_issues
+    contentNotes: AggregatedIssue[];  // JSON: content_notes
+    specIssues: AggregatedIssue[];    // JSON: spec_issues
+    ambiguous: AggregatedIssue[];     // JSON: ambiguous
   };
 
   coverage: {
