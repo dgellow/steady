@@ -1,0 +1,115 @@
+# CURSED SPEC: Space in Schema Name
+#
+# Violation: OpenAPI 3.1.0 Section 4.8.24 "Components Object"
+#   "All the fixed fields declared above are objects that MUST use keys
+#   that match the regular expression: ^[a-zA-Z0-9\.\-_]+$"
+#
+# Real-world occurrence: https://github.com/OpenAPITools/openapi-generator/issues/19996
+# Shows "Api Response" causing 55+ TypeScript compilation errors.
+#
+# Why it's cursed:
+#   - Spaces are explicitly forbidden by the OpenAPI spec regex
+#   - Code generators produce invalid identifiers (e.g., `interface Api Response`)
+#   - $ref must use percent-encoding: #/components/schemas/Api%20Response
+#   - Many tools crash or produce garbage output
+#   - YAML allows it syntactically, so specs like this exist in the wild
+#
+# JSON Pointer behavior (RFC 6901):
+#   - In URI fragment: space must be percent-encoded as %20
+#   - Percent-decoding happens at URI layer BEFORE JSON Pointer parsing
+#   - So "#/components/schemas/Api%20Response" → looks up key "Api Response"
+#
+# What happens:
+#   - openapi-generator: Generates broken code with spaces in identifiers
+#   - Swagger UI: Usually displays it (rendering is more forgiving)
+#   - Prism: Likely works (doesn't generate code)
+#   - Steady: Should warn at startup, handle $ref with %20 encoding
+
+openapi: 3.1.0
+info:
+  title: Cursed API - Space in Schema Name
+  version: 1.0.0
+  description: |
+    This spec demonstrates schema names with spaces, which violates the
+    OpenAPI specification but occurs in real-world specs.
+
+paths:
+  /upload:
+    post:
+      summary: Upload an image
+      operationId: uploadImage
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Upload successful
+          content:
+            application/json:
+              schema:
+                # Note: %20 is the percent-encoded space per RFC 6901
+                $ref: "#/components/schemas/Api%20Response"
+
+  /status:
+    get:
+      summary: Get API status
+      operationId: getStatus
+      responses:
+        "200":
+          description: Status response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health%20Check%20Result"
+
+components:
+  schemas:
+    # Cursed: space in schema name (violates ^[a-zA-Z0-9\.\-_]+$)
+    "Api Response":
+      type: object
+      description: |
+        This schema name has a space, which is forbidden by OpenAPI spec.
+        Code generators will produce: `interface Api Response` (invalid)
+      properties:
+        code:
+          type: integer
+          format: int32
+        type:
+          type: string
+        message:
+          type: string
+      example:
+        code: 200
+        type: success
+        message: Image uploaded successfully
+
+    # Another cursed example with multiple spaces
+    "Health Check Result":
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+      example:
+        status: healthy
+        timestamp: "2024-01-15T10:30:00Z"
+
+    # Valid schema name for comparison
+    ApiResponseValid:
+      type: object
+      description: This is the correct way - no spaces, use PascalCase or snake_case
+      properties:
+        code:
+          type: integer
+        message:
+          type: string

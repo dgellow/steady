@@ -244,6 +244,7 @@ the server continues.
 | E1008 | Duplicate path patterns         | warning  | no    | both    |
 | E1009 | Duplicate path parameter name   | warning  | no    | both    |
 | E1010 | Missing responses object        | warning  | no    | both    |
+| E1011 | Invalid component name          | warning  | no    | startup |
 
 Note on E1003: Missing `openapi`, `info.title`, or `info.version` is clearly an
 error but Steady can assume reasonable defaults (3.1.0, "Untitled", "unknown")
@@ -259,6 +260,13 @@ Content for these endpoints. At runtime, E1010 is reported alongside any request
 validation diagnostics—they are independent. This surfaces response coverage
 gaps to SDK developers who might otherwise assume a passing test means full
 coverage.
+
+Note on E1011: Component name contains characters forbidden by OpenAPI spec
+(must match `^[a-zA-Z0-9\.\-_]+$`). Common case: `"Api Response"` with a space.
+Steady handles this because $refs using percent-encoding (`Api%20Response`)
+resolve correctly per RFC 6901. However, code generators will likely produce
+invalid output (e.g., `interface Api Response`). Real-world occurrence:
+https://github.com/OpenAPITools/openapi-generator/issues/19996
 
 **E2xxx — Routing**
 
@@ -944,6 +952,29 @@ interface SessionReport {
 | **Session implementation details** | Session timeout, max sessions, memory limits. Need tuning based on real usage patterns. |
 | Flaky issue detection              | Same issue appearing intermittently — track consistency?                                |
 | Mid-session fix detection          | Issue stops appearing — note in report?                                                 |
+| **Impossible schema constraints**  | See detailed note below.                                                                |
+
+**On impossible schemas:** Some schemas are syntactically valid but logically
+impossible to satisfy (e.g., `allOf: [{type: string}, {type: number}]` or
+`{minimum: 10, maximum: 5}`). Currently these surface as E3012 at validation
+time, which misleadingly suggests an SDK transport issue when no SDK could
+ever succeed.
+
+The principle is clear: impossible constraint = spec issue (E1xxx), not SDK
+issue (E3xxx). However, implementation is uncertain:
+
+1. Detecting ALL impossible schemas is NP-complete (SAT problem)
+2. Simple cases (type conflicts, range inversions) are detectable at startup
+3. Complex compositions may only fail at validation time
+4. Partial impossibility (one oneOf branch impossible) is ambiguous
+
+**Options to consider:**
+- E1012 "Impossible schema constraint" for detectable cases at startup
+- Improve E3012 attribution reasoning to note when spec may be at fault
+- Accept limitation and document that some spec issues surface as E3xxx
+
+**Confidence: 40%** — Principle is right, implementation unclear. Revisit after
+seeing real-world frequency of this pattern.
 
 ---
 
