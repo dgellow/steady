@@ -255,10 +255,10 @@ match, behavior is undefined (second typically overwrites first). Real-world
 occurrence: auto-generated specs from ORMs that nest resources.
 
 Note on E1010: Endpoint has no `responses` defined. Steady returns 204 No
-Content for these endpoints. At runtime, E1010 is reported alongside any
-request validation diagnostics—they are independent. This surfaces response
-coverage gaps to SDK developers who might otherwise assume a passing test means
-full coverage.
+Content for these endpoints. At runtime, E1010 is reported alongside any request
+validation diagnostics—they are independent. This surfaces response coverage
+gaps to SDK developers who might otherwise assume a passing test means full
+coverage.
 
 **E2xxx — Routing**
 
@@ -294,27 +294,28 @@ full coverage.
 | E3015 | Undocumented query parameter      | low        |
 
 Note on confidence levels:
+
 - **high**: Almost certainly an SDK structural error
 - **medium**: Likely SDK error, but could be spec ambiguity or test setup
 - **low**: Often ambiguous; may belong in E5xxx after further analysis
 
-Note on E3009: "Additional property not allowed" is often a serialization
-format mismatch rather than a true extra property. Example: SDK sends
-`items[]` (bracket notation) but spec expects `items`. The property exists
-in both, just encoded differently. Consider E3014 for these cases.
+Note on E3009: "Additional property not allowed" is often a serialization format
+mismatch rather than a true extra property. Example: SDK sends `items[]`
+(bracket notation) but spec expects `items`. The property exists in both, just
+encoded differently. Consider E3014 for these cases.
 
-Note on E3012: Schema composition (oneOf/anyOf/allOf) failures are complex.
-When all oneOf variants fail due to missing required fields, it's unclear
-whether the SDK should have included those fields or the test data is
-incomplete. May warrant E5xxx classification in some cases.
+Note on E3012: Schema composition (oneOf/anyOf/allOf) failures are complex. When
+all oneOf variants fail due to missing required fields, it's unclear whether the
+SDK should have included those fields or the test data is incomplete. May
+warrant E5xxx classification in some cases.
 
 Note on E3014: Detected when a parameter name differs only by serialization
 suffix (`[]`, `.key`, `[key]`). Confidence is low because detection is
-heuristic—we look for known suffix patterns, but can't always distinguish
-"wrong format" from "truly unknown parameter."
+heuristic—we look for known suffix patterns, but can't always distinguish "wrong
+format" from "truly unknown parameter."
 
-Note on E3015: SDK sent a query parameter not defined in the spec. Confidence
-is low because: (1) spec might be incomplete, (2) server might ignore unknown
+Note on E3015: SDK sent a query parameter not defined in the spec. Confidence is
+low because: (1) spec might be incomplete, (2) server might ignore unknown
 params, (3) SDK might legitimately add debug/tracing params.
 
 **E4xxx — Content Validation Notes**
@@ -424,14 +425,14 @@ at a well-defined checkpoint, avoiding stack trace noise.
 
 **Response behavior by category:**
 
-| Category | Can Mock? | Response | Rationale |
-|----------|-----------|----------|-----------|
-| E1xxx (spec, runtime) | Depends | See notes | Spec issue, but request still processed |
-| E3xxx (transport) | Yes | Mock + headers | Endpoint matched, can generate response |
-| E4xxx (content) | Yes | Mock + headers | SDK correct, just noting issues |
-| E5xxx (ambiguous) | Yes | Mock + headers | SDK might be correct |
-| E2001 (path not found) | No | 404 + headers | No endpoint matched, no schema to mock |
-| E2002 (method not allowed) | No | 405 + headers | Wrong method, can't mock meaningfully |
+| Category                   | Can Mock? | Response       | Rationale                               |
+| -------------------------- | --------- | -------------- | --------------------------------------- |
+| E1xxx (spec, runtime)      | Depends   | See notes      | Spec issue, but request still processed |
+| E3xxx (transport)          | Yes       | Mock + headers | Endpoint matched, can generate response |
+| E4xxx (content)            | Yes       | Mock + headers | SDK correct, just noting issues         |
+| E5xxx (ambiguous)          | Yes       | Mock + headers | SDK might be correct                    |
+| E2001 (path not found)     | No        | 404 + headers  | No endpoint matched, no schema to mock  |
+| E2002 (method not allowed) | No        | 405 + headers  | Wrong method, can't mock meaningfully   |
 
 Note on E1xxx at runtime: Spec issues like E1010 (missing responses) are
 reported alongside request validation. If responses are missing, return 204 No
@@ -508,8 +509,8 @@ Steady supports two output formats:
 ### 5.6 SDK Test Integration: Sessions
 
 **The problem:** SDK abstractions hide HTTP details. When a test calls
-`client.users.create(email=123)`, it returns a parsed `User` object — no
-access to response headers. Validation errors get buried in stack traces:
+`client.users.create(email=123)`, it returns a parsed `User` object — no access
+to response headers. Validation errors get buried in stack traces:
 
 ```
 groq.BadRequestError: Error code: 400 - {'error': 'Validation failed', ...}
@@ -662,15 +663,15 @@ Clean, actionable, shows reasoning chain for debugging.
 
 #### 5.6.4 Why Sessions?
 
-| Approach | Problem |
-|----------|---------|
-| Check response headers | SDK abstracts away HTTP, no header access |
-| Global error log | Parallel tests interfere with each other |
-| Parse stack traces | Fragile, language-specific, noisy |
-| **Sessions** | Isolated per-test, language-agnostic, clean |
+| Approach               | Problem                                     |
+| ---------------------- | ------------------------------------------- |
+| Check response headers | SDK abstracts away HTTP, no header access   |
+| Global error log       | Parallel tests interfere with each other    |
+| Parse stack traces     | Fragile, language-specific, noisy           |
+| **Sessions**           | Isolated per-test, language-agnostic, clean |
 
-**Confidence: 80%** — The design is sound. Implementation details (timeout,
-max sessions, etc.) need tuning based on real usage.
+**Confidence: 80%** — The design is sound. Implementation details (timeout, max
+sessions, etc.) need tuning based on real usage.
 
 ---
 
@@ -690,10 +691,10 @@ Control mechanisms are:
 
 **Default behavior (no flags needed):**
 
-| Situation | Response | Why |
-|-----------|----------|-----|
+| Situation                            | Response                | Why                                           |
+| ------------------------------------ | ----------------------- | --------------------------------------------- |
 | Routing succeeds (E3xxx/E4xxx/E5xxx) | Mock response + headers | Test completes, headers report issues cleanly |
-| Routing fails (E2xxx) | 4xx + headers | Can't mock non-existent endpoint |
+| Routing fails (E2xxx)                | 4xx + headers           | Can't mock non-existent endpoint              |
 
 This is category-aware by default. No `--on-error` flag needed for the common
 case.
@@ -842,8 +843,8 @@ interface Diagnostic {
 }
 ```
 
-The `attribution.reasoning` field is an array of strings showing the logic
-chain that led to the final category. Example:
+The `attribution.reasoning` field is an array of strings showing the logic chain
+that led to the final category. Example:
 
 ```json
 {
@@ -863,8 +864,8 @@ chain that led to the final category. Example:
 }
 ```
 
-This allows debugging why a particular attribution was chosen, especially
-for complex cases like schema composition failures.
+This allows debugging why a particular attribution was chosen, especially for
+complex cases like schema composition failures.
 
 **Confidence: 85%** — Core structure is stable. Fields may be added.
 
@@ -898,10 +899,10 @@ interface SessionReport {
   };
 
   issues: {
-    sdkIssues: AggregatedIssue[];     // JSON: sdk_issues
-    contentNotes: AggregatedIssue[];  // JSON: content_notes
-    specIssues: AggregatedIssue[];    // JSON: spec_issues
-    ambiguous: AggregatedIssue[];     // JSON: ambiguous
+    sdkIssues: AggregatedIssue[]; // JSON: sdk_issues
+    contentNotes: AggregatedIssue[]; // JSON: content_notes
+    specIssues: AggregatedIssue[]; // JSON: spec_issues
+    ambiguous: AggregatedIssue[]; // JSON: ambiguous
   };
 
   coverage: {
@@ -920,11 +921,11 @@ interface SessionReport {
 
 ### 9.1 Resolved
 
-| Question | Decision |
-|----------|----------|
-| Strict vs relaxed mode | Replaced with `--on-error` flag |
-| Exit code for ambiguous | Removed (exit 2). Use `--fail-on-ambiguous` if needed |
-| JUnit XML output | Not supported. JSON covers machine-readable needs |
+| Question                 | Decision                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Strict vs relaxed mode   | Replaced with `--on-error` flag                                                                                                            |
+| Exit code for ambiguous  | Removed (exit 2). Use `--fail-on-ambiguous` if needed                                                                                      |
+| JUnit XML output         | Not supported. JSON covers machine-readable needs                                                                                          |
 | SDK test error reporting | Session-based aggregation with query endpoint (Section 5.6). Solves parallel tests, SDK abstraction hiding headers, and stack trace noise. |
 
 ### 9.2 Deferred
@@ -938,11 +939,11 @@ interface SessionReport {
 
 ### 9.3 Open
 
-| Question | Considerations |
-|----------|----------------|
+| Question                           | Considerations                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
 | **Session implementation details** | Session timeout, max sessions, memory limits. Need tuning based on real usage patterns. |
-| Flaky issue detection | Same issue appearing intermittently — track consistency? |
-| Mid-session fix detection | Issue stops appearing — note in report? |
+| Flaky issue detection              | Same issue appearing intermittently — track consistency?                                |
+| Mid-session fix detection          | Issue stops appearing — note in report?                                                 |
 
 ---
 

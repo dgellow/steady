@@ -80,8 +80,8 @@ Name"` (percent-decoded before JSON Pointer parsing).
 
 ### /design-review
 
-Review a design/spec document by finding real-world patterns that stress it.
-Use with: `/design-review docs/diagnostics-spec.md`
+Review a design/spec document by finding real-world patterns that stress it. Use
+with: `/design-review docs/diagnostics-spec.md`
 
 See `.claude/skills/design-review/SKILL.md` for full process.
 
