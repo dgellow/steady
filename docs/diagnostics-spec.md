@@ -957,8 +957,8 @@ interface SessionReport {
 **On impossible schemas:** Some schemas are syntactically valid but logically
 impossible to satisfy (e.g., `allOf: [{type: string}, {type: number}]` or
 `{minimum: 10, maximum: 5}`). Currently these surface as E3012 at validation
-time, which misleadingly suggests an SDK transport issue when no SDK could
-ever succeed.
+time, which misleadingly suggests an SDK transport issue when no SDK could ever
+succeed.
 
 The principle is clear: impossible constraint = spec issue (E1xxx), not SDK
 issue (E3xxx). However, implementation is uncertain:
@@ -969,6 +969,7 @@ issue (E3xxx). However, implementation is uncertain:
 4. Partial impossibility (one oneOf branch impossible) is ambiguous
 
 **Options to consider:**
+
 - E1012 "Impossible schema constraint" for detectable cases at startup
 - Improve E3012 attribution reasoning to note when spec may be at fault
 - Accept limitation and document that some spec issues surface as E3xxx

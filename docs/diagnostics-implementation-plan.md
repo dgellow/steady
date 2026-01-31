@@ -6,8 +6,8 @@
 
 Steady answers one question: "Did this SDK correctly transport the request?"
 
-Everything else—HTTP handling, response generation, logging—exists to serve
-that question. The current architecture treats diagnostics as a side effect of
+Everything else—HTTP handling, response generation, logging—exists to serve that
+question. The current architecture treats diagnostics as a side effect of
 validation. That's backwards.
 
 ---
