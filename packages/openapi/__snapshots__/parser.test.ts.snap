@@ -12,36 +12,3 @@ snapshot[`parseSpec - cursed: empty responses object 1`] = `
   suggestion: "Fix the schema to comply with JSON Schema specification",
 }
 `;
-
-snapshot[`parseSpec - cursed: missing responses object 1`] = `
-{
-  errorType: "validate",
-  reason: "Missing required property: responses",
-  schemaPath: [
-    "properties",
-    "paths",
-    "\$ref",
-    "patternProperties",
-    "^~1",
-    "\$ref",
-    "properties",
-    "get",
-    "\$ref",
-    "required",
-  ],
-  suggestion: "Add a responses object with at least one status code",
-}
-`;
-
-snapshot[`parseSpec - cursed: duplicate path parameter names 1`] = `
-{
-  errorType: "validate",
-  reason: "Duplicate path parameter name: id",
-  schemaPath: [
-    "properties",
-    "paths",
-    "patternProperties",
-  ],
-  suggestion: "Each path parameter must have a unique name within the path template",
-}
-`;

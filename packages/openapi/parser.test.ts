@@ -314,9 +314,9 @@ Deno.test("parseSpec - cursed: empty responses object", async (t) => {
 });
 
 // BUG: Missing responses is NOT validated at parse time but SHOULD be.
-// OAS 3.1.0 Section 4.8.16: "The Responses Object MUST contain at least one
-// response code."
-Deno.test("parseSpec - cursed: missing responses object", async (t) => {
+// OAS 3.1.0 Section 4.8.10: responses is a REQUIRED field on Operation Object.
+// The metaschema doesn't enforce this - needs custom validation.
+Deno.test("parseSpec - cursed: missing responses object", async () => {
   const spec = validSpec({
     paths: {
       "/test": {
@@ -327,13 +327,11 @@ Deno.test("parseSpec - cursed: missing responses object", async (t) => {
       },
     },
   });
-  try {
-    await parseSpec(json(spec));
-    throw new Error("Should have thrown");
-  } catch (e) {
-    assertEquals(e instanceof SpecValidationError, true);
-    await assertSnapshot(t, (e as SpecValidationError).context);
-  }
+  await assertRejects(
+    () => parseSpec(json(spec)),
+    SpecValidationError,
+    "responses",
+  );
 });
 
 Deno.test("parseSpec - cursed: accepts operation with at least one response", async () => {
@@ -359,7 +357,8 @@ Deno.test("parseSpec - cursed: accepts operation with at least one response", as
 // BUG: Duplicate path parameter names should be rejected.
 // OAS 3.1.0 Section 4.8.9.1: "Each parameter MUST have a unique name
 // within the path template."
-Deno.test("parseSpec - cursed: duplicate path parameter names", async (t) => {
+// The metaschema doesn't enforce this - needs custom validation.
+Deno.test("parseSpec - cursed: duplicate path parameter names", async () => {
   const spec = validSpec({
     paths: {
       "/users/{id}/posts/{id}": {
@@ -377,13 +376,11 @@ Deno.test("parseSpec - cursed: duplicate path parameter names", async (t) => {
       },
     },
   });
-  try {
-    await parseSpec(json(spec));
-    throw new Error("Should have thrown");
-  } catch (e) {
-    assertEquals(e instanceof SpecValidationError, true);
-    await assertSnapshot(t, (e as SpecValidationError).context);
-  }
+  await assertRejects(
+    () => parseSpec(json(spec)),
+    SpecValidationError,
+    "duplicate",
+  );
 });
 
 Deno.test("parseSpec - OpenAPI 3.1 specific fields", async (t) => {
