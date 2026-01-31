@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.15.0
+
+### Features
+
+- skip pytest's skip markers in api_resources tests (#78) <details><summary>Details</summary>
+  Inject a conftest.py hook that removes @pytest.mark.skip and
+  @pytest.mark.skipif markers at collection time for tests in
+  tests/api_resources. This ensures all SDK tests run against
+  the mock server, even tests that would normally be skipped.<br>
+  Based on: https://github.com/pytest-dev/pytest/discussions/13311<br>
+  Co-authored-by: Claude &lt;noreply@anthropic.com&gt;
+</details>
+
+
+### Bug Fixes
+
+- correctly resolve ref for validation context (#85) <details><summary>Details</summary>
+  * fix: correctly resolve  for validation context<br>
+  * test: make missing responses and duplicate param tests fail properly
+</details>
+
+
+### Tests
+
+- add cursed spec for missing responses (failing test) (#84) <details><summary>Details</summary>
+  * test: add cursed spec for missing responses (failing test)<br>
+  Add test fixture and failing test for endpoints with no responses
+  object. Per OAS 3.1.0 Section 4.8.16: "The Responses Object MUST
+  contain at least one response code."<br>
+  - Empty responses `{}` correctly rejected at parse time
+  - Missing responses field incorrectly accepted (BUG)<br>
+  Test will pass once parser validates required responses field.<br>
+  https://claude.ai/code/session_01BAstPdGCPN9Un7dwsDmFvS<br>
+  * test: add cursed spec for duplicate path parameter names<br>
+  Add `/users/{id}/posts/{id}` - same param name twice in path.
+  OAS 3.1.0 Section 4.8.9.1: "Each parameter MUST have a unique name
+  within the path template."<br>
+  Currently: Steady silently accepts (BUG)
+  Expected: Should reject or warn<br>
+  https://claude.ai/code/session_01BAstPdGCPN9Un7dwsDmFvS<br>
+  * chore: format CHANGELOG.md<br>
+  https://claude.ai/code/session_01BAstPdGCPN9Un7dwsDmFvS<br>
+  ---------<br>
+  Co-authored-by: Claude &lt;noreply@anthropic.com&gt;
+</details>
+
+
 ## 0.14.0
 
 ### Features
