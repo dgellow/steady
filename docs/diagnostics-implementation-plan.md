@@ -1,211 +1,266 @@
 # Diagnostics Implementation Plan
 
+## The Problem
+
+Steady validates SDK requests against OpenAPI specs. The hard part isn't
+validation—it's **attribution**: determining whose fault each error is.
+
+```
+POST /audio/transcriptions
+Body: { "model": "whisper-1" }
+
+Schema expects oneOf:
+  - FileVariant: { required: [file, model] }
+  - UrlVariant: { required: [url, model] }
+```
+
+Both variants fail. Missing `file` AND missing `url`. Whose fault?
+
+- SDK bug? (Should have included one of them)
+- Test data incomplete? (User didn't provide file or url)
+- Spec issue? (Maybe neither should be required)
+
+A naive validator says "required field missing" and blames the SDK. But that's
+often wrong. Attribution requires understanding the structure of the failure.
+
+---
+
 ## Core Insight
 
 **The diagnostics are the product. The mock server is scaffolding.**
 
-Steady answers one question: "Did this SDK correctly transport the request?"
-
-Everything else—HTTP handling, response generation, logging—exists to serve that
-question. The current architecture treats diagnostics as a side effect of
-validation. That's backwards.
-
----
-
-## First Principles
-
-### What Steady Actually Does
-
-1. Receives a request
-2. Compares it against an OpenAPI spec
-3. Determines what's wrong and whose fault it is
-4. Reports findings
-
-The mock response is a convenience so SDK tests can complete. The headers and
-session reports are how diagnostics reach the consumer.
-
-### The Transport Layer Model
+Steady answers: "Did this SDK correctly transport the request?"
 
 An SDK is a transport layer. It packages data and sends it. It does NOT validate
 semantic content—that's the server's job.
-
-This creates two categories of validation:
 
 | Category   | SDK Responsible | Examples                        |
 | ---------- | --------------- | ------------------------------- |
 | Structural | Yes             | type, required, shape, presence |
 | Content    | No              | format, pattern, length, range  |
 
-This distinction is **the core intellectual contribution** of Steady. Without
-it, you're just another API validator that blames SDKs for user mistakes.
+This distinction is Steady's core intellectual contribution. Without it, you're
+just another API validator that blames SDKs for user mistakes.
 
 ---
 
-## Ideal Architecture
+## Architecture Decision: 3 Layers
 
-### Layer 1: DiagnosticEngine (The Core)
-
-The engine takes a spec and a request. It returns diagnostics. That's it.
+We explored 5 layers:
 
 ```
-DiagnosticEngine
-├── Input: (OpenAPISpec, Request)
-├── Output: Diagnostic[]
-└── Every diagnostic has:
-    - E-code (stable identifier)
-    - Category (sdk-issue | content-note | spec-issue | ambiguous)
-    - Attribution with reasoning chain
+DiagnosticEngine → TransportModel → AttributionEngine → SessionStore → MockServer
 ```
 
-The engine doesn't know about HTTP responses. It doesn't generate mocks. It
-analyzes and reports.
+And rejected it. Here's why.
 
-### Layer 2: TransportModel (The Rules)
+### The TransportModel Problem
 
-Defines what's structural vs content. This is configurable.
-
-```typescript
-interface TransportModel {
-  // SDK packaging errors
-  structural: Set<Keyword>; // type, required, properties, items, ...
-
-  // Content issues (SDK just transports)
-  content: Set<Keyword>; // format, pattern, minLength, minimum, ...
-
-  // Needs context to determine
-  ambiguous: Set<Keyword>; // oneOf, nullable, enum (sometimes), ...
-}
-```
-
-The spec's taxonomy (Section 2.3) is the default. Users can override.
-
-### Layer 3: AttributionEngine (The Intelligence)
-
-Separate from validation. Takes validation results and determines
-responsibility.
+TransportModel maps keywords to categories:
 
 ```
-AttributionEngine
-├── Input: ValidationResult[], TransportModel, Context
-├── Output: Attribution for each result
-└── Logic:
-    1. Classify by keyword (structural → sdk-issue, content → content-note)
-    2. Analyze patterns (consistent errors? composition failures?)
-    3. Detect spec issues (impossible schemas? missing responses?)
-    4. Build reasoning chains
+required → structural → sdk-issue
+format → content → content-note
 ```
 
-This is where heuristics live. It can be sophisticated because it's isolated
-from validation mechanics.
+But for composition failures (oneOf, anyOf), the keyword alone doesn't determine
+category. A `required` error inside a failed oneOf might be ambiguous, not
+sdk-issue.
 
-### Layer 4: SessionStore (First-Class Sessions)
+TransportModel gets bypassed for the hard cases. If it's bypassed when it
+matters most, why have it?
 
-Diagnostics are stored per-session, not globally.
+### The AttributionEngine Problem
 
-```typescript
-interface Session {
-  id: string;
-  created: Date;
-  requests: RequestRecord[];
+AttributionEngine was supposed to analyze patterns and determine responsibility.
+But it needs the same context DiagnosticEngine already has: the validation tree,
+the schema structure, the request.
 
-  // Pre-aggregated by category
-  diagnostics: {
-    sdk_issues: Diagnostic[];
-    content_notes: Diagnostic[];
-    spec_issues: Diagnostic[];
-    ambiguous: Diagnostic[];
-  };
+Two components doing attribution means unclear responsibility and redundant
+context-passing.
 
-  summary: {
-    total_requests: number;
-    structurally_valid: number;
-    structurally_invalid: number;
-  };
-}
+### The 3-Layer Design
+
+```
+Layer 1: DiagnosticEngine
+         └── Two-phase attribution, owns the decision
+         └── Delegates to SchemaValidator (pure, no attribution knowledge)
+
+Layer 2: E-Code Registry
+         └── Source of truth for code definitions
+         └── Provides default category, engine may override
+
+Layer 3: SessionStore + MockServer
+         └── Infrastructure: storage and HTTP plumbing
 ```
 
-Sessions enable parallel test isolation and clean SDK framework integration.
-
-### Layer 5: MockServer (Thin Scaffolding)
-
-The HTTP server is plumbing. Its only jobs:
-
-1. Receive HTTP requests
-2. Feed them to DiagnosticEngine
-3. Store results in SessionStore
-4. Generate mock response (if routing succeeded)
-5. Add X-Steady-\* headers
-6. Return response
-
-```typescript
-class MockServer {
-  async handle(req: Request): Promise<Response> {
-    const sessionId = req.headers.get("X-Steady-Session") || "default";
-
-    // THE CORE - everything else is plumbing
-    const diagnostics = await this.engine.analyze(this.spec, req);
-
-    // Store
-    this.sessions.record(sessionId, req, diagnostics);
-
-    // Generate and return
-    const response = this.generator.generate(req, diagnostics);
-    return this.addHeaders(response, diagnostics);
-  }
-}
-```
-
-~50 lines of actual logic. The server is disposable.
+DiagnosticEngine does attribution in two phases, not two components.
 
 ---
 
-## Data Flow
+## Two-Phase Attribution
+
+The key design. Attribution happens in two phases within DiagnosticEngine:
+
+### Phase 1: Leaf Attribution
+
+For simple errors, (keyword, location) determines E-code:
 
 ```
-HTTP Request
-    │
-    ▼
-┌─────────────────────────────────────────────────────────┐
-│ DiagnosticEngine                                        │
-│                                                         │
-│  1. Parse request                                       │
-│  2. Match route → E2xxx if fails                        │
-│  3. Validate each point:                                │
-│     - Run schema validation                             │
-│     - For each failure, identify keyword                │
-│     - Look up keyword in TransportModel                 │
-│     - Assign preliminary category                       │
-│  4. Run AttributionEngine                               │
-│     - Pattern analysis                                  │
-│     - Spec issue detection                              │
-│     - Build reasoning chains                            │
-│  5. Return Diagnostic[]                                 │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────┐
-│ SessionStore                                            │
-│                                                         │
-│  Store under session_id                                 │
-│  Aggregate by category                                  │
-│  Update summary stats                                   │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────┐
-│ ResponseGenerator                                       │
-│                                                         │
-│  Routing succeeded? → Mock + headers                    │
-│  Routing failed? → 404/405 + headers                    │
-│  Headers ALWAYS present                                 │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-    │
-    ▼
-HTTP Response
+(required, query)  → E3002 (Missing required query parameter)
+(required, header) → E3004 (Missing required header)
+(required, body)   → E3007 (Missing required field)
+(type, body)       → E3008 (Field type mismatch)
+(format, body)     → E4001 (Format mismatch)
 ```
+
+Category from E-code registry. Handles ~80% of cases. Fast.
+
+### Phase 2: Composition Analysis
+
+For complex cases, analyze the pattern of failures:
+
+```
+Input: ValidationTree showing oneOf with 2 variants, both failed on "required"
+
+Phase 1 produced:
+  E3007 (sdk-issue, confidence 0.9) for missing 'file'
+  E3007 (sdk-issue, confidence 0.9) for missing 'url'
+
+Phase 2 recognizes pattern "all-variants-fail-required":
+  All variants failed on same structural keyword
+  → Could be SDK, test data, or spec issue
+  → Replace with E3012 (ambiguous, confidence 0.5)
+  → Reasoning chain explains what happened
+```
+
+Phase 2 may merge, replace, or re-categorize Phase 1 diagnostics.
+
+### Why This Works
+
+| Alternative                                 | Problem                             |
+| ------------------------------------------- | ----------------------------------- |
+| Single-pass keyword lookup                  | No context for composition failures |
+| Separate TransportModel + AttributionEngine | Attribution split, TM gets bypassed |
+| Attribution during validation               | Couples validator to E-codes        |
+
+Two-phase keeps:
+
+- Simple cases simple (lookup)
+- Complex cases get full context (tree analysis)
+- One component owns the decision
+
+---
+
+## The Validation Tree
+
+SchemaValidator must return a tree, not a flat list.
+
+### Why
+
+Flat list loses context:
+
+```
+[
+  { keyword: "required", path: "body.file" },
+  { keyword: "required", path: "body.url" }
+]
+// Which variant did each error come from?
+```
+
+Phase 2 needs to ask: "Did all oneOf variants fail on required?" Can't answer
+without tree structure.
+
+### Structure
+
+```typescript
+interface ValidationNode {
+  keyword: string;
+  path: string;
+  schemaPath: string;
+  valid: boolean;
+
+  // Leaf errors
+  message?: string;
+  expected?: unknown;
+  actual?: unknown;
+
+  // Composition nodes
+  children?: ValidationNode[];
+  variantIndex?: number;
+}
+```
+
+Example for the oneOf case:
+
+```
+{
+  keyword: "oneOf",
+  path: "body",
+  valid: false,
+  children: [
+    {
+      variantIndex: 0,
+      valid: false,
+      children: [{ keyword: "required", path: "body", field: "file" }]
+    },
+    {
+      variantIndex: 1,
+      valid: false,
+      children: [{ keyword: "required", path: "body", field: "url" }]
+    }
+  ]
+}
+```
+
+---
+
+## Composition Patterns
+
+Phase 2 pattern catalog. Each pattern has:
+
+- Trigger condition
+- Analysis logic
+- Output transformation
+
+### Pattern: All Variants Fail Same Way
+
+**Trigger**: oneOf/anyOf where all `children.valid === false` AND all failed on
+same keyword type (all structural or all content)
+
+**Analysis**:
+
+- All structural failures → ambiguous (SDK might not know which variant)
+- All content failures → content-note (SDK transported correctly)
+
+**Output**: E3012, confidence 0.5, reasoning chain listing each variant's
+failure
+
+### Pattern: One Variant Almost Matches
+
+**Trigger**: oneOf where one variant has significantly fewer errors than others
+
+**Analysis**: Likely the intended variant. Errors more attributable to SDK.
+
+**Output**: Diagnostics for closest variant with higher confidence
+
+### Pattern: Discriminator Present
+
+**Trigger**: oneOf with discriminator, discriminator value in request
+
+**Analysis**: Discriminator selects variant. Errors in that variant are SDK's.
+
+**Output**: E3011 if discriminator invalid, else errors from selected variant
+with high confidence
+
+### Pattern: Impossible Schema
+
+**Trigger**: allOf with contradictory constraints (type: string AND type:
+number)
+
+**Analysis**: No valid input exists. Spec issue.
+
+**Output**: E1012 (spec-issue), regardless of request content
 
 ---
 
@@ -213,39 +268,47 @@ HTTP Response
 
 ```typescript
 interface Diagnostic {
-  // Identification
-  code: string; // "E3007" - stable, documentable
+  code: string; // "E3007"
   severity: "error" | "warning" | "info";
-
-  // Category (the key insight)
   category: "sdk-issue" | "content-note" | "spec-issue" | "ambiguous";
 
   // Location
-  requestPath: string; // "body.email", "query.limit"
-  specPointer: string; // "#/components/schemas/User/properties/email"
+  requestPath: string; // "body.email"
+  specPointer: string; // "#/components/schemas/User/..."
 
   // Details
   message: string;
   expected?: unknown;
   actual?: unknown;
 
-  // Attribution (how we determined category)
+  // Attribution
   attribution: {
-    category: IssueCategory;
     confidence: number; // 0.0-1.0
-    reasoning: string[]; // Chain of logic, not single string
+    reasoning: string[]; // ["oneOf failed", "Variant 0: missing file", ...]
   };
 
-  // Actionable
+  // For composition failures
+  composition?: {
+    keyword: "oneOf" | "anyOf" | "allOf";
+    variants: Array<{
+      index: number;
+      schemaRef?: string;
+      errors: string[];
+    }>;
+  };
+
   suggestion?: string;
 }
 ```
+
+The `composition` field preserves detail when Phase 2 merges multiple leaf
+errors into one composition diagnostic.
 
 ---
 
 ## E-Code Registry
 
-Single source of truth for all codes.
+Source of truth for code metadata.
 
 ```typescript
 const CODES = {
@@ -253,42 +316,53 @@ const CODES = {
   E1001: {
     title: "Invalid syntax",
     severity: "error",
-    fatal: true,
-    context: "startup",
     category: "spec-issue",
+    fatal: true,
   },
   E1010: {
     title: "Missing responses object",
     severity: "warning",
-    fatal: false,
-    context: "both", // startup AND runtime
+    category: "spec-issue",
+  },
+  E1012: {
+    title: "Impossible schema constraint",
+    severity: "error",
     category: "spec-issue",
   },
 
   // E2xxx - Routing
-  E2001: {
-    title: "Path not found",
-    severity: "error",
-    category: "sdk-issue", // or ambiguous depending on context
-  },
+  E2001: { title: "Path not found", severity: "error", category: "sdk-issue" },
   E2002: {
     title: "Method not allowed",
     severity: "error",
     category: "sdk-issue",
   },
 
-  // E3xxx - Transport (Structural)
+  // E3xxx - Transport
+  E3002: {
+    title: "Missing required query parameter",
+    severity: "error",
+    category: "sdk-issue",
+  },
+  E3004: {
+    title: "Missing required header",
+    severity: "error",
+    category: "sdk-issue",
+  },
   E3007: {
     title: "Missing required field",
     severity: "error",
     category: "sdk-issue",
-    keywords: ["required"],
   },
   E3008: {
     title: "Field type mismatch",
     severity: "error",
     category: "sdk-issue",
-    keywords: ["type"],
+  },
+  E3012: {
+    title: "Schema composition mismatch",
+    severity: "warning",
+    category: "ambiguous",
   },
 
   // E4xxx - Content
@@ -296,13 +370,11 @@ const CODES = {
     title: "Format mismatch",
     severity: "info",
     category: "content-note",
-    keywords: ["format"],
   },
   E4002: {
     title: "Pattern mismatch",
     severity: "info",
     category: "content-note",
-    keywords: ["pattern"],
   },
 
   // E5xxx - Ambiguous
@@ -311,175 +383,124 @@ const CODES = {
     severity: "warning",
     category: "ambiguous",
   },
-} as const;
+};
 ```
 
-This enables:
-
-- `steady --explain E3007` for detailed docs
-- Consistent categorization across codebase
-- Stable API for SDK test frameworks
+Registry provides DEFAULT category. DiagnosticEngine may override based on
+context (e.g., E3007 inside failed oneOf → ambiguous via E3012).
 
 ---
 
-## Key Differences From Current Implementation
+## Open Questions
 
-### Current
+These are the roadmap for future design work.
 
-```
-Request → RequestValidator → ValidationIssue[] → Server decides
-                │
-                └── Attribution assigned late, inconsistently
-                    Category inferred from keyword name (fragile)
-                    No content-note category
-```
+### 1. ValidationTree Structure
 
-Validation and attribution are mixed. The server has too much responsibility.
+Draft type is a starting point. Need to resolve:
 
-### Ideal
+- Nested compositions (oneOf inside allOf): How deep does the tree go?
+- Leaf-to-parent references: Should leaves know their composition context?
+- "Almost matched" representation: How to detect closest variant?
 
-```
-Request → DiagnosticEngine → Diagnostic[] (fully attributed)
-                │
-                ├── RouteAnalyzer (E2xxx)
-                ├── SchemaValidator (mechanics only)
-                ├── TransportModel (structural vs content)
-                ├── AttributionEngine (determines category)
-                └── SpecIssueDetector (E1xxx at runtime)
-```
+### 2. Pattern Catalog
 
-Each component has one job. Categories assigned at the right place.
+Four patterns identified. Need to discover:
 
-### Current Session Handling
+- Deeply nested compositions: What patterns emerge?
+- `if`/`then`/`else` schemas: How to attribute?
+- `not` schemas: If `not` fails, what does that mean?
+- `$ref` cycles: When do we give up?
 
-```
-DiagnosticCollector has basic stats
-No session ID support
-No isolation between parallel tests
-```
+### 3. Pattern Priority
 
-### Ideal Session Handling
+Multiple patterns may match. Need to define:
 
-```
-SessionStore is first-class
-X-Steady-Session header creates/uses session
-GET /_steady/sessions/{id} returns full report
-Sessions are isolated, pre-aggregated by category
-```
+- Priority order: Does discriminator beat all-variants-fail?
+- Conflict resolution: What if patterns disagree?
+- Explicit ordering vs. specificity-based selection
 
-### Current Response Behavior
+### 4. Confidence Calibration
 
-```
-Strict mode: 400 on validation failure
-Relaxed mode: Mock response
-Headers: minimal (X-Steady-Mode, X-Steady-Matched-Path)
-```
+Attribution has confidence (0.0-1.0). Need to define:
 
-### Ideal Response Behavior
+- What 0.5 means in practice
+- How to calibrate against real outcomes
+- Whether confidence affects behavior (below threshold → ambiguous?)
 
-```
-Routing succeeded: ALWAYS mock + headers (regardless of validation)
-Routing failed: 404/405 + headers
-Headers: X-Steady-Valid, X-Steady-Error-Count, X-Steady-Error-N-*, etc.
-Optional: --reject-on-sdk-error for strict CI mode
-```
+### 5. Adapting RuntimeValidator
 
----
+Current `runtime-validator.ts` returns flat errors. Options:
 
-## Implementation Principles
+| Approach                     | Tradeoff                    |
+| ---------------------------- | --------------------------- |
+| Modify to return tree        | Invasive, but clean result  |
+| Wrap with tree reconstructor | Hacky, may lose information |
+| Rewrite                      | Effort, but starts fresh    |
 
-### 1. Diagnostics First
+Need to assess: How much composition context does current validator preserve?
 
-Design every component asking "how does this serve diagnostics?" not "how do we
-add diagnostics to this?"
+### 6. Runtime Spec Issue Detection
 
-### 2. Category at Source
+Most E1xxx detected at startup. Some only surface at runtime:
 
-The TransportModel determines category based on keyword. This happens during
-validation, not after. Don't try to infer category from error messages later.
+- E1010 when endpoint without responses is hit
+- Impossible schemas only discovered during validation
 
-### 3. Reasoning Chains
+How does DiagnosticEngine detect these? Part of Phase 2? Separate analysis?
 
-Attribution includes an array of reasoning steps, not a single string. This
-enables debugging complex cases like oneOf composition failures.
+### 7. Phase 2 Implementation
 
-### 4. Sessions Are Real
+Options explored:
 
-Sessions aren't an afterthought. They're how SDK test frameworks consume
-diagnostics. Design for them from the start.
+| Approach                   | Tradeoff                                  |
+| -------------------------- | ----------------------------------------- |
+| Pattern matching (if/else) | Explicit but verbose                      |
+| Rule engine                | Declarative but needs priority handling   |
+| Visitor pattern            | Clean but awkward for cross-node analysis |
 
-### 5. Mock Is Default
-
-When routing succeeds, return a mock. Always. Validation failures go in headers
-and sessions, not HTTP status codes. SDK tests need to complete to be useful.
-
-### 6. E-Codes Are The API
-
-The E-code is the stable identifier. Message text can change. The code is the
-contract with SDK test frameworks, documentation, and `--explain`.
+Leaning toward: Start with pattern matching, refactor to rules if patterns
+proliferate.
 
 ---
 
-## File Structure (Suggested)
+## File Structure
 
 ```
 src/
 ├── engine/
-│   ├── diagnostic-engine.ts    # The core
-│   ├── transport-model.ts      # Structural vs content rules
-│   ├── attribution-engine.ts   # Determines responsibility
-│   └── spec-analyzer.ts        # Runtime E1xxx detection
+│   ├── diagnostic-engine.ts    # Orchestrates two-phase attribution
+│   ├── phase1.ts               # Leaf: (keyword, location) → E-code
+│   ├── phase2.ts               # Composition pattern matching
+│   └── patterns/               # Individual pattern implementations
 │
 ├── codes/
 │   ├── registry.ts             # E-code definitions
-│   ├── e1xxx.ts                # Spec issue codes
-│   ├── e2xxx.ts                # Routing codes
-│   ├── e3xxx.ts                # Transport codes
-│   ├── e4xxx.ts                # Content codes
-│   └── e5xxx.ts                # Ambiguous codes
+│   └── explain.ts              # --explain documentation
+│
+├── validation/
+│   ├── schema-validator.ts     # Pure validation, returns tree
+│   └── validation-tree.ts      # ValidationNode types
 │
 ├── session/
-│   ├── store.ts                # Session storage
-│   ├── types.ts                # Session, SessionReport
-│   └── endpoints.ts            # /_steady/sessions/* handlers
+│   ├── store.ts                # Per-session diagnostic storage
+│   └── endpoints.ts            # /_steady/sessions/* API
 │
-├── server/
-│   ├── server.ts               # Thin HTTP handling
-│   ├── headers.ts              # X-Steady-* header logic
-│   └── generator.ts            # Mock response generation
-│
-├── validation/                 # Mechanics only, no attribution
-│   ├── schema-validator.ts
-│   ├── route-matcher.ts
-│   └── param-parser.ts
-│
-└── output/
-    ├── cli.ts                  # Terminal formatting
-    ├── ci.ts                   # CI log formatting
-    └── json.ts                 # JSON/NDJSON output
+└── server/
+    ├── server.ts               # HTTP plumbing
+    └── headers.ts              # X-Steady-* headers
 ```
 
 ---
 
-## What This Document Is
+## Summary
 
-This is a **north star** for implementation. It describes the ideal
-architecture, not a migration plan from the current code.
+| Decision         | Choice             | Rationale                                                     |
+| ---------------- | ------------------ | ------------------------------------------------------------- |
+| Architecture     | 3 layers           | TransportModel/AttributionEngine add complexity without value |
+| Attribution      | Two-phase          | Simple cases fast, complex cases get context                  |
+| Validator output | Tree               | Flat list loses composition structure                         |
+| Category source  | E-code registry    | Single source, engine can override                            |
+| Pattern handling | Catalog in Phase 2 | Explicit patterns, not heuristics                             |
 
-The current codebase has:
-
-- Good validation mechanics (RuntimeValidator, SchemaRegistry)
-- Good OpenAPI parsing
-- Basic diagnostic collection
-
-What it needs:
-
-- DiagnosticEngine as the organizing principle
-- TransportModel for structural/content distinction
-- content-note as fourth category
-- First-class sessions
-- E-code registry
-- Mock-first response behavior
-
-The implementation can be incremental, but the architecture should be clear.
-Every change should move toward this design, not patch the current one.
+The diagnostics are the product. Everything else is plumbing.
