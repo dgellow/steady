@@ -999,7 +999,9 @@ export class RegistryValidator {
         for (const prop of schema.required) {
           // Skip readOnly properties - they're server-provided, not client-required
           const propSchema = schema.properties?.[prop];
-          if (propSchema && typeof propSchema === "object" && propSchema.readOnly) {
+          if (
+            propSchema && typeof propSchema === "object" && propSchema.readOnly
+          ) {
             continue;
           }
           if (!(prop in obj)) {

@@ -973,7 +973,9 @@ export class MockServer {
           throw missingExampleError(path, method, statusCode);
         }
       }
-    } else if (acceptsJson(acceptTypes) && statusCode !== "204" && statusCode !== "304") {
+    } else if (
+      acceptsJson(acceptTypes) && statusCode !== "204" && statusCode !== "304"
+    ) {
       // No content defined in spec, but client accepts JSON - return empty object
       // (except for 204/304 which must not have a body)
       contentType = "application/json";

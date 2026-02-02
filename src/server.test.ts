@@ -134,7 +134,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "Server: returns empty JSON object when Accept: application/json but no content defined",
+  name:
+    "Server: returns empty JSON object when Accept: application/json but no content defined",
   ...serverTestOpts,
 }, async () => {
   await withServer({}, async (_server, baseUrl) => {
@@ -158,7 +159,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "Server: no Content-Type when client doesn't accept JSON and no content defined",
+  name:
+    "Server: no Content-Type when client doesn't accept JSON and no content defined",
   ...serverTestOpts,
 }, async () => {
   await withServer({}, async (_server, baseUrl) => {
