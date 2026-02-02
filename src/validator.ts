@@ -922,6 +922,13 @@ export class RequestValidator {
       } else if (isJsonMediaType(mediaType)) {
         // Read as string and parse as JSON
         const body = await this.readBodyWithLimit(req.clone());
+        if (body === "") {
+          errors.push({
+            path: "body",
+            message: "Expected JSON body but received empty request body",
+          });
+          return { valid: false, errors, warnings };
+        }
         parsedBody = JSON.parse(body);
       } else {
         // Other content types: read as raw string
