@@ -181,6 +181,27 @@ Deno.test({
   });
 });
 
+Deno.test({
+  name: "Server: readOnly properties should not be required in request body",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    // Send request with only 'name' - 'id' is readOnly so shouldn't be required
+    const response = await fetch(`${baseUrl}/read-only-props`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({ name: "test" }),
+    });
+
+    // Should succeed - readOnly 'id' property should not be required in request
+    assertEquals(response.status, 200);
+    await response.body?.cancel();
+  });
+});
+
 // =============================================================================
 // X-Steady-Mode Header
 // =============================================================================

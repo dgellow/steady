@@ -151,6 +151,32 @@ paths:
         "200":
           description: Success with no response body
 
+  /read-only-props:
+    patch:
+      summary: Endpoint with readOnly properties in request body
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  readOnly: true
+                name:
+                  type: string
+              required:
+                - id
+                - name
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              example:
+                id: "123"
+                name: "test"
+
 components:
   schemas:
     User:

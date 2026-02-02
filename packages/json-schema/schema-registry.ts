@@ -646,6 +646,12 @@ export interface RegistryValidatorOptions {
    * When true, oneOf requires EXACTLY one variant to match.
    */
   strictOneOf?: boolean;
+  /**
+   * Ignore readOnly properties when validating required fields.
+   * Use this when validating request bodies - readOnly properties should
+   * not be required in requests per OpenAPI spec.
+   */
+  ignoreReadOnly?: boolean;
 }
 
 export class RegistryValidator {
@@ -988,9 +994,14 @@ export class RegistryValidator {
         });
       }
 
-      // Required properties
+      // Required properties (skip readOnly properties per OpenAPI spec)
       if (schema.required) {
         for (const prop of schema.required) {
+          // Skip readOnly properties - they're server-provided, not client-required
+          const propSchema = schema.properties?.[prop];
+          if (propSchema && typeof propSchema === "object" && propSchema.readOnly) {
+            continue;
+          }
           if (!(prop in obj)) {
             errors.push({
               instancePath,
