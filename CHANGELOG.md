@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.2
+
+### Chores
+
+- logo (#88)
+
 ## 0.15.1
 
 ### Chores
