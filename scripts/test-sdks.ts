@@ -28,7 +28,7 @@ const PORT = 4010;
 interface SDK {
   repo: string;
   name: string;
-  language: "go" | "python";
+  language: "go" | "python" | "typescript";
   /** Additional CLI flags for the validator */
   validatorFlags?: string[];
 }
@@ -129,6 +129,18 @@ const SDKS: SDK[] = [
     repo: "knocklabs/knock-python",
     name: "knock-python",
     language: "python",
+  },
+
+  // Stainless sink SDKs (comprehensive test coverage)
+  {
+    repo: "stainless-sdks/sink-python-public",
+    name: "sink-python-public",
+    language: "python",
+  },
+  {
+    repo: "stainless-sdks/sink-typescript-public",
+    name: "sink-typescript-public",
+    language: "typescript",
   },
 ];
 
@@ -391,6 +403,91 @@ def pytest_collection_modifyitems(config, items):
   log("  Injected skip-removal conftest.py");
 }
 
+async function runTypescriptTests(sdkPath: string): Promise<boolean> {
+  // Run bootstrap if available
+  const bootstrapPath = path.join(sdkPath, "scripts", "bootstrap");
+  if (await exists(bootstrapPath)) {
+    log("  Running bootstrap...");
+    const bootstrapCmd = new Deno.Command("bash", {
+      args: [bootstrapPath],
+      cwd: sdkPath,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const bootstrapResult = await bootstrapCmd.output();
+    const output = new TextDecoder().decode(bootstrapResult.stdout) +
+      new TextDecoder().decode(bootstrapResult.stderr);
+    console.log(output.trim().split("\n").slice(-5).join("\n"));
+
+    if (!bootstrapResult.success) {
+      warn("Bootstrap had issues, continuing anyway...");
+    }
+  }
+
+  // Start mock server
+  log("  Starting mock server...");
+  const mockCmd = new Deno.Command("bash", {
+    args: [path.join(sdkPath, "scripts", "mock"), "--daemon"],
+    cwd: sdkPath,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+
+  const mockResult = await mockCmd.output();
+  if (!mockResult.success) {
+    fail("Failed to start mock server");
+    return false;
+  }
+
+  // Check if test script exists
+  const testScriptPath = path.join(sdkPath, "scripts", "test");
+  if (!(await exists(testScriptPath))) {
+    warn("No ./scripts/test found");
+    await killPort(PORT);
+    return false;
+  }
+
+  // Run tests
+  log("  Running ./scripts/test...");
+  const testCmd = new Deno.Command("bash", {
+    args: [testScriptPath],
+    cwd: sdkPath,
+    stdout: "piped",
+    stderr: "piped",
+    env: {
+      ...Deno.env.toObject(),
+      // Ensure tests use our mock server
+      TEST_API_BASE_URL: `http://127.0.0.1:${PORT}`,
+    },
+  });
+
+  const testResult = await testCmd.output();
+  const stdout = new TextDecoder().decode(testResult.stdout);
+  const stderr = new TextDecoder().decode(testResult.stderr);
+  const output = stdout + stderr;
+
+  // Save output
+  await Deno.writeTextFile(path.join(sdkPath, ".test-output.log"), output);
+
+  // Show last 30 lines
+  const lines = output.trim().split("\n");
+  console.log(lines.slice(-30).join("\n"));
+
+  // Show steady server log
+  const logPath = path.join(sdkPath, ".steady.log");
+  if (await exists(logPath)) {
+    log("  Steady server log:");
+    const logContent = await Deno.readTextFile(logPath);
+    console.log(dim(logContent.split("\n").slice(-5).join("\n")));
+  }
+
+  // Kill the server
+  await killPort(PORT);
+
+  return testResult.success;
+}
+
 async function runPythonTests(sdkPath: string): Promise<boolean> {
   // Run bootstrap if available
   const bootstrapPath = path.join(sdkPath, "scripts", "bootstrap");
@@ -513,6 +610,8 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
       passed = await runGoTests(sdkPath);
     } else if (sdk.language === "python") {
       passed = await runPythonTests(sdkPath);
+    } else if (sdk.language === "typescript") {
+      passed = await runTypescriptTests(sdkPath);
     } else {
       warn(`Language ${sdk.language} not yet supported`);
       return { name: sdk.name, passed: false, error: "Language not supported" };
@@ -560,7 +659,7 @@ async function getGitInfo(): Promise<{ sha?: string; branch?: string }> {
 
 async function main() {
   const args = parseArgs(Deno.args, {
-    boolean: ["go", "python", "help", "json"],
+    boolean: ["go", "python", "typescript", "help", "json"],
     string: ["_", "output"],
     alias: { h: "help", o: "output" },
   });
@@ -575,6 +674,7 @@ Usage:
 Options:
   --go           Test only Go SDKs
   --python       Test only Python SDKs
+  --typescript   Test only TypeScript SDKs
   --json         Output results as JSON (to stdout or file with --output)
   -o, --output   Write JSON results to file (implies --json)
   -h, --help     Show this help
@@ -623,6 +723,8 @@ Examples:
     sdksToTest = sdksToTest.filter((sdk) => sdk.language === "go");
   } else if (args.python) {
     sdksToTest = sdksToTest.filter((sdk) => sdk.language === "python");
+  } else if (args.typescript) {
+    sdksToTest = sdksToTest.filter((sdk) => sdk.language === "typescript");
   }
 
   log("Running tests...");
