@@ -47,6 +47,51 @@ import {
   type StreamingOptions,
 } from "./streaming.ts";
 
+/**
+ * Parse Accept header into array of media types, sorted by quality value (q).
+ * Returns types in preference order (highest q first).
+ */
+function parseAcceptHeader(header: string | null): string[] {
+  if (!header) return [];
+
+  const entries: { type: string; q: number }[] = [];
+  for (const part of header.split(",")) {
+    const segments = part.split(";");
+    const type = segments[0]?.trim();
+    if (!type) continue;
+
+    let q = 1.0;
+    for (let i = 1; i < segments.length; i++) {
+      const param = segments[i]?.trim();
+      if (param?.startsWith("q=")) {
+        q = parseFloat(param.slice(2)) || 1.0;
+        break;
+      }
+    }
+    entries.push({ type, q });
+  }
+
+  entries.sort((a, b) => b.q - a.q);
+
+  const result: string[] = [];
+  for (const entry of entries) {
+    result.push(entry.type);
+  }
+  return result;
+}
+
+/**
+ * Check if Accept header types include JSON (application/json or wildcard).
+ */
+function acceptsJson(acceptTypes: string[]): boolean {
+  for (const t of acceptTypes) {
+    if (t === "application/json" || t === "*/*") {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** HTTP methods supported by OpenAPI */
 const HTTP_METHODS = [
   "get",
@@ -834,7 +879,9 @@ export class MockServer {
     streamingOptions: StreamingOptions,
   ): { response: Response; body?: unknown } {
     let body: unknown = null;
-    let contentType = "application/json";
+    let contentType: string | null = null;
+
+    const acceptTypes = parseAcceptHeader(requestAcceptHeader);
 
     if (responseObj.content) {
       const contentKeys = Object.keys(responseObj.content);
@@ -849,21 +896,15 @@ export class MockServer {
       // Select content type based on Accept header
       // Priority: Accept header match > first content type in spec
       let selectedContentType: string | undefined;
-      if (requestAcceptHeader) {
-        // Parse Accept header (e.g., "application/json, text/event-stream")
-        const acceptTypes = requestAcceptHeader.split(",").map((t) =>
-          t.split(";")[0]?.trim()
-        );
-        for (const acceptType of acceptTypes) {
-          if (acceptType && contentKeys.includes(acceptType)) {
-            selectedContentType = acceptType;
-            break;
-          }
-          // Handle wildcards like "*/*" or "application/*"
-          if (acceptType === "*/*") {
-            selectedContentType = contentKeys[0];
-            break;
-          }
+      for (const acceptType of acceptTypes) {
+        if (contentKeys.includes(acceptType)) {
+          selectedContentType = acceptType;
+          break;
+        }
+        // Handle wildcards like "*/*"
+        if (acceptType === "*/*") {
+          selectedContentType = contentKeys[0];
+          break;
         }
       }
       // Default to first content type in spec
@@ -932,13 +973,20 @@ export class MockServer {
           throw missingExampleError(path, method, statusCode);
         }
       }
+    } else if (acceptsJson(acceptTypes) && statusCode !== "204" && statusCode !== "304") {
+      // No content defined in spec, but client accepts JSON - return empty object
+      // (except for 204/304 which must not have a body)
+      contentType = "application/json";
+      body = {};
     }
 
     const headers = new Headers({
-      "Content-Type": contentType,
       [HEADERS.MATCHED_PATH]: pathPattern,
       [HEADERS.EXAMPLE_SOURCE]: body !== null ? "generated" : "none",
     });
+    if (contentType) {
+      headers.set("Content-Type", contentType);
+    }
 
     // Safely stringify body - handle circular references and non-serializable values
     let bodyString: string | null = null;

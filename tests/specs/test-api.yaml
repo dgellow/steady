@@ -136,6 +136,21 @@ paths:
               example:
                 status: ok
 
+  /void-response:
+    post:
+      summary: Endpoint with no response content
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: string
+      responses:
+        "200":
+          description: Success with no response body
+
 components:
   schemas:
     User:
