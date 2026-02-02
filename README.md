@@ -1,9 +1,15 @@
 # Steady
 
+_Pronounced /ˈstiːdi/, like "steed-y"_
+
 OpenAPI 3.0/3.1 mock server built to fast and reliable. Validates requests
 against specs and generates responses from schemas or examples.
 
 Note: this project is still experiemental and not ready for production use.
+
+![](./assets/logo.png)
+
+_Note from the artist: the sword is to fight off bugs in your sdks_
 
 ## Installation
 
@@ -419,3 +425,7 @@ deno task lint              # Lint
 deno task fmt               # Format
 deno task check-boundaries  # Verify package dependencies
 ```
+
+## Acknowledgements
+
+Thanks to Stephen Downward for contributing the logo design.
