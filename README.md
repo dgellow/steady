@@ -67,6 +67,8 @@ Validator Options:
   --validator-strict-oneof             Require exactly one oneOf variant to match
   --validator-query-array-format=<fmt> Array query param serialization (see below)
   --validator-query-object-format=<fmt> Object query param serialization (see below)
+  --validator-form-array-format=<fmt>  Array form field serialization (see below)
+  --validator-form-object-format=<fmt> Object form field serialization (see below)
 
 Generator Options:
   --generator-array-size=<n>   Exact size for all generated arrays
@@ -102,6 +104,32 @@ per-request via headers.
 | `flat-comma` | `id=role,admin,firstName,Alex`      | `style=form, explode=false` |
 | `brackets`   | `id[role]=admin&id[firstName]=Alex` | `style=deepObject`          |
 | `dots`       | `id.role=admin&id.firstName=Alex`   | Non-standard (SDK compat)   |
+
+### Form Parameter Serialization
+
+Form body parameters (application/x-www-form-urlencoded) use the same formats as
+query parameters. Configure via CLI flags or per-request headers.
+
+**Array formats** (`--validator-form-array-format`):
+
+| Format     | Example                  | OpenAPI Equivalent             |
+| ---------- | ------------------------ | ------------------------------ |
+| `auto`     | Read from spec (default) | -                              |
+| `repeat`   | `tags=a&tags=b`          | `style=form, explode=true`     |
+| `comma`    | `tags=a,b`               | `style=form, explode=false`    |
+| `space`    | `tags=a%20b`             | `style=spaceDelimited`         |
+| `pipe`     | `tags=a\|b`              | `style=pipeDelimited`          |
+| `brackets` | `tags[]=a&tags[]=b`      | PHP/Rails style (non-standard) |
+
+**Object formats** (`--validator-form-object-format`):
+
+| Format       | Example                        | OpenAPI Equivalent          |
+| ------------ | ------------------------------ | --------------------------- |
+| `auto`       | Read from spec (default)       | -                           |
+| `flat`       | `name=sam&age=30`              | `style=form, explode=true`  |
+| `flat-comma` | `id=role,admin,firstName,Alex` | `style=form, explode=false` |
+| `brackets`   | `user[name]=sam`               | `style=deepObject`          |
+| `dots`       | `user.name=sam`                | Non-standard (SDK compat)   |
 
 ### Port Configuration
 
@@ -170,6 +198,8 @@ Override server behavior for individual requests:
 | `X-Steady-Mode`                | Override validation mode: `strict` or `relaxed`      |
 | `X-Steady-Query-Array-Format`  | Override array query param serialization format      |
 | `X-Steady-Query-Object-Format` | Override object query param serialization format     |
+| `X-Steady-Form-Array-Format`   | Override array form field serialization format       |
+| `X-Steady-Form-Object-Format`  | Override object form field serialization format      |
 | `X-Steady-Array-Size`          | Override array size (sets both min and max)          |
 | `X-Steady-Array-Min`           | Override minimum array size                          |
 | `X-Steady-Array-Max`           | Override maximum array size                          |
