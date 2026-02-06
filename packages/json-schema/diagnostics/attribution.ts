@@ -98,6 +98,12 @@ const ATTRIBUTION_RULES: Record<DiagnosticCode, AttributionRule> = {
     confidence: 0.7,
     reasoning: "Path exists but method doesn't - check SDK or spec",
   },
+  "request-double-question-mark": {
+    type: "sdk-issue",
+    confidence: 0.95,
+    reasoning:
+      "Query parameter value contains '?' — likely a double-? URL construction bug where the SDK appends '?params' to a URL that already contains '?'",
+  },
 
   // === RUNTIME - Parameter validation (usually SDK issues) ===
   "request-missing-param": {

@@ -21,7 +21,8 @@ import {
   OpenAPIDocument,
   RegistryResponseGenerator,
 } from "@steady/json-schema";
-import type { GenerateOptions } from "@steady/json-schema";
+import type { Diagnostic, GenerateOptions } from "@steady/json-schema";
+import { getAttribution } from "@steady/json-schema";
 import type { Logger } from "./logging/logger.ts";
 import type {
   RequestEvent,
@@ -468,11 +469,27 @@ export class MockServer {
         // Log 404 error
         this.logRequestEvent(req, path, path, method, 404, "Not Found", timing);
 
+        // Check for double-? URL construction bug
+        const diagnostics = this.detectDoubleQuestionMark(url, path, method);
+        if (diagnostics.length > 0) {
+          this.diagnosticCollector.addRuntimeDiagnostics(diagnostics, false);
+        }
+
+        const responseBody: Record<string, unknown> = {
+          error: error.message,
+          suggestion: error.context.suggestion,
+        };
+        if (diagnostics.length > 0) {
+          responseBody.diagnostics = diagnostics.map((d) => ({
+            code: d.code,
+            message: d.message,
+            suggestion: d.suggestion,
+            attribution: d.attribution,
+          }));
+        }
+
         return new Response(
-          JSON.stringify({
-            error: error.message,
-            suggestion: error.context.suggestion,
-          }),
+          JSON.stringify(responseBody),
           {
             status: 404,
             headers: { "Content-Type": "application/json" },
@@ -1107,6 +1124,43 @@ export class MockServer {
         this.escapePointer(pathPattern)
       }/${method}/responses/${statusCode}/content/application~1json/schema`,
     );
+  }
+
+  /**
+   * Detect double-? URL construction bug in query parameters.
+   * When a request gets a 404 and any query param value contains '?',
+   * it likely means the SDK appended '?params' to a URL that already had '?'.
+   */
+  private detectDoubleQuestionMark(
+    url: URL,
+    path: string,
+    method: string,
+  ): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
+    for (const [key, value] of url.searchParams) {
+      if (value.includes("?")) {
+        diagnostics.push({
+          code: "request-double-question-mark",
+          severity: "warning",
+          pointer: path,
+          message:
+            `Query parameter "${key}" has value "${value}" which contains '?' — this looks like a double-? URL construction bug`,
+          context: {
+            phase: "request",
+            request: { method: method.toUpperCase(), path },
+            actualValue: `${key}=${value}`,
+          },
+          attribution: getAttribution("request-double-question-mark"),
+          suggestion:
+            `The SDK may be appending '?${
+              value.split("?")[1]
+            }' to a URL that already contains '?'. ` +
+            `Use '&' instead of '?' to separate additional query parameters.`,
+        });
+        break; // One diagnostic is enough — the root cause is the same
+      }
+    }
+    return diagnostics;
   }
 
   /**

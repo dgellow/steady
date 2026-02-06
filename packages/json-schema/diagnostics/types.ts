@@ -28,6 +28,7 @@ export type DiagnosticCode =
   // === RUNTIME (Request) - Path matching ===
   | "request-path-not-found"
   | "request-method-not-allowed"
+  | "request-double-question-mark"
   // === RUNTIME (Request) - Parameter validation ===
   | "request-missing-param"
   | "request-invalid-param"
