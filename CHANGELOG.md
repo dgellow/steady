@@ -11,18 +11,18 @@
 ### Chores
 
 - More fixes (#86) <details><summary>Details</summary>
-  * fix: return {} for void responses when client accepts JSON<br>
-  Previously returned Content-Type: application/json with empty body,
-  causing JSON parse errors. Now returns {} when client accepts JSON,
-  or no body when they don't. Skips for 204/304 per HTTP spec.<br>
-  * fix: skip readOnly properties in required validation<br>
-  Per OpenAPI spec, readOnly properties are server-provided and should
-  not be required in request bodies.<br>
-  * fix: handle empty JSON body gracefully instead of crashing<br>
-  * ci: add Node.js and pnpm for TypeScript SDK tests<br>
-  * chore: formatting
-</details>
+  - fix: return {} for void responses when client accepts JSON<br> Previously
+    returned Content-Type: application/json with empty body, causing JSON parse
+    errors. Now returns {} when client accepts JSON, or no body when they don't.
+    Skips for 204/304 per HTTP spec.<br>
+  - fix: skip readOnly properties in required validation<br> Per OpenAPI spec,
+    readOnly properties are server-provided and should not be required in
+    request bodies.<br>
+  - fix: handle empty JSON body gracefully instead of crashing<br>
+  - ci: add Node.js and pnpm for TypeScript SDK tests<br>
+  - chore: formatting
 
+</details>
 
 ## 0.15.0
 

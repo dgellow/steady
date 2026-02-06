@@ -35,18 +35,36 @@ interface SDK {
 
 // List of SDKs to test
 const SDKS: SDK[] = [
-  // Go SDKs
   {
     repo: "DefinitelyATestOrg/test-api-go",
     name: "test-api-go",
     language: "go",
   },
-
-  // Python SDKs - AI/LLM providers
+  {
+    repo: "DefinitelyATestOrg/test-api-python",
+    name: "test-api-python",
+    language: "python",
+  },
+  {
+    repo: "DefinitelyATestOrg/test-api-typescript",
+    name: "test-api-typescript",
+    language: "typescript",
+  },
   {
     repo: "openai/openai-python",
     name: "openai-python",
     language: "python",
+    validatorFlags: [
+      "--validator-query-array-format=brackets",
+      "--validator-query-object-format=brackets",
+      "--validator-form-array-format=brackets",
+      "--validator-form-object-format=brackets",
+    ],
+  },
+  {
+    repo: "openai/openai-node",
+    name: "openai-typescript",
+    language: "typescript",
     validatorFlags: [
       "--validator-query-array-format=brackets",
       "--validator-query-object-format=brackets",
@@ -84,8 +102,6 @@ const SDKS: SDK[] = [
     name: "arcade-py",
     language: "python",
   },
-
-  // Python SDKs - Infrastructure
   {
     repo: "cloudflare/cloudflare-python",
     name: "cloudflare-python",
@@ -96,8 +112,6 @@ const SDKS: SDK[] = [
     name: "browserbase-python",
     language: "python",
   },
-
-  // Python SDKs - Fintech
   {
     repo: "lithic-com/lithic-python",
     name: "lithic-python",
@@ -118,8 +132,6 @@ const SDKS: SDK[] = [
     name: "orb-python",
     language: "python",
   },
-
-  // Python SDKs - Other
   {
     repo: "writer/writer-python",
     name: "writer-python",
@@ -130,16 +142,14 @@ const SDKS: SDK[] = [
     name: "knock-python",
     language: "python",
   },
-
-  // Stainless sink SDKs (comprehensive test coverage)
   {
     repo: "stainless-sdks/sink-python-public",
-    name: "sink-python-public",
+    name: "sink-python",
     language: "python",
   },
   {
     repo: "stainless-sdks/sink-typescript-public",
-    name: "sink-typescript-public",
+    name: "sink-typescript",
     language: "typescript",
   },
 ];
@@ -344,14 +354,7 @@ async function runGoTests(sdkPath: string): Promise<boolean> {
   // Kill the server
   await killPort(PORT);
 
-  if (!testResult.success) {
-    const logPath = path.join(sdkPath, ".steady.log");
-    if (await exists(logPath)) {
-      log("  Steady server log:");
-      const logContent = await Deno.readTextFile(logPath);
-      console.log(dim(logContent.split("\n").slice(-5).join("\n")));
-    }
-  }
+  await printLogs(sdkPath, testResult);
 
   return testResult.success;
 }
@@ -474,13 +477,7 @@ async function runTypescriptTests(sdkPath: string): Promise<boolean> {
   const lines = output.trim().split("\n");
   console.log(lines.slice(-30).join("\n"));
 
-  // Show steady server log
-  const logPath = path.join(sdkPath, ".steady.log");
-  if (await exists(logPath)) {
-    log("  Steady server log:");
-    const logContent = await Deno.readTextFile(logPath);
-    console.log(dim(logContent.split("\n").slice(-5).join("\n")));
-  }
+  await printLogs(sdkPath, testResult);
 
   // Kill the server
   await killPort(PORT);
@@ -571,13 +568,7 @@ async function runPythonTests(sdkPath: string): Promise<boolean> {
   const lines = output.trim().split("\n");
   console.log(lines.slice(-30).join("\n"));
 
-  // Show steady server log
-  const logPath = path.join(sdkPath, ".steady.log");
-  if (await exists(logPath)) {
-    log("  Steady server log:");
-    const logContent = await Deno.readTextFile(logPath);
-    console.log(dim(logContent.split("\n").slice(-5).join("\n")));
-  }
+  await printLogs(sdkPath, testResult);
 
   // Kill the server
   await killPort(PORT);
@@ -787,3 +778,15 @@ Examples:
 }
 
 main();
+
+async function printLogs(sdkPath: string, testResult: Deno.CommandOutput) {
+  const logPath = path.join(sdkPath, ".steady.log");
+  if (await exists(logPath)) {
+    log(`  Steady server log file at ${logPath}`);
+  }
+  if (!testResult.success) {
+    log("  Log content:");
+    const logContent = await Deno.readTextFile(logPath);
+    console.log(dim(logContent.split("\n").slice(-10).join("\n")));
+  }
+}
