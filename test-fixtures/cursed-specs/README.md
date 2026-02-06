@@ -18,11 +18,12 @@ When adding a cursed spec, include:
 
 ## Catalog
 
-| File                           | Curse                                       | OAS Section      |
-| ------------------------------ | ------------------------------------------- | ---------------- |
-| `duplicate-path-patterns.yaml` | Same URL pattern with different param names | Path Templating  |
-| `duplicate-param-name.yaml`    | Same param name twice: `/a/{id}/b/{id}`     | Path Templating  |
-| `missing-responses.yaml`       | Endpoint with no responses defined          | Responses Object |
+| File                              | Curse                                       | OAS Section      |
+| --------------------------------- | ------------------------------------------- | ---------------- |
+| `duplicate-path-patterns.yaml`    | Same URL pattern with different param names | Path Templating  |
+| `duplicate-param-name.yaml`       | Same param name twice: `/a/{id}/b/{id}`     | Path Templating  |
+| `missing-responses.yaml`          | Endpoint with no responses defined          | Responses Object |
+| `question-mark-query-params.yaml` | Query param names/values containing `?`     | Parameter Object |
 
 ## Ideas for Future Curses
 

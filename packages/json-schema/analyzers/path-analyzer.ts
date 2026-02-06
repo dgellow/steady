@@ -6,6 +6,8 @@
  *   Per OpenAPI 3.0.3 Section "Path Templating":
  *   "Templated paths with the same hierarchy but different templated names
  *   MUST NOT exist as they are identical."
+ * - Paths with multiple question marks (e.g., /files?beta=true?limit=10)
+ * - Query parameter names or enum values containing '?' characters
  */
 
 import type { SchemaRegistry } from "../schema-registry.ts";
@@ -37,7 +39,11 @@ function normalizePathPattern(path: string): string {
  */
 export class PathAnalyzer implements Analyzer {
   readonly name = "PathAnalyzer";
-  readonly codes: DiagnosticCode[] = ["path-duplicate-pattern"];
+  readonly codes: DiagnosticCode[] = [
+    "path-duplicate-pattern",
+    "path-multiple-question-marks",
+    "param-question-mark-in-query",
+  ];
 
   analyze(registry: SchemaRegistry): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -97,6 +103,96 @@ export class PathAnalyzer implements Analyzer {
             message: `Also matches pattern "${normalized}"`,
           })),
         });
+      }
+    }
+
+    // Check for paths with multiple question marks
+    for (const path of Object.keys(paths)) {
+      const firstQ = path.indexOf("?");
+      if (firstQ >= 0 && path.indexOf("?", firstQ + 1) >= 0) {
+        const pointer = `#/paths/${escapeSegment(path)}`;
+        diagnostics.push({
+          code: "path-multiple-question-marks",
+          severity: "warning",
+          pointer,
+          message: `Path "${path}" contains multiple '?' characters`,
+          attribution: getAttribution("path-multiple-question-marks"),
+          suggestion:
+            `Only the first '?' delimits the query string. Subsequent '?' become part of parameter values, ` +
+            `which likely indicates a URL construction bug (e.g., SDK appending '?params' to a path that already has '?query').`,
+        });
+      }
+    }
+
+    // Check for query parameters with '?' in names or enum values
+    for (const [path, pathItem] of Object.entries(paths)) {
+      if (!pathItem || typeof pathItem !== "object") continue;
+      const item = pathItem as Record<string, unknown>;
+
+      for (
+        const method of [
+          "get",
+          "post",
+          "put",
+          "patch",
+          "delete",
+          "options",
+          "head",
+        ]
+      ) {
+        const operation = item[method] as Record<string, unknown> | undefined;
+        if (!operation?.parameters) continue;
+
+        const params = operation.parameters as Array<Record<string, unknown>>;
+        for (const param of params) {
+          if (param.in !== "query") continue;
+          const paramName = param.name as string;
+
+          // Check param name for '?'
+          if (paramName.includes("?")) {
+            const pointer = `#/paths/${
+              escapeSegment(path)
+            }/${method}/parameters`;
+            diagnostics.push({
+              code: "param-question-mark-in-query",
+              severity: "warning",
+              pointer,
+              message:
+                `Query parameter "${paramName}" contains '?' in its name`,
+              attribution: getAttribution("param-question-mark-in-query"),
+              suggestion:
+                `'?' in query parameter names causes ambiguity with the URL query delimiter. ` +
+                `Consider renaming to "${
+                  paramName.replace(/\?/g, "")
+                }" or using percent-encoding.`,
+            });
+          }
+
+          // Check enum values for '?'
+          const schema = param.schema as Record<string, unknown> | undefined;
+          if (schema?.enum && Array.isArray(schema.enum)) {
+            const cursedValues = (schema.enum as unknown[]).filter(
+              (v) => typeof v === "string" && v.includes("?"),
+            );
+            if (cursedValues.length > 0) {
+              const pointer = `#/paths/${
+                escapeSegment(path)
+              }/${method}/parameters`;
+              diagnostics.push({
+                code: "param-question-mark-in-query",
+                severity: "warning",
+                pointer,
+                message:
+                  `Query parameter "${paramName}" has enum values containing '?': ${
+                    cursedValues.map((v) => `"${v}"`).join(", ")
+                  }`,
+                attribution: getAttribution("param-question-mark-in-query"),
+                suggestion:
+                  `'?' in query parameter values is ambiguous with the URL query delimiter and may be inconsistently percent-encoded.`,
+              });
+            }
+          }
+        }
       }
     }
 

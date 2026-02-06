@@ -60,6 +60,20 @@ const ATTRIBUTION_RULES: Record<DiagnosticCode, AttributionRule> = {
     reasoning:
       "Paths with identical structure but different parameter names violate OpenAPI 3.0 spec",
   },
+  "path-multiple-question-marks": {
+    type: "spec-issue",
+    confidence: 0.9,
+    reasoning:
+      "Path contains multiple '?' characters - only the first '?' delimits the query string, subsequent '?' become part of parameter values",
+  },
+
+  // === STATIC - Parameter issues ===
+  "param-question-mark-in-query": {
+    type: "spec-issue",
+    confidence: 0.8,
+    reasoning:
+      "Query parameter name or enum value contains '?' which is ambiguous with the URL query delimiter and may be inconsistently percent-encoded",
+  },
 
   // === STATIC - Mock readiness (spec issues) ===
   "mock-no-example": {

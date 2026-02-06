@@ -19,6 +19,9 @@ export type DiagnosticCode =
   | "schema-nesting"
   // === STATIC (Startup) - Path issues ===
   | "path-duplicate-pattern"
+  | "path-multiple-question-marks"
+  // === STATIC (Startup) - Parameter issues ===
+  | "param-question-mark-in-query"
   // === STATIC (Startup) - Mock readiness ===
   | "mock-no-example"
   | "mock-no-schema"

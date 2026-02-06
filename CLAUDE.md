@@ -72,6 +72,9 @@ Name"` (percent-decoded before JSON Pointer parsing).
 5. **Fail loudly** - Invalid input = error, not silent pass
 6. **No hacky solutions** - Use standard libraries (e.g., `@std/cli` for arg
    parsing), don't reinvent the wheel with brittle manual implementations
+7. **No chained bash commands** - When running commands (not writing scripts),
+   never use `|`, `&&`, or `||`. Run each command as a separate, distinct
+   invocation
 
 ## Investigation Standards
 

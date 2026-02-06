@@ -827,3 +827,217 @@ Deno.test({
     assertExists(data.key);
   });
 });
+
+// =============================================================================
+// Cursed Spec: Question Marks in Query Parameter Names/Values
+// =============================================================================
+
+const CURSED_QMARK_SPEC =
+  "./test-fixtures/cursed-specs/question-mark-query-params.yaml";
+
+async function withCursedQmarkServer(
+  fn: (server: MockServer, baseUrl: string) => Promise<void>,
+): Promise<void> {
+  const spec = await parseSpecFromFile(CURSED_QMARK_SPEC);
+  const port = 3100 + Math.floor(Math.random() * 900);
+  const server = new MockServer(spec, {
+    port,
+    host: "localhost",
+    mode: "strict",
+    verbose: false,
+    logLevel: "summary",
+    interactive: false,
+  });
+
+  server.start();
+  await new Promise((r) => setTimeout(r, 10));
+  try {
+    await fn(server, `http://localhost:${port}`);
+  } finally {
+    server.stop();
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
+Deno.test({
+  name: "Server: cursed spec - query param name with trailing question mark",
+  ...serverTestOpts,
+}, async () => {
+  await withCursedQmarkServer(async (_server, baseUrl) => {
+    // Param name is "active?" — must be percent-encoded as active%3F in the URL
+    const response = await fetch(
+      `${baseUrl}/search?q=hello&active%3F=true`,
+    );
+    assertEquals(response.status, 200);
+    const data = await response.json();
+    assertExists(data.results);
+  });
+});
+
+Deno.test({
+  name: "Server: cursed spec - query param enum value with question mark",
+  ...serverTestOpts,
+}, async () => {
+  await withCursedQmarkServer(async (_server, baseUrl) => {
+    // Enum value "maybe?" — the ? is part of the value, percent-encoded
+    const response = await fetch(
+      `${baseUrl}/search?q=hello&confidence=maybe%3F`,
+    );
+    assertEquals(response.status, 200);
+    const data = await response.json();
+    assertExists(data.results);
+  });
+});
+
+Deno.test({
+  name:
+    "Server: cursed spec - query param with bracket notation and question mark",
+  ...serverTestOpts,
+}, async () => {
+  await withCursedQmarkServer(async (_server, baseUrl) => {
+    // Param name "filter[is_valid?]" — both brackets and ? need encoding
+    const response = await fetch(
+      `${baseUrl}/search?q=hello&filter%5Bis_valid%3F%5D=true`,
+    );
+    assertEquals(response.status, 200);
+    const data = await response.json();
+    assertExists(data.results);
+  });
+});
+
+Deno.test({
+  name: "Server: cursed spec - question mark param name sent unencoded",
+  ...serverTestOpts,
+}, async () => {
+  await withCursedQmarkServer(async (_server, baseUrl) => {
+    // What if the client sends "active?" unencoded?
+    // URL becomes: /search?q=hello&active?=true
+    // Server parses: q=hello, active?=true (the ? is just a char in query string)
+    const response = await fetch(
+      `${baseUrl}/search?q=hello&active?=true`,
+    );
+    // Whether this matches depends on how the server parses unencoded ? in query keys
+    // The key point: it should not crash
+    await response.json();
+  });
+});
+
+Deno.test({
+  name: "Server: cursed spec - enum value with unencoded question mark",
+  ...serverTestOpts,
+}, async () => {
+  await withCursedQmarkServer(async (_server, baseUrl) => {
+    // "maybe?" sent unencoded — the ? is inside the query value
+    // /search?q=hello&confidence=maybe?
+    // Server parses: q=hello, confidence=maybe? (trailing ? is part of value)
+    const response = await fetch(
+      `${baseUrl}/search?q=hello&confidence=maybe?`,
+    );
+    await response.json();
+  });
+});
+
+// =============================================================================
+// Cursed Client: Double Question Mark in URL (anthropic-sdk-go bug)
+// =============================================================================
+// Uses the existing query-in-path spec since it already has ?beta=true paths.
+
+const CURSED_CLIENT_SPEC = "./tests/specs/query-in-path.yaml";
+
+async function withCursedClientServer(
+  fn: (server: MockServer, baseUrl: string) => Promise<void>,
+): Promise<void> {
+  const spec = await parseSpecFromFile(CURSED_CLIENT_SPEC);
+  const port = 3100 + Math.floor(Math.random() * 900);
+  const server = new MockServer(spec, {
+    port,
+    host: "localhost",
+    mode: "relaxed",
+    verbose: false,
+    logLevel: "summary",
+    interactive: false,
+  });
+
+  server.start();
+  await new Promise((r) => setTimeout(r, 10));
+  try {
+    await fn(server, `http://localhost:${port}`);
+  } finally {
+    server.stop();
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
+Deno.test({
+  name:
+    "Server: cursed client - double question mark does not match beta route",
+  ...serverTestOpts,
+}, async () => {
+  await withCursedClientServer(async (_server, baseUrl) => {
+    // Go SDK bug: ?beta=true?extra=1 — second ? instead of &
+    // Server sees beta="true?extra=1", not beta="true"
+    // Should NOT match the ?beta=true route
+    const response = await fetch(`${baseUrl}/files?beta=true?extra=1`);
+    assertEquals(response.status, 200);
+    const data = await response.json();
+    assertEquals(
+      data.type,
+      "standard",
+      "Double-? URL must NOT match beta route (beta value is 'true?extra=1', not 'true')",
+    );
+  });
+});
+
+Deno.test({
+  name: "Server: cursed client - correct URL matches beta route (control test)",
+  ...serverTestOpts,
+}, async () => {
+  await withCursedClientServer(async (_server, baseUrl) => {
+    // Correct URL with & — should match beta route
+    const response = await fetch(`${baseUrl}/files?beta=true&extra=1`);
+    assertEquals(response.status, 200);
+    const data = await response.json();
+    assertEquals(
+      data.type,
+      "beta",
+      "Correct URL with & should match beta route",
+    );
+  });
+});
+
+Deno.test({
+  name: "Server: cursed client - double question mark on parameterized path",
+  ...serverTestOpts,
+}, async () => {
+  await withCursedClientServer(async (_server, baseUrl) => {
+    // Go SDK: /models/{id}?beta=true + "?" + "foo=bar"
+    const response = await fetch(
+      `${baseUrl}/models/claude-3?beta=true?foo=bar`,
+    );
+    assertEquals(response.status, 200);
+    const data = await response.json();
+    assertEquals(
+      data.type,
+      "standard",
+      "Double-? on parameterized path must NOT match beta route",
+    );
+  });
+});
+
+Deno.test({
+  name: "Server: cursed client - triple question mark",
+  ...serverTestOpts,
+}, async () => {
+  await withCursedClientServer(async (_server, baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/files?beta=true?limit=10?after=abc`,
+    );
+    assertEquals(response.status, 200);
+    const data = await response.json();
+    assertEquals(
+      data.type,
+      "standard",
+      "Triple-? URL must NOT match beta route",
+    );
+  });
+});

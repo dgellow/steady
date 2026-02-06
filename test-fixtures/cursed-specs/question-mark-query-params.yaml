@@ -1,0 +1,140 @@
+# CURSED SPEC: Question Marks in Query Parameter Names and Values
+#
+# Violation: Not a spec violation - RFC 3986 allows `?` in query strings.
+#   But `?` is the query delimiter, so using it inside parameter names or
+#   values creates ambiguity with URL structure.
+#
+# Real-world occurrence: Yes - seen in APIs that encode filter expressions
+#   or conditional logic into query param names (e.g., `filter[active?]`),
+#   and APIs with enum values like `unknown?` or `pending?`.
+#
+# Why it's cursed:
+#   - `?` is the URL query delimiter — using it inside param names/values
+#     creates ambiguity between URL structure and parameter content
+#   - Percent-encoding inconsistency: should it be `is_active%3F` or `is_active?`
+#   - Round-tripping breaks: encode → decode → encode produces different URLs
+#   - Different HTTP libraries handle unencoded `?` in query keys differently
+#
+# What happens:
+#   - Go net/http: Parses `?foo?=bar` as one param with key `foo?` and value `bar`
+#   - Node.js URL: Same - `?` inside a key/value is just a character
+#   - Python requests: Percent-encodes `?` in param names to `%3F`
+#   - Ruby Faraday: Leaves `?` unencoded in param names
+#
+# How Steady handles it:
+#   - Warns at startup about `?` in query param names and enum values
+#   - Parses per RFC 3986 (first `?` is delimiter, rest are literal)
+
+openapi: 3.1.0
+info:
+  title: Cursed API - Question Marks in Query Params
+  version: 1.0.0
+  description: |
+    Query parameters with `?` in names and values. Legal per RFC 3986,
+    but guaranteed to break your SDK.
+
+paths:
+  /search:
+    get:
+      operationId: search
+      summary: Search with cursed query params
+      parameters:
+        # Param name contains a question mark (Ruby-style boolean convention)
+        - name: "active?"
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: "Ruby-style boolean param name with trailing ?"
+
+        # Normal param for comparison
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+
+        # Param with enum values containing question marks
+        - name: confidence
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - "yes"
+              - "no"
+              - "maybe?"
+              - "unknown?"
+          description: "Enum values with trailing ? - good luck encoding these"
+
+        # Param name with embedded question mark
+        - name: "filter[is_valid?]"
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: "Bracket notation + question mark - double cursed"
+
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+              example:
+                results:
+                  - id: "1"
+                    title: "Found it"
+
+  /items:
+    get:
+      operationId: listItems
+      summary: List with question mark default values
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "pending?"
+          description: "Default value contains a question mark"
+
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "is-this-real?"
+          description: "Example value contains a question mark"
+
+      responses:
+        "200":
+          description: Item list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+              example:
+                items:
+                  - id: "item-1"

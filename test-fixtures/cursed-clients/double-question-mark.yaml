@@ -1,0 +1,81 @@
+# CURSED CLIENT: Double Question Mark in URL
+#
+# Source: anthropic-sdk-go (requestconfig.go:124)
+#   path := "v1/models?beta=true"  // beta endpoints hardcode ?beta=true
+#   u = u + "?" + params           // always uses "?" not "&"
+#   Result: "v1/models?beta=true?limit=20&after=abc"
+#
+# Root cause:
+#   The SDK appends query parameters with "?" unconditionally, without
+#   checking if the URL path already contains a "?". Beta endpoint paths
+#   include "?beta=true" as part of the path string, so when list/pagination
+#   params are added, they get a second "?" instead of "&".
+#
+# Expected URL: /v1/models?beta=true&limit=10&after=abc
+# Actual URL:   /v1/models?beta=true?limit=10&after=abc
+#
+# What HTTP servers see:
+#   When parsing /v1/models?beta=true?limit=10&after=abc:
+#   - Path: /v1/models
+#   - Query params:
+#     - beta = "true?limit=10"  (second ? is part of the value!)
+#     - after = "abc"           (& after second ? still works)
+#   - The "limit" param is LOST entirely
+#
+# Impact:
+#   - beta=true route matching fails (value is "true?limit=10", not "true")
+#   - Falls back to non-beta route silently
+#   - Pagination params may be partially lost
+#   - No error returned - just wrong behavior
+#
+# Detection strategy:
+#   - Check if any query param VALUE contains a "?" character
+#   - If so, warn: "Query parameter value contains '?', likely double-? URL bug"
+#   - Suggest: "SDK may be appending '?params' to a URL that already has '?'"
+
+# Request patterns a cursed client would send.
+# Used by tests to verify Steady's detection and error attribution.
+
+requests:
+  # Correct request - SDK with proper URL construction
+  - name: "correct_beta_list"
+    description: "Properly constructed beta list request"
+    method: GET
+    url: "/v1/models?beta=true&limit=10&after=model-abc"
+    expect:
+      matched_operation: listModelsBeta
+      query_params:
+        beta: "true"
+        limit: "10"
+        after: "model-abc"
+
+  # Cursed request - double question mark from Go SDK bug
+  - name: "double_question_mark_list"
+    description: "Go SDK appends ?limit=10 to path that already has ?beta=true"
+    method: GET
+    url: "/v1/models?beta=true?limit=10&after=model-abc"
+    expect:
+      # Server sees beta=true?limit=10 as one value, not beta=true
+      # This means it WON'T match the beta route
+      query_params:
+        beta: "true?limit=10" # Mangled!
+        after: "model-abc" # This one survives because & is after the second ?
+  # limit is MISSING - swallowed into beta's value
+
+  # Cursed request - double question mark on parameterized path
+  - name: "double_question_mark_param"
+    description: "Go SDK with path param: /v1/models/{id}?beta=true?extra=1"
+    method: GET
+    url: "/v1/models/claude-3?beta=true?extra=1"
+    expect:
+      query_params:
+        beta: "true?extra=1" # Mangled!
+
+  # Edge case: triple question mark (pathological)
+  - name: "triple_question_mark"
+    description: "What if the SDK bug compounds? Three question marks."
+    method: GET
+    url: "/v1/models?beta=true?limit=10?after=model-abc"
+    expect:
+      query_params:
+        beta: "true?limit=10?after=model-abc" # Everything is one value
