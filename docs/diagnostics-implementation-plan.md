@@ -144,12 +144,19 @@ The recursive model solves this by propagating structural match up the tree:
 interface InterpretResult {
   diagnostics: Diagnostic[];
   structurallyValid: boolean;
+  structuralFailureCount: number;
 }
 ```
 
-At each tree node, the interpreter returns both diagnostics AND whether the
-subtree structurally matches. Composition nodes use structural match — not JSON
-Schema validity — to decide which variant matched.
+At each tree node, the interpreter returns diagnostics, whether the subtree
+structurally matches, and how many structural failures occurred.
+`structurallyValid` is the boolean (does this subtree structurally match?).
+`structuralFailureCount` is the count (how many individual structural
+failures?).
+
+Composition nodes use `structurallyValid` — not JSON Schema validity — to decide
+which variant matched. When no variant matches, `structuralFailureCount` is used
+for variant identification (fewer structural failures = more likely intended).
 
 ### Structural Match vs Attribution
 
@@ -223,11 +230,12 @@ DiagnosticEngine.analyze(doc, req):
 
   3. Parameter validation (query, header, path, cookie)
      └── For each required parameter: check presence → E3002/E3004 if missing
-     └── For each present parameter: validate value against schema, interpret
+     └── For each present parameter: validate value against schema,
+         interpret(tree, doc, "query", paramValue)
 
   4. Body validation
      └── SchemaValidator produces ValidationTree
-     └── interpret(tree, doc, "body") produces Diagnostic[]
+     └── interpret(tree, doc, "body", requestBody) produces Diagnostic[]
 
   5. Return all diagnostics
 ```
@@ -235,27 +243,34 @@ DiagnosticEngine.analyze(doc, req):
 ### How interpret() Works
 
 ```
-interpret(node, spec, location) → InterpretResult:
+interpret(node, spec, location, data) → InterpretResult:
 
   if node.valid:
-    return { diagnostics: [], structurallyValid: true }
+    return { diagnostics: [], structurallyValid: true, structuralFailureCount: 0 }
 
   if node.children:
-    childResults = node.children.map(c => interpret(c, spec, location))
+    childResults = node.children.map(c => interpret(c, spec, location, data))
     if node.keyword is oneOf|anyOf|allOf:
       schema = spec.resolve(node.schemaPath)
-      return attributeComposition(node.keyword, childResults, schema)
+      nodeData = resolveDataAtPath(data, node.path, location)
+      context = { path: node.path, schemaPath: node.schemaPath, schema, data: nodeData }
+      return attributeComposition(node.keyword, childResults, context)
     // Container (root node, variant wrapper): merge children
     return {
       diagnostics: childResults.flatMap(c => c.diagnostics),
-      structurallyValid: childResults.every(c => c.structurallyValid)
+      structurallyValid: childResults.every(c => c.structurallyValid),
+      structuralFailureCount: sum(childResults.map(c => c.structuralFailureCount))
     }
 
   // Leaf error
   schema = spec.resolve(node.schemaPath)
   diagnostic = attributeLeaf(node, schema, location)
-  structurallyValid = !isStructural(node.keyword, schema)
-  return { diagnostics: [diagnostic], structurallyValid }
+  structural = isStructural(node.keyword, schema)
+  return {
+    diagnostics: [diagnostic],
+    structurallyValid: !structural,
+    structuralFailureCount: structural ? 1 : 0
+  }
 ```
 
 The branching question is: does the node have children?
@@ -266,21 +281,52 @@ The branching question is: does the node have children?
   — merge children's results as the natural default
 - **No children** → leaf error — attribute and classify
 
-`spec` is the full OpenAPI document, passed through unchanged. Schema context is
-resolved via `node.schemaPath` only where needed: at leaf nodes (for
-`isStructural` and `attributeLeaf`) and at composition nodes (for discriminator
-metadata, sibling schema access, etc.). Applicator keywords (`properties`,
-`items`) are flattened by the validator — they don't appear as nodes. The `path`
-field carries nesting context (e.g., `body.address.street`).
+**Parameters:**
+
+- `spec` is the full OpenAPI document, passed through unchanged. Schema context
+  is resolved via `node.schemaPath` only where needed.
+- `data` is the value being validated (e.g., the request body for body
+  validation, a parameter value for parameter validation). It is threaded
+  through unchanged. At composition nodes, `resolveDataAtPath` navigates `data`
+  using the node's `path` to get the value at that level — this is what the
+  discriminator and property overlap analysis need.
+
+Applicator keywords (`properties`, `items`) are flattened by the validator —
+they don't appear as nodes. The `path` field carries nesting context (e.g.,
+`body.address.street`).
 
 Bottom-up: leaves are classified first, container nodes merge their children's
 results, and composition nodes use structural match to decide which variant
 matched. The right decision is made at the right level.
 
+**`structurallyValid` vs `structuralFailureCount`**: Both propagate upward, but
+they answer different questions. `structurallyValid` is a boolean: does this
+subtree structurally match? Used by composition nodes to decide which variant
+matched. `structuralFailureCount` is a number: how many individual structural
+failures occurred? Used by variant identification to pick the closest variant
+when none match.
+
 Note: `structurallyValid` at the leaf is determined by keyword type, NOT by the
 diagnostic's category. The diagnostic might say "ambiguous" (E5001), but the
 structural match says "doesn't match" (keyword = type). These are different
 questions.
+
+### CompositionContext
+
+Composition handlers receive a context object alongside the child results:
+
+```typescript
+interface CompositionContext {
+  path: string; // Node's request path (e.g., "body" or "body.payment")
+  schemaPath: string; // Node's spec pointer (e.g., "#/.../oneOf")
+  schema: Schema; // Resolved schema for the composition node
+  data: unknown; // Request data at this path (for discriminator, property overlap)
+}
+```
+
+This gives composition handlers everything they need: schema access for pitfall
+detection, request data for discriminator evaluation and property overlap, and
+path info for diagnostic locations.
 
 ---
 
@@ -289,11 +335,11 @@ questions.
 ### oneOf
 
 ```
-attributeComposition("oneOf", childResults, schema):
+attributeOneOf(childResults, context):
 
-  // 1. Discriminator shortcut
-  if schema has discriminator:
-    return handleDiscriminator(childResults, schema)
+  // 1. Discriminator — deterministic variant selection
+  if context.schema has discriminator:
+    return handleDiscriminator(childResults, context)
 
   structuralMatches = childResults.filter(c => c.structurallyValid)
 
@@ -303,26 +349,36 @@ attributeComposition("oneOf", childResults, schema):
     // Its diagnostics (content-notes, etc.) are reported
     // No composition diagnostic needed
 
-  // 3. Zero structural matches → analyze pattern
+  // 3. Zero structural matches → variant identification
   if structuralMatches.length === 0:
-    return analyzeAllFailed(childResults, schema)
+    return analyzeAllFailed(childResults, context)
 
   // 4. Multiple structural matches → ambiguous
   if structuralMatches.length > 1:
-    return analyzeMultipleMatches(childResults, schema)
+    return analyzeMultipleMatches(childResults, context)
 ```
 
-Case 2 is the key improvement. The transport layer distinction naturally
-resolves many oneOf cases that would otherwise be ambiguous composition
-failures.
+Case 1: When a discriminator is present, it is **the** way to select a variant.
+No structural matching needed — the discriminator value deterministically
+identifies the variant (see "Discriminator Present" in Pattern Catalog below).
+
+Case 2 is the key improvement for the non-discriminator path. The transport
+layer distinction naturally resolves many oneOf cases that would otherwise be
+ambiguous composition failures.
 
 ### allOf
 
 ```
-attributeComposition("allOf", childResults, schema):
+attributeAllOf(childResults, context):
 
   allDiagnostics = childResults.flatMap(c => c.diagnostics)
   structurallyValid = childResults.every(c => c.structurallyValid)
+  structuralFailureCount = sum(childResults.map(c => c.structuralFailureCount))
+
+  // Pitfall: contradictory types (impossible schema) — check first
+  if context.schema.allOf members have conflicting type constraints:
+    return { diagnostics: [E1012, ...allDiagnostics], structurallyValid: false,
+             structuralFailureCount }
 
   // Pitfall: additionalProperties: false rejecting sibling properties
   if allDiagnostics has E3009:
@@ -332,11 +388,7 @@ attributeComposition("allOf", childResults, schema):
         add reasoning: "allOf + additionalProperties pitfall"
         suggest unevaluatedProperties
 
-  // Pitfall: contradictory types (impossible schema)
-  if children have conflicting type constraints:
-    return { diagnostics: [E1012], structurallyValid: false }
-
-  return { diagnostics: allDiagnostics, structurallyValid }
+  return { diagnostics: allDiagnostics, structurallyValid, structuralFailureCount }
 ```
 
 allOf requires ALL children to match. Structural match is the AND of all
@@ -346,20 +398,20 @@ are reported. The pitfall checks run on the merged result.
 ### anyOf
 
 ```
-attributeComposition("anyOf", childResults, schema):
+attributeAnyOf(childResults, context):
 
   structuralMatches = childResults.filter(c => c.structurallyValid)
 
   // 1. One or more structural matches → success
   if structuralMatches.length >= 1:
-    // Merge diagnostics from all matching variants (content-notes, etc.)
     return {
       diagnostics: structuralMatches.flatMap(c => c.diagnostics),
-      structurallyValid: true
+      structurallyValid: true,
+      structuralFailureCount: 0
     }
 
   // 2. Zero structural matches → same analysis as oneOf
-  return analyzeAllFailed(childResults, schema)
+  return analyzeAllFailed(childResults, context)
 ```
 
 anyOf differs from oneOf in one key way: multiple structural matches are fine.
@@ -457,10 +509,12 @@ logic. They are not a separate processing step.
 
 **When**: `structuralMatches.length === 0` (no variant structurally matches)
 
-**Analysis**:
+**Analysis** (`analyzeAllFailed(childResults, context)`):
 
-1. Check for variant identification (see below).
-2. If no clear variant → E3012 with reasoning chain listing each variant's
+1. Check for variant identification (see below) using `context.data` and each
+   child's `structuralFailureCount`.
+2. If no clear variant → E3012 with `requestPath: context.path`,
+   `specPointer: context.schemaPath`, and reasoning chain listing each variant's
    structural failures.
 
 **Output**: E3012 (ambiguous, confidence 0.5)
@@ -470,15 +524,21 @@ logic. They are not a separate processing step.
 **Goal**: When no variant structurally matches, determine which variant the
 request was intended for. Identification, not guessing.
 
+Both steps below use `context.data` (the request data at the composition level)
+and `structuralFailureCount` from each child's `InterpretResult`.
+
 **Steps** (in order):
 
-1. **Property overlap**: Match request properties against each variant's schema.
-   If one variant has clearly higher overlap (e.g., request has `card_number`
-   which only exists in CardPayment), that's the intended variant.
+1. **Property overlap**: Compare the keys in `context.data` against each
+   variant's `properties` (from `context.schema.oneOf[i]`). If one variant has
+   clearly higher overlap (e.g., request has `card_number` which only exists in
+   CardPayment's schema), that's the intended variant.
 
-2. **Error count**: If property names don't distinguish, check which variant had
-   fewer structural failures. One missing field vs three missing fields → the
-   one-missing variant is likely intended.
+2. **Structural failure count**: If property names don't distinguish, compare
+   `structuralFailureCount` across variants. One structural failure vs three →
+   the one-failure variant is likely intended. This uses the count propagated up
+   through the tree, not the diagnostic's category — structural classification
+   and attribution are independent.
 
 3. **No clear variant**: If neither method resolves it, report all variant
    failures. No forced match.
@@ -486,21 +546,49 @@ request was intended for. Identification, not guessing.
 **Output**:
 
 - Variant identified → diagnostics against that variant with higher confidence
-- Not identified → E3012 with per-variant details in reasoning chain
+- Not identified → E3012 with per-variant details in reasoning chain,
+  `requestPath` and `specPointer` from `context`
 
 ### oneOf: Discriminator Present
 
-**When**: Schema has discriminator property, discriminator value in request.
+**When**: `context.schema` has a `discriminator` property.
 
-**Analysis**: Discriminator deterministically selects the variant. Errors in
-that variant are attributable to the SDK with high confidence.
+**Analysis**: The discriminator is **the** way to select a variant when present.
+No structural matching is needed — the discriminator property value in the
+request deterministically identifies which variant was intended. This is the
+whole point of discriminators.
+
+```
+handleDiscriminator(childResults, context):
+  propertyName = context.schema.discriminator.propertyName
+  value = context.data[propertyName]   // Read from request data
+
+  // 1. Discriminator property missing
+  if value is undefined:
+    → E3007 (missing required field, confidence 0.95)
+    Discriminator properties are implicitly required.
+
+  // 2. Map value to variant index
+  variantIndex = resolveVariant(context.schema, value)
+  if variantIndex is null:
+    → E3011 (invalid discriminator value, confidence 0.95)
+
+  // 3. Valid discriminator — return that variant's results
+  return childResults[variantIndex] with confidence boosted to 0.95
+  and reasoning: "Discriminator selected variant {variantIndex}"
+```
+
+`resolveVariant` uses the discriminator's `mapping` if present, otherwise
+matches `value` against `const` or enum values in each variant's schema for the
+discriminator property.
 
 **Output**:
 
 - Discriminator property missing → E3007 (missing required field, high
   confidence — discriminator properties are implicitly required)
 - Invalid discriminator value → E3011 (sdk-issue)
-- Valid discriminator, variant errors → leaf diagnostics with high confidence
+- Valid discriminator, variant errors → that variant's diagnostics with high
+  confidence
 
 ### allOf: additionalProperties Pitfall
 
@@ -887,15 +975,18 @@ structural formats? Low priority — address if real-world specs need it.
 
 ### Resolved
 
-| Question                      | Resolution                                                         |
-| ----------------------------- | ------------------------------------------------------------------ |
-| Validation tree structure     | Designed from scratch — see "The Validation Tree" section          |
-| Schema access                 | `schemaPath` on every node; interpreter resolves against full spec |
-| Structural keyword list       | `isStructural(keyword, schema)` — see "Structural Match" section   |
-| enum/const classification     | Structural (SDK constrains inputs)                                 |
-| format split                  | binary/byte structural, email/uri/etc content                      |
-| expected/actual optionality   | Optional in impl; spec (Section 8.1) to be updated                 |
-| Diagnostic category placement | Top-level in impl; spec (Section 8.1) to be updated                |
+| Question                      | Resolution                                                                |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| Validation tree structure     | Designed from scratch — see "The Validation Tree" section                 |
+| Schema access                 | `schemaPath` on every node; interpreter resolves against full spec        |
+| Structural keyword list       | `isStructural(keyword, schema)` — see "Structural Match" section          |
+| enum/const classification     | Structural (SDK constrains inputs)                                        |
+| format split                  | binary/byte structural, email/uri/etc content                             |
+| expected/actual optionality   | Optional in impl; spec (Section 8.1) to be updated                        |
+| Diagnostic category placement | Top-level in impl; spec (Section 8.1) to be updated                       |
+| Request data access           | `data` parameter on `interpret()`, passed through to `CompositionContext` |
+| Structural failure counting   | `structuralFailureCount` on `InterpretResult`, not derived from category  |
+| Composition handler context   | `CompositionContext` with path, schemaPath, schema, data                  |
 
 ---
 
@@ -945,14 +1036,15 @@ src/
 ├── engine/
 │   ├── diagnostic-engine.ts   # Top-level analyze() flow
 │   ├── interpreter.ts         # Recursive interpret() + InterpretResult
+│   ├── types.ts               # ValidationNode, InterpretResult, CompositionContext, SpecResolver
 │   ├── leaf-attribution.ts    # (keyword, location, schema) → E-code
 │   ├── structural.ts          # isStructural(keyword, schema) classification
 │   ├── spec-analyzer.ts       # Startup E1xxx detection
 │   ├── composition/
-│   │   ├── one-of.ts          # oneOf structural match logic
-│   │   ├── all-of.ts          # allOf merge + pitfall detection
-│   │   ├── any-of.ts          # anyOf logic
-│   │   └── variant-id.ts      # Variant identification heuristics
+│   │   ├── one-of.ts          # oneOf: discriminator, structural match, multiple matches
+│   │   ├── all-of.ts          # allOf: merge + pitfall detection
+│   │   ├── any-of.ts          # anyOf: structural match, zero-match fallback
+│   │   └── variant-analysis.ts # Shared: analyzeAllFailed, variant identification
 │   └── routing.ts             # Route matching + diagnostic enrichment
 │
 ├── codes/
@@ -989,14 +1081,17 @@ server, and handles exit codes (0/1/3).
 
 ## Summary
 
-| Decision         | Choice                | Rationale                                                       |
-| ---------------- | --------------------- | --------------------------------------------------------------- |
-| Architecture     | 3 layers              | TransportModel/AttributionEngine add complexity without value   |
-| Interpretation   | Recursive             | Structural match must propagate for correct composition eval    |
-| Structural match | Keyword-based         | Independent of attribution category; type=structural regardless |
-| Validator output | Tree                  | Flat list loses composition structure                           |
-| Category source  | E-code registry       | Single source, interpreter can override based on context        |
-| Composition eval | Transport-layer-aware | Standard JSON Schema validity ≠ Steady structural match         |
-| Diagnostic type  | No composition field  | Reasoning chains carry detail; add structured field if needed   |
+| Decision                 | Choice                | Rationale                                                       |
+| ------------------------ | --------------------- | --------------------------------------------------------------- |
+| Architecture             | 3 layers              | TransportModel/AttributionEngine add complexity without value   |
+| Interpretation           | Recursive             | Structural match must propagate for correct composition eval    |
+| Structural match         | Keyword-based         | Independent of attribution category; type=structural regardless |
+| Validator output         | Tree                  | Flat list loses composition structure                           |
+| Category source          | E-code registry       | Single source, interpreter can override based on context        |
+| Composition eval         | Transport-layer-aware | Standard JSON Schema validity ≠ Steady structural match         |
+| Diagnostic type          | No composition field  | Reasoning chains carry detail; add structured field if needed   |
+| Request data threading   | `data` on interpret() | Discriminator + property overlap need the actual request values |
+| Structural failure count | On InterpretResult    | Category ≠ structural classification; need independent count    |
+| Discriminator priority   | Primary selector      | When present, discriminator IS the variant selection method     |
 
 The diagnostics are the product. Everything else is plumbing.
