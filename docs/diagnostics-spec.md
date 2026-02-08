@@ -38,19 +38,31 @@ Steady from generic API testing tools.
 
 All validation constraints fall into two categories:
 
-| Category       | SDK Responsible | Examples                                         |
-| -------------- | --------------- | ------------------------------------------------ |
-| **Structural** | Yes             | type, required, object shape, path construction  |
-| **Content**    | No              | format, pattern, minLength, minimum, enum values |
+| Category       | SDK Responsible | Examples                                            |
+| -------------- | --------------- | --------------------------------------------------- |
+| **Structural** | Yes             | type, required, object shape, enum, const, encoding |
+| **Content**    | No              | pattern, minLength, minimum, value-level format     |
 
-**Structural constraints** define the shape and types of data. The SDK controls
-these through its API design and serialization logic.
+**Structural constraints** define the shape, types, and allowed values of data.
+The SDK controls these through its API design, serialization logic, and input
+constraints.
 
 **Content constraints** validate the semantic meaning of values. The user
 provides these values; the SDK merely transports them.
 
-**Confidence: 90%** — The classification is sound. Edge cases exist (enum
-values, nullable) that require judgment.
+Note on `format`: OpenAPI uses `format` for two fundamentally different things.
+Encoding formats (`binary`, `byte`) change what the SDK must send — they are
+structural. Value-validation formats (`email`, `uri`, `uuid`) just check string
+content — they are content. See Section 2.3 for details.
+
+Note on `enum` and `const`: A well-designed SDK constrains inputs to valid
+values. If the spec says `enum: [a, b, c]`, the SDK should expose typed options,
+not a free-form string. If the SDK sends an invalid value, the SDK failed to
+constrain its inputs — that's a structural issue.
+
+**Confidence: 90%** — The classification is sound. The enum/const/format
+decisions reflect implementation analysis (see diagnostics-implementation-plan).
+Edge cases exist (nullable) that require judgment.
 
 ### 2.3 Validation Taxonomy
 
@@ -62,24 +74,36 @@ STRUCTURAL (SDK's responsibility)
   • Data types (integer vs string vs object)
   • Object structure (shape matches schema)
   • Required headers
+  • Enum values (SDK should constrain inputs)
+  • Const values (SDK should set fixed values)
+  • Encoding formats: binary, byte (SDK must encode correctly)
 
 CONTENT (Server validates, SDK transports)
-  • format (email, uri, uuid, date-time)
+  • Value-validation formats (email, uri, uuid, date-time)
   • pattern (regex)
   • minLength / maxLength
   • minimum / maximum
   • minItems / maxItems
-  • enum (when user-provided)
   • multipleOf
+  • minProperties / maxProperties
 
 CONTEXT-DEPENDENT (May require judgment)
   • null for non-nullable field
-  • enum values (depends on SDK API design)
   • additionalProperties (when spec is silent)
 ```
 
-**Confidence: 85%** — The categories are correct. The context-dependent list may
-grow as we encounter more edge cases.
+Note on format: `format` spans both categories. Encoding formats (`binary`,
+`byte`) define how the SDK must encode data — structural. Value-validation
+formats (`email`, `uri`, `uuid`, `date-time`, `ipv4`, etc.) just check string
+content — the SDK transports the user's string regardless.
+
+Note on enum: Previous drafts classified enum as context-dependent. Analysis
+during implementation planning concluded it's structural: a well-designed SDK
+exposes typed enum options, not free-form strings. If the SDK sends an invalid
+enum value, the SDK's input constraints are wrong.
+
+**Confidence: 85%** — The categories are correct. The context-dependent list is
+smaller than previous drafts — enum and format have been resolved.
 
 ---
 
@@ -113,10 +137,13 @@ pass/fail is a policy decision (see Section 6).
 - Wrong data type in body
 - Missing required header
 - additionalProperties violation (when explicitly `false`)
+- Invalid enum value (SDK should constrain to valid values)
+- Wrong const value (SDK should set fixed values)
+- Encoding format mismatch (binary, byte — SDK must encode correctly)
 
 **Content Note (not SDK's fault):**
 
-- Format validation failure
+- Value-validation format failure (email, uri, uuid, date-time, etc.)
 - Pattern mismatch
 - String length violation
 - Numeric range violation
@@ -132,7 +159,6 @@ pass/fail is a policy decision (see Section 6).
 **Ambiguous (requires judgment):**
 
 - Null sent for non-nullable field (spec might be incomplete)
-- Enum value invalid (SDK might expose typed enum or pass-through)
 - Additional properties when spec doesn't set `additionalProperties`
 - Schema composition failures where all variants fail on required fields
 
@@ -245,6 +271,9 @@ the server continues.
 | E1009 | Duplicate path parameter name   | warning  | no    | both    |
 | E1010 | Missing responses object        | warning  | no    | both    |
 | E1011 | Invalid component name          | warning  | no    | startup |
+| E1012 | Impossible schema constraint    | error    | no    | both    |
+| E1013 | Multiple question marks in path | warning  | no    | startup |
+| E1014 | Question mark in parameter name | warning  | no    | startup |
 
 Note on E1003: Missing `openapi`, `info.title`, or `info.version` is clearly an
 error but Steady can assume reasonable defaults (3.1.0, "Untitled", "unknown")
@@ -268,12 +297,62 @@ resolve correctly per RFC 6901. However, code generators will likely produce
 invalid output (e.g., `interface Api Response`). Real-world occurrence:
 https://github.com/OpenAPITools/openapi-generator/issues/19996
 
+Note on E1012: Some schemas are syntactically valid but logically impossible to
+satisfy (e.g., `allOf: [{type: string}, {type: number}]` or
+`{minimum: 10, maximum: 5}`). While schema satisfiability is NP-complete in
+theory, real OpenAPI specs don't produce combinatorial explosion — composition
+nesting is shallow (2-3 levels) and variant counts are small (2-5 per oneOf).
+Most impossible cases are locally detectable: type conflicts in allOf, range
+inversions, empty enum intersections, required count exceeding maxProperties.
+Even oneOf-inside-allOf combinations are tractable by brute-force enumeration
+for real-world specs. A depth/budget limit is a reasonable safety net but would
+rarely trigger. Confidence: 80% on implementation approach.
+
+Note on E1013: Path contains multiple `?` characters (e.g.,
+`/v1/models?beta=true?limit=10`). Only the first `?` delimits the query string;
+subsequent `?` become part of parameter values, which typically indicates a URL
+construction bug baked into the spec's path definitions. Real-world occurrence:
+anthropic-sdk-go beta endpoint paths.
+
+Note on E1014: Query parameter name or enum value contains `?` (e.g., parameter
+named `active?` or enum value `maybe?`). The `?` is the URL query delimiter, so
+using it inside parameter names or values creates ambiguity across HTTP
+libraries. Some percent-encode it (`active%3F`), others leave it literal.
+Real-world occurrence: Ruby-style boolean conventions (`is_valid?`), filter
+expressions (`filter[active?]`).
+
 **E2xxx — Routing**
 
 | Code  | Title              | Severity |
 | ----- | ------------------ | -------- |
 | E2001 | Path not found     | error    |
 | E2002 | Method not allowed | error    |
+
+Note on E2001: A bare "path not found" is often unhelpful. The reasoning chain
+should explain WHY the path didn't match when possible. For example, if a query
+parameter value contains `?`, the reasoning chain can identify a likely
+double-`?` URL construction bug:
+
+```json
+{
+  "code": "E2001",
+  "category": "sdk-issue",
+  "attribution": {
+    "confidence": 0.95,
+    "reasoning": [
+      "No path matched for GET /v1/models",
+      "Query parameter 'beta' has value 'true?limit=10' — contains '?'",
+      "Likely double-? URL construction bug in SDK",
+      "SDK may be appending '?params' to a URL that already has '?'"
+    ]
+  }
+}
+```
+
+Without the pattern detected, confidence would be lower (0.7) and the reasoning
+generic. The E-code stays the same—the reasoning chain carries the intelligence.
+This avoids E-code sprawl for every URL construction quirk while still providing
+specific, actionable diagnostics.
 
 **E3xxx — Transport Failures**
 
@@ -300,6 +379,9 @@ https://github.com/OpenAPITools/openapi-generator/issues/19996
 | E3013 | Required field in optional parent | medium     |
 | E3014 | Parameter serialization mismatch  | low        |
 | E3015 | Undocumented query parameter      | low        |
+| E3016 | Invalid enum value                | high       |
+| E3017 | Const value mismatch              | high       |
+| E3018 | Encoding format mismatch          | high       |
 
 Note on confidence levels:
 
@@ -326,25 +408,52 @@ Note on E3015: SDK sent a query parameter not defined in the spec. Confidence is
 low because: (1) spec might be incomplete, (2) server might ignore unknown
 params, (3) SDK might legitimately add debug/tracing params.
 
+Note on E3016: Enum values are structural. A well-designed SDK exposes typed
+enum options (e.g., `Status.ACTIVE`) rather than accepting free-form strings. If
+the SDK sends a value not in the enum, the SDK's input constraints are wrong.
+Previous drafts had this as E4006 (content) and E5002 (ambiguous) — resolved
+during implementation analysis.
+
+Note on E3017: `const` values are fixed by the spec. The SDK should set these
+automatically (e.g., discriminator values, API version headers). If a wrong
+value appears, the SDK packaged it incorrectly.
+
+Note on E3018: Encoding formats (`binary`, `byte`) define how the SDK must
+encode data — binary stream or base64. These are fundamentally different from
+value-validation formats (`email`, `uri`). If the SDK sends a plain string when
+the spec says `format: binary`, the SDK used the wrong encoding. Confidence is
+high because encoding is unambiguously the SDK's responsibility.
+
 **E4xxx — Content Validation Notes**
 
-| Code  | Title                   |
-| ----- | ----------------------- |
-| E4001 | Format mismatch         |
-| E4002 | Pattern mismatch        |
-| E4003 | String length violation |
-| E4004 | Numeric range violation |
-| E4005 | Array size violation    |
-| E4006 | Enum value not in list  |
-| E4007 | Multiple-of violation   |
+| Code  | Title                            |
+| ----- | -------------------------------- |
+| E4001 | Value-validation format mismatch |
+| E4002 | Pattern mismatch                 |
+| E4003 | String length violation          |
+| E4004 | Numeric range violation          |
+| E4005 | Array size violation             |
+| E4007 | Multiple-of violation            |
+
+Note on E4001: Covers value-validation formats only (`email`, `uri`, `uuid`,
+`date-time`, `ipv4`, `ipv6`, etc.). Encoding formats (`binary`, `byte`) are
+E3018. The SDK transports the user's string — whether it's a valid email or URI
+is the server's job, not the SDK's.
+
+Note: E4006 (Enum value not in list) has been moved to E3016. Enum values are
+structural — see E3016 note.
 
 **E5xxx — Ambiguous**
 
 | Code  | Title                               |
 | ----- | ----------------------------------- |
 | E5001 | Null for non-nullable field         |
-| E5002 | Enum value from SDK                 |
 | E5003 | Additional properties (spec silent) |
+
+Note: E5002 (Enum value from SDK) has been removed. Enum values are always
+structural (E3016). The distinction between "SDK-provided enum" and
+"user-provided enum" is no longer needed — the SDK is responsible for
+constraining enum inputs regardless.
 
 **Confidence: 70%** — Initial codes are reasonable. Expect additions and
 possibly deprecations as real-world usage reveals gaps.
@@ -852,7 +961,17 @@ interface Diagnostic {
 ```
 
 The `attribution.reasoning` field is an array of strings showing the logic chain
-that led to the final category. Example:
+that led to the final category. It serves two purposes:
+
+1. **Attribution justification** — Why this category and confidence level?
+2. **Root cause analysis** — What specifically caused the failure?
+
+The reasoning chain is where diagnostic intelligence lives. The same E-code can
+have very different reasoning depending on context. E2001 "Path not found" with
+generic reasoning is less useful than E2001 with reasoning that identifies a
+double-`?` URL construction bug. The code is stable; the reasoning is specific.
+
+Example:
 
 ```json
 {
@@ -954,28 +1073,14 @@ interface SessionReport {
 | Mid-session fix detection          | Issue stops appearing — note in report?                                                 |
 | **Impossible schema constraints**  | See detailed note below.                                                                |
 
-**On impossible schemas:** Some schemas are syntactically valid but logically
-impossible to satisfy (e.g., `allOf: [{type: string}, {type: number}]` or
-`{minimum: 10, maximum: 5}`). Currently these surface as E3012 at validation
-time, which misleadingly suggests an SDK transport issue when no SDK could ever
-succeed.
+**On impossible schemas:** E1012 covers schemas that are syntactically valid but
+logically impossible (e.g., `allOf: [{type: string}, {type: number}]`).
+Principle: impossible constraint = spec issue, not SDK issue. While
+theoretically NP-complete, real OpenAPI specs have shallow composition nesting
+(2-3 levels, 2-5 variants) — brute-force detection is tractable. See E1012 note
+in Section 4.3.
 
-The principle is clear: impossible constraint = spec issue (E1xxx), not SDK
-issue (E3xxx). However, implementation is uncertain:
-
-1. Detecting ALL impossible schemas is NP-complete (SAT problem)
-2. Simple cases (type conflicts, range inversions) are detectable at startup
-3. Complex compositions may only fail at validation time
-4. Partial impossibility (one oneOf branch impossible) is ambiguous
-
-**Options to consider:**
-
-- E1012 "Impossible schema constraint" for detectable cases at startup
-- Improve E3012 attribution reasoning to note when spec may be at fault
-- Accept limitation and document that some spec issues surface as E3xxx
-
-**Confidence: 40%** — Principle is right, implementation unclear. Revisit after
-seeing real-world frequency of this pattern.
+**Confidence: 80%** — Principle and implementation approach are sound.
 
 ---
 
@@ -1133,6 +1238,37 @@ violation — attribution is clear (spec issue, not SDK issue).
 
 This approach reflects Steady's philosophy: be maximally useful while providing
 clear diagnostics. Real-world specs are often imperfect.
+
+### A.9 URL Construction Bug (Double Question Mark)
+
+SDK sends `GET /v1/models?beta=true?limit=10&after=abc` — second `?` instead of
+`&`. Real-world occurrence: anthropic-sdk-go appends `?params` to paths that
+already contain `?beta=true`.
+
+What the server sees:
+
+- Path: `/v1/models`
+- Query: `beta=true?limit=10`, `after=abc`
+- The `limit` parameter is lost entirely (swallowed into beta's value)
+- `beta` value is `"true?limit=10"`, not `"true"` — route matching fails
+
+Result: E2001, but with enriched reasoning:
+
+```
+error[E2001]: Path not found
+ --> GET /v1/models
+  |
+  |  Query parameter "beta" has value "true?limit=10"
+  |                                        ^
+  |                                        '?' in value — likely double-? bug
+  |
+  = SDK may be appending '?params' to a URL that already has '?'
+  = Use '&' to separate additional query parameters
+```
+
+The E-code is E2001 (path not found). The root cause analysis happens in the
+reasoning chain, not in a separate E-code. Confidence is high (0.95) because the
+`?` in a query value on a 404 is a strong signal.
 
 ---
 

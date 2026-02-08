@@ -1,9 +1,19 @@
 # Diagnostics Implementation Plan
 
+> Design: [diagnostics-spec.md](diagnostics-spec.md)
+
+**This plan describes the ideal implementation.** The existing codebase may be
+used for inspiration and reused where already good, but iterating on existing
+code is not a goal. Implementation effort is not a constraint. The goal is the
+right system, not the cheapest path from what exists.
+
 ## The Problem
 
-Steady validates SDK requests against OpenAPI specs. The hard part isn't
-validation—it's **attribution**: determining whose fault each error is.
+Steady is an OpenAPI mock server focused on improving the developer experience
+when validation issues arise between HTTP clients and API specs.
+
+When a request doesn't match the spec, developers need actionable context: what
+failed, where, whose responsibility it is, and what to do about it.
 
 ```
 POST /audio/transcriptions
@@ -14,14 +24,16 @@ Schema expects oneOf:
   - UrlVariant: { required: [url, model] }
 ```
 
-Both variants fail. Missing `file` AND missing `url`. Whose fault?
+Both variants fail. Missing `file` AND missing `url`. A naive validator reports
+"required field missing" — but that doesn't help the developer fix anything.
+They need to know:
 
-- SDK bug? (Should have included one of them)
-- Test data incomplete? (User didn't provide file or url)
-- Spec issue? (Maybe neither should be required)
+- Is this an SDK bug? (Should have included one of them)
+- Is the test data incomplete? (User didn't provide file or url)
+- Is it a spec issue? (Maybe neither should be required)
 
-A naive validator says "required field missing" and blames the SDK. But that's
-often wrong. Attribution requires understanding the structure of the failure.
+Attribution — determining whose responsibility each issue is — provides this
+context. It's what turns a raw validation error into a useful diagnostic.
 
 ---
 
@@ -29,61 +41,45 @@ often wrong. Attribution requires understanding the structure of the failure.
 
 **The diagnostics are the product. The mock server is scaffolding.**
 
-Steady answers: "Did this SDK correctly transport the request?"
+When something goes wrong, the diagnostic should give the developer enough
+context to understand the issue and act on it. That means answering: what
+happened, where, whose responsibility it is, and what to do about it.
 
-An SDK is a transport layer. It packages data and sends it. It does NOT validate
-semantic content—that's the server's job.
+The key to answering "whose responsibility" is understanding what an SDK
+actually does. An SDK is a transport layer. It packages data and sends it. It
+does NOT validate semantic content — that's the server's job.
 
-| Category   | SDK Responsible | Examples                        |
-| ---------- | --------------- | ------------------------------- |
-| Structural | Yes             | type, required, shape, presence |
-| Content    | No              | format, pattern, length, range  |
+| Category   | SDK Responsible | Examples                                            |
+| ---------- | --------------- | --------------------------------------------------- |
+| Structural | Yes             | type, required, shape, enum, const, encoding format |
+| Content    | No              | pattern, minLength, minimum, value-level format     |
 
-This distinction is Steady's core intellectual contribution. Without it, you're
-just another API validator that blames SDKs for user mistakes.
+This structural/content distinction is what makes Steady's diagnostics
+meaningful. Without it, every validation error looks like an SDK bug — which is
+often wrong and wastes the developer's time.
 
 ---
 
-## Architecture Decision: 3 Layers
+## Architecture: 3 Layers
 
-We explored 5 layers:
+We explored 5 layers (DiagnosticEngine, TransportModel, AttributionEngine,
+SessionStore, MockServer) and rejected it — TransportModel gets bypassed for
+complex cases, two components doing attribution means unclear responsibility.
 
-```
-DiagnosticEngine → TransportModel → AttributionEngine → SessionStore → MockServer
-```
+We then explored a 2-phase model (leaf attribution, then composition pattern
+analysis). It was better, but had a fundamental flaw: **attribution decisions
+were made at the wrong level.** Phase 1 attributed leaves without composition
+context. Phase 2 then overrode those decisions — creating diagnostics only to
+throw them away.
 
-And rejected it. Here's why.
-
-### The TransportModel Problem
-
-TransportModel maps keywords to categories:
-
-```
-required → structural → sdk-issue
-format → content → content-note
-```
-
-But for composition failures (oneOf, anyOf), the keyword alone doesn't determine
-category. A `required` error inside a failed oneOf might be ambiguous, not
-sdk-issue.
-
-TransportModel gets bypassed for the hard cases. If it's bypassed when it
-matters most, why have it?
-
-### The AttributionEngine Problem
-
-AttributionEngine was supposed to analyze patterns and determine responsibility.
-But it needs the same context DiagnosticEngine already has: the validation tree,
-the schema structure, the request.
-
-Two components doing attribution means unclear responsibility and redundant
-context-passing.
+Worse, the two-phase model can't correctly evaluate composition keywords under
+the transport layer model (see "Structural Match" below).
 
 ### The 3-Layer Design
 
 ```
 Layer 1: DiagnosticEngine
-         └── Two-phase attribution, owns the decision
+         └── Recursive interpretation of validation results
          └── Delegates to SchemaValidator (pure, no attribution knowledge)
 
 Layer 2: E-Code Registry
@@ -94,71 +90,450 @@ Layer 3: SessionStore + MockServer
          └── Infrastructure: storage and HTTP plumbing
 ```
 
-DiagnosticEngine does attribution in two phases, not two components.
+---
+
+## Recursive Interpretation
+
+### The Key Insight: Structural Match
+
+Standard JSON Schema evaluates oneOf by checking if exactly one variant fully
+validates. All keyword failures are equal — a type mismatch and a format
+violation both mean "variant doesn't match."
+
+Steady's transport layer model disagrees. A format violation is a content note,
+not a structural failure. An SDK that sends the right fields but wrong format
+values has **structurally matched** the variant.
+
+This changes how composition keywords must be evaluated.
+
+**Example:**
+
+```
+POST /payments
+Body: { "card_number": "abc" }
+
+Schema oneOf:
+  - CardPayment: { required: [card_number],
+                    properties: { card_number: { pattern: "^\\d+$" } } }
+  - BankPayment: { required: [account_number] }
+```
+
+**Standard JSON Schema**: Both variants fail. CardPayment fails (pattern).
+BankPayment fails (missing required). oneOf: 0 matched.
+
+**Steady's interpretation**:
+
+- CardPayment: `card_number` present (structural: OK), pattern fails (content) →
+  **structurally matches**
+- BankPayment: `account_number` missing (structural failure) → **does not
+  structurally match**
+
+Result: CardPayment is the structural match. Report E4002 content-note for the
+pattern. The SDK transported the card number. The value being non-numeric is a
+content issue, not the SDK's fault.
+
+**A post-processing approach misses this.** If attribution happens after
+validation, the engine sees "oneOf: 0 matched" (the validator's judgment) and
+applies composition patterns to determine responsibility. But one variant DID
+match structurally — the engine can't see this because the validator only
+reports JSON Schema validity, not structural validity.
+
+The recursive model solves this by propagating structural match up the tree:
+
+```typescript
+interface InterpretResult {
+  diagnostics: Diagnostic[];
+  structurallyValid: boolean;
+}
+```
+
+At each tree node, the interpreter returns both diagnostics AND whether the
+subtree structurally matches. Composition nodes use structural match — not JSON
+Schema validity — to decide which variant matched.
+
+### Structural Match vs Attribution
+
+Two independent questions about each validation error:
+
+1. **Structural match**: Does this failure mean the variant's structure doesn't
+   match the request? (Used for oneOf/anyOf evaluation)
+2. **Attribution**: Whose fault is this error? (Reported in diagnostics)
+
+Structural match is determined by **keyword type**. Attribution is determined by
+**E-code and context**. They are independent.
+
+The spec's validation taxonomy (Section 2.3) defines which keywords are
+structural. But the classification isn't a simple keyword lookup — some keywords
+depend on their value or context:
+
+```
+ALWAYS STRUCTURAL (failure = variant doesn't match):
+  type, required, additionalProperties (when false),
+  enum, const
+
+SPLIT BY VALUE:
+  format:
+    binary, byte → structural (encoding, SDK's responsibility)
+    email, uri, uuid, date-time, ... → content (value validation)
+
+ALWAYS CONTENT (failure = variant still matches):
+  pattern, minLength, maxLength, minimum, maximum,
+  minItems, maxItems, multipleOf, minProperties, maxProperties,
+  uniqueItems
+
+CONTEXT-DEPENDENT:
+  additionalProperties (structural when false, ambiguous when spec silent)
+```
+
+Note: This list only includes keywords that produce leaf validation errors.
+Applicator keywords (`properties`, `items`, `patternProperties`) are flattened
+by the validator — they don't appear as nodes in the tree. Their child errors
+surface directly with full paths (e.g., `body.address.street`).
+
+At each leaf node:
+
+```
+structurallyValid = !isStructural(node.keyword, schema)
+```
+
+This is a function, not a table. `isStructural("format", schema)` checks the
+format value — `binary` returns true, `email` returns false. `isStructural`
+encodes design decisions about what SDKs are responsible for.
+
+Structural match is independent of attribution. An E5001 (null for non-nullable,
+attributed as ambiguous) has keyword `type` → structural → variant doesn't
+match. An E4001 (email format mismatch, attributed as content-note) has keyword
+`format` with value `email` → content → variant still matches.
+
+The keyword + schema determines structural match. The E-code determines
+attribution. Same error, two different questions, two different answers
+possible.
+
+### The Full Flow
+
+```
+DiagnosticEngine.analyze(spec, req):
+
+  1. Route matching
+     └── If fails → routing diagnostic (E2xxx) with enrichment
+     └── If matches → continue
+
+  2. Runtime spec issues for matched endpoint (E1xxx)
+
+  3. Parameter validation (query, header, path, cookie)
+     └── For each required parameter: check presence → E3002/E3004 if missing
+     └── For each present parameter: validate value against schema, interpret
+
+  4. Body validation
+     └── SchemaValidator produces ValidationTree
+     └── Recursive interpretation produces Diagnostic[]
+
+  5. Return all diagnostics
+```
+
+### How interpret() Works
+
+```
+interpret(node, schema, location) → InterpretResult:
+
+  if node.valid:
+    return { diagnostics: [], structurallyValid: true }
+
+  if node is leaf:
+    diagnostic = attributeLeaf(node, schema, location)
+    structurallyValid = !isStructural(node.keyword, schema)
+    return { diagnostics: [diagnostic], structurallyValid }
+
+  if node is composition (oneOf, anyOf, allOf):
+    childResults = node.children.map(c => interpret(c, childSchema, location))
+    return attributeComposition(node.keyword, childResults, schema)
+```
+
+The tree has only three node types: valid, leaf, and composition. Applicator
+keywords (`properties`, `items`) are flattened by the validator — their child
+errors appear directly under the parent node, with `path` carrying the full
+nesting context (e.g., `body.address.street`). This keeps the interpreter
+simple: three cases, no intermediate applicator handling.
+
+Bottom-up: leaves are classified first, then composition nodes use their
+children's structural match to decide which variant matched. The right decision
+is made at the right level.
+
+Note: `structurallyValid` at the leaf is determined by keyword type, NOT by the
+diagnostic's category. The diagnostic might say "ambiguous" (E5001), but the
+structural match says "doesn't match" (keyword = type). These are different
+questions.
 
 ---
 
-## Two-Phase Attribution
+## Composition Logic
 
-The key design. Attribution happens in two phases within DiagnosticEngine:
-
-### Phase 1: Leaf Attribution
-
-For simple errors, (keyword, location) determines E-code:
+### oneOf
 
 ```
-(required, query)  → E3002 (Missing required query parameter)
-(required, header) → E3004 (Missing required header)
-(required, body)   → E3007 (Missing required field)
-(type, body)       → E3008 (Field type mismatch)
-(format, body)     → E4001 (Format mismatch)
+attributeComposition("oneOf", childResults, schema):
+
+  // 1. Discriminator shortcut
+  if schema has discriminator:
+    return handleDiscriminator(childResults, schema)
+
+  structuralMatches = childResults.filter(c => c.structurallyValid)
+
+  // 2. One structural match → variant identified
+  if structuralMatches.length === 1:
+    return structuralMatches[0]
+    // Its diagnostics (content-notes, etc.) are reported
+    // No composition diagnostic needed
+
+  // 3. Zero structural matches → analyze pattern
+  if structuralMatches.length === 0:
+    return analyzeAllFailed(childResults, schema)
+
+  // 4. Multiple structural matches → ambiguous
+  if structuralMatches.length > 1:
+    return analyzeMultipleMatches(childResults, schema)
 ```
 
-Category from E-code registry. Handles ~80% of cases. Fast.
+Case 2 is the key improvement. The transport layer distinction naturally
+resolves many oneOf cases that would otherwise be ambiguous composition
+failures.
 
-### Phase 2: Composition Analysis
-
-For complex cases, analyze the pattern of failures:
+### allOf
 
 ```
-Input: ValidationTree showing oneOf with 2 variants, both failed on "required"
+attributeComposition("allOf", childResults, schema):
 
-Phase 1 produced:
-  E3007 (sdk-issue, confidence 0.9) for missing 'file'
-  E3007 (sdk-issue, confidence 0.9) for missing 'url'
+  allDiagnostics = childResults.flatMap(c => c.diagnostics)
+  structurallyValid = childResults.every(c => c.structurallyValid)
 
-Phase 2 recognizes pattern "all-variants-fail-required":
-  All variants failed on same structural keyword
-  → Could be SDK, test data, or spec issue
-  → Replace with E3012 (ambiguous, confidence 0.5)
-  → Reasoning chain explains what happened
+  // Pitfall: additionalProperties: false rejecting sibling properties
+  if allDiagnostics has E3009:
+    for each E3009 diagnostic:
+      if rejected property exists in a sibling allOf member's schema:
+        re-attribute to spec-issue
+        add reasoning: "allOf + additionalProperties pitfall"
+        suggest unevaluatedProperties
+
+  // Pitfall: contradictory types (impossible schema)
+  if children have conflicting type constraints:
+    return { diagnostics: [E1012], structurallyValid: false }
+
+  return { diagnostics: allDiagnostics, structurallyValid }
 ```
 
-Phase 2 may merge, replace, or re-categorize Phase 1 diagnostics.
+allOf requires ALL children to match. Structural match is the AND of all
+children. Unlike oneOf, there's no variant selection — every child's diagnostics
+are reported. The pitfall checks run on the merged result.
 
-### Why This Works
+### anyOf
 
-| Alternative                                 | Problem                             |
-| ------------------------------------------- | ----------------------------------- |
-| Single-pass keyword lookup                  | No context for composition failures |
-| Separate TransportModel + AttributionEngine | Attribution split, TM gets bypassed |
-| Attribution during validation               | Couples validator to E-codes        |
+```
+attributeComposition("anyOf", childResults, schema):
 
-Two-phase keeps:
+  structuralMatches = childResults.filter(c => c.structurallyValid)
 
-- Simple cases simple (lookup)
-- Complex cases get full context (tree analysis)
-- One component owns the decision
+  // 1. One or more structural matches → success
+  if structuralMatches.length >= 1:
+    // Merge diagnostics from all matching variants (content-notes, etc.)
+    return {
+      diagnostics: structuralMatches.flatMap(c => c.diagnostics),
+      structurallyValid: true
+    }
+
+  // 2. Zero structural matches → same analysis as oneOf
+  return analyzeAllFailed(childResults, schema)
+```
+
+anyOf differs from oneOf in one key way: multiple structural matches are fine.
+When one or more variants structurally match, merge their diagnostics and report
+as structurally valid. When none match, use the same analysis as oneOf's
+zero-match case (variant identification, then E3012 if no clear variant).
+
+---
+
+## Leaf Attribution
+
+For each leaf error, (keyword, location, schema context) determines E-code:
+
+```
+Structural (E3xxx):
+(type, path)                             → E3001 (Path parameter type mismatch)
+(required, query)                        → E3002 (Missing required query parameter)
+(type, query)                            → E3003 (Query parameter type mismatch)
+(required, header)                       → E3004 (Missing required header)
+(required, body)                         → E3007 (Missing required field)
+(type, body)                             → E3008 (Field type mismatch)
+(additionalProperties, explicitly false) → E3009 (Additional property not allowed)
+(type, array item)                       → E3010 (Invalid array item type)
+(enum, any)                              → E3016 (Invalid enum value)
+(const, any)                             → E3017 (Const value mismatch)
+(format, any, format=binary|byte)        → E3018 (Encoding format mismatch)
+
+Content (E4xxx):
+(format, any, format=email|uri|...)      → E4001 (Value-validation format mismatch)
+(pattern, any)                           → E4002 (Pattern mismatch)
+(minLength|maxLength, any)               → E4003 (String length violation)
+(minimum|maximum, any)                   → E4004 (Numeric range violation)
+(minItems|maxItems, any)                 → E4005 (Array size violation)
+(multipleOf, any)                        → E4007 (Multiple-of violation)
+
+Ambiguous (E5xxx):
+(type, body, value=null, no nullable)    → E5001 (Null for non-nullable field)
+(additionalProperties, spec silent)      → E5003 (Additional properties, spec silent)
+```
+
+Note: Missing required parameters (E3002, E3004) are detected during parameter
+presence checking (step 3 of the flow), not through schema validation. They
+produce diagnostics directly, without going through the interpreter.
+
+Category comes from the E-code registry. Some E-codes need schema context:
+
+- `format` maps to E3018 (structural, sdk-issue) for encoding formats (`binary`,
+  `byte`) but E4001 (content-note) for value-validation formats (`email`, `uri`,
+  `uuid`, etc.)
+- `additionalProperties` maps to E3009 when spec says `false`, E5003 when spec
+  is silent
+- `type` maps to E3008 normally, E5001 when value is null and schema isn't
+  nullable
+
+The `isStructural()` function and the E-code lookup share the same design
+judgment about SDK responsibility — encoding and value constraints are the SDK's
+job, content validation is the server's.
+
+---
+
+## Routing Diagnostics
+
+Routing diagnostics are created during route matching, outside the recursive
+interpretation (there's no validation tree when routing fails).
+
+Pattern enrichment happens inline during diagnostic creation:
+
+```
+createRoutingDiagnostic(route, req):
+  diag = E2001 or E2002 (default confidence 0.7)
+
+  // Detect double-? pattern
+  for param in req.queryParams:
+    if param.value.includes('?'):
+      diag.confidence = 0.95
+      diag.reasoning.push(
+        "Query parameter value contains '?' — likely URL construction bug",
+        "SDK may be appending '?params' to a URL already containing '?'"
+      )
+
+  return diag
+```
+
+No separate pattern detection step. Routing diagnostics are created once, with
+enrichment applied at creation time.
+
+---
+
+## Pattern Catalog
+
+Patterns are recognized during recursive interpretation, inside the composition
+logic. They are not a separate processing step.
+
+### oneOf: All Variants Fail Structurally
+
+**When**: `structuralMatches.length === 0` (no variant structurally matches)
+
+**Analysis**:
+
+1. Check for variant identification (see below).
+2. If no clear variant → E3012 with reasoning chain listing each variant's
+   structural failures.
+
+**Output**: E3012 (ambiguous, confidence 0.5)
+
+### oneOf: Variant Identification
+
+**Goal**: When no variant structurally matches, determine which variant the
+request was intended for. Identification, not guessing.
+
+**Steps** (in order):
+
+1. **Property overlap**: Match request properties against each variant's schema.
+   If one variant has clearly higher overlap (e.g., request has `card_number`
+   which only exists in CardPayment), that's the intended variant.
+
+2. **Error count**: If property names don't distinguish, check which variant had
+   fewer structural failures. One missing field vs three missing fields → the
+   one-missing variant is likely intended.
+
+3. **No clear variant**: If neither method resolves it, report all variant
+   failures. No forced match.
+
+**Output**:
+
+- Variant identified → diagnostics against that variant with higher confidence
+- Not identified → E3012 with per-variant details in reasoning chain
+
+### oneOf: Discriminator Present
+
+**When**: Schema has discriminator property, discriminator value in request.
+
+**Analysis**: Discriminator deterministically selects the variant. Errors in
+that variant are attributable to the SDK with high confidence.
+
+**Output**:
+
+- Discriminator property missing → E3007 (missing required field, high
+  confidence — discriminator properties are implicitly required)
+- Invalid discriminator value → E3011 (sdk-issue)
+- Valid discriminator, variant errors → leaf diagnostics with high confidence
+
+### allOf: additionalProperties Pitfall
+
+A well-known JSON Schema pitfall. Consider:
+
+```yaml
+allOf:
+  - $ref: "#/components/schemas/BaseUser" # defines: name, email
+  - type: object
+    properties:
+      role: { type: string }
+    additionalProperties: false
+```
+
+Request `{ "name": "Alice", "email": "a@b.com", "role": "admin" }` is
+intuitively correct. But `additionalProperties: false` in the second allOf
+member only sees ITS properties (`role`). `name` and `email` are "additional"
+from its perspective.
+
+**Detection**: The interpreter sees E3009 for properties that exist in a sibling
+allOf member. This requires schema access — the validation tree shows the error,
+the schema reveals the sibling relationship.
+
+**Output**: Re-attribute E3009 from sdk-issue to spec-issue. Reasoning explains
+the allOf interaction. Suggest `unevaluatedProperties` instead.
+
+**Note**: When the sibling has required fields that will always be rejected by
+`additionalProperties: false`, the schema is impossible — detectable at startup
+as E1012. When the sibling's fields are optional, the schema is satisfiable (by
+omitting those fields) but likely not what the spec author intended — this is a
+spec-issue warning, not E1012.
+
+### allOf: Impossible Schema
+
+**When**: allOf children have contradictory constraints (e.g., `type: string`
+AND `type: number`).
+
+**Analysis**: No valid input exists. Spec issue.
+
+**Output**: E1012 (spec-issue), regardless of request content.
 
 ---
 
 ## The Validation Tree
 
-SchemaValidator must return a tree, not a flat list.
+SchemaValidator returns a tree, not a flat list. The tree preserves composition
+structure while flattening everything else.
 
 ### Why
 
-Flat list loses context:
+Flat list loses composition context:
 
 ```
 [
@@ -168,99 +543,95 @@ Flat list loses context:
 // Which variant did each error come from?
 ```
 
-Phase 2 needs to ask: "Did all oneOf variants fail on required?" Can't answer
-without tree structure.
+The recursive interpreter needs composition structure to evaluate each variant's
+structural match independently. But it doesn't need applicator nesting — the
+`path` field carries that context.
 
-### Structure
+### Design
+
+The tree has two kinds of nodes:
+
+1. **Composition nodes**: `oneOf`, `anyOf`, `allOf` — have `children`
+2. **Leaf nodes**: keyword failures (`type`, `required`, `enum`, etc.) — no
+   children
+
+Applicator keywords (`properties`, `items`, `patternProperties`) are
+transparent. The validator evaluates their subschemas but doesn't create tree
+nodes for them. Errors from nested properties surface as leaf nodes with full
+paths.
 
 ```typescript
 interface ValidationNode {
-  keyword: string;
+  keyword?: string; // Absent on variant wrapper nodes (see example below)
   path: string;
-  schemaPath: string;
+  schemaPath: string; // JSON pointer into the spec — used by interpreter
+  // to resolve schema context (format value, sibling
+  // schemas, additionalProperties setting, etc.)
   valid: boolean;
 
   // Leaf errors
   message?: string;
+  field?: string; // Keyword-specific detail (e.g., field name for "required")
   expected?: unknown;
   actual?: unknown;
 
   // Composition nodes
   children?: ValidationNode[];
-  variantIndex?: number;
+  variantIndex?: number; // Present on oneOf/anyOf variant wrapper nodes
 }
 ```
 
-Example for the oneOf case:
+`schemaPath` is how the interpreter accesses schema context. The interpreter
+receives the full spec document and resolves `schemaPath` when it needs to check
+format values, sibling schemas, or other schema-level details.
+
+### Example
+
+For the oneOf case:
 
 ```
 {
   keyword: "oneOf",
   path: "body",
+  schemaPath: "#/requestBody/content/application~1json/schema/oneOf",
   valid: false,
   children: [
     {
       variantIndex: 0,
       valid: false,
-      children: [{ keyword: "required", path: "body", field: "file" }]
+      children: [
+        { keyword: "required", path: "body", field: "file", valid: false,
+          schemaPath: "#/.../FileVariant/required" }
+      ]
     },
     {
       variantIndex: 1,
       valid: false,
-      children: [{ keyword: "required", path: "body", field: "url" }]
+      children: [
+        { keyword: "required", path: "body", field: "url", valid: false,
+          schemaPath: "#/.../UrlVariant/required" }
+      ]
     }
   ]
 }
 ```
 
----
+For a flat (non-composition) object with nested errors:
 
-## Composition Patterns
+```
+{
+  valid: false,
+  children: [
+    { keyword: "type", path: "body.email", expected: "string", actual: "integer",
+      schemaPath: "#/.../properties/email/type", valid: false },
+    { keyword: "required", path: "body", field: "name",
+      schemaPath: "#/.../required", valid: false }
+  ]
+}
+```
 
-Phase 2 pattern catalog. Each pattern has:
-
-- Trigger condition
-- Analysis logic
-- Output transformation
-
-### Pattern: All Variants Fail Same Way
-
-**Trigger**: oneOf/anyOf where all `children.valid === false` AND all failed on
-same keyword type (all structural or all content)
-
-**Analysis**:
-
-- All structural failures → ambiguous (SDK might not know which variant)
-- All content failures → content-note (SDK transported correctly)
-
-**Output**: E3012, confidence 0.5, reasoning chain listing each variant's
-failure
-
-### Pattern: One Variant Almost Matches
-
-**Trigger**: oneOf where one variant has significantly fewer errors than others
-
-**Analysis**: Likely the intended variant. Errors more attributable to SDK.
-
-**Output**: Diagnostics for closest variant with higher confidence
-
-### Pattern: Discriminator Present
-
-**Trigger**: oneOf with discriminator, discriminator value in request
-
-**Analysis**: Discriminator selects variant. Errors in that variant are SDK's.
-
-**Output**: E3011 if discriminator invalid, else errors from selected variant
-with high confidence
-
-### Pattern: Impossible Schema
-
-**Trigger**: allOf with contradictory constraints (type: string AND type:
-number)
-
-**Analysis**: No valid input exists. Spec issue.
-
-**Output**: E1012 (spec-issue), regardless of request content
+No `properties` node. The path says `body.email`, the schemaPath points to the
+specific schema. The validator flattened the applicator structure.
 
 ---
 
@@ -287,32 +658,49 @@ interface Diagnostic {
     reasoning: string[]; // ["oneOf failed", "Variant 0: missing file", ...]
   };
 
-  // For composition failures
-  composition?: {
-    keyword: "oneOf" | "anyOf" | "allOf";
-    variants: Array<{
-      index: number;
-      schemaRef?: string;
-      errors: string[];
-    }>;
-  };
-
   suggestion?: string;
 }
 ```
 
-The `composition` field preserves detail when Phase 2 merges multiple leaf
-errors into one composition diagnostic.
+The reasoning chain carries all detail — including composition information like
+which variants failed and why. No structured `composition` field. The E-code
+tells test frameworks WHAT happened, the category tells them WHO's responsible,
+and the reasoning tells developers WHY. If programmatic access to variant
+details proves necessary, an optional field can be added without breaking
+changes.
+
+Note: `expected` and `actual` are optional. Not every diagnostic has meaningful
+values — E2001 "Path not found" or E1010 "Missing responses" don't fit the
+expected/actual pattern.
+
+**Spec differences** (implementation plan takes precedence, spec to be updated):
+
+- `category` is top-level here; spec (Section 8.1) nests it under `attribution`.
+  Top-level is better for ergonomics (`diagnostic.category` for filtering and
+  pass/fail decisions).
+- `expected`/`actual` are optional here; spec has them as required.
 
 ---
 
 ## E-Code Registry
 
-Source of truth for code metadata.
+Source of truth for code metadata. The registry below shows representative codes
+— the full set is defined in the spec (Section 4.3). The registry is designed to
+be extended: adding new E-codes requires only a new entry here and the
+corresponding logic in leaf attribution or composition handling. No structural
+changes to the engine.
 
 ```typescript
-const CODES = {
-  // E1xxx - Spec Issues
+interface ECodeDefinition {
+  title: string;
+  severity: "error" | "warning" | "info";
+  category: IssueCategory; // Default category
+  fatal?: boolean;
+  context?: "startup" | "runtime" | "both";
+}
+
+const CODES: Record<string, ECodeDefinition> = {
+  // E1xxx - Spec Issues (representative subset)
   E1001: {
     title: "Invalid syntax",
     severity: "error",
@@ -338,17 +726,7 @@ const CODES = {
     category: "sdk-issue",
   },
 
-  // E3xxx - Transport
-  E3002: {
-    title: "Missing required query parameter",
-    severity: "error",
-    category: "sdk-issue",
-  },
-  E3004: {
-    title: "Missing required header",
-    severity: "error",
-    category: "sdk-issue",
-  },
+  // E3xxx - Transport (representative subset)
   E3007: {
     title: "Missing required field",
     severity: "error",
@@ -359,15 +737,35 @@ const CODES = {
     severity: "error",
     category: "sdk-issue",
   },
+  E3009: {
+    title: "Additional property not allowed",
+    severity: "error",
+    category: "sdk-issue",
+  },
   E3012: {
     title: "Schema composition mismatch",
     severity: "warning",
     category: "ambiguous",
   },
+  E3016: {
+    title: "Invalid enum value",
+    severity: "error",
+    category: "sdk-issue",
+  },
+  E3017: {
+    title: "Const value mismatch",
+    severity: "error",
+    category: "sdk-issue",
+  },
+  E3018: {
+    title: "Encoding format mismatch",
+    severity: "error",
+    category: "sdk-issue",
+  },
 
-  // E4xxx - Content
+  // E4xxx - Content (representative subset)
   E4001: {
-    title: "Format mismatch",
+    title: "Value-validation format mismatch",
     severity: "info",
     category: "content-note",
   },
@@ -383,42 +781,55 @@ const CODES = {
     severity: "warning",
     category: "ambiguous",
   },
+  E5003: {
+    title: "Additional properties (spec silent)",
+    severity: "warning",
+    category: "ambiguous",
+  },
 };
 ```
 
-Registry provides DEFAULT category. DiagnosticEngine may override based on
-context (e.g., E3007 inside failed oneOf → ambiguous via E3012).
+Registry provides DEFAULT category. The recursive interpreter may override based
+on context (e.g., E3009 re-attributed to spec-issue when caused by allOf +
+additionalProperties pitfall).
 
 ---
 
 ## Open Questions
 
-These are the roadmap for future design work.
+These can be resolved during implementation.
 
-### 1. ValidationTree Structure
+### 1. oneOf with Multiple Structural Matches
 
-Draft type is a starting point. Need to resolve:
+The interpreter may find multiple structurally-matching variants. This is
+possible when the only failing keywords are content keywords (e.g., two variants
+differ only by format constraints).
 
-- Nested compositions (oneOf inside allOf): How deep does the tree go?
-- Leaf-to-parent references: Should leaves know their composition context?
-- "Almost matched" representation: How to detect closest variant?
+Options:
 
-### 2. Pattern Catalog
+- Report all as ambiguous
+- Use content validation as tiebreaker (closest to full match)
+- Report the ambiguity with per-variant details
 
-Four patterns identified. Need to discover:
+May need a new E-code (E5xxx) or can reuse E3012 with reasoning.
 
-- Deeply nested compositions: What patterns emerge?
-- `if`/`then`/`else` schemas: How to attribute?
-- `not` schemas: If `not` fails, what does that mean?
-- `$ref` cycles: When do we give up?
+### 2. Pattern Catalog Completeness
+
+Five patterns identified. Need to discover:
+
+- Deeply nested compositions: What patterns emerge from oneOf inside allOf?
+- `if`/`then`/`else` schemas: How to attribute? Are these composition keywords?
+- `not` schemas: If `not` fails (data DOES match negated schema), what does that
+  mean for attribution?
+- Other routing patterns beyond double-`?`
 
 ### 3. Pattern Priority
 
-Multiple patterns may match. Need to define:
+What if multiple patterns apply during interpretation?
 
-- Priority order: Does discriminator beat all-variants-fail?
-- Conflict resolution: What if patterns disagree?
-- Explicit ordering vs. specificity-based selection
+- Discriminator should take priority (it's deterministic)
+- But can discriminator + impossible schema co-occur?
+- Need to define precedence rules or prove they're unnecessary
 
 ### 4. Confidence Calibration
 
@@ -428,79 +839,143 @@ Attribution has confidence (0.0-1.0). Need to define:
 - How to calibrate against real outcomes
 - Whether confidence affects behavior (below threshold → ambiguous?)
 
-### 5. Adapting RuntimeValidator
-
-Current `runtime-validator.ts` returns flat errors. Options:
-
-| Approach                     | Tradeoff                    |
-| ---------------------------- | --------------------------- |
-| Modify to return tree        | Invasive, but clean result  |
-| Wrap with tree reconstructor | Hacky, may lose information |
-| Rewrite                      | Effort, but starts fresh    |
-
-Need to assess: How much composition context does current validator preserve?
-
-### 6. Runtime Spec Issue Detection
+### 5. Runtime Spec Issue Detection
 
 Most E1xxx detected at startup. Some only surface at runtime:
 
 - E1010 when endpoint without responses is hit
-- Impossible schemas only discovered during validation
+- Impossible schemas only discovered when that schema is validated against
 
-How does DiagnosticEngine detect these? Part of Phase 2? Separate analysis?
+These are created in step 2 of the flow ("Runtime spec issues for matched
+endpoint"). Need to define: which spec issues are detectable at startup vs.
+runtime? Can startup detection be exhaustive enough that runtime detection is
+rare?
 
-### 7. Phase 2 Implementation
+### 6. Structural Match for additionalProperties When Spec Silent
 
-Options explored:
+E5003 is ambiguous for attribution. But does it affect structural match? Extra
+properties mean the structure doesn't match the schema's expectations, which
+suggests yes — but the spec didn't explicitly forbid them.
 
-| Approach                   | Tradeoff                                  |
-| -------------------------- | ----------------------------------------- |
-| Pattern matching (if/else) | Explicit but verbose                      |
-| Rule engine                | Declarative but needs priority handling   |
-| Visitor pattern            | Clean but awkward for cross-node analysis |
+Leaning yes (structural), but needs validation against real specs.
 
-Leaning toward: Start with pattern matching, refactor to rules if patterns
-proliferate.
+### 7. Custom/Unknown Formats
+
+Default to content (conservative). Should there be a way to register custom
+structural formats? Low priority — address if real-world specs need it.
+
+### Resolved
+
+| Question                      | Resolution                                                         |
+| ----------------------------- | ------------------------------------------------------------------ |
+| Validation tree structure     | Designed from scratch — see "The Validation Tree" section          |
+| Schema access                 | `schemaPath` on every node; interpreter resolves against full spec |
+| Structural keyword list       | `isStructural(keyword, schema)` — see "Structural Match" section   |
+| enum/const classification     | Structural (SDK constrains inputs)                                 |
+| format split                  | binary/byte structural, email/uri/etc content                      |
+| expected/actual optionality   | Optional in impl; spec (Section 8.1) to be updated                 |
+| Diagnostic category placement | Top-level in impl; spec (Section 8.1) to be updated                |
 
 ---
 
-## File Structure
+## Project Structure
+
+Dependencies flow one way: `src/` → `packages/openapi/` →
+`packages/json-schema/` → `packages/json-pointer/`. Each layer adds concepts. No
+layer reaches into a higher layer.
+
+### packages/
+
+```
+packages/
+├── json-pointer/              # RFC 6901 — pointer parsing, resolution, escaping
+│
+├── json-schema/               # Pure JSON Schema 2020-12
+│   ├── validator.ts           # Tree-returning validator + ValidationNode type
+│   ├── processor.ts           # Schema analysis, indexing
+│   ├── schema-registry.ts     # Document-centric schema resolution
+│   ├── ref-resolver.ts        # $ref resolution
+│   ├── response-generator.ts  # Generate valid data from a schema
+│   └── types.ts               # Schema types
+│
+└── openapi/                   # OpenAPI 3.x
+    ├── parser.ts              # YAML/JSON parsing
+    ├── document.ts            # Structured spec access (operations, parameters)
+    ├── paths.ts               # Path templates, pattern matching
+    └── types.ts               # OpenAPI types
+```
+
+`packages/json-schema/` is pure JSON Schema — no OpenAPI concepts, no Steady
+concepts. The tree-returning validator lives here: `ValidationNode` is a JSON
+Schema concept (keywords, paths, composition nesting). It knows nothing about
+E-codes, attribution, or structural match.
+
+`packages/openapi/` provides structured access to the spec. The engine asks
+"what are the required parameters for this operation?" — it doesn't parse raw
+spec objects. Path matching, parameter definitions, content types, and
+discriminator metadata live here.
+
+### src/
 
 ```
 src/
+├── diagnostic.ts              # Core Diagnostic, IssueCategory, Severity types
+│
 ├── engine/
-│   ├── diagnostic-engine.ts    # Orchestrates two-phase attribution
-│   ├── phase1.ts               # Leaf: (keyword, location) → E-code
-│   ├── phase2.ts               # Composition pattern matching
-│   └── patterns/               # Individual pattern implementations
+│   ├── diagnostic-engine.ts   # Top-level analyze() flow
+│   ├── interpreter.ts         # Recursive interpret() + InterpretResult
+│   ├── leaf-attribution.ts    # (keyword, location, schema) → E-code
+│   ├── structural.ts          # isStructural(keyword, schema) classification
+│   ├── spec-analyzer.ts       # Startup E1xxx detection
+│   ├── composition/
+│   │   ├── one-of.ts          # oneOf structural match logic
+│   │   ├── all-of.ts          # allOf merge + pitfall detection
+│   │   ├── any-of.ts          # anyOf logic
+│   │   └── variant-id.ts      # Variant identification heuristics
+│   └── routing.ts             # Route matching + diagnostic enrichment
 │
 ├── codes/
-│   ├── registry.ts             # E-code definitions
-│   └── explain.ts              # --explain documentation
+│   ├── registry.ts            # E-code definitions
+│   └── explain.ts             # --explain documentation
 │
-├── validation/
-│   ├── schema-validator.ts     # Pure validation, returns tree
-│   └── validation-tree.ts      # ValidationNode types
+├── output/
+│   ├── cli.ts                 # Compiler-style terminal output (colors, markers)
+│   ├── ci.ts                  # Grep-able CI output (prefixes, annotations)
+│   └── json.ts                # Machine-readable JSON output
 │
 ├── session/
-│   ├── store.ts                # Per-session diagnostic storage
-│   └── endpoints.ts            # /_steady/sessions/* API
+│   ├── store.ts               # Per-session diagnostic storage
+│   └── endpoints.ts           # /_steady/sessions/* API
 │
 └── server/
-    ├── server.ts               # HTTP plumbing
-    └── headers.ts              # X-Steady-* headers
+    ├── server.ts              # HTTP server
+    └── headers.ts             # X-Steady-* response headers
 ```
+
+### cmd/
+
+```
+cmd/
+└── steady.ts                  # CLI entry point — arg parsing, wiring, exit codes
+```
+
+`cmd/steady.ts` wires everything together: parses CLI args (including
+`--explain`, `--reject-on-sdk-error`, `--fail-on-ambiguous`, output format),
+loads the spec through `packages/openapi/`, creates the engine, starts the
+server, and handles exit codes (0/1/3).
 
 ---
 
 ## Summary
 
-| Decision         | Choice             | Rationale                                                     |
-| ---------------- | ------------------ | ------------------------------------------------------------- |
-| Architecture     | 3 layers           | TransportModel/AttributionEngine add complexity without value |
-| Attribution      | Two-phase          | Simple cases fast, complex cases get context                  |
-| Validator output | Tree               | Flat list loses composition structure                         |
-| Category source  | E-code registry    | Single source, engine can override                            |
-| Pattern handling | Catalog in Phase 2 | Explicit patterns, not heuristics                             |
+| Decision         | Choice                | Rationale                                                       |
+| ---------------- | --------------------- | --------------------------------------------------------------- |
+| Architecture     | 3 layers              | TransportModel/AttributionEngine add complexity without value   |
+| Interpretation   | Recursive             | Structural match must propagate for correct composition eval    |
+| Structural match | Keyword-based         | Independent of attribution category; type=structural regardless |
+| Validator output | Tree                  | Flat list loses composition structure                           |
+| Category source  | E-code registry       | Single source, interpreter can override based on context        |
+| Composition eval | Transport-layer-aware | Standard JSON Schema validity ≠ Steady structural match         |
+| Diagnostic type  | No composition field  | Reasoning chains carry detail; add structured field if needed   |
 
 The diagnostics are the product. Everything else is plumbing.
