@@ -500,6 +500,200 @@ enrichment applied at creation time.
 
 ---
 
+## DiagnosticEngine Implementation Details
+
+The diagnostic engine (`src/engine/diagnostic-engine.ts`) is the top-level
+coordinator. This section captures design decisions made during implementation.
+
+### The SpecDocument Abstraction
+
+The engine does NOT parse raw OpenAPI types (PathItemObject, OperationObject,
+etc.) directly. It works against a `SpecDocument` interface that provides
+structured access. This follows the plan's principle: "the engine asks 'what are
+the required parameters for this operation?' — it doesn't parse raw spec
+objects."
+
+`packages/openapi/document.ts` will implement this interface (or an adapter will
+bridge the openapi layer's API to it). For testing, a `StubSpec` class stubs it.
+
+```typescript
+interface SpecDocument {
+  /** All path templates, for routing. */
+  readonly paths: PathsObject;
+
+  /**
+   * Resolved parameters for a matched route.
+   * Merges path-level and operation-level. Resolves $refs.
+   * Path parameters have required: true (implicit per OpenAPI spec).
+   */
+  getParameters(pathPattern: string, method: string): ResolvedParameter[];
+
+  /**
+   * Body schema for a matched route. null if no request body defined.
+   * Resolves $refs in the request body.
+   */
+  getBodySchema(pathPattern: string, method: string): BodySchemaInfo | null;
+
+  /**
+   * Whether the operation has response definitions.
+   * Returns false when responses is empty/missing (E1010).
+   */
+  hasResponses(pathPattern: string, method: string): boolean;
+
+  /**
+   * Resolve a schema by its JSON pointer in the spec.
+   * Used to create a SpecResolver for the interpreter.
+   */
+  resolveSchema(schemaPath: string): Schema;
+}
+
+interface ResolvedParameter {
+  name: string;
+  in: "path" | "query" | "header" | "cookie";
+  required: boolean;
+  schema: Schema | null;
+  /** JSON pointer to this parameter's schema. null if no schema. */
+  schemaPath: string | null;
+}
+
+interface BodySchemaInfo {
+  schema: Schema;
+  /** JSON pointer to the body schema in the spec. */
+  schemaPath: string;
+}
+```
+
+### The SchemaValidator Interface
+
+The engine calls the schema validator for body and parameter value validation.
+The validator takes a resolved schema and data, returns a ValidationNode tree.
+It lives in `packages/json-schema/` (pure JSON Schema, no Steady concepts).
+
+```typescript
+interface SchemaValidator {
+  /**
+   * Validate data against a schema, return a validation tree.
+   * @param data - The value to validate
+   * @param schema - The resolved JSON Schema
+   * @param schemaPath - JSON pointer to the schema (for tree node schemaPath fields)
+   * @param dataPath - Location prefix for tree node path fields (e.g., "body")
+   */
+  validate(
+    data: unknown,
+    schema: Schema,
+    schemaPath: string,
+    dataPath: string,
+  ): ValidationNode;
+}
+```
+
+The engine resolves the schema via SpecDocument, then passes it to the
+validator. The validator produces the tree, the interpreter converts it to
+diagnostics:
+
+```
+Engine: schema = spec.getBodySchema(pathPattern, method)
+Engine: tree = validator.validate(body, schema.schema, schema.schemaPath, "body")
+Engine: specResolver = { resolve: (p) => spec.resolveSchema(p) }
+Engine: result = interpret(tree, specResolver, "body", body)
+Engine: diagnostics.push(...result.diagnostics)
+```
+
+### The analyze() Flow in Detail
+
+```typescript
+class DiagnosticEngine {
+  constructor(spec: SpecDocument, validator: SchemaValidator) {}
+
+  analyze(request: AnalyzeRequest): Diagnostic[] {
+    // 1. Route matching — delegates to matchRoute(spec.paths, ...)
+    //    If fails → return E2001/E2002 diagnostics immediately
+    //    matchRoute handles double-? enrichment
+
+    // 2. Runtime spec issues
+    //    spec.hasResponses(pathPattern, method) → false → E1010
+
+    // 3. Parameter presence checking
+    //    spec.getParameters(pathPattern, method) → ResolvedParameter[]
+    //    For each required param: check presence in request
+    //      Missing query → E3002 (direct diagnostic, NOT through interpreter)
+    //      Missing header → E3004 (direct diagnostic, NOT through interpreter)
+    //      Path params are always present after routing
+    //    TODO: parameter VALUE validation for present params with schemas
+    //      validator.validate(paramValue, paramSchema, ...) → tree
+    //      interpret(tree, specResolver, location, paramValue) → diagnostics
+
+    // 4. Body validation
+    //    spec.getBodySchema(pathPattern, method) → BodySchemaInfo | null
+    //    If body schema exists AND request has a body:
+    //      validator.validate(body, schema, schemaPath, "body") → tree
+    //      interpret(tree, specResolver, "body", body) → diagnostics
+
+    // 5. Return all diagnostics
+  }
+}
+
+interface AnalyzeRequest {
+  path: string;
+  method: string;
+  queryParams?: URLSearchParams;
+  headers?: Record<string, string>;
+  body?: unknown;
+}
+```
+
+### Parameter Presence Details
+
+Presence checking per location:
+- **query**: `request.queryParams?.has(param.name)`
+- **header**: case-insensitive lookup in `request.headers`
+- **path**: always present after routing (routing extracts all path params)
+- **cookie**: not yet supported
+
+Missing required params produce diagnostics directly:
+- query → E3002 with `requestPath: "query.{name}"`, confidence 0.9
+- header → E3004 with `requestPath: "header.{name}"`, confidence 0.9
+
+These diagnostics are created by the engine, NOT through the interpreter (per
+plan line 455-457).
+
+### SpecResolver Bridge
+
+The interpreter needs a `SpecResolver` (from `types.ts`). The engine creates
+one from SpecDocument:
+
+```typescript
+const specResolver: SpecResolver = {
+  resolve: (path) => this.spec.resolveSchema(path),
+};
+```
+
+### Types Location
+
+- `types.ts`: interpreter types — ValidationNode, InterpretResult,
+  CompositionContext, SpecResolver
+- `diagnostic-engine.ts`: engine types — SpecDocument, ResolvedParameter,
+  BodySchemaInfo, SchemaValidator, AnalyzeRequest, DiagnosticEngine
+
+The engine exports its types so tests and future adapters can import them.
+
+### Current State
+
+The diagnostic engine test (`diagnostic-engine.test.ts`) is written and
+confirmed RED. It uses:
+- `StubSpec` implementing `SpecDocument` — returns pre-configured data
+- `StubValidator` implementing `SchemaValidator` — returns pre-configured trees
+
+Test covers: routing integration (E2001/E2002), spec issues (E1010), parameter
+presence (E3002/E3004, optional, case-insensitive headers, multiple), body
+validation (tree → diagnostic, no schema, no body), full flow (params + body
+combined), valid request.
+
+The implementation has NOT been written yet. Next step: implement
+`diagnostic-engine.ts` carefully against these tests.
+
+---
+
 ## Pattern Catalog
 
 Patterns are recognized during recursive interpretation, inside the composition
