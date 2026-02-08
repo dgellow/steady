@@ -212,7 +212,8 @@ possible.
 ### The Full Flow
 
 ```
-DiagnosticEngine.analyze(spec, req):
+DiagnosticEngine.analyze(doc, req):
+  // doc is the OpenAPI document from packages/openapi/
 
   1. Route matching
      └── If fails → routing diagnostic (E2xxx) with enrichment
@@ -226,7 +227,7 @@ DiagnosticEngine.analyze(spec, req):
 
   4. Body validation
      └── SchemaValidator produces ValidationTree
-     └── Recursive interpretation produces Diagnostic[]
+     └── interpret(tree, doc, "body") produces Diagnostic[]
 
   5. Return all diagnostics
 ```
@@ -234,30 +235,47 @@ DiagnosticEngine.analyze(spec, req):
 ### How interpret() Works
 
 ```
-interpret(node, schema, location) → InterpretResult:
+interpret(node, spec, location) → InterpretResult:
 
   if node.valid:
     return { diagnostics: [], structurallyValid: true }
 
-  if node is leaf:
-    diagnostic = attributeLeaf(node, schema, location)
-    structurallyValid = !isStructural(node.keyword, schema)
-    return { diagnostics: [diagnostic], structurallyValid }
+  if node.children:
+    childResults = node.children.map(c => interpret(c, spec, location))
+    if node.keyword is oneOf|anyOf|allOf:
+      schema = spec.resolve(node.schemaPath)
+      return attributeComposition(node.keyword, childResults, schema)
+    // Container (root node, variant wrapper): merge children
+    return {
+      diagnostics: childResults.flatMap(c => c.diagnostics),
+      structurallyValid: childResults.every(c => c.structurallyValid)
+    }
 
-  if node is composition (oneOf, anyOf, allOf):
-    childResults = node.children.map(c => interpret(c, childSchema, location))
-    return attributeComposition(node.keyword, childResults, schema)
+  // Leaf error
+  schema = spec.resolve(node.schemaPath)
+  diagnostic = attributeLeaf(node, schema, location)
+  structurallyValid = !isStructural(node.keyword, schema)
+  return { diagnostics: [diagnostic], structurallyValid }
 ```
 
-The tree has only three node types: valid, leaf, and composition. Applicator
-keywords (`properties`, `items`) are flattened by the validator — their child
-errors appear directly under the parent node, with `path` carrying the full
-nesting context (e.g., `body.address.street`). This keeps the interpreter
-simple: three cases, no intermediate applicator handling.
+The branching question is: does the node have children?
 
-Bottom-up: leaves are classified first, then composition nodes use their
-children's structural match to decide which variant matched. The right decision
-is made at the right level.
+- **Children + composition keyword** → composition-specific logic (oneOf variant
+  selection, allOf merge, anyOf matching)
+- **Children, no composition keyword** → container node (root, variant wrapper)
+  — merge children's results as the natural default
+- **No children** → leaf error — attribute and classify
+
+`spec` is the full OpenAPI document, passed through unchanged. Schema context is
+resolved via `node.schemaPath` only where needed: at leaf nodes (for
+`isStructural` and `attributeLeaf`) and at composition nodes (for discriminator
+metadata, sibling schema access, etc.). Applicator keywords (`properties`,
+`items`) are flattened by the validator — they don't appear as nodes. The `path`
+field carries nesting context (e.g., `body.address.street`).
+
+Bottom-up: leaves are classified first, container nodes merge their children's
+results, and composition nodes use structural match to decide which variant
+matched. The right decision is made at the right level.
 
 Note: `structurallyValid` at the leaf is determined by keyword type, NOT by the
 diagnostic's category. The diagnostic might say "ambiguous" (E5001), but the
@@ -549,10 +567,13 @@ structural match independently. But it doesn't need applicator nesting — the
 
 ### Design
 
-The tree has two kinds of nodes:
+The tree has three kinds of nodes:
 
-1. **Composition nodes**: `oneOf`, `anyOf`, `allOf` — have `children`
-2. **Leaf nodes**: keyword failures (`type`, `required`, `enum`, etc.) — no
+1. **Composition nodes**: `oneOf`, `anyOf`, `allOf` — have `children`, trigger
+   composition-specific logic in the interpreter
+2. **Container nodes**: root node, variant wrappers — have `children` but no
+   composition keyword, interpreter merges their children's results
+3. **Leaf nodes**: keyword failures (`type`, `required`, `enum`, etc.) — no
    children
 
 Applicator keywords (`properties`, `items`, `patternProperties`) are
