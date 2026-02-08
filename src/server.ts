@@ -35,6 +35,13 @@ import { JsonLogger } from "./logging/json-logger.ts";
 import { TuiLogger } from "./logging/tui-logger.ts";
 import { RequestValidator } from "./validator.ts";
 import { DiagnosticCollector } from "./diagnostics/collector.ts";
+import { OpenAPISpecDocument } from "../packages/openapi/document.ts";
+import { TreeValidator } from "../packages/json-schema/tree-validator.ts";
+import {
+  DiagnosticEngine,
+  type AnalyzeRequest,
+} from "./engine/diagnostic-engine.ts";
+import type { Diagnostic as EngineDiagnostic } from "./diagnostic.ts";
 import {
   compilePathPattern,
   matchCompiledPath,
@@ -121,6 +128,7 @@ export class MockServer {
   private logger: Logger;
   private validator: RequestValidator;
   private diagnosticCollector: DiagnosticCollector;
+  private diagnosticEngine: DiagnosticEngine;
   private serverFinished: Promise<void> | null = null;
   private startTime: Date = new Date();
   private requestCount = 0;
@@ -165,6 +173,13 @@ export class MockServer {
       this.document.schemas,
       config.validator,
     );
+
+    // New diagnostics engine
+    const specDoc = new OpenAPISpecDocument(spec);
+    const treeValidator = new TreeValidator({
+      resolveRef: (ref) => specDoc.resolveSchema(ref),
+    });
+    this.diagnosticEngine = new DiagnosticEngine(specDoc, treeValidator);
 
     // Pre-compile all path patterns at construction time
     this.compileRoutes();
@@ -389,6 +404,15 @@ export class MockServer {
       // Track request count
       this.requestCount++;
 
+      // Run new diagnostics engine
+      const engineDiagnostics = this.runDiagnosticEngine(
+        path,
+        method,
+        url.searchParams,
+        req.headers,
+        validation.requestBody,
+      );
+
       // If validation failed in strict mode, return error
       if (!validation.valid && effectiveMode === "strict") {
         this.failedCount++;
@@ -410,6 +434,17 @@ export class MockServer {
           JSON.stringify({
             error: "Validation failed",
             errors: validation.errors,
+            diagnostics: engineDiagnostics.map((d) => ({
+              code: d.code,
+              severity: d.severity,
+              category: d.category,
+              path: d.requestPath,
+              message: d.message,
+              expected: d.expected,
+              actual: d.actual,
+              attribution: d.attribution,
+              suggestion: d.suggestion,
+            })),
           }),
           {
             status: 400,
@@ -1282,5 +1317,32 @@ export class MockServer {
       statusText: response.statusText,
       headers: newHeaders,
     });
+  }
+
+  /**
+   * Run the new diagnostics engine on a request.
+   * Returns engine diagnostics without affecting the existing validation flow.
+   */
+  private runDiagnosticEngine(
+    path: string,
+    method: string,
+    queryParams: URLSearchParams,
+    reqHeaders: Headers,
+    body: unknown,
+  ): EngineDiagnostic[] {
+    const headers: Record<string, string> = {};
+    reqHeaders.forEach((value, key) => {
+      headers[key] = value;
+    });
+
+    const request: AnalyzeRequest = {
+      path,
+      method,
+      queryParams,
+      headers,
+      body,
+    };
+
+    return this.diagnosticEngine.analyze(request);
   }
 }

@@ -106,7 +106,7 @@ export function attributeLeaf(
     category: definition.category,
     requestPath: node.path,
     specPointer: node.schemaPath,
-    message: node.message ?? definition.title,
+    message: node.message ?? buildMessage(node, definition.title),
     expected: node.expected,
     actual: node.actual,
     attribution: {
@@ -114,6 +114,37 @@ export function attributeLeaf(
       reasoning: [definition.title],
     },
   };
+}
+
+/**
+ * Build a human-readable message from leaf node details.
+ * Falls back to the generic title if no specific details are available.
+ */
+function buildMessage(node: LeafNode, fallback: string): string {
+  switch (node.keyword) {
+    case "required":
+      return node.field
+        ? `Missing required property: ${node.field}`
+        : fallback;
+    case "type":
+      return node.expected !== undefined && node.actual !== undefined
+        ? `Expected type ${String(node.expected)}, got ${String(node.actual)}`
+        : fallback;
+    case "enum":
+      return node.actual !== undefined
+        ? `Value ${JSON.stringify(node.actual)} is not in allowed values`
+        : fallback;
+    case "const":
+      return node.expected !== undefined
+        ? `Expected constant value ${JSON.stringify(node.expected)}`
+        : fallback;
+    case "additionalProperties":
+      return node.field
+        ? `Unknown property: ${node.field}`
+        : fallback;
+    default:
+      return fallback;
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
