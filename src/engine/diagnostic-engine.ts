@@ -97,6 +97,7 @@ export interface AnalyzeRequest {
   method: string;
   queryParams?: URLSearchParams;
   headers?: Record<string, string>;
+  pathParams?: Record<string, string>;
   body?: unknown;
 }
 
@@ -363,8 +364,7 @@ function getParameterValue(
     }
 
     case "path":
-      // Path param values not yet available in AnalyzeRequest
-      return undefined;
+      return request.pathParams?.[param.name];
 
     case "cookie":
       return undefined;

@@ -419,6 +419,7 @@ export class MockServer {
         url.searchParams,
         req.headers,
         validation.requestBody,
+        pathParams,
       );
 
       // Track session if X-Steady-Session header present
@@ -1330,6 +1331,7 @@ export class MockServer {
     queryParams: URLSearchParams,
     reqHeaders: Headers,
     body: unknown,
+    pathParams?: Record<string, string>,
   ): EngineDiagnostic[] {
     const headers: Record<string, string> = {};
     reqHeaders.forEach((value, key) => {
@@ -1341,6 +1343,7 @@ export class MockServer {
       method,
       queryParams,
       headers,
+      pathParams,
       body,
     };
 

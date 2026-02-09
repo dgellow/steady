@@ -510,6 +510,108 @@ Deno.test("DiagnosticEngine", async (t) => {
     },
   );
 
+  // ── Path parameter value validation ─────────────────────────────
+
+  await t.step(
+    "path param with wrong type → diagnostic when pathParams provided",
+    () => {
+      const paramSchemaPath =
+        "#/paths/~1users~1{id}/get/parameters/0/schema";
+
+      const validator = new StubValidator();
+      validator.register(paramSchemaPath, {
+        valid: false,
+        path: "path.id",
+        schemaPath: paramSchemaPath,
+        keyword: "type",
+        expected: "integer",
+        actual: "string",
+      });
+
+      const spec = new StubSpec({ "/users/{id}": { get: OP } });
+      spec.parameters = [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          schema: { type: "integer" },
+          schemaPath: paramSchemaPath,
+        },
+      ];
+      spec.schemas.set(paramSchemaPath, { type: "integer" });
+
+      const engine = new DiagnosticEngine(spec, validator);
+
+      const result = engine.analyze({
+        path: "/users/not-a-number",
+        method: "get",
+        pathParams: { id: "not-a-number" },
+      });
+
+      assertEquals(result.length, 1);
+      assertEquals(result[0]?.code, "E3001");
+    },
+  );
+
+  await t.step(
+    "path param with valid value → no diagnostic",
+    () => {
+      const paramSchemaPath =
+        "#/paths/~1users~1{id}/get/parameters/0/schema";
+
+      const spec = new StubSpec({ "/users/{id}": { get: OP } });
+      spec.parameters = [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          schema: { type: "integer" },
+          schemaPath: paramSchemaPath,
+        },
+      ];
+      spec.schemas.set(paramSchemaPath, { type: "integer" });
+
+      const engine = new DiagnosticEngine(spec, new StubValidator());
+
+      const result = engine.analyze({
+        path: "/users/123",
+        method: "get",
+        pathParams: { id: "123" },
+      });
+
+      assertEquals(result.length, 0);
+    },
+  );
+
+  await t.step(
+    "path param without pathParams in request → no value validation",
+    () => {
+      const paramSchemaPath =
+        "#/paths/~1users~1{id}/get/parameters/0/schema";
+
+      const spec = new StubSpec({ "/users/{id}": { get: OP } });
+      spec.parameters = [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          schema: { type: "integer" },
+          schemaPath: paramSchemaPath,
+        },
+      ];
+
+      const engine = new DiagnosticEngine(spec, new StubValidator());
+
+      // No pathParams — engine can't validate, should produce no diagnostic
+      const result = engine.analyze({
+        path: "/users/not-a-number",
+        method: "get",
+      });
+
+      assertEquals(result.length, 0);
+    },
+  );
+
   // ── Valid request ───────────────────────────────────────────────
 
   await t.step("valid request → no diagnostics", () => {
