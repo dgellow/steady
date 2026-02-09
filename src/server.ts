@@ -37,8 +37,8 @@ import { DiagnosticCollector } from "./diagnostics/collector.ts";
 import { OpenAPISpecDocument } from "../packages/openapi/document.ts";
 import { TreeValidator } from "../packages/json-schema/tree-validator.ts";
 import {
-  DiagnosticEngine,
   type AnalyzeRequest,
+  DiagnosticEngine,
 } from "./engine/diagnostic-engine.ts";
 import type { Diagnostic as EngineDiagnostic } from "./diagnostic.ts";
 import { SessionStore } from "./session/store.ts";

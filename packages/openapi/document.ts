@@ -80,7 +80,14 @@ function isDefined<T>(value: T | undefined): value is T {
 // ── Implementation ─────────────────────────────────────────────────
 
 const HTTP_METHODS = [
-  "get", "post", "put", "delete", "patch", "head", "options", "trace",
+  "get",
+  "post",
+  "put",
+  "delete",
+  "patch",
+  "head",
+  "options",
+  "trace",
 ] as const;
 type HttpMethod = (typeof HTTP_METHODS)[number];
 
@@ -123,7 +130,10 @@ export class OpenAPISpecDocument {
     ).filter(isDefined);
 
     // Merge: operation overrides path-level (by name + in)
-    const merged = new Map<string, { param: ParameterObject; pointer: string }>();
+    const merged = new Map<
+      string,
+      { param: ParameterObject; pointer: string }
+    >();
 
     for (const entry of resolvedPathLevel) {
       const key = `${entry.param.in}:${entry.param.name}`;
@@ -203,6 +213,36 @@ export class OpenAPISpecDocument {
     if (!operation) return false;
 
     return Object.keys(operation.responses).length > 0;
+  }
+
+  /**
+   * Accepted content types for a request body.
+   * Returns the keys of requestBody.content, or null if no requestBody.
+   */
+  getAcceptedContentTypes(
+    pathPattern: string,
+    method: string,
+  ): string[] | null {
+    const pathItem = this.spec.paths[pathPattern];
+    if (!pathItem) return null;
+
+    const operation = this.getOperation(pathItem, method);
+    if (!operation) return null;
+
+    if (!operation.requestBody) return null;
+
+    // Resolve $ref if needed
+    let requestBody: RequestBodyObject;
+    if ("$ref" in operation.requestBody) {
+      const resolved = this.resolveRef(operation.requestBody.$ref);
+      if (!isRequestBodyLike(resolved)) return null;
+      requestBody = resolved;
+    } else {
+      requestBody = operation.requestBody;
+    }
+
+    const keys = Object.keys(requestBody.content);
+    return keys.length > 0 ? keys : null;
   }
 
   /**

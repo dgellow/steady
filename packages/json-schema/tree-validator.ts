@@ -33,6 +33,9 @@ interface ValidationNode {
   expected?: unknown;
   actual?: unknown;
 
+  /** True when this leaf represents a direct array item error. */
+  arrayItem?: boolean;
+
   // Tree structure
   children?: ValidationNode[];
   variantIndex?: number;
@@ -115,6 +118,7 @@ export class TreeValidator {
     dataPath: string,
     errors: ValidationNode[],
     rootSchema: Schema,
+    context?: { arrayItem?: boolean },
   ): void {
     // Boolean schema
     if (typeof schema === "boolean") {
@@ -129,25 +133,57 @@ export class TreeValidator {
         const refSchemaPath = schema.$ref.startsWith("#")
           ? schema.$ref
           : schemaPath;
-        this.validateSchema(data, resolved, refSchemaPath, dataPath, errors, rootSchema);
+        this.validateSchema(
+          data,
+          resolved,
+          refSchemaPath,
+          dataPath,
+          errors,
+          rootSchema,
+          context,
+        );
       }
       return;
     }
 
     // Composition keywords — create tree nodes
     if (schema.oneOf) {
-      this.validateOneOf(data, schema.oneOf, schemaPath, dataPath, errors, rootSchema);
+      this.validateOneOf(
+        data,
+        schema.oneOf,
+        schemaPath,
+        dataPath,
+        errors,
+        rootSchema,
+        context,
+      );
     }
     if (schema.anyOf) {
-      this.validateAnyOf(data, schema.anyOf, schemaPath, dataPath, errors, rootSchema);
+      this.validateAnyOf(
+        data,
+        schema.anyOf,
+        schemaPath,
+        dataPath,
+        errors,
+        rootSchema,
+        context,
+      );
     }
     if (schema.allOf) {
-      this.validateAllOf(data, schema.allOf, schemaPath, dataPath, errors, rootSchema);
+      this.validateAllOf(
+        data,
+        schema.allOf,
+        schemaPath,
+        dataPath,
+        errors,
+        rootSchema,
+        context,
+      );
     }
 
     // type
     if (schema.type !== undefined) {
-      this.validateType(data, schema, schemaPath, dataPath, errors);
+      this.validateType(data, schema, schemaPath, dataPath, errors, context);
     }
 
     // enum
@@ -165,42 +201,80 @@ export class TreeValidator {
       const obj = data;
 
       if (schema.required) {
-        this.validateRequired(obj, schema.required, schemaPath, dataPath, errors);
+        this.validateRequired(
+          obj,
+          schema.required,
+          schemaPath,
+          dataPath,
+          errors,
+        );
       }
 
       // properties (applicator — flattened)
       const evaluatedProps = new Set<string>();
       if (schema.properties) {
         this.validateProperties(
-          obj, schema.properties, schemaPath, dataPath, errors, rootSchema, evaluatedProps,
+          obj,
+          schema.properties,
+          schemaPath,
+          dataPath,
+          errors,
+          rootSchema,
+          evaluatedProps,
         );
       }
 
       // patternProperties
       if (schema.patternProperties) {
         this.validatePatternProperties(
-          obj, schema.patternProperties, schemaPath, dataPath, errors, rootSchema, evaluatedProps,
+          obj,
+          schema.patternProperties,
+          schemaPath,
+          dataPath,
+          errors,
+          rootSchema,
+          evaluatedProps,
         );
       }
 
       // additionalProperties
       if (schema.additionalProperties !== undefined) {
         this.validateAdditionalProperties(
-          obj, schema, schemaPath, dataPath, errors, rootSchema, evaluatedProps,
+          obj,
+          schema,
+          schemaPath,
+          dataPath,
+          errors,
+          rootSchema,
+          evaluatedProps,
         );
       }
 
       // minProperties / maxProperties
-      if (schema.minProperties !== undefined && Object.keys(obj).length < schema.minProperties) {
+      if (
+        schema.minProperties !== undefined &&
+        Object.keys(obj).length < schema.minProperties
+      ) {
         errors.push({
-          valid: false, keyword: "minProperties", path: dataPath, schemaPath,
-          expected: schema.minProperties, actual: Object.keys(obj).length,
+          valid: false,
+          keyword: "minProperties",
+          path: dataPath,
+          schemaPath,
+          expected: schema.minProperties,
+          actual: Object.keys(obj).length,
         });
       }
-      if (schema.maxProperties !== undefined && Object.keys(obj).length > schema.maxProperties) {
+      if (
+        schema.maxProperties !== undefined &&
+        Object.keys(obj).length > schema.maxProperties
+      ) {
         errors.push({
-          valid: false, keyword: "maxProperties", path: dataPath, schemaPath,
-          expected: schema.maxProperties, actual: Object.keys(obj).length,
+          valid: false,
+          keyword: "maxProperties",
+          path: dataPath,
+          schemaPath,
+          expected: schema.maxProperties,
+          actual: Object.keys(obj).length,
         });
       }
     }
@@ -217,7 +291,14 @@ export class TreeValidator {
 
     // Array validation
     if (Array.isArray(data)) {
-      this.validateArray(data, schema, schemaPath, dataPath, errors, rootSchema);
+      this.validateArray(
+        data,
+        schema,
+        schemaPath,
+        dataPath,
+        errors,
+        rootSchema,
+      );
     }
   }
 
@@ -229,6 +310,7 @@ export class TreeValidator {
     schemaPath: string,
     dataPath: string,
     errors: ValidationNode[],
+    context?: { arrayItem?: boolean },
   ): void {
     const actualType = getJsonType(data);
     const types = Array.isArray(schema.type) ? schema.type : [schema.type];
@@ -239,7 +321,9 @@ export class TreeValidator {
     const matches = types.some((t) => {
       if (t === actualType) return true;
       // "integer" also accepts numbers that are integers
-      if (t === "integer" && actualType === "number" && Number.isInteger(data)) return true;
+      if (
+        t === "integer" && actualType === "number" && Number.isInteger(data)
+      ) return true;
       return false;
     });
 
@@ -251,6 +335,7 @@ export class TreeValidator {
         schemaPath,
         expected: Array.isArray(schema.type) ? schema.type : schema.type,
         actual: data === null ? null : actualType,
+        arrayItem: context?.arrayItem || undefined,
       });
     }
   }
@@ -427,15 +512,23 @@ export class TreeValidator {
   ): void {
     if (schema.minLength !== undefined && data.length < schema.minLength) {
       errors.push({
-        valid: false, keyword: "minLength", path: dataPath, schemaPath,
-        expected: schema.minLength, actual: data.length,
+        valid: false,
+        keyword: "minLength",
+        path: dataPath,
+        schemaPath,
+        expected: schema.minLength,
+        actual: data.length,
       });
     }
 
     if (schema.maxLength !== undefined && data.length > schema.maxLength) {
       errors.push({
-        valid: false, keyword: "maxLength", path: dataPath, schemaPath,
-        expected: schema.maxLength, actual: data.length,
+        valid: false,
+        keyword: "maxLength",
+        path: dataPath,
+        schemaPath,
+        expected: schema.maxLength,
+        actual: data.length,
       });
     }
 
@@ -444,8 +537,12 @@ export class TreeValidator {
         const regex = new RegExp(schema.pattern);
         if (!regex.test(data)) {
           errors.push({
-            valid: false, keyword: "pattern", path: dataPath, schemaPath,
-            expected: schema.pattern, actual: data,
+            valid: false,
+            keyword: "pattern",
+            path: dataPath,
+            schemaPath,
+            expected: schema.pattern,
+            actual: data,
           });
         }
       } catch {
@@ -456,8 +553,12 @@ export class TreeValidator {
     if (schema.format !== undefined) {
       if (!validateFormat(data, schema.format)) {
         errors.push({
-          valid: false, keyword: "format", path: dataPath, schemaPath,
-          expected: schema.format, actual: data,
+          valid: false,
+          keyword: "format",
+          path: dataPath,
+          schemaPath,
+          expected: schema.format,
+          actual: data,
         });
       }
     }
@@ -474,32 +575,56 @@ export class TreeValidator {
   ): void {
     if (schema.minimum !== undefined && data < schema.minimum) {
       errors.push({
-        valid: false, keyword: "minimum", path: dataPath, schemaPath,
-        expected: schema.minimum, actual: data,
+        valid: false,
+        keyword: "minimum",
+        path: dataPath,
+        schemaPath,
+        expected: schema.minimum,
+        actual: data,
       });
     }
     if (schema.maximum !== undefined && data > schema.maximum) {
       errors.push({
-        valid: false, keyword: "maximum", path: dataPath, schemaPath,
-        expected: schema.maximum, actual: data,
+        valid: false,
+        keyword: "maximum",
+        path: dataPath,
+        schemaPath,
+        expected: schema.maximum,
+        actual: data,
       });
     }
-    if (schema.exclusiveMinimum !== undefined && data <= schema.exclusiveMinimum) {
+    if (
+      schema.exclusiveMinimum !== undefined && data <= schema.exclusiveMinimum
+    ) {
       errors.push({
-        valid: false, keyword: "exclusiveMinimum", path: dataPath, schemaPath,
-        expected: schema.exclusiveMinimum, actual: data,
+        valid: false,
+        keyword: "exclusiveMinimum",
+        path: dataPath,
+        schemaPath,
+        expected: schema.exclusiveMinimum,
+        actual: data,
       });
     }
-    if (schema.exclusiveMaximum !== undefined && data >= schema.exclusiveMaximum) {
+    if (
+      schema.exclusiveMaximum !== undefined && data >= schema.exclusiveMaximum
+    ) {
       errors.push({
-        valid: false, keyword: "exclusiveMaximum", path: dataPath, schemaPath,
-        expected: schema.exclusiveMaximum, actual: data,
+        valid: false,
+        keyword: "exclusiveMaximum",
+        path: dataPath,
+        schemaPath,
+        expected: schema.exclusiveMaximum,
+        actual: data,
       });
     }
     if (schema.multipleOf !== undefined && data % schema.multipleOf !== 0) {
       errors.push({
-        valid: false, keyword: "multipleOf", path: dataPath, schemaPath,
-        expected: schema.multipleOf, actual: data,
+        valid: false,
+        keyword: "multipleOf",
+        path: dataPath,
+        schemaPath,
+        expected: schema.multipleOf,
+        actual: data,
       });
     }
   }
@@ -516,20 +641,31 @@ export class TreeValidator {
   ): void {
     if (schema.minItems !== undefined && data.length < schema.minItems) {
       errors.push({
-        valid: false, keyword: "minItems", path: dataPath, schemaPath,
-        expected: schema.minItems, actual: data.length,
+        valid: false,
+        keyword: "minItems",
+        path: dataPath,
+        schemaPath,
+        expected: schema.minItems,
+        actual: data.length,
       });
     }
 
     if (schema.maxItems !== undefined && data.length > schema.maxItems) {
       errors.push({
-        valid: false, keyword: "maxItems", path: dataPath, schemaPath,
-        expected: schema.maxItems, actual: data.length,
+        valid: false,
+        keyword: "maxItems",
+        path: dataPath,
+        schemaPath,
+        expected: schema.maxItems,
+        actual: data.length,
       });
     }
 
     // items — validate each element (flattened, indexed paths)
-    if (schema.items && typeof schema.items === "object" && !Array.isArray(schema.items)) {
+    if (
+      schema.items && typeof schema.items === "object" &&
+      !Array.isArray(schema.items)
+    ) {
       for (let i = 0; i < data.length; i++) {
         this.validateSchema(
           data[i],
@@ -538,6 +674,7 @@ export class TreeValidator {
           `${dataPath}.${i}`,
           errors,
           rootSchema,
+          { arrayItem: true },
         );
       }
     }
@@ -554,6 +691,7 @@ export class TreeValidator {
             `${dataPath}.${i}`,
             errors,
             rootSchema,
+            { arrayItem: true },
           );
         }
       }
@@ -565,7 +703,10 @@ export class TreeValidator {
         const key = JSON.stringify(data[i]);
         if (seen.has(key)) {
           errors.push({
-            valid: false, keyword: "uniqueItems", path: dataPath, schemaPath,
+            valid: false,
+            keyword: "uniqueItems",
+            path: dataPath,
+            schemaPath,
             message: `Duplicate item at index ${i}`,
           });
           break;
@@ -584,6 +725,7 @@ export class TreeValidator {
     dataPath: string,
     errors: ValidationNode[],
     rootSchema: Schema,
+    context?: { arrayItem?: boolean },
   ): void {
     const variantResults: ValidationNode[] = [];
 
@@ -593,7 +735,13 @@ export class TreeValidator {
 
       const variantErrors: ValidationNode[] = [];
       this.validateSchema(
-        data, variant, `${schemaPath}/oneOf/${i}`, dataPath, variantErrors, rootSchema,
+        data,
+        variant,
+        `${schemaPath}/oneOf/${i}`,
+        dataPath,
+        variantErrors,
+        rootSchema,
+        context,
       );
 
       const valid = variantErrors.length === 0;
@@ -629,6 +777,7 @@ export class TreeValidator {
     dataPath: string,
     errors: ValidationNode[],
     rootSchema: Schema,
+    context?: { arrayItem?: boolean },
   ): void {
     const variantResults: ValidationNode[] = [];
 
@@ -638,7 +787,13 @@ export class TreeValidator {
 
       const variantErrors: ValidationNode[] = [];
       this.validateSchema(
-        data, variant, `${schemaPath}/anyOf/${i}`, dataPath, variantErrors, rootSchema,
+        data,
+        variant,
+        `${schemaPath}/anyOf/${i}`,
+        dataPath,
+        variantErrors,
+        rootSchema,
+        context,
       );
 
       const valid = variantErrors.length === 0;
@@ -671,6 +826,7 @@ export class TreeValidator {
     dataPath: string,
     errors: ValidationNode[],
     rootSchema: Schema,
+    context?: { arrayItem?: boolean },
   ): void {
     const childResults: ValidationNode[] = [];
     let allValid = true;
@@ -681,7 +837,13 @@ export class TreeValidator {
 
       const subErrors: ValidationNode[] = [];
       this.validateSchema(
-        data, sub, `${schemaPath}/allOf/${i}`, dataPath, subErrors, rootSchema,
+        data,
+        sub,
+        `${schemaPath}/allOf/${i}`,
+        dataPath,
+        subErrors,
+        rootSchema,
+        context,
       );
 
       const valid = subErrors.length === 0;
@@ -725,7 +887,10 @@ export class TreeValidator {
    * Resolve a $ref by navigating within the given rootSchema.
    * Returns undefined if the ref can't be resolved locally.
    */
-  private resolveRefLocally(ref: string, rootSchema: Schema): Schema | undefined {
+  private resolveRefLocally(
+    ref: string,
+    rootSchema: Schema,
+  ): Schema | undefined {
     if (!ref.startsWith("#/")) return undefined;
 
     const pointer = ref.slice(1); // Strip "#"
@@ -794,7 +959,8 @@ function validateFormat(value: string, format: string): boolean {
         return false;
       }
     case "uuid":
-      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        .test(value);
     case "date-time":
       return !isNaN(Date.parse(value)) && /T/.test(value);
     case "date":

@@ -114,6 +114,11 @@ const CODES = {
     severity: "error",
     category: "sdk-issue",
   },
+  E3006: {
+    title: "Wrong Content-Type",
+    severity: "error",
+    category: "sdk-issue",
+  },
   E3007: {
     title: "Missing required field",
     severity: "error",

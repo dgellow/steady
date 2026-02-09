@@ -86,6 +86,31 @@ Deno.test("attributeLeafCode", async (t) => {
     },
   );
 
+  await t.step("type for array item in body → E3010", () => {
+    assertEquals(
+      attributeLeafCode(
+        makeNode({ keyword: "type", path: "body.tags.0", arrayItem: true }),
+        { type: "string" },
+        "body",
+      ),
+      "E3010",
+    );
+  });
+
+  await t.step(
+    "type for nested property within array item → E3008 (not E3010)",
+    () => {
+      assertEquals(
+        attributeLeafCode(
+          makeNode({ keyword: "type", path: "body.users.0.name" }),
+          { type: "string" },
+          "body",
+        ),
+        "E3008",
+      );
+    },
+  );
+
   // ── required keyword ────────────────────────────────────────────────
 
   await t.step("required in query → E3002", () => {

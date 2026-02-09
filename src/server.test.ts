@@ -355,7 +355,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "Server: reject-on-sdk-error returns 400 for missing required body field",
+  name:
+    "Server: reject-on-sdk-error returns 400 for missing required body field",
   ...serverTestOpts,
 }, async () => {
   await withServer(
@@ -376,8 +377,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "Server: X-Steady-Reject-On-Error header overrides default to reject",
+  name: "Server: X-Steady-Reject-On-Error header overrides default to reject",
   ...serverTestOpts,
 }, async () => {
   await withServer({}, async (_server, baseUrl) => {
@@ -395,8 +395,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "Server: X-Steady-Reject-On-Error: false overrides server setting",
+  name: "Server: X-Steady-Reject-On-Error: false overrides server setting",
   ...serverTestOpts,
 }, async () => {
   await withServer(
@@ -1160,4 +1159,3 @@ Deno.test({
     );
   });
 });
-

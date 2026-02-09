@@ -3,7 +3,9 @@ import { handleSessionRequest } from "./endpoints.ts";
 import { SessionStore } from "./store.ts";
 import type { Diagnostic } from "../diagnostic.ts";
 
-function makeDiag(overrides: Partial<Diagnostic> & { code: string }): Diagnostic {
+function makeDiag(
+  overrides: Partial<Diagnostic> & { code: string },
+): Diagnostic {
   return {
     severity: "error",
     category: "sdk-issue",

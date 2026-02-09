@@ -1,10 +1,10 @@
 import { assertEquals } from "@std/assert";
-import type { PathsObject, OperationObject } from "@steady/openapi";
+import type { OperationObject, PathsObject } from "@steady/openapi";
 import type { Schema } from "@steady/json-schema";
 import type { ValidationNode } from "./types.ts";
 import {
-  DiagnosticEngine,
   type BodySchemaInfo,
+  DiagnosticEngine,
   type ResolvedParameter,
   type SchemaValidator,
   type SpecDocument,
@@ -29,6 +29,7 @@ class StubSpec implements SpecDocument {
   bodySchema: BodySchemaInfo | null = null;
   responses = true;
   schemas = new Map<string, Schema>();
+  acceptedContentTypes: string[] | null = null;
 
   constructor(paths: PathsObject) {
     this.paths = paths;
@@ -53,6 +54,13 @@ class StubSpec implements SpecDocument {
     _method: string,
   ): boolean {
     return this.responses;
+  }
+
+  getAcceptedContentTypes(
+    _pathPattern: string,
+    _method: string,
+  ): string[] | null {
+    return this.acceptedContentTypes;
   }
 
   resolveSchema(schemaPath: string): Schema {
@@ -131,7 +139,13 @@ Deno.test("DiagnosticEngine", async (t) => {
   await t.step("missing required query param → E3002", () => {
     const spec = new StubSpec({ "/users": { get: OP } });
     spec.parameters = [
-      { name: "limit", in: "query", required: true, schema: null, schemaPath: null },
+      {
+        name: "limit",
+        in: "query",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
     ];
     const engine = new DiagnosticEngine(spec, new StubValidator());
 
@@ -146,7 +160,13 @@ Deno.test("DiagnosticEngine", async (t) => {
   await t.step("missing required header → E3004", () => {
     const spec = new StubSpec({ "/users": { get: OP } });
     spec.parameters = [
-      { name: "X-Api-Key", in: "header", required: true, schema: null, schemaPath: null },
+      {
+        name: "X-Api-Key",
+        in: "header",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
     ];
     const engine = new DiagnosticEngine(spec, new StubValidator());
 
@@ -161,7 +181,13 @@ Deno.test("DiagnosticEngine", async (t) => {
   await t.step("optional param missing → no diagnostic", () => {
     const spec = new StubSpec({ "/users": { get: OP } });
     spec.parameters = [
-      { name: "limit", in: "query", required: false, schema: null, schemaPath: null },
+      {
+        name: "limit",
+        in: "query",
+        required: false,
+        schema: null,
+        schemaPath: null,
+      },
     ];
     const engine = new DiagnosticEngine(spec, new StubValidator());
 
@@ -173,8 +199,20 @@ Deno.test("DiagnosticEngine", async (t) => {
   await t.step("required params present → no diagnostic", () => {
     const spec = new StubSpec({ "/users": { get: OP } });
     spec.parameters = [
-      { name: "limit", in: "query", required: true, schema: null, schemaPath: null },
-      { name: "X-Api-Key", in: "header", required: true, schema: null, schemaPath: null },
+      {
+        name: "limit",
+        in: "query",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
+      {
+        name: "X-Api-Key",
+        in: "header",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
     ];
     const engine = new DiagnosticEngine(spec, new StubValidator());
 
@@ -194,7 +232,13 @@ Deno.test("DiagnosticEngine", async (t) => {
   await t.step("header matching is case-insensitive", () => {
     const spec = new StubSpec({ "/users": { get: OP } });
     spec.parameters = [
-      { name: "X-Api-Key", in: "header", required: true, schema: null, schemaPath: null },
+      {
+        name: "X-Api-Key",
+        in: "header",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
     ];
     const engine = new DiagnosticEngine(spec, new StubValidator());
 
@@ -210,9 +254,27 @@ Deno.test("DiagnosticEngine", async (t) => {
   await t.step("multiple missing params → multiple diagnostics", () => {
     const spec = new StubSpec({ "/users": { get: OP } });
     spec.parameters = [
-      { name: "limit", in: "query", required: true, schema: null, schemaPath: null },
-      { name: "offset", in: "query", required: true, schema: null, schemaPath: null },
-      { name: "X-Api-Key", in: "header", required: true, schema: null, schemaPath: null },
+      {
+        name: "limit",
+        in: "query",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
+      {
+        name: "offset",
+        in: "query",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
+      {
+        name: "X-Api-Key",
+        in: "header",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
     ];
     const engine = new DiagnosticEngine(spec, new StubValidator());
 
@@ -253,7 +315,11 @@ Deno.test("DiagnosticEngine", async (t) => {
     });
 
     const spec = new StubSpec({ "/users": { post: OP } });
-    spec.bodySchema = { schema: bodySchema, schemaPath: bodySchemaPath, required: true };
+    spec.bodySchema = {
+      schema: bodySchema,
+      schemaPath: bodySchemaPath,
+      required: true,
+    };
     spec.schemas.set(leafSchemaPath, {});
 
     const engine = new DiagnosticEngine(spec, validator);
@@ -351,7 +417,13 @@ Deno.test("DiagnosticEngine", async (t) => {
 
     const spec = new StubSpec({ "/users": { post: OP } });
     spec.parameters = [
-      { name: "X-Api-Key", in: "header", required: true, schema: null, schemaPath: null },
+      {
+        name: "X-Api-Key",
+        in: "header",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
     ];
     spec.bodySchema = {
       schema: { type: "object" },
@@ -515,8 +587,7 @@ Deno.test("DiagnosticEngine", async (t) => {
   await t.step(
     "path param with wrong type → diagnostic when pathParams provided",
     () => {
-      const paramSchemaPath =
-        "#/paths/~1users~1{id}/get/parameters/0/schema";
+      const paramSchemaPath = "#/paths/~1users~1{id}/get/parameters/0/schema";
 
       const validator = new StubValidator();
       validator.register(paramSchemaPath, {
@@ -556,8 +627,7 @@ Deno.test("DiagnosticEngine", async (t) => {
   await t.step(
     "path param with valid value → no diagnostic",
     () => {
-      const paramSchemaPath =
-        "#/paths/~1users~1{id}/get/parameters/0/schema";
+      const paramSchemaPath = "#/paths/~1users~1{id}/get/parameters/0/schema";
 
       const spec = new StubSpec({ "/users/{id}": { get: OP } });
       spec.parameters = [
@@ -586,8 +656,7 @@ Deno.test("DiagnosticEngine", async (t) => {
   await t.step(
     "path param without pathParams in request → no value validation",
     () => {
-      const paramSchemaPath =
-        "#/paths/~1users~1{id}/get/parameters/0/schema";
+      const paramSchemaPath = "#/paths/~1users~1{id}/get/parameters/0/schema";
 
       const spec = new StubSpec({ "/users/{id}": { get: OP } });
       spec.parameters = [
@@ -612,12 +681,274 @@ Deno.test("DiagnosticEngine", async (t) => {
     },
   );
 
+  // ── Cookie parameter support ────────────────────────────────────
+
+  await t.step("missing required cookie → E3007", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "session",
+        in: "cookie",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
+    ];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    // No Cookie header at all
+    const result = engine.analyze({ path: "/users", method: "get" });
+
+    assertEquals(result.length, 1);
+    assertEquals(result[0]?.code, "E3007");
+    assertEquals(result[0]?.category, "sdk-issue");
+    assertEquals(result[0]?.requestPath, "cookie.session");
+  });
+
+  await t.step(
+    "missing required cookie (other cookies present) → E3007",
+    () => {
+      const spec = new StubSpec({ "/users": { get: OP } });
+      spec.parameters = [
+        {
+          name: "session",
+          in: "cookie",
+          required: true,
+          schema: null,
+          schemaPath: null,
+        },
+      ];
+      const engine = new DiagnosticEngine(spec, new StubValidator());
+
+      // Cookie header present but doesn't contain "session"
+      const result = engine.analyze({
+        path: "/users",
+        method: "get",
+        headers: { cookie: "theme=dark; lang=en" },
+      });
+
+      assertEquals(result.length, 1);
+      assertEquals(result[0]?.code, "E3007");
+    },
+  );
+
+  await t.step("optional cookie missing → no diagnostic", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "theme",
+        in: "cookie",
+        required: false,
+        schema: null,
+        schemaPath: null,
+      },
+    ];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const result = engine.analyze({ path: "/users", method: "get" });
+
+    assertEquals(result.length, 0);
+  });
+
+  await t.step("required cookie present → no diagnostic", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "session",
+        in: "cookie",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
+    ];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "get",
+      headers: { cookie: "session=abc123" },
+    });
+
+    assertEquals(result.length, 0);
+  });
+
+  await t.step("cookie type mismatch → E3008", () => {
+    const paramSchemaPath = "#/paths/~1users/get/parameters/0/schema";
+
+    const validator = new StubValidator();
+    validator.register(paramSchemaPath, {
+      valid: false,
+      path: "cookie.max_age",
+      schemaPath: paramSchemaPath,
+      keyword: "type",
+      expected: "integer",
+      actual: "string",
+    });
+
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "max_age",
+        in: "cookie",
+        required: false,
+        schema: { type: "integer" },
+        schemaPath: paramSchemaPath,
+      },
+    ];
+    spec.schemas.set(paramSchemaPath, { type: "integer" });
+
+    const engine = new DiagnosticEngine(spec, validator);
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "get",
+      headers: { cookie: "max_age=not-a-number" },
+    });
+
+    assertEquals(result.length, 1);
+    assertEquals(result[0]?.code, "E3008");
+  });
+
+  await t.step("cookie with valid value → no diagnostic", () => {
+    const paramSchemaPath = "#/paths/~1users/get/parameters/0/schema";
+
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "max_age",
+        in: "cookie",
+        required: false,
+        schema: { type: "integer" },
+        schemaPath: paramSchemaPath,
+      },
+    ];
+    spec.schemas.set(paramSchemaPath, { type: "integer" });
+
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "get",
+      headers: { cookie: "max_age=30" },
+    });
+
+    assertEquals(result.length, 0);
+  });
+
+  // ── Content-Type validation ─────────────────────────────────────
+
+  await t.step("wrong Content-Type → E3006", () => {
+    const spec = new StubSpec({ "/users": { post: OP } });
+    spec.bodySchema = {
+      schema: { type: "object" },
+      schemaPath:
+        "#/paths/~1users/post/requestBody/content/application~1json/schema",
+      required: true,
+    };
+    spec.acceptedContentTypes = ["application/json"];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "post",
+      headers: { "content-type": "text/plain" },
+      body: {},
+    });
+
+    const e3006 = result.find((d) => d.code === "E3006");
+    assertEquals(e3006 !== undefined, true);
+    assertEquals(e3006?.category, "sdk-issue");
+    assertEquals(e3006?.severity, "error");
+  });
+
+  await t.step("matching Content-Type → no E3006", () => {
+    const spec = new StubSpec({ "/users": { post: OP } });
+    spec.bodySchema = {
+      schema: { type: "object" },
+      schemaPath:
+        "#/paths/~1users/post/requestBody/content/application~1json/schema",
+      required: true,
+    };
+    spec.acceptedContentTypes = ["application/json"];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "post",
+      headers: { "content-type": "application/json" },
+      body: {},
+    });
+
+    assertEquals(result.filter((d) => d.code === "E3006").length, 0);
+  });
+
+  await t.step("Content-Type with parameters matches → no E3006", () => {
+    const spec = new StubSpec({ "/users": { post: OP } });
+    spec.bodySchema = {
+      schema: { type: "object" },
+      schemaPath:
+        "#/paths/~1users/post/requestBody/content/application~1json/schema",
+      required: true,
+    };
+    spec.acceptedContentTypes = ["application/json"];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "post",
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: {},
+    });
+
+    assertEquals(result.filter((d) => d.code === "E3006").length, 0);
+  });
+
+  await t.step("no Content-Type header → no E3006", () => {
+    const spec = new StubSpec({ "/users": { post: OP } });
+    spec.bodySchema = {
+      schema: { type: "object" },
+      schemaPath:
+        "#/paths/~1users/post/requestBody/content/application~1json/schema",
+      required: true,
+    };
+    spec.acceptedContentTypes = ["application/json"];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "post",
+      body: {},
+    });
+
+    assertEquals(result.filter((d) => d.code === "E3006").length, 0);
+  });
+
+  await t.step("no requestBody in spec → no E3006", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    // acceptedContentTypes is null by default (no requestBody)
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "get",
+      headers: { "content-type": "text/plain" },
+    });
+
+    assertEquals(result.filter((d) => d.code === "E3006").length, 0);
+  });
+
   // ── Valid request ───────────────────────────────────────────────
 
   await t.step("valid request → no diagnostics", () => {
     const spec = new StubSpec({ "/users": { get: OP } });
     spec.parameters = [
-      { name: "limit", in: "query", required: true, schema: null, schemaPath: null },
+      {
+        name: "limit",
+        in: "query",
+        required: true,
+        schema: null,
+        schemaPath: null,
+      },
     ];
     const engine = new DiagnosticEngine(spec, new StubValidator());
 

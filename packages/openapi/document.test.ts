@@ -41,7 +41,12 @@ Deno.test("OpenAPISpecDocument", async (t) => {
         "/users": {
           get: {
             parameters: [
-              { name: "limit", in: "query", required: true, schema: { type: "integer" } },
+              {
+                name: "limit",
+                in: "query",
+                required: true,
+                schema: { type: "integer" },
+              },
             ],
             responses: { "200": { description: "OK" } },
           },
@@ -91,7 +96,12 @@ Deno.test("OpenAPISpecDocument", async (t) => {
           ],
           get: {
             parameters: [
-              { name: "limit", in: "query", required: true, schema: { type: "integer" } },
+              {
+                name: "limit",
+                in: "query",
+                required: true,
+                schema: { type: "integer" },
+              },
             ],
             responses: { "200": { description: "OK" } },
           },
@@ -139,7 +149,12 @@ Deno.test("OpenAPISpecDocument", async (t) => {
       },
       components: {
         parameters: {
-          LimitParam: { name: "limit", in: "query", required: true, schema: { type: "integer" } },
+          LimitParam: {
+            name: "limit",
+            in: "query",
+            required: true,
+            schema: { type: "integer" },
+          },
         },
       },
     });

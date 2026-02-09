@@ -250,7 +250,9 @@ export class TextLogger extends BaseLogger {
     // Server info
     console.log();
     console.log(
-      `Steady server listening on ${server.url}${server.rejectOnSdkError ? " (reject-on-sdk-error)" : ""}`,
+      `Steady server listening on ${server.url}${
+        server.rejectOnSdkError ? " (reject-on-sdk-error)" : ""
+      }`,
     );
     console.log();
   }

@@ -9,16 +9,17 @@
  * Flow:
  *   1. Route matching → E2001/E2002 if no match
  *   2. Runtime spec issues → E1010 if no responses
- *   3. Parameter presence → E3002/E3004 for missing required params
- *   4. Body validation → SchemaValidator + interpret()
- *   5. Return all diagnostics
+ *   3. Parameter presence → E3002/E3004/E3007 for missing required params
+ *   4. Content-Type validation → E3006 if wrong Content-Type
+ *   5. Body validation → SchemaValidator + interpret()
+ *   6. Return all diagnostics
  */
 
 import type { Schema } from "@steady/json-schema";
 import type { PathsObject } from "@steady/openapi";
 import type { Diagnostic, DiagnosticLocation } from "../diagnostic.ts";
 import type { SpecResolver, ValidationNode } from "./types.ts";
-import { getCode } from "../codes/registry.ts";
+import { type ECode, getCode } from "../codes/registry.ts";
 import { matchRoute } from "./routing.ts";
 import { interpret } from "./interpreter.ts";
 
@@ -47,6 +48,12 @@ export interface SpecDocument {
    * Returns false when responses is empty/missing (E1010).
    */
   hasResponses(pathPattern: string, method: string): boolean;
+
+  /**
+   * Accepted content types for a request body.
+   * Returns the keys of requestBody.content, or null if no requestBody.
+   */
+  getAcceptedContentTypes(pathPattern: string, method: string): string[] | null;
 
   /**
    * Resolve a schema by its JSON pointer in the spec.
@@ -181,7 +188,31 @@ export class DiagnosticEngine {
       }
     }
 
-    // 4. Body validation
+    // 4. Content-Type validation
+    const acceptedTypes = this.spec.getAcceptedContentTypes(
+      pathPattern,
+      method,
+    );
+    if (acceptedTypes) {
+      const contentType = getContentType(request.headers);
+      if (contentType) {
+        const mediaType = contentType.split(";")[0]?.trim().toLowerCase();
+        if (
+          mediaType && !acceptedTypes.some((t) => t.toLowerCase() === mediaType)
+        ) {
+          diagnostics.push(
+            createWrongContentTypeDiagnostic(
+              pathPattern,
+              method,
+              mediaType,
+              acceptedTypes,
+            ),
+          );
+        }
+      }
+    }
+
+    // 5. Body validation
     const bodyInfo = this.spec.getBodySchema(pathPattern, method);
     if (bodyInfo) {
       if (request.body === undefined) {
@@ -211,7 +242,7 @@ export class DiagnosticEngine {
       }
     }
 
-    // 5. Return all diagnostics
+    // 6. Return all diagnostics
     return diagnostics;
   }
 }
@@ -224,7 +255,7 @@ export class DiagnosticEngine {
  * - query: checks URLSearchParams.has()
  * - header: case-insensitive key lookup
  * - path: always present after successful routing
- * - cookie: not yet supported, treated as present
+ * - cookie: parses Cookie header for the named cookie
  */
 function isParameterPresent(
   param: ResolvedParameter,
@@ -246,23 +277,35 @@ function isParameterPresent(
       // Path params are always present after routing
       return true;
 
-    case "cookie":
-      // Cookie support not yet implemented
-      return true;
+    case "cookie": {
+      const cookies = parseCookieHeader(request.headers);
+      return cookies.has(param.name);
+    }
   }
 }
 
 // ── Diagnostic creation ────────────────────────────────────────────
 
+/** Map parameter location to the E-code for a missing required parameter. */
+function missingParamCode(location: ResolvedParameter["in"]): ECode {
+  switch (location) {
+    case "query":
+      return "E3002";
+    case "header":
+      return "E3004";
+    default:
+      return "E3007"; // cookie (and body, though body has its own path)
+  }
+}
+
 /**
  * Create a diagnostic for a missing required parameter.
- * Only called for query (E3002) and header (E3004) parameters.
  */
 function createMissingParamDiagnostic(
   param: ResolvedParameter,
   pathPattern: string,
 ): Diagnostic {
-  const code = param.in === "query" ? "E3002" : "E3004";
+  const code = missingParamCode(param.in);
   const codeInfo = getCode(code);
 
   return {
@@ -295,8 +338,11 @@ function createMissingBodyDiagnostic(
     severity: e3005.severity,
     category: e3005.category,
     requestPath: "body",
-    specPointer: `#/paths/${escapeJsonPointer(pathPattern)}/${method}/requestBody`,
-    message: `Operation ${method.toUpperCase()} ${pathPattern} requires a request body`,
+    specPointer: `#/paths/${
+      escapeJsonPointer(pathPattern)
+    }/${method}/requestBody`,
+    message:
+      `Operation ${method.toUpperCase()} ${pathPattern} requires a request body`,
     attribution: {
       confidence: 0.95,
       reasoning: [
@@ -325,8 +371,11 @@ function createMissingResponsesDiagnostic(
     severity: e1010.severity,
     category: e1010.category,
     requestPath: `${method.toUpperCase()} ${pathPattern}`,
-    specPointer: `#/paths/${escapeJsonPointer(pathPattern)}/${method}/responses`,
-    message: `Operation ${method.toUpperCase()} ${pathPattern} has no response definitions`,
+    specPointer: `#/paths/${
+      escapeJsonPointer(pathPattern)
+    }/${method}/responses`,
+    message:
+      `Operation ${method.toUpperCase()} ${pathPattern} has no response definitions`,
     attribution: {
       confidence: 1.0,
       reasoning: [
@@ -334,6 +383,84 @@ function createMissingResponsesDiagnostic(
       ],
     },
   };
+}
+
+/**
+ * Create an E3006 diagnostic for a wrong Content-Type.
+ */
+function createWrongContentTypeDiagnostic(
+  pathPattern: string,
+  method: string,
+  actualType: string,
+  acceptedTypes: string[],
+): Diagnostic {
+  const e3006 = getCode("E3006");
+
+  return {
+    code: "E3006",
+    severity: e3006.severity,
+    category: e3006.category,
+    requestPath: "header.content-type",
+    specPointer: `#/paths/${
+      escapeJsonPointer(pathPattern)
+    }/${method}/requestBody/content`,
+    message: `Content-Type "${actualType}" is not accepted. Expected: ${
+      acceptedTypes.join(", ")
+    }`,
+    expected: acceptedTypes,
+    actual: actualType,
+    attribution: {
+      confidence: 0.95,
+      reasoning: [
+        `Request Content-Type "${actualType}" does not match any accepted type in the spec`,
+      ],
+    },
+  };
+}
+
+/**
+ * Extract the Content-Type header value (case-insensitive).
+ */
+function getContentType(
+  headers: Record<string, string> | undefined,
+): string | undefined {
+  if (!headers) return undefined;
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === "content-type") return value;
+  }
+  return undefined;
+}
+
+/**
+ * Parse the Cookie header into a name→value map.
+ * Cookie header format (RFC 6265): "name1=value1; name2=value2"
+ */
+function parseCookieHeader(
+  headers: Record<string, string> | undefined,
+): Map<string, string> {
+  if (!headers) return new Map();
+
+  // Case-insensitive lookup for Cookie header
+  let cookieHeader: string | undefined;
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === "cookie") {
+      cookieHeader = value;
+      break;
+    }
+  }
+
+  if (!cookieHeader) return new Map();
+
+  const cookies = new Map<string, string>();
+  for (const pair of cookieHeader.split(";")) {
+    const eqIndex = pair.indexOf("=");
+    if (eqIndex === -1) continue;
+    const name = pair.substring(0, eqIndex).trim();
+    const value = pair.substring(eqIndex + 1).trim();
+    if (name) cookies.set(name, value);
+  }
+
+  return cookies;
 }
 
 function escapeJsonPointer(path: string): string {
@@ -366,8 +493,10 @@ function getParameterValue(
     case "path":
       return request.pathParams?.[param.name];
 
-    case "cookie":
-      return undefined;
+    case "cookie": {
+      const cookies = parseCookieHeader(request.headers);
+      return cookies.get(param.name);
+    }
   }
 }
 

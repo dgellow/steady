@@ -36,6 +36,9 @@ export interface ValidationNode {
   expected?: unknown;
   actual?: unknown;
 
+  /** True when this leaf represents a direct array item error (not a nested property). */
+  arrayItem?: boolean;
+
   // Tree structure
   children?: ValidationNode[];
   /** Present on oneOf/anyOf variant wrapper nodes. */

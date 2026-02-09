@@ -131,7 +131,10 @@ Deno.test("TreeValidator", async (t) => {
     assertEquals(tree.valid, false);
     const leaf = tree.children![0]!;
     assertEquals(leaf.path, "body.address.city");
-    assertEquals(leaf.schemaPath, "#/schema/properties/address/properties/city");
+    assertEquals(
+      leaf.schemaPath,
+      "#/schema/properties/address/properties/city",
+    );
   });
 
   // ── additionalProperties ─────────────────────────────────────────
@@ -220,18 +223,66 @@ Deno.test("TreeValidator", async (t) => {
 
   // ── Array validation ─────────────────────────────────────────────
 
-  await t.step("array item type error has indexed path", () => {
-    const tree = validate(
-      { type: "array", items: { type: "number" } },
-      [1, "two", 3],
-    );
+  await t.step(
+    "array item type error has indexed path and arrayItem flag",
+    () => {
+      const tree = validate(
+        { type: "array", items: { type: "number" } },
+        [1, "two", 3],
+      );
 
-    assertEquals(tree.valid, false);
-    const leaf = tree.children![0]!;
-    assertEquals(leaf.keyword, "type");
-    assertEquals(leaf.path, "body.1");
-    assertEquals(leaf.schemaPath, "#/schema/items");
-  });
+      assertEquals(tree.valid, false);
+      const leaf = tree.children![0]!;
+      assertEquals(leaf.keyword, "type");
+      assertEquals(leaf.path, "body.1");
+      assertEquals(leaf.schemaPath, "#/schema/items");
+      assertEquals(leaf.arrayItem, true);
+    },
+  );
+
+  await t.step(
+    "array item type error through $ref has arrayItem flag",
+    () => {
+      const schema: Schema = {
+        type: "array",
+        items: { $ref: "#/$defs/Tag" },
+        $defs: {
+          Tag: { type: "string" },
+        },
+      };
+
+      const tree = validate(schema, [42]);
+
+      assertEquals(tree.valid, false);
+      const leaf = tree.children![0]!;
+      assertEquals(leaf.keyword, "type");
+      assertEquals(leaf.arrayItem, true);
+    },
+  );
+
+  await t.step(
+    "nested property error within array item does NOT have arrayItem",
+    () => {
+      const tree = validate(
+        {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+            },
+          },
+        },
+        [{ name: 42 }],
+      );
+
+      assertEquals(tree.valid, false);
+      const leaf = tree.children![0]!;
+      assertEquals(leaf.keyword, "type");
+      assertEquals(leaf.path, "body.0.name");
+      assertEquals(leaf.arrayItem, undefined);
+    },
+  );
 
   await t.step("minItems violation → leaf", () => {
     const tree = validate({ type: "array", minItems: 3 }, [1]);
@@ -247,8 +298,16 @@ Deno.test("TreeValidator", async (t) => {
     const tree = validate(
       {
         oneOf: [
-          { type: "object", required: ["file"], properties: { file: { type: "string" } } },
-          { type: "object", required: ["url"], properties: { url: { type: "string" } } },
+          {
+            type: "object",
+            required: ["file"],
+            properties: { file: { type: "string" } },
+          },
+          {
+            type: "object",
+            required: ["url"],
+            properties: { url: { type: "string" } },
+          },
         ],
       },
       { name: "test" },
@@ -397,7 +456,12 @@ Deno.test("TreeValidator", async (t) => {
 
   await t.step("satisfies engine ValidationNode interface", () => {
     const validator = new TreeValidator();
-    const tree = validator.validate("hello", { type: "string" }, "#/schema", "body");
+    const tree = validator.validate(
+      "hello",
+      { type: "string" },
+      "#/schema",
+      "body",
+    );
 
     // Compile-time check: TreeValidator output must be assignable to
     // the engine's ValidationNode. If the engine's interface changes
@@ -416,7 +480,12 @@ Deno.test("TreeValidator", async (t) => {
     const validator: SchemaValidator = new TreeValidator();
 
     // Sanity: works through the interface
-    const tree = validator.validate("hello", { type: "string" }, "#/schema", "body");
+    const tree = validator.validate(
+      "hello",
+      { type: "string" },
+      "#/schema",
+      "body",
+    );
     assertEquals(tree.valid, true);
   });
 });

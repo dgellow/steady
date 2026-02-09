@@ -13,8 +13,8 @@ import { parseSpecFromFile } from "@steady/openapi";
 import { OpenAPISpecDocument } from "../packages/openapi/document.ts";
 import { TreeValidator } from "../packages/json-schema/tree-validator.ts";
 import {
-  DiagnosticEngine,
   type AnalyzeRequest,
+  DiagnosticEngine,
 } from "../src/engine/diagnostic-engine.ts";
 import type { Diagnostic } from "../src/diagnostic.ts";
 
@@ -91,19 +91,22 @@ Deno.test("Diagnostic Integration — Acme API", async (t) => {
 
   // ── Body validation (requires $ref resolution) ──────────────────
 
-  await t.step("POST /accounts with empty body → missing required 'name'", async () => {
-    const diagnostics = await analyze({
-      path: "/accounts",
-      method: "POST",
-      body: {},
-    });
+  await t.step(
+    "POST /accounts with empty body → missing required 'name'",
+    async () => {
+      const diagnostics = await analyze({
+        path: "/accounts",
+        method: "POST",
+        body: {},
+      });
 
-    // Account schema requires "name".
-    // This exercises: body schema $ref resolution → TreeValidator → interpreter
-    const requiredErrors = diagnostics.filter((d) => d.code === "E3007");
-    assertEquals(requiredErrors.length, 1);
-    assertEquals(requiredErrors[0]?.requestPath, "body");
-  });
+      // Account schema requires "name".
+      // This exercises: body schema $ref resolution → TreeValidator → interpreter
+      const requiredErrors = diagnostics.filter((d) => d.code === "E3007");
+      assertEquals(requiredErrors.length, 1);
+      assertEquals(requiredErrors[0]?.requestPath, "body");
+    },
+  );
 
   await t.step("POST /accounts with wrong type → E3008", async () => {
     const diagnostics = await analyze({
@@ -139,52 +142,61 @@ Deno.test("Diagnostic Integration — Acme API", async (t) => {
 
   // ── Nested $ref resolution ──────────────────────────────────────
 
-  await t.step("POST /accounts with invalid nested address → errors at nested path", async () => {
-    // Account.address → $ref: "#/components/schemas/Address"
-    // Address requires: address1, city, country, postal_code, state
-    const diagnostics = await analyze({
-      path: "/accounts",
-      method: "POST",
-      body: {
-        name: "Alice",
-        address: { city: 123 },
-      },
-    });
+  await t.step(
+    "POST /accounts with invalid nested address → errors at nested path",
+    async () => {
+      // Account.address → $ref: "#/components/schemas/Address"
+      // Address requires: address1, city, country, postal_code, state
+      const diagnostics = await analyze({
+        path: "/accounts",
+        method: "POST",
+        body: {
+          name: "Alice",
+          address: { city: 123 },
+        },
+      });
 
-    // Should have: missing required fields + type error on city
-    const requiredErrors = diagnostics.filter((d) => d.code === "E3007");
-    const typeErrors = diagnostics.filter((d) => d.code === "E3008");
+      // Should have: missing required fields + type error on city
+      const requiredErrors = diagnostics.filter((d) => d.code === "E3007");
+      const typeErrors = diagnostics.filter((d) => d.code === "E3008");
 
-    // Missing: address1, country, postal_code, state (4 required fields)
-    assertEquals(requiredErrors.length, 4);
-    // city should be string but got number
-    assertEquals(typeErrors.length, 1);
-    assertEquals(typeErrors[0]?.requestPath, "body.address.city");
-  });
+      // Missing: address1, country, postal_code, state (4 required fields)
+      assertEquals(requiredErrors.length, 4);
+      // city should be string but got number
+      assertEquals(typeErrors.length, 1);
+      assertEquals(typeErrors[0]?.requestPath, "body.address.city");
+    },
+  );
 
   // ── oneOf with discriminator ────────────────────────────────────
 
-  await t.step("POST /accounts/{id}/link with valid google link → no errors", async () => {
-    const diagnostics = await analyze({
-      path: "/accounts/abc-123/link",
-      method: "POST",
-      body: { type: "google", google_account_id: "12345" },
-    });
+  await t.step(
+    "POST /accounts/{id}/link with valid google link → no errors",
+    async () => {
+      const diagnostics = await analyze({
+        path: "/accounts/abc-123/link",
+        method: "POST",
+        body: { type: "google", google_account_id: "12345" },
+      });
 
-    assertEquals(diagnostics.length, 0);
-  });
+      assertEquals(diagnostics.length, 0);
+    },
+  );
 
-  await t.step("POST /accounts/{id}/link with wrong variant data → errors", async () => {
-    // Sends google type but with facebook fields (missing google_account_id)
-    const diagnostics = await analyze({
-      path: "/accounts/abc-123/link",
-      method: "POST",
-      body: { type: "google", facebook_account_id: "12345" },
-    });
+  await t.step(
+    "POST /accounts/{id}/link with wrong variant data → errors",
+    async () => {
+      // Sends google type but with facebook fields (missing google_account_id)
+      const diagnostics = await analyze({
+        path: "/accounts/abc-123/link",
+        method: "POST",
+        body: { type: "google", facebook_account_id: "12345" },
+      });
 
-    // Should have errors — missing google_account_id from the google variant
-    assertEquals(diagnostics.length > 0, true);
-  });
+      // Should have errors — missing google_account_id from the google variant
+      assertEquals(diagnostics.length > 0, true);
+    },
+  );
 
   // ── Multiple diagnostic types in one request ────────────────────
 

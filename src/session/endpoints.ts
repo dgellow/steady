@@ -5,7 +5,7 @@
  * The JSON keys use snake_case to match the spec's API convention.
  */
 
-import type { SessionStore, SessionDiagnostic } from "./store.ts";
+import type { SessionDiagnostic, SessionStore } from "./store.ts";
 
 /**
  * Handle a session query request.

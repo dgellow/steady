@@ -645,12 +645,14 @@ interface AnalyzeRequest {
 ### Parameter Presence Details
 
 Presence checking per location:
+
 - **query**: `request.queryParams?.has(param.name)`
 - **header**: case-insensitive lookup in `request.headers`
 - **path**: always present after routing (routing extracts all path params)
 - **cookie**: not yet supported
 
 Missing required params produce diagnostics directly:
+
 - query → E3002 with `requestPath: "query.{name}"`, confidence 0.9
 - header → E3004 with `requestPath: "header.{name}"`, confidence 0.9
 
@@ -659,8 +661,8 @@ plan line 455-457).
 
 ### SpecResolver Bridge
 
-The interpreter needs a `SpecResolver` (from `types.ts`). The engine creates
-one from SpecDocument:
+The interpreter needs a `SpecResolver` (from `types.ts`). The engine creates one
+from SpecDocument:
 
 ```typescript
 const specResolver: SpecResolver = {
@@ -681,6 +683,7 @@ The engine exports its types so tests and future adapters can import them.
 
 The diagnostic engine test (`diagnostic-engine.test.ts`) is written and
 confirmed RED. It uses:
+
 - `StubSpec` implementing `SpecDocument` — returns pre-configured data
 - `StubValidator` implementing `SchemaValidator` — returns pre-configured trees
 

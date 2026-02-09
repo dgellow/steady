@@ -36,6 +36,9 @@ export function attributeLeafCode(
       if (node.actual === null && !isNullable(schema)) {
         return "E5001";
       }
+      if (node.arrayItem) {
+        return "E3010";
+      }
       return typeCodeForLocation(location);
     }
 
@@ -123,9 +126,7 @@ export function attributeLeaf(
 function buildMessage(node: LeafNode, fallback: string): string {
   switch (node.keyword) {
     case "required":
-      return node.field
-        ? `Missing required property: ${node.field}`
-        : fallback;
+      return node.field ? `Missing required property: ${node.field}` : fallback;
     case "type":
       return node.expected !== undefined && node.actual !== undefined
         ? `Expected type ${String(node.expected)}, got ${String(node.actual)}`
@@ -139,9 +140,7 @@ function buildMessage(node: LeafNode, fallback: string): string {
         ? `Expected constant value ${JSON.stringify(node.expected)}`
         : fallback;
     case "additionalProperties":
-      return node.field
-        ? `Unknown property: ${node.field}`
-        : fallback;
+      return node.field ? `Unknown property: ${node.field}` : fallback;
     default:
       return fallback;
   }
