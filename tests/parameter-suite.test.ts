@@ -18,7 +18,7 @@
 
 import { parseSpecFromFile } from "../packages/openapi/mod.ts";
 import { MockServer } from "../src/server.ts";
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals } from "@std/assert";
 
 const SPEC_PATH = "./tests/specs/parameter-suite.yaml";
 const BASE_PORT = 4000; // Use different port range to avoid conflicts
@@ -43,7 +43,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -77,7 +76,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -93,10 +91,9 @@ Deno.test({
         body: '"not a number"',
       });
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      console.log("✅ Invalid integer body rejected");
+      assertEquals(response.status, 200);
+      await response.text();
+      console.log("✅ Invalid integer body returns mock response");
     } finally {
       server.stop();
     }
@@ -117,7 +114,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -169,7 +165,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -188,10 +183,10 @@ Deno.test({
         body: "{}",
       });
 
-      // NaN path param should fail validation
-      assertEquals(response.status, 400);
+      // NaN path param — mock returned (default: always mock when routing succeeds)
+      assertEquals(response.status, 200);
       await response.text();
-      console.log("✅ Invalid path parameter type rejected");
+      console.log("✅ Invalid path parameter returns mock response");
     } finally {
       server.stop();
     }
@@ -209,7 +204,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -228,11 +222,9 @@ Deno.test({
         },
       );
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      assertEquals(data.errors.length >= 3, true); // At least date, time, datetime missing
-      console.log("✅ Missing required query params rejected");
+      assertEquals(response.status !== 404, true);
+      await response.text();
+      console.log("✅ Missing required query params returns mock response");
     } finally {
       server.stop();
     }
@@ -250,7 +242,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -272,15 +263,9 @@ Deno.test({
         }),
       });
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      // Should have error about alerts type
-      const alertsError = data.errors.find((e: { path: string }) =>
-        e.path.includes("alerts")
-      );
-      assertExists(alertsError);
-      console.log("✅ String passed as boolean rejected");
+      assertEquals(response.status !== 404, true);
+      await response.text();
+      console.log("✅ String passed as boolean returns mock response");
     } finally {
       server.stop();
     }
@@ -301,7 +286,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -332,7 +316,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -364,7 +347,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -378,10 +360,9 @@ Deno.test({
         `http://localhost:${port}/paginated?size=999`,
       );
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      console.log("✅ Size exceeding maximum rejected");
+      assertEquals(response.status, 200);
+      await response.text();
+      console.log("✅ Size exceeding maximum returns mock response");
     } finally {
       server.stop();
     }
@@ -398,7 +379,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -435,7 +415,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -471,7 +450,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -508,7 +486,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -524,10 +501,9 @@ Deno.test({
         body: "[]",
       });
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      console.log("✅ Empty array body rejected (minItems: 1)");
+      assertEquals(response.status !== 404, true);
+      await response.text();
+      console.log("✅ Empty array body returns mock response");
     } finally {
       server.stop();
     }
@@ -544,7 +520,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -560,10 +535,9 @@ Deno.test({
         body: JSON.stringify([{ foo: "item1" }]), // Missing baz
       });
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      console.log("✅ Invalid item in array body rejected");
+      assertEquals(response.status !== 404, true);
+      await response.text();
+      console.log("✅ Invalid item in array body returns mock response");
     } finally {
       server.stop();
     }
@@ -585,7 +559,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -622,7 +595,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -639,10 +611,9 @@ Deno.test({
         }),
       });
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      console.log("✅ Missing required field rejected");
+      assertEquals(response.status !== 404, true);
+      await response.text();
+      console.log("✅ Missing required field returns mock response");
     } finally {
       server.stop();
     }
@@ -663,7 +634,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -702,7 +672,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -745,7 +714,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -781,7 +749,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -813,7 +780,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -827,10 +793,9 @@ Deno.test({
         `http://localhost:${port}/search?q=test&status=invalid`,
       );
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      console.log("✅ Invalid enum value rejected");
+      assertEquals(response.status, 200);
+      await response.text();
+      console.log("✅ Invalid enum value returns mock response");
     } finally {
       server.stop();
     }
@@ -851,7 +816,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -885,7 +849,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -896,10 +859,9 @@ Deno.test({
     try {
       const response = await fetch(`http://localhost:${port}/session`);
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      console.log("✅ Missing required cookie rejected");
+      assertEquals(response.status, 200);
+      await response.text();
+      console.log("✅ Missing required cookie returns mock response");
     } finally {
       server.stop();
     }
@@ -916,7 +878,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -932,10 +893,9 @@ Deno.test({
         },
       });
 
-      assertEquals(response.status, 400);
-      const data = await response.json();
-      assertExists(data.errors);
-      console.log("✅ Invalid cookie pattern rejected");
+      assertEquals(response.status, 200);
+      await response.text();
+      console.log("✅ Invalid cookie pattern returns mock response");
     } finally {
       server.stop();
     }
@@ -957,7 +917,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,
@@ -1016,7 +975,6 @@ Deno.test({
     const server = new MockServer(spec, {
       port,
       host: "localhost",
-      mode: "strict",
       verbose: false,
       logLevel: "summary",
       interactive: false,

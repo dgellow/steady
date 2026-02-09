@@ -4,7 +4,7 @@
  * Covers:
  * - Route matching (exact and parameterized paths)
  * - Response generation from examples
- * - X-Steady-Mode header (per-request validation mode)
+ * - X-Steady diagnostic headers
  * - Validation error responses
  * - Special endpoints (health, spec)
  */
@@ -21,7 +21,7 @@ const serverTestOpts = { sanitizeOps: false, sanitizeResources: false };
 
 /** Helper to create a server and ensure cleanup */
 async function withServer(
-  opts: { mode?: "strict" | "relaxed"; port?: number },
+  opts: { rejectOnSdkError?: boolean; port?: number },
   fn: (server: MockServer, baseUrl: string) => Promise<void>,
 ): Promise<void> {
   const spec = await parseSpecFromFile(TEST_SPEC_PATH);
@@ -29,7 +29,7 @@ async function withServer(
   const server = new MockServer(spec, {
     port,
     host: "localhost",
-    mode: opts.mode ?? "strict",
+    rejectOnSdkError: opts.rejectOnSdkError,
     verbose: false,
     logLevel: "summary",
     interactive: false,
@@ -46,6 +46,135 @@ async function withServer(
     await new Promise((r) => setTimeout(r, 10));
   }
 }
+
+// =============================================================================
+// X-Steady Diagnostic Headers
+// =============================================================================
+
+Deno.test({
+  name: "Server: X-Steady-Valid is true for valid request",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/users`);
+    assertEquals(response.status, 200);
+    assertEquals(response.headers.get("X-Steady-Valid"), "true");
+    assertEquals(response.headers.get("X-Steady-Error-Count"), "0");
+    await response.body?.cancel();
+  });
+});
+
+Deno.test({
+  name: "Server: X-Steady-Valid is false when body has missing required field",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Alice" }),
+    });
+    // Mock response returned — validation issues reported in headers only
+    assertEquals(response.status, 201);
+    assertEquals(response.headers.get("X-Steady-Valid"), "false");
+
+    const errorCount = parseInt(
+      response.headers.get("X-Steady-Error-Count") ?? "0",
+    );
+    assertEquals(errorCount > 0, true);
+
+    assertExists(response.headers.get("X-Steady-Error-1-Code"));
+    assertExists(response.headers.get("X-Steady-Error-1-Path"));
+    assertExists(response.headers.get("X-Steady-Error-1-Message"));
+    await response.body?.cancel();
+  });
+});
+
+Deno.test({
+  name: "Server: X-Steady headers present on 404",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/nonexistent`);
+    assertEquals(response.status, 404);
+    assertExists(response.headers.get("X-Steady-Valid"));
+    assertExists(response.headers.get("X-Steady-Error-Count"));
+    await response.body?.cancel();
+  });
+});
+
+// =============================================================================
+// Sessions
+// =============================================================================
+
+Deno.test({
+  name: "Server: session accumulates diagnostics across requests",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    const sessionId = crypto.randomUUID();
+
+    // Request 1: valid
+    await fetch(`${baseUrl}/users`, {
+      headers: { "X-Steady-Session": sessionId },
+    }).then((r) => r.body?.cancel());
+
+    // Request 2: missing required field
+    await fetch(`${baseUrl}/users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Steady-Session": sessionId,
+      },
+      body: JSON.stringify({ name: "Alice" }),
+    }).then((r) => r.body?.cancel());
+
+    // Query session
+    const report = await fetch(
+      `${baseUrl}/_x-steady/sessions/${sessionId}`,
+    ).then((r) => r.json());
+
+    assertEquals(report.session_id, sessionId);
+    assertEquals(report.requests, 2);
+    assertEquals(report.sdk_issues.length > 0, true);
+    assertEquals(report.sdk_issues[0].method, "POST");
+  });
+});
+
+Deno.test({
+  name: "Server: session returns 404 for unknown session",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/_x-steady/sessions/nonexistent`,
+    );
+    assertEquals(response.status, 404);
+    await response.body?.cancel();
+  });
+});
+
+Deno.test({
+  name: "Server: session tracks 404 diagnostics",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    const sessionId = crypto.randomUUID();
+
+    // Request to nonexistent path
+    await fetch(`${baseUrl}/does-not-exist`, {
+      headers: { "X-Steady-Session": sessionId },
+    }).then((r) => r.body?.cancel());
+
+    const report = await fetch(
+      `${baseUrl}/_x-steady/sessions/${sessionId}`,
+    ).then((r) => r.json());
+
+    assertEquals(report.requests, 1);
+    assertEquals(report.sdk_issues.length > 0, true);
+    assertEquals(report.sdk_issues[0].code, "E2001");
+  });
+});
 
 // =============================================================================
 // Route Matching
@@ -205,89 +334,88 @@ Deno.test({
 });
 
 // =============================================================================
-// X-Steady-Mode Header
+// X-Steady-Reject-On-Error
 // =============================================================================
 
 Deno.test({
-  name: "Server: X-Steady-Mode header in response (strict server)",
+  name: "Server: default returns mock response for validation failures",
   ...serverTestOpts,
 }, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/users`);
-    assertEquals(response.status, 200);
-
-    const mode = response.headers.get("X-Steady-Mode");
-    assertEquals(mode, "strict");
-    await response.body?.cancel();
-  });
-});
-
-Deno.test({
-  name: "Server: X-Steady-Mode header in response (relaxed server)",
-  ...serverTestOpts,
-}, async () => {
-  await withServer({ mode: "relaxed" }, async (_server, baseUrl) => {
-    const response = await fetch(`${baseUrl}/users`);
-    assertEquals(response.status, 200);
-
-    const mode = response.headers.get("X-Steady-Mode");
-    assertEquals(mode, "relaxed");
-    await response.body?.cancel();
-  });
-});
-
-Deno.test({
-  name: "Server: X-Steady-Mode request header overrides to relaxed",
-  ...serverTestOpts,
-}, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    // Send invalid path param (string instead of integer) with relaxed override
-    const response = await fetch(`${baseUrl}/users/not-a-number`, {
-      headers: { "X-Steady-Mode": "relaxed" },
-    });
-
-    // Should return 200 because relaxed mode doesn't reject
-    assertEquals(response.status, 200);
-
-    const mode = response.headers.get("X-Steady-Mode");
-    assertEquals(mode, "relaxed");
-    await response.body?.cancel();
-  });
-});
-
-Deno.test({
-  name: "Server: X-Steady-Mode request header overrides to strict",
-  ...serverTestOpts,
-}, async () => {
-  await withServer({ mode: "relaxed" }, async (_server, baseUrl) => {
-    // Send invalid path param with strict override
-    const response = await fetch(`${baseUrl}/users/not-a-number`, {
-      headers: { "X-Steady-Mode": "strict" },
-    });
-
-    // Should return 400 because strict mode rejects
-    assertEquals(response.status, 400);
-
-    const mode = response.headers.get("X-Steady-Mode");
-    assertEquals(mode, "strict");
-    await response.body?.cancel();
-  });
-});
-
-Deno.test({
-  name: "Server: invalid X-Steady-Mode header falls back to server default",
-  ...serverTestOpts,
-}, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
+  await withServer({}, async (_server, baseUrl) => {
+    // Missing required 'email' field — but default is to always mock
     const response = await fetch(`${baseUrl}/users`, {
-      headers: { "X-Steady-Mode": "invalid-value" },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Alice" }),
     });
-
-    assertEquals(response.status, 200);
-    const mode = response.headers.get("X-Steady-Mode");
-    assertEquals(mode, "strict");
+    assertEquals(response.status, 201);
+    assertEquals(response.headers.get("X-Steady-Valid"), "false");
     await response.body?.cancel();
   });
+});
+
+Deno.test({
+  name: "Server: reject-on-sdk-error returns 400 for missing required body field",
+  ...serverTestOpts,
+}, async () => {
+  await withServer(
+    { rejectOnSdkError: true },
+    async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Alice" }),
+      });
+      assertEquals(response.status, 400);
+
+      const data = await response.json();
+      assertEquals(data.error, "Validation failed");
+      assertExists(data.diagnostics);
+    },
+  );
+});
+
+Deno.test({
+  name:
+    "Server: X-Steady-Reject-On-Error header overrides default to reject",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Steady-Reject-On-Error": "true",
+      },
+      body: JSON.stringify({ name: "Alice" }),
+    });
+    assertEquals(response.status, 400);
+    await response.body?.cancel();
+  });
+});
+
+Deno.test({
+  name:
+    "Server: X-Steady-Reject-On-Error: false overrides server setting",
+  ...serverTestOpts,
+}, async () => {
+  await withServer(
+    { rejectOnSdkError: true },
+    async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Steady-Reject-On-Error": "false",
+        },
+        body: JSON.stringify({ name: "Alice" }),
+      });
+      // Header disables rejection — mock response returned
+      assertEquals(response.status, 201);
+      assertEquals(response.headers.get("X-Steady-Valid"), "false");
+      await response.body?.cancel();
+    },
+  );
 });
 
 // =============================================================================
@@ -295,38 +423,48 @@ Deno.test({
 // =============================================================================
 
 Deno.test({
-  name: "Server: validates path parameters (strict mode)",
+  name: "Server: invalid path param returns mock response by default",
   ...serverTestOpts,
 }, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    // Invalid: string instead of integer
+  await withServer({}, async (_server, baseUrl) => {
     const response = await fetch(`${baseUrl}/users/not-a-number`);
-    assertEquals(response.status, 400);
-
-    const data = await response.json();
-    assertEquals(data.error, "Validation failed");
-    assertExists(data.errors);
+    assertEquals(response.status, 200);
+    await response.body?.cancel();
   });
 });
 
 Deno.test({
-  name: "Server: validates required headers (strict mode)",
+  name:
+    "Server: missing required header returns mock with X-Steady-Valid: false",
   ...serverTestOpts,
 }, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    // Missing required X-API-Key header
+  await withServer({}, async (_server, baseUrl) => {
+    // Missing required X-API-Key header — engine produces E3004 (sdk-issue)
     const response = await fetch(`${baseUrl}/items`);
-    assertEquals(response.status, 400);
-
-    const data = await response.json();
-    assertExists(data.errors);
+    assertEquals(response.status, 200);
+    assertEquals(response.headers.get("X-Steady-Valid"), "false");
+    await response.body?.cancel();
   });
+});
+
+Deno.test({
+  name: "Server: reject-on-sdk-error returns 400 for missing required header",
+  ...serverTestOpts,
+}, async () => {
+  await withServer(
+    { rejectOnSdkError: true },
+    async (_server, baseUrl) => {
+      const response = await fetch(`${baseUrl}/items`);
+      assertEquals(response.status, 400);
+      await response.body?.cancel();
+    },
+  );
 });
 
 Deno.test(
   { name: "Server: accepts valid required headers", ...serverTestOpts },
   async () => {
-    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
+    await withServer({}, async (_server, baseUrl) => {
       const response = await fetch(`${baseUrl}/items`, {
         headers: { "X-API-Key": "my-secret-key" },
       });
@@ -336,28 +474,10 @@ Deno.test(
   },
 );
 
-Deno.test({
-  name: "Server: validates request body (strict mode)",
-  ...serverTestOpts,
-}, async () => {
-  await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-    // Missing required 'email' field
-    const response = await fetch(`${baseUrl}/users`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Alice" }),
-    });
-
-    assertEquals(response.status, 400);
-    const data = await response.json();
-    assertExists(data.errors);
-  });
-});
-
 Deno.test(
   { name: "Server: accepts valid request body", ...serverTestOpts },
   async () => {
-    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
+    await withServer({}, async (_server, baseUrl) => {
       const response = await fetch(`${baseUrl}/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -374,15 +494,15 @@ Deno.test(
 );
 
 Deno.test(
-  { name: "Server: validates query parameters", ...serverTestOpts },
+  {
+    name: "Server: invalid query param returns mock response by default",
+    ...serverTestOpts,
+  },
   async () => {
-    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-      // Invalid: limit exceeds maximum
+    await withServer({}, async (_server, baseUrl) => {
       const response = await fetch(`${baseUrl}/users?limit=500`);
-      assertEquals(response.status, 400);
-
-      const data = await response.json();
-      assertExists(data.errors);
+      assertEquals(response.status, 200);
+      await response.body?.cancel();
     });
   },
 );
@@ -390,7 +510,7 @@ Deno.test(
 Deno.test(
   { name: "Server: accepts valid query parameters", ...serverTestOpts },
   async () => {
-    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
+    await withServer({}, async (_server, baseUrl) => {
       const response = await fetch(`${baseUrl}/users?limit=50&offset=10`);
       assertEquals(response.status, 200);
       await response.body?.cancel();
@@ -399,20 +519,20 @@ Deno.test(
 );
 
 // =============================================================================
-// Relaxed Mode
+// Default Behavior (always mock when routing succeeds)
 // =============================================================================
 
 Deno.test({
-  name: "Server: relaxed mode returns response despite validation errors",
+  name: "Server: returns mock response despite validation errors by default",
   ...serverTestOpts,
 }, async () => {
-  await withServer({ mode: "relaxed" }, async (_server, baseUrl) => {
-    // Invalid path param, but relaxed mode should still return response
+  await withServer({}, async (_server, baseUrl) => {
+    // Invalid path param — default always returns mock + diagnostic headers
     const response = await fetch(`${baseUrl}/users/not-a-number`);
     assertEquals(response.status, 200);
 
     const data = await response.json();
-    assertExists(data); // Should still get the example response
+    assertExists(data);
   });
 });
 
@@ -465,17 +585,21 @@ Deno.test(
 );
 
 Deno.test(
-  { name: "Server: validates Content-Type on POST", ...serverTestOpts },
+  {
+    name: "Server: wrong Content-Type returns mock with diagnostic headers",
+    ...serverTestOpts,
+  },
   async () => {
-    await withServer({ mode: "strict" }, async (_server, baseUrl) => {
-      // Wrong content-type for JSON body
+    await withServer({}, async (_server, baseUrl) => {
+      // Wrong content-type — default always mocks
       const response = await fetch(`${baseUrl}/users`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ name: "Alice", email: "alice@example.com" }),
       });
 
-      assertEquals(response.status, 400);
+      // Default behavior: mock response + diagnostic headers
+      assertEquals(response.status, 201);
       await response.body?.cancel();
     });
   },
@@ -500,7 +624,6 @@ async function withArrayServer(
   const server = new MockServer(spec, {
     port,
     host: "localhost",
-    mode: "strict",
     verbose: false,
     logLevel: "summary",
     interactive: false,
@@ -693,7 +816,6 @@ async function withQueryPathServer(
   const server = new MockServer(spec, {
     port,
     host: "localhost",
-    mode: "strict",
     verbose: false,
     logLevel: "summary",
     interactive: false,
@@ -777,7 +899,6 @@ async function withSamePatternServer(
   const server = new MockServer(spec, {
     port,
     host: "localhost",
-    mode: "strict",
     verbose: false,
     logLevel: "summary",
     interactive: false,
@@ -843,7 +964,6 @@ async function withCursedQmarkServer(
   const server = new MockServer(spec, {
     port,
     host: "localhost",
-    mode: "strict",
     verbose: false,
     logLevel: "summary",
     interactive: false,
@@ -952,7 +1072,6 @@ async function withCursedClientServer(
   const server = new MockServer(spec, {
     port,
     host: "localhost",
-    mode: "relaxed",
     verbose: false,
     logLevel: "summary",
     interactive: false,
@@ -1051,7 +1170,7 @@ Deno.test({
     "Server: 404 with '?' in query param values includes double-? diagnostic",
   ...serverTestOpts,
 }, async () => {
-  await withServer({ mode: "relaxed" }, async (_server, baseUrl) => {
+  await withServer({}, async (_server, baseUrl) => {
     // Request to a nonexistent path with double-? pattern in query values
     const response = await fetch(
       `${baseUrl}/nonexistent?beta=true?limit=10`,
@@ -1071,7 +1190,7 @@ Deno.test({
   name: "Server: 404 without '?' in query values has no double-? diagnostic",
   ...serverTestOpts,
 }, async () => {
-  await withServer({ mode: "relaxed" }, async (_server, baseUrl) => {
+  await withServer({}, async (_server, baseUrl) => {
     // Normal 404 — no ? in query param values
     const response = await fetch(`${baseUrl}/nonexistent?foo=bar&baz=1`);
     assertEquals(response.status, 404);

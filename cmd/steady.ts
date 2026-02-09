@@ -27,8 +27,7 @@ export async function main() {
       "auto-reload",
       "log-bodies",
       "log",
-      "strict",
-      "relaxed",
+      "reject-on-sdk-error",
       "interactive",
       "validator-strict-oneof",
     ],
@@ -98,10 +97,8 @@ export async function main() {
     Deno.exit(1);
   }
 
-  // Determine mode
-  let mode: "strict" | "relaxed" = "strict";
-  if (args.relaxed) mode = "relaxed";
-  if (args.strict) mode = "strict"; // strict takes precedence
+  // Determine reject-on-sdk-error
+  const rejectOnSdkError = args["reject-on-sdk-error"] ?? false;
 
   // Validate query format args
   const queryArrayFormat = args["validator-query-array-format"] as
@@ -215,7 +212,7 @@ export async function main() {
     logFormat,
     logBodies: args["log-bodies"],
     log: args.log,
-    mode,
+    rejectOnSdkError,
     interactive: args.interactive,
     portOverride,
     host: args.host,
@@ -268,7 +265,7 @@ async function startServer(
     logFormat: LogFormat;
     logBodies: boolean;
     log: boolean;
-    mode: "strict" | "relaxed";
+    rejectOnSdkError: boolean;
     interactive: boolean;
     portOverride?: number;
     host?: string;
@@ -312,7 +309,7 @@ async function startServer(
   const config: ServerConfig = {
     port,
     host: options.host || "localhost",
-    mode: options.mode,
+    rejectOnSdkError: options.rejectOnSdkError,
     verbose: options.log,
     logLevel: options.log ? options.logLevel : "summary",
     logFormat: options.logFormat,
@@ -337,7 +334,7 @@ async function startWithWatch(
     logFormat: LogFormat;
     logBodies: boolean;
     log: boolean;
-    mode: "strict" | "relaxed";
+    rejectOnSdkError: boolean;
     interactive: boolean;
     portOverride?: number;
     host?: string;
@@ -476,8 +473,7 @@ Options:
   --log-format <format>    Output format: text|json (default: text)
   --log-bodies             Show request/response bodies in summary mode
   --no-log                 Disable request logging
-  --strict                 Strict validation mode (default)
-  --relaxed                Relaxed validation mode
+  --reject-on-sdk-error    Return 400 for SDK issues (E3xxx) instead of mock response
   -h, --help               Show this help message
   --version                Show version number
 
@@ -533,7 +529,7 @@ Streaming Options:
   --stream-interval=<n>        Interval between items in ms (default: 100)
 
 Request Headers (per-request overrides):
-  X-Steady-Mode: strict|relaxed   Override validation mode for this request
+  X-Steady-Reject-On-Error: true  Return 400 for SDK issues on this request
   X-Steady-Query-Array-Format     Override array query format for this request
   X-Steady-Query-Object-Format    Override object query format for this request
   X-Steady-Form-Array-Format      Override array form format for this request
@@ -546,7 +542,8 @@ Request Headers (per-request overrides):
   X-Steady-Stream-Interval-Ms: <n>  Interval between streamed items in ms (default: 100)
 
 Response Headers (informational):
-  X-Steady-Mode                   The validation mode used for this request
+  X-Steady-Valid                   Whether the request passed SDK validation
+  X-Steady-Error-Count             Number of diagnostic issues found
   X-Steady-Matched-Path           The OpenAPI path pattern that matched
   X-Steady-Example-Source         How the response was generated (generated|none)
 
@@ -557,7 +554,7 @@ Examples:
   steady --log-level=details api.yaml      # Show detailed logs
   steady --log-format=json api.yaml        # NDJSON output for CI
   steady --log-bodies api.yaml             # Show bodies in summary mode
-  steady --relaxed api.yaml                # Allow validation warnings
+  steady --reject-on-sdk-error api.yaml    # 400 for SDK issues
   steady -r api.yaml                       # Auto-reload on file changes
   steady -i api.yaml                       # Interactive mode with expandable logs
 

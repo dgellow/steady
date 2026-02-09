@@ -38,6 +38,7 @@ interface ResolvedParameter {
 interface BodySchemaInfo {
   schema: Schema;
   schemaPath: string;
+  required: boolean;
 }
 
 // ── Type guards ────────────────────────────────────────────────────
@@ -187,6 +188,7 @@ export class OpenAPISpecDocument {
     return {
       schema: jsonContent.schema,
       schemaPath,
+      required: requestBody.required === true,
     };
   }
 

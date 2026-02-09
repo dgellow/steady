@@ -111,7 +111,7 @@ export interface StartupEvent extends LogEvent {
 
   server: {
     url: string;
-    mode: "strict" | "relaxed";
+    rejectOnSdkError: boolean;
   };
 
   diagnostics: SpecDiagnostic[];

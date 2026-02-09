@@ -59,8 +59,7 @@ Options:
   --log-level <level>     summary | details | full (default: summary)
   --log-bodies            Show request/response bodies
   --log=false             Disable request logging
-  --strict                Reject invalid requests (default)
-  --relaxed               Log warnings but return responses anyway
+  --reject-on-sdk-error   Return 400 for SDK issues instead of mock response
   -h, --help              Show help
 
 Validator Options:
@@ -178,7 +177,7 @@ responses:
 
 ## Request Validation
 
-In `--strict` mode (default), requests are validated against:
+Requests are validated against:
 
 - **Path parameters** - type coercion and schema validation
 - **Query parameters** - required check, type validation
@@ -186,8 +185,9 @@ In `--strict` mode (default), requests are validated against:
 - **Cookies** - required cookies, schema validation
 - **Request body** - JSON Schema validation, content-type check
 
-Invalid requests return 400 with validation errors. In `--relaxed` mode,
-validation errors are logged but responses are still returned.
+By default, validation issues are reported in `X-Steady-*` response headers
+while still returning mock responses. Use `--reject-on-sdk-error` to return 400
+for SDK issues (structural validation failures) instead.
 
 ### Request Headers
 
@@ -195,7 +195,7 @@ Override server behavior for individual requests:
 
 | Header                         | Description                                          |
 | ------------------------------ | ---------------------------------------------------- |
-| `X-Steady-Mode`                | Override validation mode: `strict` or `relaxed`      |
+| `X-Steady-Reject-On-Error`     | `true` to return 400 for SDK issues on this request  |
 | `X-Steady-Query-Array-Format`  | Override array query param serialization format      |
 | `X-Steady-Query-Object-Format` | Override object query param serialization format     |
 | `X-Steady-Form-Array-Format`   | Override array form field serialization format       |
@@ -208,8 +208,8 @@ Override server behavior for individual requests:
 | `X-Steady-Stream-Interval-Ms`  | Interval between streamed items in ms (default: 100) |
 
 ```bash
-# Force strict validation
-curl -H "X-Steady-Mode: strict" http://localhost:3000/users
+# Reject SDK issues for this request
+curl -H "X-Steady-Reject-On-Error: true" http://localhost:3000/users
 
 # Request 50 items in arrays
 curl -H "X-Steady-Array-Size: 50" http://localhost:3000/users
@@ -227,7 +227,8 @@ Informational headers returned by the server:
 
 | Header                    | Description                                           |
 | ------------------------- | ----------------------------------------------------- |
-| `X-Steady-Mode`           | The validation mode used for this request             |
+| `X-Steady-Valid`          | Whether the request passed SDK validation             |
+| `X-Steady-Error-Count`    | Number of diagnostic issues found                     |
 | `X-Steady-Matched-Path`   | The OpenAPI path pattern that matched                 |
 | `X-Steady-Example-Source` | How the response was generated: `generated` or `none` |
 | `X-Steady-Streaming`      | Set to `true` for streaming responses                 |

@@ -42,6 +42,8 @@ import {
   type AnalyzeRequest,
 } from "./engine/diagnostic-engine.ts";
 import type { Diagnostic as EngineDiagnostic } from "./diagnostic.ts";
+import { SessionStore } from "./session/store.ts";
+import { handleSessionRequest } from "./session/endpoints.ts";
 import {
   compilePathPattern,
   matchCompiledPath,
@@ -129,6 +131,7 @@ export class MockServer {
   private validator: RequestValidator;
   private diagnosticCollector: DiagnosticCollector;
   private diagnosticEngine: DiagnosticEngine;
+  private sessionStore: SessionStore;
   private serverFinished: Promise<void> | null = null;
   private startTime: Date = new Date();
   private requestCount = 0;
@@ -148,6 +151,7 @@ export class MockServer {
 
     this.abortController = new AbortController();
     this.diagnosticCollector = new DiagnosticCollector();
+    this.sessionStore = new SessionStore();
 
     // Create logger based on mode and format
     if (config.interactive) {
@@ -322,7 +326,7 @@ export class MockServer {
       },
       server: {
         url: `http://${this.config.host}:${this.config.port}`,
-        mode: this.config.mode,
+        rejectOnSdkError: this.config.rejectOnSdkError ?? false,
       },
       diagnostics: diagnostics.map((d) => ({
         severity: d.severity,
@@ -381,8 +385,13 @@ export class MockServer {
       return this.handleSpec();
     }
 
-    // Determine effective mode: header override or server default
-    const effectiveMode = this.getEffectiveMode(req);
+    if (path.startsWith("/_x-steady/sessions/") && method === "get") {
+      const sessionId = path.slice("/_x-steady/sessions/".length);
+      return handleSessionRequest(sessionId, this.sessionStore);
+    }
+
+    // Check if request should reject on SDK errors
+    const rejectOnSdkError = this.getRejectOnSdkError(req);
 
     try {
       const {
@@ -413,8 +422,22 @@ export class MockServer {
         validation.requestBody,
       );
 
-      // If validation failed in strict mode, return error
-      if (!validation.valid && effectiveMode === "strict") {
+      // Track session if X-Steady-Session header present
+      const sessionId = req.headers.get("X-Steady-Session");
+      if (sessionId) {
+        this.sessionStore.addRequest(
+          sessionId,
+          method,
+          path,
+          engineDiagnostics,
+        );
+      }
+
+      // If --reject-on-sdk-error is active and engine found SDK issues, return 400
+      const hasSdkIssues = engineDiagnostics.some(
+        (d) => d.category === "sdk-issue",
+      );
+      if (hasSdkIssues && rejectOnSdkError) {
         this.failedCount++;
         const timing = Math.round(performance.now() - startTime);
 
@@ -430,7 +453,7 @@ export class MockServer {
           validation,
         );
 
-        return new Response(
+        const errorResponse = new Response(
           JSON.stringify({
             error: "Validation failed",
             errors: validation.errors,
@@ -450,10 +473,10 @@ export class MockServer {
             status: 400,
             headers: {
               "Content-Type": "application/json",
-              [HEADERS.MODE]: effectiveMode,
             },
           },
         );
+        return this.addDiagnosticHeaders(errorResponse, engineDiagnostics);
       }
 
       const generatorOptions = this.getEffectiveGeneratorOptions(req);
@@ -493,8 +516,8 @@ export class MockServer {
         responseBody,
       );
 
-      // Add mode header to response
-      return this.addModeHeader(response, effectiveMode);
+      // Add diagnostic headers to response
+      return this.addDiagnosticHeaders(response, engineDiagnostics);
     } catch (error) {
       const timing = Math.round(performance.now() - startTime);
       this.requestCount++;
@@ -504,7 +527,27 @@ export class MockServer {
         // Log 404 error
         this.logRequestEvent(req, path, path, method, 404, "Not Found", timing);
 
-        // Check for double-? URL construction bug
+        // Run the diagnostics engine — produces E2001/E2002 with enrichment
+        const engineDiagnostics = this.runDiagnosticEngine(
+          path,
+          method,
+          url.searchParams,
+          req.headers,
+          undefined,
+        );
+
+        // Track session if X-Steady-Session header present
+        const sessionId = req.headers.get("X-Steady-Session");
+        if (sessionId) {
+          this.sessionStore.addRequest(
+            sessionId,
+            method,
+            path,
+            engineDiagnostics,
+          );
+        }
+
+        // Check for double-? URL construction bug (old diagnostics for collector)
         const diagnostics = this.detectDoubleQuestionMark(url, path, method);
         if (diagnostics.length > 0) {
           this.diagnosticCollector.addRuntimeDiagnostics(diagnostics, false);
@@ -523,13 +566,14 @@ export class MockServer {
           }));
         }
 
-        return new Response(
+        const notFoundResponse = new Response(
           JSON.stringify(responseBody),
           {
             status: 404,
             headers: { "Content-Type": "application/json" },
           },
         );
+        return this.addDiagnosticHeaders(notFoundResponse, engineDiagnostics);
       }
 
       // Log 500 error
@@ -544,13 +588,14 @@ export class MockServer {
       );
       console.error(error);
 
-      return new Response(
+      const serverError = new Response(
         JSON.stringify({ error: "Internal server error" }),
         {
           status: 500,
           headers: { "Content-Type": "application/json" },
         },
       );
+      return this.addDiagnosticHeaders(serverError, []);
     }
   }
 
@@ -1206,15 +1251,14 @@ export class MockServer {
   }
 
   /**
-   * Get effective validation mode for a request.
-   * X-Steady-Mode header overrides server default.
+   * Whether to reject requests that have SDK issues (E3xxx diagnostics).
+   * X-Steady-Reject-On-Error header overrides the server default.
    */
-  private getEffectiveMode(req: Request): "strict" | "relaxed" {
-    const headerValue = req.headers.get(HEADERS.MODE);
-    if (headerValue === "strict" || headerValue === "relaxed") {
-      return headerValue;
-    }
-    return this.config.mode;
+  private getRejectOnSdkError(req: Request): boolean {
+    const headerValue = req.headers.get(HEADERS.REJECT_ON_ERROR);
+    if (headerValue === "true") return true;
+    if (headerValue === "false") return false;
+    return this.config.rejectOnSdkError ?? false;
   }
 
   /**
@@ -1303,15 +1347,26 @@ export class MockServer {
   }
 
   /**
-   * Add X-Steady-Mode header to a response.
-   * Creates a new Response since headers are immutable.
+   * Add X-Steady-* diagnostic headers to a response.
+   * X-Steady-Valid is false when any sdk-issue diagnostic is present.
    */
-  private addModeHeader(
+  private addDiagnosticHeaders(
     response: Response,
-    mode: "strict" | "relaxed",
+    diagnostics: EngineDiagnostic[],
   ): Response {
     const newHeaders = new Headers(response.headers);
-    newHeaders.set(HEADERS.MODE, mode);
+    const hasSdkIssues = diagnostics.some((d) => d.category === "sdk-issue");
+
+    newHeaders.set("X-Steady-Valid", hasSdkIssues ? "false" : "true");
+    newHeaders.set("X-Steady-Error-Count", String(diagnostics.length));
+
+    diagnostics.forEach((d, i) => {
+      const n = i + 1;
+      newHeaders.set(`X-Steady-Error-${n}-Code`, d.code);
+      newHeaders.set(`X-Steady-Error-${n}-Path`, d.requestPath);
+      newHeaders.set(`X-Steady-Error-${n}-Message`, d.message);
+    });
+
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,

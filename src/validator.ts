@@ -82,9 +82,9 @@ const MAX_BODY_SIZE = 10 * 1024 * 1024;
  * Validates incoming requests against OpenAPI operation specifications.
  *
  * Uses the document-centric SchemaRegistry for proper $ref resolution.
- * The validator always reports all issues found as errors. The server decides
- * whether to reject requests based on the effective mode (strict/relaxed),
- * which can be overridden per-request via the X-Steady-Mode header.
+ * The validator always reports all issues found as errors. The server uses
+ * the diagnostic engine to decide whether to reject requests based on
+ * SDK issue attribution.
  */
 export interface RequestValidatorOptions extends RegistryValidatorOptions {
   queryArrayFormat?: QueryArrayFormat;

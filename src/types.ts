@@ -19,8 +19,8 @@ export const DEFAULT_PORT = 3000;
  */
 export const HEADERS = {
   // Request headers (clients can send these to override behavior)
-  /** Override validation mode: "strict" | "relaxed" */
-  MODE: "X-Steady-Mode",
+  /** When "true", E3xxx (sdk-issue) diagnostics cause 400 instead of mock response */
+  REJECT_ON_ERROR: "X-Steady-Reject-On-Error",
   /** Override array query param format */
   QUERY_ARRAY_FORMAT: "X-Steady-Query-Array-Format",
   /** Override object query param format */
@@ -227,7 +227,7 @@ export interface StreamingConfig {
 export interface ServerConfig {
   port: number;
   host: string;
-  mode: "strict" | "relaxed";
+  rejectOnSdkError?: boolean;
   verbose: boolean;
   logLevel: LogLevel;
   logFormat?: "text" | "json";

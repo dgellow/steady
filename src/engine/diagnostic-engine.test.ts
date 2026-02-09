@@ -253,7 +253,7 @@ Deno.test("DiagnosticEngine", async (t) => {
     });
 
     const spec = new StubSpec({ "/users": { post: OP } });
-    spec.bodySchema = { schema: bodySchema, schemaPath: bodySchemaPath };
+    spec.bodySchema = { schema: bodySchema, schemaPath: bodySchemaPath, required: true };
     spec.schemas.set(leafSchemaPath, {});
 
     const engine = new DiagnosticEngine(spec, validator);
@@ -278,11 +278,46 @@ Deno.test("DiagnosticEngine", async (t) => {
     assertEquals(result.length, 0);
   });
 
+  await t.step("required body missing → E3005", () => {
+    const spec = new StubSpec({ "/users": { post: OP } });
+    spec.bodySchema = {
+      schema: { type: "object" },
+      schemaPath: "#/paths/~1users/post/requestBody/...",
+      required: true,
+    };
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    // No body in request
+    const result = engine.analyze({ path: "/users", method: "post" });
+
+    assertEquals(result.length, 1);
+    assertEquals(result[0]!.code, "E3005");
+    assertEquals(result[0]!.category, "sdk-issue");
+  });
+
+  await t.step(
+    "optional body missing → no diagnostics",
+    () => {
+      const spec = new StubSpec({ "/users": { post: OP } });
+      spec.bodySchema = {
+        schema: { type: "object" },
+        schemaPath: "#/paths/~1users/post/requestBody/...",
+        required: false,
+      };
+      const engine = new DiagnosticEngine(spec, new StubValidator());
+
+      const result = engine.analyze({ path: "/users", method: "post" });
+
+      assertEquals(result.length, 0);
+    },
+  );
+
   await t.step("body schema but no body in request → no diagnostics", () => {
     const spec = new StubSpec({ "/users": { post: OP } });
     spec.bodySchema = {
       schema: { type: "object" },
       schemaPath: "#/paths/~1users/post/requestBody/...",
+      required: false,
     };
     const engine = new DiagnosticEngine(spec, new StubValidator());
 
@@ -321,6 +356,7 @@ Deno.test("DiagnosticEngine", async (t) => {
     spec.bodySchema = {
       schema: { type: "object" },
       schemaPath: bodySchemaPath,
+      required: true,
     };
     spec.schemas.set(leafSchemaPath, { pattern: "^.+@.+$" });
 
@@ -336,6 +372,143 @@ Deno.test("DiagnosticEngine", async (t) => {
     assertEquals(result[0]!.code, "E3004"); // missing header
     assertEquals(result[1]!.code, "E4002"); // pattern mismatch
   });
+
+  // ── Parameter value validation ──────────────────────────────────
+
+  await t.step(
+    "present query param with schema: validation failure → diagnostic",
+    () => {
+      const paramSchemaPath = "#/paths/~1users/get/parameters/0/schema";
+
+      const validator = new StubValidator();
+      validator.register(paramSchemaPath, {
+        valid: false,
+        path: "query.limit",
+        schemaPath: paramSchemaPath,
+        keyword: "type",
+        expected: "integer",
+        actual: "string",
+      });
+
+      const spec = new StubSpec({ "/users": { get: OP } });
+      spec.parameters = [
+        {
+          name: "limit",
+          in: "query",
+          required: true,
+          schema: { type: "integer" },
+          schemaPath: paramSchemaPath,
+        },
+      ];
+      spec.schemas.set(paramSchemaPath, { type: "integer" });
+
+      const engine = new DiagnosticEngine(spec, validator);
+      const queryParams = new URLSearchParams();
+      queryParams.set("limit", "abc");
+
+      const result = engine.analyze({
+        path: "/users",
+        method: "get",
+        queryParams,
+      });
+
+      assertEquals(result.length, 1);
+      assertEquals(result[0]!.code, "E3003");
+    },
+  );
+
+  await t.step(
+    "present query param with no schema → no value validation",
+    () => {
+      const spec = new StubSpec({ "/users": { get: OP } });
+      spec.parameters = [
+        {
+          name: "limit",
+          in: "query",
+          required: true,
+          schema: null,
+          schemaPath: null,
+        },
+      ];
+      const engine = new DiagnosticEngine(spec, new StubValidator());
+
+      const queryParams = new URLSearchParams();
+      queryParams.set("limit", "abc");
+
+      const result = engine.analyze({
+        path: "/users",
+        method: "get",
+        queryParams,
+      });
+
+      assertEquals(result.length, 0);
+    },
+  );
+
+  await t.step(
+    "present header param with schema: validation failure → diagnostic",
+    () => {
+      const paramSchemaPath = "#/paths/~1users/get/parameters/0/schema";
+
+      const validator = new StubValidator();
+      validator.register(paramSchemaPath, {
+        valid: false,
+        path: "header.X-Count",
+        schemaPath: paramSchemaPath,
+        keyword: "enum",
+        actual: "bad",
+        expected: ["a", "b"],
+      });
+
+      const spec = new StubSpec({ "/users": { get: OP } });
+      spec.parameters = [
+        {
+          name: "X-Count",
+          in: "header",
+          required: false,
+          schema: { enum: ["a", "b"] },
+          schemaPath: paramSchemaPath,
+        },
+      ];
+      spec.schemas.set(paramSchemaPath, { enum: ["a", "b"] });
+
+      const engine = new DiagnosticEngine(spec, validator);
+
+      const result = engine.analyze({
+        path: "/users",
+        method: "get",
+        headers: { "x-count": "bad" },
+      });
+
+      assertEquals(result.length, 1);
+      assertEquals(result[0]!.code, "E3016");
+    },
+  );
+
+  await t.step(
+    "missing required param skips value validation (only E3002)",
+    () => {
+      const paramSchemaPath = "#/paths/~1users/get/parameters/0/schema";
+
+      const spec = new StubSpec({ "/users": { get: OP } });
+      spec.parameters = [
+        {
+          name: "limit",
+          in: "query",
+          required: true,
+          schema: { type: "integer" },
+          schemaPath: paramSchemaPath,
+        },
+      ];
+      const engine = new DiagnosticEngine(spec, new StubValidator());
+
+      // No queryParams at all — param is missing
+      const result = engine.analyze({ path: "/users", method: "get" });
+
+      assertEquals(result.length, 1);
+      assertEquals(result[0]!.code, "E3002");
+    },
+  );
 
   // ── Valid request ───────────────────────────────────────────────
 

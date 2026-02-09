@@ -1,5 +1,5 @@
-import { assertEquals } from "@std/assert";
-import type { CompositionContext, InterpretResult } from "../types.ts";
+import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
+import type { CompositionContext } from "../types.ts";
 import type { Diagnostic } from "../../diagnostic.ts";
 import { analyzeAllFailed } from "./variant-analysis.ts";
 
@@ -17,12 +17,15 @@ function makeDiag(
   };
 }
 
-function makeContext(): CompositionContext {
+function makeContext(
+  overrides?: Partial<CompositionContext>,
+): CompositionContext {
   return {
     path: "body",
     schemaPath: "#/oneOf",
     schema: {},
     data: {},
+    ...overrides,
   };
 }
 
@@ -30,158 +33,353 @@ Deno.test("analyzeAllFailed", async (t) => {
   await t.step(
     "one variant has fewer structural failures → identifies it as likely",
     () => {
-      const childResults: InterpretResult[] = [
-        {
-          // Variant 0: 1 structural failure
-          diagnostics: [makeDiag({ code: "E3007", requestPath: "body.file" })],
-          structurallyValid: false,
-          structuralFailureCount: 1,
-        },
-        {
-          // Variant 1: 3 structural failures
-          diagnostics: [
-            makeDiag({ code: "E3007", requestPath: "body.url" }),
-            makeDiag({ code: "E3007", requestPath: "body.account" }),
-            makeDiag({ code: "E3008", requestPath: "body.name" }),
-          ],
-          structurallyValid: false,
-          structuralFailureCount: 3,
-        },
-      ];
+      // 1 vs 3 failures: gap=2, confidence = 0.5 + 0.3*(2/3) ≈ 0.7
+      const result = analyzeAllFailed(
+        [
+          {
+            diagnostics: [
+              makeDiag({ code: "E3007", requestPath: "body.file" }),
+            ],
+            structurallyValid: false,
+            structuralFailureCount: 1,
+          },
+          {
+            diagnostics: [
+              makeDiag({ code: "E3007", requestPath: "body.url" }),
+              makeDiag({ code: "E3007", requestPath: "body.account" }),
+              makeDiag({ code: "E3008", requestPath: "body.name" }),
+            ],
+            structurallyValid: false,
+            structuralFailureCount: 3,
+          },
+        ],
+        makeContext(),
+      );
 
-      const result = analyzeAllFailed(childResults, makeContext());
-
-      assertEquals(result.diagnostics.length, 1);
-      assertEquals(result.diagnostics[0]!.code, "E3007");
-      assertEquals(result.diagnostics[0]!.requestPath, "body.file");
-      assertEquals(result.structurallyValid, false);
-      assertEquals(
-        result.diagnostics[0]!.attribution.reasoning[0],
-        "Likely variant 0 (fewest structural failures)",
+      assertInlineSnapshot(
+        result,
+        `{
+  diagnostics: [
+    {
+      attribution: {
+        confidence: 0.7,
+        reasoning: [
+          "Likely variant 0 (fewest structural failures)",
+          "test",
+        ],
+      },
+      category: "sdk-issue",
+      code: "E3007",
+      message: "test",
+      requestPath: "body.file",
+      severity: "error",
+      specPointer: "#/test",
+    },
+  ],
+  structuralFailureCount: 1,
+  structurallyValid: false,
+}`,
       );
     },
   );
 
   await t.step("equal structural failures → E3012 ambiguous", () => {
-    const childResults: InterpretResult[] = [
-      {
-        diagnostics: [makeDiag({ code: "E3007", requestPath: "body.file" })],
-        structurallyValid: false,
-        structuralFailureCount: 1,
+    const result = analyzeAllFailed(
+      [
+        {
+          diagnostics: [makeDiag({ code: "E3007", requestPath: "body.file" })],
+          structurallyValid: false,
+          structuralFailureCount: 1,
+        },
+        {
+          diagnostics: [makeDiag({ code: "E3007", requestPath: "body.url" })],
+          structurallyValid: false,
+          structuralFailureCount: 1,
+        },
+      ],
+      makeContext(),
+    );
+
+    assertInlineSnapshot(
+      result,
+      `{
+  diagnostics: [
+    {
+      attribution: {
+        confidence: 0.5,
+        reasoning: [
+          "Variant 0: 1 structural failure(s), 1 total",
+          "Variant 1: 1 structural failure(s), 1 total",
+        ],
       },
-      {
-        diagnostics: [makeDiag({ code: "E3007", requestPath: "body.url" })],
-        structurallyValid: false,
-        structuralFailureCount: 1,
-      },
-    ];
-
-    const result = analyzeAllFailed(childResults, makeContext());
-
-    assertEquals(result.diagnostics.length, 1);
-    assertEquals(result.diagnostics[0]!.code, "E3012");
-    assertEquals(result.diagnostics[0]!.category, "ambiguous");
-    assertEquals(result.structurallyValid, false);
-  });
-
-  await t.step("E3012 uses context path and schemaPath", () => {
-    const context: CompositionContext = {
-      path: "body.payment",
-      schemaPath: "#/components/schemas/Payment/oneOf",
-      schema: {},
-      data: {},
-    };
-
-    const childResults: InterpretResult[] = [
-      {
-        diagnostics: [makeDiag({ code: "E3007" })],
-        structurallyValid: false,
-        structuralFailureCount: 1,
-      },
-      {
-        diagnostics: [makeDiag({ code: "E3007" })],
-        structurallyValid: false,
-        structuralFailureCount: 1,
-      },
-    ];
-
-    const result = analyzeAllFailed(childResults, context);
-
-    assertEquals(result.diagnostics[0]!.requestPath, "body.payment");
-    assertEquals(
-      result.diagnostics[0]!.specPointer,
-      "#/components/schemas/Payment/oneOf",
+      category: "ambiguous",
+      code: "E3012",
+      message: "No variant matched: 2 variants all failed structurally",
+      requestPath: "body",
+      severity: "warning",
+      specPointer: "#/oneOf",
+    },
+  ],
+  structuralFailureCount: 0,
+  structurallyValid: false,
+}`,
     );
   });
 
-  await t.step("E3012 includes per-variant details in reasoning", () => {
-    const childResults: InterpretResult[] = [
-      {
-        diagnostics: [makeDiag({ code: "E3007" })],
-        structurallyValid: false,
-        structuralFailureCount: 1,
-      },
-      {
-        diagnostics: [makeDiag({ code: "E3007" })],
-        structurallyValid: false,
-        structuralFailureCount: 1,
-      },
-    ];
+  await t.step("E3012 uses context path and schemaPath", () => {
+    const result = analyzeAllFailed(
+      [
+        {
+          diagnostics: [makeDiag({ code: "E3007" })],
+          structurallyValid: false,
+          structuralFailureCount: 1,
+        },
+        {
+          diagnostics: [makeDiag({ code: "E3007" })],
+          structurallyValid: false,
+          structuralFailureCount: 1,
+        },
+      ],
+      makeContext({
+        path: "body.payment",
+        schemaPath: "#/components/schemas/Payment/oneOf",
+      }),
+    );
 
-    const result = analyzeAllFailed(childResults, makeContext());
-
-    const reasoning = result.diagnostics[0]!.attribution.reasoning;
-    assertEquals(reasoning.length, 2);
-    assertEquals(reasoning[0]!.startsWith("Variant 0:"), true);
-    assertEquals(reasoning[1]!.startsWith("Variant 1:"), true);
+    assertInlineSnapshot(
+      result,
+      `{
+  diagnostics: [
+    {
+      attribution: {
+        confidence: 0.5,
+        reasoning: [
+          "Variant 0: 1 structural failure(s), 1 total",
+          "Variant 1: 1 structural failure(s), 1 total",
+        ],
+      },
+      category: "ambiguous",
+      code: "E3012",
+      message: "No variant matched: 2 variants all failed structurally",
+      requestPath: "body.payment",
+      severity: "warning",
+      specPointer: "#/components/schemas/Payment/oneOf",
+    },
+  ],
+  structuralFailureCount: 0,
+  structurallyValid: false,
+}`,
+    );
   });
 
   await t.step("single variant → returns its diagnostics", () => {
-    const childResults: InterpretResult[] = [
-      {
-        diagnostics: [
-          makeDiag({ code: "E3007", requestPath: "body.file" }),
-          makeDiag({ code: "E3008", requestPath: "body.name" }),
+    const result = analyzeAllFailed(
+      [
+        {
+          diagnostics: [
+            makeDiag({ code: "E3007", requestPath: "body.file" }),
+            makeDiag({ code: "E3008", requestPath: "body.name" }),
+          ],
+          structurallyValid: false,
+          structuralFailureCount: 2,
+        },
+      ],
+      makeContext(),
+    );
+
+    assertInlineSnapshot(
+      result,
+      `{
+  diagnostics: [
+    {
+      attribution: {
+        confidence: 0.9,
+        reasoning: [
+          "test",
         ],
-        structurallyValid: false,
-        structuralFailureCount: 2,
       },
-    ];
-
-    const result = analyzeAllFailed(childResults, makeContext());
-
-    assertEquals(result.diagnostics.length, 2);
-    assertEquals(result.structurallyValid, false);
+      category: "sdk-issue",
+      code: "E3007",
+      message: "test",
+      requestPath: "body.file",
+      severity: "error",
+      specPointer: "#/test",
+    },
+    {
+      attribution: {
+        confidence: 0.9,
+        reasoning: [
+          "test",
+        ],
+      },
+      category: "sdk-issue",
+      code: "E3008",
+      message: "test",
+      requestPath: "body.name",
+      severity: "error",
+      specPointer: "#/test",
+    },
+  ],
+  structuralFailureCount: 2,
+  structurallyValid: false,
+}`,
+    );
   });
+
+  await t.step(
+    "property overlap identifies variant when failure counts are equal",
+    () => {
+      // CardPayment has card_number, BankPayment has account_number.
+      // Request has card_number → overlap identifies CardPayment.
+      // Both have 1 structural failure, so failure count alone is ambiguous.
+      // 1 key exclusive to variant 0: confidence = 0.5 + 0.4*(1/1) = 0.9
+      const result = analyzeAllFailed(
+        [
+          {
+            diagnostics: [
+              makeDiag({ code: "E3007", requestPath: "body.expiry" }),
+            ],
+            structurallyValid: false,
+            structuralFailureCount: 1,
+          },
+          {
+            diagnostics: [
+              makeDiag({ code: "E3007", requestPath: "body.routing" }),
+            ],
+            structurallyValid: false,
+            structuralFailureCount: 1,
+          },
+        ],
+        makeContext({
+          schema: {
+            oneOf: [
+              {
+                type: "object",
+                properties: {
+                  card_number: { type: "string" },
+                  expiry: { type: "string" },
+                },
+              },
+              {
+                type: "object",
+                properties: {
+                  account_number: { type: "string" },
+                  routing: { type: "string" },
+                },
+              },
+            ],
+          },
+          data: { card_number: "4111111111111111" },
+        }),
+      );
+
+      assertInlineSnapshot(
+        result,
+        `{
+  diagnostics: [
+    {
+      attribution: {
+        confidence: 0.9,
+        reasoning: [
+          "Likely variant 0 (property overlap)",
+          "test",
+        ],
+      },
+      category: "sdk-issue",
+      code: "E3007",
+      message: "test",
+      requestPath: "body.expiry",
+      severity: "error",
+      specPointer: "#/test",
+    },
+  ],
+  structuralFailureCount: 1,
+  structurallyValid: false,
+}`,
+      );
+    },
+  );
 
   await t.step("uses structuralFailureCount, not diagnostic category", () => {
     // Variant 0: 1 structural failure but 3 diagnostics (2 are content/ambiguous)
     // Variant 1: 2 structural failures
-    // If we counted by category, variant 0 might look worse. But structuralFailureCount is correct.
-    const childResults: InterpretResult[] = [
-      {
-        diagnostics: [
-          makeDiag({ code: "E3007" }),
-          makeDiag({ code: "E5001", category: "ambiguous" }), // ambiguous, but type=structural
-          makeDiag({ code: "E4002", category: "content-note" }),
-        ],
-        structurallyValid: false,
-        structuralFailureCount: 1, // Only 1 structural failure despite 3 diagnostics
-      },
-      {
-        diagnostics: [
-          makeDiag({ code: "E3007" }),
-          makeDiag({ code: "E3008" }),
-        ],
-        structurallyValid: false,
-        structuralFailureCount: 2,
-      },
-    ];
+    // 1 vs 2 failures: gap=1, confidence = 0.5 + 0.3*(1/2) = 0.65
+    const result = analyzeAllFailed(
+      [
+        {
+          diagnostics: [
+            makeDiag({ code: "E3007" }),
+            makeDiag({ code: "E5001", category: "ambiguous" }),
+            makeDiag({ code: "E4002", category: "content-note" }),
+          ],
+          structurallyValid: false,
+          structuralFailureCount: 1,
+        },
+        {
+          diagnostics: [
+            makeDiag({ code: "E3007" }),
+            makeDiag({ code: "E3008" }),
+          ],
+          structurallyValid: false,
+          structuralFailureCount: 2,
+        },
+      ],
+      makeContext(),
+    );
 
-    const result = analyzeAllFailed(childResults, makeContext());
-
-    // Variant 0 has fewer structural failures (1 vs 2)
-    assertEquals(result.diagnostics.length, 3); // variant 0's diagnostics
-    assertEquals(result.structurallyValid, false);
+    assertInlineSnapshot(
+      result,
+      `{
+  diagnostics: [
+    {
+      attribution: {
+        confidence: 0.65,
+        reasoning: [
+          "Likely variant 0 (fewest structural failures)",
+          "test",
+        ],
+      },
+      category: "sdk-issue",
+      code: "E3007",
+      message: "test",
+      requestPath: "body",
+      severity: "error",
+      specPointer: "#/test",
+    },
+    {
+      attribution: {
+        confidence: 0.65,
+        reasoning: [
+          "Likely variant 0 (fewest structural failures)",
+          "test",
+        ],
+      },
+      category: "ambiguous",
+      code: "E5001",
+      message: "test",
+      requestPath: "body",
+      severity: "error",
+      specPointer: "#/test",
+    },
+    {
+      attribution: {
+        confidence: 0.65,
+        reasoning: [
+          "Likely variant 0 (fewest structural failures)",
+          "test",
+        ],
+      },
+      category: "content-note",
+      code: "E4002",
+      message: "test",
+      requestPath: "body",
+      severity: "error",
+      specPointer: "#/test",
+    },
+  ],
+  structuralFailureCount: 1,
+  structurallyValid: false,
+}`,
+    );
   });
 });

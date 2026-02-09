@@ -33,10 +33,10 @@ Deno.test("attributeLeafCode", async (t) => {
     );
   });
 
-  await t.step("type in header → E3005", () => {
+  await t.step("type in header → E3008", () => {
     assertEquals(
       attributeLeafCode(makeNode({ keyword: "type" }), EMPTY_SCHEMA, "header"),
-      "E3005",
+      "E3008",
     );
   });
 

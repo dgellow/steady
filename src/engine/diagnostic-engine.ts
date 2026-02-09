@@ -16,7 +16,7 @@
 
 import type { Schema } from "@steady/json-schema";
 import type { PathsObject } from "@steady/openapi";
-import type { Diagnostic } from "../diagnostic.ts";
+import type { Diagnostic, DiagnosticLocation } from "../diagnostic.ts";
 import type { SpecResolver, ValidationNode } from "./types.ts";
 import { getCode } from "../codes/registry.ts";
 import { matchRoute } from "./routing.ts";
@@ -70,6 +70,8 @@ export interface BodySchemaInfo {
   schema: Schema;
   /** JSON pointer to the body schema in the spec. */
   schemaPath: string;
+  /** Whether the request body is required (requestBody.required in OpenAPI). */
+  required: boolean;
 }
 
 /** Validates data against a JSON Schema, producing a validation tree. */
@@ -136,36 +138,75 @@ export class DiagnosticEngine {
       );
     }
 
-    // 3. Parameter presence checking
+    // 3. Parameter presence + value validation
     const parameters = this.spec.getParameters(pathPattern, method);
     for (const param of parameters) {
-      if (!param.required) continue;
+      const present = isParameterPresent(param, request);
 
-      if (!isParameterPresent(param, request)) {
-        diagnostics.push(
-          createMissingParamDiagnostic(param, pathPattern),
-        );
+      if (!present) {
+        if (param.required) {
+          diagnostics.push(
+            createMissingParamDiagnostic(param, pathPattern),
+          );
+        }
+        continue;
+      }
+
+      // Value validation: if param has a schema and is present, validate
+      if (param.schema && param.schemaPath) {
+        const rawValue = getParameterValue(param, request);
+        if (rawValue !== undefined) {
+          const coerced = coerceParameterValue(rawValue, param.schema);
+          const location: DiagnosticLocation = param.in;
+          const dataPath = `${param.in}.${param.name}`;
+
+          const tree = this.validator.validate(
+            coerced,
+            param.schema,
+            param.schemaPath,
+            dataPath,
+          );
+
+          if (!tree.valid) {
+            const result = interpret(
+              tree,
+              this.specResolver,
+              location,
+              coerced,
+            );
+            diagnostics.push(...result.diagnostics);
+          }
+        }
       }
     }
 
     // 4. Body validation
     const bodyInfo = this.spec.getBodySchema(pathPattern, method);
-    if (bodyInfo && request.body !== undefined) {
-      const tree = this.validator.validate(
-        request.body,
-        bodyInfo.schema,
-        bodyInfo.schemaPath,
-        "body",
-      );
-
-      if (!tree.valid) {
-        const result = interpret(
-          tree,
-          this.specResolver,
-          "body",
+    if (bodyInfo) {
+      if (request.body === undefined) {
+        // Body not provided — E3005 if required, skip validation otherwise
+        if (bodyInfo.required) {
+          diagnostics.push(
+            createMissingBodyDiagnostic(pathPattern, method),
+          );
+        }
+      } else {
+        const tree = this.validator.validate(
           request.body,
+          bodyInfo.schema,
+          bodyInfo.schemaPath,
+          "body",
         );
-        diagnostics.push(...result.diagnostics);
+
+        if (!tree.valid) {
+          const result = interpret(
+            tree,
+            this.specResolver,
+            "body",
+            request.body,
+          );
+          diagnostics.push(...result.diagnostics);
+        }
       }
     }
 
@@ -240,6 +281,31 @@ function createMissingParamDiagnostic(
 }
 
 /**
+ * Create an E3005 diagnostic for a missing required request body.
+ */
+function createMissingBodyDiagnostic(
+  pathPattern: string,
+  method: string,
+): Diagnostic {
+  const e3005 = getCode("E3005");
+
+  return {
+    code: "E3005",
+    severity: e3005.severity,
+    category: e3005.category,
+    requestPath: "body",
+    specPointer: `#/paths/${escapeJsonPointer(pathPattern)}/${method}/requestBody`,
+    message: `Operation ${method.toUpperCase()} ${pathPattern} requires a request body`,
+    attribution: {
+      confidence: 0.95,
+      reasoning: [
+        "requestBody.required is true in the spec, but no body was sent",
+      ],
+    },
+  };
+}
+
+/**
  * Create an E1010 diagnostic for an operation with no response definitions.
  *
  * TODO: `requestPath` is meant to point at a location in the request (e.g.,
@@ -271,4 +337,67 @@ function createMissingResponsesDiagnostic(
 
 function escapeJsonPointer(path: string): string {
   return path.replace(/~/g, "~0").replace(/\//g, "~1");
+}
+
+// ── Parameter value extraction ──────────────────────────────────────
+
+/**
+ * Extract the raw string value of a parameter from the request.
+ * Returns undefined if the parameter is not present.
+ */
+function getParameterValue(
+  param: ResolvedParameter,
+  request: AnalyzeRequest,
+): string | undefined {
+  switch (param.in) {
+    case "query":
+      return request.queryParams?.get(param.name) ?? undefined;
+
+    case "header": {
+      if (!request.headers) return undefined;
+      const lowerName = param.name.toLowerCase();
+      for (const [key, value] of Object.entries(request.headers)) {
+        if (key.toLowerCase() === lowerName) return value;
+      }
+      return undefined;
+    }
+
+    case "path":
+      // Path param values not yet available in AnalyzeRequest
+      return undefined;
+
+    case "cookie":
+      return undefined;
+  }
+}
+
+/**
+ * Coerce a raw HTTP parameter string into the type expected by the schema.
+ *
+ * HTTP parameters are always strings. When the schema expects integer,
+ * number, or boolean, the engine must parse the string before validation.
+ * If parsing fails, the raw string is returned — the validator will
+ * produce the type mismatch diagnostic.
+ */
+function coerceParameterValue(raw: string, schema: Schema): unknown {
+  if (typeof schema === "boolean") return raw;
+
+  const schemaType = schema.type;
+
+  if (schemaType === "integer" || schemaType === "number") {
+    const num = Number(raw);
+    if (!Number.isNaN(num)) {
+      if (schemaType === "integer" && Number.isInteger(num)) return num;
+      if (schemaType === "number") return num;
+    }
+    return raw;
+  }
+
+  if (schemaType === "boolean") {
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    return raw;
+  }
+
+  return raw;
 }

@@ -110,7 +110,7 @@ const CODES = {
     category: "sdk-issue",
   },
   E3005: {
-    title: "Header type mismatch",
+    title: "Missing request body",
     severity: "error",
     category: "sdk-issue",
   },

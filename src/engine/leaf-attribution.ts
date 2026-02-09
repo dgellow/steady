@@ -111,7 +111,7 @@ export function attributeLeaf(
     actual: node.actual,
     attribution: {
       confidence: defaultConfidence(code),
-      reasoning: [definition.title],
+      reasoning: [`${definition.title} at ${node.path}`],
     },
   };
 }
@@ -155,10 +155,8 @@ function typeCodeForLocation(location: DiagnosticLocation): ECode {
       return "E3001";
     case "query":
       return "E3003";
-    case "header":
-      return "E3005";
     default:
-      return "E3008"; // body, cookie, or unknown
+      return "E3008"; // body, header, cookie, or unknown
   }
 }
 

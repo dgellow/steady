@@ -1,0 +1,121 @@
+/**
+ * Session store — per-session diagnostic accumulation.
+ *
+ * Sessions are created implicitly when a request arrives with an
+ * X-Steady-Session header. Diagnostics from each request are grouped
+ * by category for the session report.
+ *
+ * In-memory only. Cleared on server shutdown.
+ */
+
+import type { Diagnostic, IssueCategory } from "../diagnostic.ts";
+
+/** A diagnostic enriched with the HTTP context it came from. */
+export interface SessionDiagnostic {
+  code: string;
+  message: string;
+  method: string;
+  path: string;
+  requestPath: string;
+  specPointer: string;
+  attribution: {
+    category: IssueCategory;
+    confidence: number;
+    reasoning: string[];
+  };
+  suggestion?: string;
+}
+
+/** The report returned by GET /_x-steady/sessions/{id}. */
+export interface SessionReport {
+  sessionId: string;
+  requests: number;
+  sdkIssues: SessionDiagnostic[];
+  contentNotes: SessionDiagnostic[];
+  ambiguous: SessionDiagnostic[];
+  specIssues: SessionDiagnostic[];
+}
+
+interface SessionData {
+  requestCount: number;
+  diagnostics: SessionDiagnostic[];
+}
+
+export class SessionStore {
+  private sessions = new Map<string, SessionData>();
+
+  /**
+   * Record a request's diagnostics in the given session.
+   * Creates the session if it doesn't exist.
+   */
+  addRequest(
+    sessionId: string,
+    method: string,
+    path: string,
+    diagnostics: Diagnostic[],
+  ): void {
+    let session = this.sessions.get(sessionId);
+    if (!session) {
+      session = { requestCount: 0, diagnostics: [] };
+      this.sessions.set(sessionId, session);
+    }
+
+    session.requestCount++;
+
+    for (const d of diagnostics) {
+      session.diagnostics.push({
+        code: d.code,
+        message: d.message,
+        method: method.toUpperCase(),
+        path,
+        requestPath: d.requestPath,
+        specPointer: d.specPointer,
+        attribution: {
+          category: d.category,
+          confidence: d.attribution.confidence,
+          reasoning: d.attribution.reasoning,
+        },
+        suggestion: d.suggestion,
+      });
+    }
+  }
+
+  /**
+   * Get the session report. Returns undefined if the session doesn't exist.
+   */
+  getSession(sessionId: string): SessionReport | undefined {
+    const session = this.sessions.get(sessionId);
+    if (!session) return undefined;
+
+    const sdkIssues: SessionDiagnostic[] = [];
+    const contentNotes: SessionDiagnostic[] = [];
+    const ambiguous: SessionDiagnostic[] = [];
+    const specIssues: SessionDiagnostic[] = [];
+
+    for (const d of session.diagnostics) {
+      switch (d.attribution.category) {
+        case "sdk-issue":
+          sdkIssues.push(d);
+          break;
+        case "content-note":
+          contentNotes.push(d);
+          break;
+        case "ambiguous":
+          ambiguous.push(d);
+          break;
+        case "spec-issue":
+          specIssues.push(d);
+          break;
+      }
+    }
+
+    return {
+      sessionId,
+      requests: session.requestCount,
+      sdkIssues,
+      contentNotes,
+      ambiguous,
+      specIssues,
+    };
+  }
+}
