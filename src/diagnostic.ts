@@ -5,6 +5,27 @@
  * where, whose responsibility it is, and what to do about it.
  */
 
+/** Structured display context for compiler-style output. */
+export interface DiagnosticDisplay {
+  /** Lines shown in the pipe section (between | markers). */
+  context?: ContextLine[];
+  /** Notes shown after pipe section (= prefix). */
+  notes?: string[];
+}
+
+export interface ContextLine {
+  text: string;
+  /** Range to underline with ^^^ and an optional label beneath. */
+  highlight?: {
+    /** 0-indexed start column within text. */
+    start: number;
+    /** 0-indexed end column (exclusive). */
+    end: number;
+    /** Label shown under the carets. */
+    label?: string;
+  };
+}
+
 /** Who is responsible for the issue. */
 export type IssueCategory =
   | "sdk-issue"
@@ -63,4 +84,7 @@ export interface Diagnostic {
 
   /** Actionable suggestion for fixing the issue. */
   suggestion?: string;
+
+  /** Rich display context for CLI output. Optional — formatter degrades gracefully. */
+  display?: DiagnosticDisplay;
 }

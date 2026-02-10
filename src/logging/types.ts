@@ -6,6 +6,7 @@
  */
 
 import type { Attribution } from "../types.ts";
+import type { Diagnostic } from "../diagnostic.ts";
 
 // Re-export Attribution for convenience
 export type { Attribution } from "../types.ts";
@@ -79,25 +80,6 @@ export interface RequestEvent extends LogEvent {
 }
 
 /**
- * A diagnostic found in the spec
- */
-export interface SpecDiagnostic {
-  severity: "error" | "warning" | "info" | "hint";
-  code: string;
-  pointer: string;
-  message: string;
-
-  // For circular refs, unresolved refs, etc - show the chain
-  chain?: string[];
-
-  // For ignored keywords alongside $ref
-  ignoredKeywords?: string[];
-
-  // Actionable suggestion for fixing the issue
-  suggestion?: string;
-}
-
-/**
  * Server startup event
  */
 export interface StartupEvent extends LogEvent {
@@ -114,7 +96,7 @@ export interface StartupEvent extends LogEvent {
     rejectOnSdkError: boolean;
   };
 
-  diagnostics: SpecDiagnostic[];
+  diagnostics: Diagnostic[];
 }
 
 /**

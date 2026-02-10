@@ -8,7 +8,7 @@
 
 import type { ComponentsObject, OpenAPISpec } from "@steady/openapi";
 import { resolve } from "@steady/json-pointer";
-import type { Diagnostic } from "../diagnostic.ts";
+import type { Diagnostic, DiagnosticDisplay } from "../diagnostic.ts";
 import { type ECode, getCode, hasCode } from "../codes/registry.ts";
 
 // ── Public interface ────────────────────────────────────────────────
@@ -83,6 +83,7 @@ function specDiagnostic(
     actual?: unknown;
     confidence?: number;
     reasoning?: string[];
+    display?: DiagnosticDisplay;
   },
 ): Diagnostic {
   const def = getCode(code);
@@ -96,6 +97,7 @@ function specDiagnostic(
     ...(opts?.expected !== undefined ? { expected: opts.expected } : {}),
     ...(opts?.actual !== undefined ? { actual: opts.actual } : {}),
     ...(opts?.suggestion ? { suggestion: opts.suggestion } : {}),
+    ...(opts?.display ? { display: opts.display } : {}),
     attribution: {
       confidence: opts?.confidence ?? 1.0,
       reasoning: opts?.reasoning ?? [
@@ -283,16 +285,18 @@ function checkDuplicatePathPatterns(spec: OpenAPISpec): Diagnostic[] {
   for (const [_norm, paths] of normalized) {
     if (paths.length > 1) {
       for (const path of paths) {
+        const others = paths.filter((p) => p !== path);
         diagnostics.push(
           specDiagnostic(
             "E1008",
             `#/paths/${escapeJsonPointer(path)}`,
-            `Path "${path}" conflicts with: ${
-              paths.filter((p) => p !== path).join(", ")
-            }`,
+            `Path "${path}" conflicts with: ${others.join(", ")}`,
             {
               suggestion:
                 "These paths are ambiguous — they match the same URL patterns",
+              display: {
+                context: others.map((other) => ({ text: other })),
+              },
             },
           ),
         );
@@ -806,6 +810,12 @@ function checkRefSiblings(
           suggestion:
             "In OpenAPI 3.0.x, only $ref is processed. Move other keywords into the referenced schema or upgrade to 3.1",
           actual: meaningful,
+          display: {
+            context: meaningful.map((k) => ({ text: k })),
+            notes: [
+              `In OpenAPI ${spec.openapi}, these keywords are ignored when $ref is present`,
+            ],
+          },
         },
       ),
     );
@@ -839,6 +849,16 @@ function checkUnresolvedRefs(
           {
             suggestion: "Check that the referenced path exists in the spec",
             actual: info.ref,
+            display: {
+              context: [{
+                text: `$ref: '${info.ref}'`,
+                highlight: {
+                  start: 6,
+                  end: 6 + info.ref.length + 2,
+                  label: "Target does not exist",
+                },
+              }],
+            },
           },
         ),
       );
@@ -921,6 +941,13 @@ function checkCircularRefs(refs: RefInfo[]): Diagnostic[] {
                 {
                   suggestion:
                     "Break the cycle by removing one of the circular $ref references, or ensure there is a base case that terminates the recursion",
+                  display: {
+                    context: [
+                      { text: node },
+                      { text: `-> ${next}` },
+                      { text: `-> ${node} (cycle)` },
+                    ],
+                  },
                 },
               ),
             );

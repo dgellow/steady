@@ -11,13 +11,23 @@ import {
   VALID_OBJECT_FORMATS,
   VERSION,
 } from "../src/types.ts";
+import { analyzeSpec } from "../src/engine/spec-analyzer.ts";
+import type { Diagnostic } from "../src/diagnostic.ts";
+import { colorize, colors } from "../src/logging/colors.ts";
+import {
+  formatDiagnostics,
+  formatDiagnosticSummary,
+} from "../src/logging/format-diagnostic.ts";
 
 type LogFormat = "text" | "json";
 
-// ANSI colors
-const BOLD = "\x1b[1m";
-const RED = "\x1b[31m";
-const RESET = "\x1b[0m";
+/** Signals that spec analysis found fatal issues (unresolvable). */
+class FatalSpecError extends Error {
+  constructor(public diagnostics: Diagnostic[]) {
+    super("Fatal spec issues detected");
+    this.name = "FatalSpecError";
+  }
+}
 
 export async function main() {
   const args = parseArgs(Deno.args, {
@@ -30,6 +40,7 @@ export async function main() {
       "reject-on-sdk-error",
       "interactive",
       "validator-strict-oneof",
+      "no-color",
     ],
     string: [
       "port",
@@ -63,20 +74,32 @@ export async function main() {
     negatable: ["log"],
   });
 
+  // Resolve color: --no-color flag or NO_COLOR env force off, otherwise TTY detection
+  const useColor = args["no-color"]
+    ? false
+    : Deno.env.get("NO_COLOR") !== undefined
+    ? false
+    : Deno.stderr.isTerminal();
+
+  /** Format a CLI error prefix. */
+  function cliError(msg: string): string {
+    return `${colorize("ERROR:", colors.bold + colors.red, useColor)} ${msg}`;
+  }
+
   if (args.version) {
     console.log(`steady ${VERSION}`);
     Deno.exit(0);
   }
 
   if (args.help || args._.length === 0) {
-    printHelp();
+    printHelp(useColor);
     Deno.exit(0);
   }
 
   // Check for validate command
   const firstArg = String(args._[0]);
   if (firstArg === "validate") {
-    await validateCommand(args._.slice(1).map(String));
+    await validateCommand(args._.slice(1).map(String), useColor);
     return;
   }
 
@@ -91,7 +114,7 @@ export async function main() {
   // Validate log format
   if (logFormat !== "text" && logFormat !== "json") {
     console.error(
-      `${RED}${BOLD}ERROR:${RESET} Invalid --log-format: ${logFormat}`,
+      cliError(`Invalid --log-format: ${logFormat}`),
     );
     console.error(`Valid values: text, json`);
     Deno.exit(1);
@@ -113,7 +136,7 @@ export async function main() {
     !VALID_ARRAY_FORMATS.includes(queryArrayFormat)
   ) {
     console.error(
-      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-array-format: ${queryArrayFormat}`,
+      cliError(`Invalid --validator-query-array-format: ${queryArrayFormat}`),
     );
     console.error(`Valid values: ${VALID_ARRAY_FORMATS.join(", ")}`);
     Deno.exit(1);
@@ -124,7 +147,7 @@ export async function main() {
     !VALID_OBJECT_FORMATS.includes(queryObjectFormat)
   ) {
     console.error(
-      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-query-object-format: ${queryObjectFormat}`,
+      cliError(`Invalid --validator-query-object-format: ${queryObjectFormat}`),
     );
     console.error(`Valid values: ${VALID_OBJECT_FORMATS.join(", ")}`);
     Deno.exit(1);
@@ -143,7 +166,7 @@ export async function main() {
     !VALID_ARRAY_FORMATS.includes(formArrayFormat)
   ) {
     console.error(
-      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-form-array-format: ${formArrayFormat}`,
+      cliError(`Invalid --validator-form-array-format: ${formArrayFormat}`),
     );
     console.error(`Valid values: ${VALID_ARRAY_FORMATS.join(", ")}`);
     Deno.exit(1);
@@ -154,7 +177,7 @@ export async function main() {
     !VALID_OBJECT_FORMATS.includes(formObjectFormat)
   ) {
     console.error(
-      `${RED}${BOLD}ERROR:${RESET} Invalid --validator-form-object-format: ${formObjectFormat}`,
+      cliError(`Invalid --validator-form-object-format: ${formObjectFormat}`),
     );
     console.error(`Valid values: ${VALID_OBJECT_FORMATS.join(", ")}`);
     Deno.exit(1);
@@ -192,7 +215,7 @@ export async function main() {
     (isNaN(streamCount) || streamCount < 1 || streamCount > 1000)
   ) {
     console.error(
-      `${RED}${BOLD}ERROR:${RESET} Invalid --stream-count: must be between 1 and 1000`,
+      cliError("Invalid --stream-count: must be between 1 and 1000"),
     );
     Deno.exit(1);
   }
@@ -202,7 +225,7 @@ export async function main() {
     (isNaN(streamInterval) || streamInterval < 0 || streamInterval > 10000)
   ) {
     console.error(
-      `${RED}${BOLD}ERROR:${RESET} Invalid --stream-interval: must be between 0 and 10000`,
+      cliError("Invalid --stream-interval: must be between 0 and 10000"),
     );
     Deno.exit(1);
   }
@@ -216,6 +239,7 @@ export async function main() {
     interactive: args.interactive,
     portOverride,
     host: args.host,
+    color: useColor,
     validator: {
       strictOneOf: args["validator-strict-oneof"],
       queryArrayFormat,
@@ -237,20 +261,35 @@ export async function main() {
   try {
     if (args["auto-reload"]) {
       console.log(
-        `🔄 ${BOLD}Auto-reload enabled${RESET} - restarting on changes to ${specPath}\n`,
+        `${
+          colorize("Auto-reload enabled", colors.bold, useColor)
+        } - restarting on changes to ${specPath}\n`,
       );
       await startWithWatch(specPath, options);
     } else {
       await startServer(specPath, options);
     }
   } catch (error) {
-    if (error instanceof SteadyError) {
+    if (error instanceof FatalSpecError) {
+      console.error(
+        `\n${
+          colorize(
+            "Fatal spec issues — cannot serve this spec",
+            colors.bold + colors.red,
+            useColor,
+          )
+        }\n`,
+      );
+      console.error(formatDiagnostics(error.diagnostics, useColor));
+      console.error(
+        `\n${formatDiagnosticSummary(error.diagnostics, useColor)}`,
+      );
+      Deno.exit(3);
+    } else if (error instanceof SteadyError) {
       console.error(error.format());
     } else {
       console.error(
-        `${RED}${BOLD}ERROR:${RESET} ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        cliError(error instanceof Error ? error.message : String(error)),
       );
     }
     console.error("FATAL ERROR, steady shutting down");
@@ -269,6 +308,7 @@ async function startServer(
     interactive: boolean;
     portOverride?: number;
     host?: string;
+    color: boolean;
     validator?: {
       strictOneOf?: boolean;
       queryArrayFormat?: QueryArrayFormat;
@@ -288,6 +328,12 @@ async function startServer(
   const { MockServer } = await import("../src/server.ts");
   // Parse the OpenAPI spec
   const spec = await parseSpecFromFile(specPath);
+
+  // Run spec analysis
+  const analysis = analyzeSpec(spec);
+  if (analysis.fatal) {
+    throw new FatalSpecError(analysis.diagnostics);
+  }
 
   // Determine port: CLI flag > spec > default
   let port = options.portOverride ?? DEFAULT_PORT;
@@ -316,9 +362,11 @@ async function startServer(
     logBodies: options.logBodies,
     showValidation: true,
     interactive: options.interactive,
+    color: options.color,
     validator: options.validator,
     generator: options.generator,
     streaming: options.streaming,
+    startupDiagnostics: analysis.diagnostics,
   };
 
   // Create and start server
@@ -338,6 +386,7 @@ async function startWithWatch(
     interactive: boolean;
     portOverride?: number;
     host?: string;
+    color: boolean;
     validator?: {
       strictOneOf?: boolean;
       queryArrayFormat?: QueryArrayFormat;
@@ -353,19 +402,22 @@ async function startWithWatch(
     streaming?: StreamingConfig;
   },
 ) {
+  const useColor = options.color;
   let server: { start: () => void; stop: () => Promise<void> } | null = null;
 
-  // Initial start
+  // Initial start — fatal spec errors exit immediately
   try {
     server = await startServer(specPath, options);
   } catch (error) {
+    if (error instanceof FatalSpecError) {
+      throw error; // Propagate to main() for exit code 3
+    }
     if (error instanceof SteadyError) {
       console.error(error.format());
     } else {
       console.error(
-        `${RED}${BOLD}ERROR:${RESET} ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        colorize("ERROR:", colors.bold + colors.red, useColor) + " " +
+          (error instanceof Error ? error.message : String(error)),
       );
     }
   }
@@ -375,7 +427,9 @@ async function startWithWatch(
   for await (const event of watcher) {
     if (event.kind === "modify") {
       console.log(
-        `\n🔄 ${BOLD}Detected change${RESET} - restarting server...\n`,
+        `\n${
+          colorize("Detected change", colors.bold, useColor)
+        } - restarting server...\n`,
       );
 
       // Stop existing server and wait for it to fully shut down
@@ -387,29 +441,45 @@ async function startWithWatch(
       try {
         server = await startServer(specPath, options);
       } catch (error) {
-        if (error instanceof SteadyError) {
-          console.error(error.format());
+        server = null;
+        if (error instanceof FatalSpecError) {
           console.error(
-            `\n⚠️  ${BOLD}Server not restarted${RESET} - fix the error and save again\n`,
+            `\n${
+              colorize(
+                "Fatal spec issues — cannot serve this spec",
+                colors.bold + colors.red,
+                useColor,
+              )
+            }\n`,
           );
+          console.error(formatDiagnostics(error.diagnostics, useColor));
+          console.error(
+            `\n${formatDiagnosticSummary(error.diagnostics, useColor)}`,
+          );
+        } else if (error instanceof SteadyError) {
+          console.error(error.format());
         } else {
           console.error(
-            `${RED}${BOLD}ERROR:${RESET} ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+            colorize("ERROR:", colors.bold + colors.red, useColor) + " " +
+              (error instanceof Error ? error.message : String(error)),
           );
         }
+        console.error(
+          `\n${
+            colorize("Server not restarted", colors.bold, useColor)
+          } - fix the error and save again\n`,
+        );
       }
     }
   }
 }
 
-async function validateCommand(args: string[]) {
-  const GREEN = "\x1b[32m";
-
+async function validateCommand(args: string[], useColor: boolean) {
   if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
     console.log(`
-${BOLD}steady validate${RESET} - Check if spec will work with Steady
+${
+      colorize("steady validate", colors.bold, useColor)
+    } - Check if spec will work with Steady
 
 Usage: steady validate <openapi-spec>
 
@@ -426,34 +496,51 @@ Examples:
   const specPath = args[0];
 
   if (!specPath) {
-    console.error(`${RED}${BOLD}ERROR:${RESET} No spec file provided`);
+    console.error(
+      colorize("ERROR:", colors.bold + colors.red, useColor) +
+        " No spec file provided",
+    );
     console.error(`\nUsage: steady validate <spec-file>`);
     Deno.exit(1);
   }
 
   try {
     // Parse the spec - this will throw if invalid
-    await parseSpecFromFile(specPath);
+    const spec = await parseSpecFromFile(specPath);
 
-    // If we get here, spec is valid
-    console.log(`${GREEN}✓${RESET} All good`);
+    // Run spec analysis
+    const analysis = analyzeSpec(spec);
+
+    if (analysis.diagnostics.length === 0) {
+      console.log("All good");
+      return;
+    }
+
+    // Display diagnostics using shared formatter
+    console.error(formatDiagnostics(analysis.diagnostics, useColor));
+    console.error(
+      `\n${formatDiagnosticSummary(analysis.diagnostics, useColor)}`,
+    );
+
+    if (analysis.fatal) {
+      Deno.exit(3);
+    }
   } catch (error) {
     if (error instanceof SteadyError) {
       console.error(error.format());
     } else {
       console.error(
-        `${RED}${BOLD}ERROR:${RESET} ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        colorize("ERROR:", colors.bold + colors.red, useColor) + " " +
+          (error instanceof Error ? error.message : String(error)),
       );
     }
     Deno.exit(1);
   }
 }
 
-function printHelp() {
+function printHelp(useColor: boolean) {
   console.log(`
-${BOLD}Steady${RESET} - OpenAPI 3 mock server
+${colorize("Steady", colors.bold, useColor)} - OpenAPI 3 mock server
 
 Usage: steady [command] [options] <openapi-spec>
 
@@ -474,6 +561,7 @@ Options:
   --log-bodies             Show request/response bodies in summary mode
   --no-log                 Disable request logging
   --reject-on-sdk-error    Return 400 for SDK issues (E3xxx) instead of mock response
+  --no-color               Disable colored output (also respects NO_COLOR env)
   -h, --help               Show this help message
   --version                Show version number
 

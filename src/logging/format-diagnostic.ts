@@ -1,33 +1,25 @@
 /**
- * Format Diagnostics - Format spec diagnostics with full context
+ * Format Diagnostics — Compiler-style output (Rust/Elm inspired)
  *
- * Shows actual structure for cycles, chains, and ignored keywords.
- * No vague descriptions - show exactly what's happening.
+ * Renders Diagnostic objects as structured terminal output:
+ *
+ *   error[E1004]: Unresolved reference
+ *    --> #/paths/~1users/get/responses/200/content/application~1json/schema
+ *     |
+ *     |  $ref: '#/components/schemas/UserResponse'
+ *     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ *     |         Target does not exist
+ *     |
+ *     = Check that the referenced path exists in the spec
  */
 
 import { colorize, colors } from "./colors.ts";
-import type { SpecDiagnostic } from "./types.ts";
+import type { Diagnostic } from "../diagnostic.ts";
 
 /**
- * Get icon for severity level
+ * Get color code for severity level.
  */
-function getSeverityIcon(severity: SpecDiagnostic["severity"]): string {
-  switch (severity) {
-    case "error":
-      return "\u2717"; // ✗
-    case "warning":
-      return "\u26A0"; // ⚠
-    case "info":
-      return "\u2139"; // ℹ
-    case "hint":
-      return "\u2192"; // →
-  }
-}
-
-/**
- * Get color for severity level
- */
-function getSeverityColor(severity: SpecDiagnostic["severity"]): string {
+function severityColor(severity: Diagnostic["severity"]): string {
   switch (severity) {
     case "error":
       return colors.red;
@@ -35,87 +27,106 @@ function getSeverityColor(severity: SpecDiagnostic["severity"]): string {
       return colors.yellow;
     case "info":
       return colors.blue;
-    case "hint":
-      return colors.dim;
   }
 }
 
 /**
- * Format a single diagnostic for terminal output
+ * Format a single diagnostic for terminal output.
  */
 export function formatDiagnostic(
-  diagnostic: SpecDiagnostic,
+  d: Diagnostic,
   useColor = true,
 ): string {
   const lines: string[] = [];
-  const icon = getSeverityIcon(diagnostic.severity);
-  const iconColor = getSeverityColor(diagnostic.severity);
+  const color = severityColor(d.severity);
 
-  // Header: icon + message
-  const header = `${colorize(icon, iconColor, useColor)} ${diagnostic.message}`;
-  lines.push(header);
+  // Header: severity[code]: message
+  const label = colorize(
+    `${d.severity}[${d.code}]`,
+    color + colors.bold,
+    useColor,
+  );
+  lines.push(`${label}: ${d.message}`);
 
-  // Pointer - skip if it's root (#) with no additional context to show
-  const hasChain = diagnostic.chain && diagnostic.chain.length > 0;
-  const hasIgnoredKeywords = diagnostic.ignoredKeywords &&
-    diagnostic.ignoredKeywords.length > 0;
-  const isRoot = diagnostic.pointer === "#";
-
-  if (!isRoot || hasChain || hasIgnoredKeywords) {
-    lines.push(`  ${diagnostic.pointer}`);
-  }
-
-  // Chain (for circular refs, deep refs, etc.)
-  if (hasChain) {
-    for (const step of diagnostic.chain!) {
-      lines.push(`    \u2192 ${step}`); // →
-    }
-  }
-
-  // Ignored keywords (for $ref siblings)
-  if (hasIgnoredKeywords) {
-    for (const keyword of diagnostic.ignoredKeywords!) {
-      const dimArrow = colorize("\u2190 ignored", colors.dim, useColor);
-      lines.push(`    ${keyword}  ${dimArrow}`);
-    }
-  }
-
-  // Suggestion (actionable advice)
-  if (diagnostic.suggestion) {
-    const dimSuggestion = colorize(
-      `\u2192 ${diagnostic.suggestion}`,
-      colors.dim,
-      useColor,
+  // Pointer line
+  if (d.specPointer) {
+    lines.push(
+      ` ${colorize("-->", colors.dim, useColor)} ${d.specPointer}`,
     );
-    lines.push(`  ${dimSuggestion}`);
+  }
+
+  // Context lines (pipe section)
+  const ctx = d.display?.context;
+  if (ctx && ctx.length > 0) {
+    const pipe = colorize("  |", colors.dim, useColor);
+    lines.push(pipe);
+
+    for (const line of ctx) {
+      lines.push(`${pipe}  ${line.text}`);
+
+      if (line.highlight) {
+        const { start, end, label: hlLabel } = line.highlight;
+        const carets = "^".repeat(Math.max(1, end - start));
+        const padding = " ".repeat(start);
+        lines.push(
+          `${pipe}  ${padding}${
+            colorize(carets, color + colors.bold, useColor)
+          }`,
+        );
+        if (hlLabel) {
+          lines.push(
+            `${pipe}  ${padding}${
+              colorize(hlLabel, color + colors.bold, useColor)
+            }`,
+          );
+        }
+      }
+    }
+
+    lines.push(pipe);
+  }
+
+  // Notes (= prefix)
+  const notes = d.display?.notes;
+  if (notes) {
+    for (const note of notes) {
+      lines.push(
+        `  ${colorize("=", colors.dim, useColor)} ${note}`,
+      );
+    }
+  }
+
+  // Suggestion (= prefix)
+  if (d.suggestion) {
+    lines.push(
+      `  ${colorize("=", colors.dim, useColor)} ${d.suggestion}`,
+    );
   }
 
   return lines.join("\n");
 }
 
 /**
- * Format multiple diagnostics grouped by severity
+ * Format multiple diagnostics grouped by severity.
  */
 export function formatDiagnostics(
-  diagnostics: SpecDiagnostic[],
+  diagnostics: Diagnostic[],
   useColor = true,
 ): string {
   if (diagnostics.length === 0) {
     return "";
   }
 
-  // Group by severity
   const errors = diagnostics.filter((d) => d.severity === "error");
   const warnings = diagnostics.filter((d) => d.severity === "warning");
   const info = diagnostics.filter((d) => d.severity === "info");
 
   const lines: string[] = [];
 
-  // Format each group
   for (const group of [errors, warnings, info]) {
     for (const diagnostic of group) {
       lines.push(formatDiagnostic(diagnostic, useColor));
-      lines.push(""); // Blank line between diagnostics
+      lines.push("");
     }
   }
 
@@ -123,15 +134,15 @@ export function formatDiagnostics(
 }
 
 /**
- * Format a summary of diagnostics (counts by severity)
+ * Format a summary of diagnostics (counts by severity).
  */
 export function formatDiagnosticSummary(
-  diagnostics: SpecDiagnostic[],
+  diagnostics: Diagnostic[],
   useColor = true,
 ): string {
   const errors = diagnostics.filter((d) => d.severity === "error").length;
   const warnings = diagnostics.filter((d) => d.severity === "warning").length;
-  const info = diagnostics.filter((d) => d.severity === "info").length;
+  const infoCount = diagnostics.filter((d) => d.severity === "info").length;
 
   const parts: string[] = [];
 
@@ -143,8 +154,8 @@ export function formatDiagnosticSummary(
     const text = `${warnings} warning${warnings > 1 ? "s" : ""}`;
     parts.push(colorize(text, colors.yellow, useColor));
   }
-  if (info > 0) {
-    const text = `${info} info`;
+  if (infoCount > 0) {
+    const text = `${infoCount} info`;
     parts.push(colorize(text, colors.blue, useColor));
   }
 
@@ -153,69 +164,4 @@ export function formatDiagnosticSummary(
   }
 
   return parts.join(", ");
-}
-
-/**
- * Create a circular reference diagnostic with the reference chain
- */
-export function createCircularRefDiagnostic(
-  pointer: string,
-  chain: string[],
-): SpecDiagnostic {
-  return {
-    severity: "warning",
-    code: "ref-cycle",
-    pointer,
-    message: "Circular reference",
-    chain,
-  };
-}
-
-/**
- * Create an unresolved reference diagnostic
- */
-export function createUnresolvedRefDiagnostic(
-  pointer: string,
-  refTarget: string,
-): SpecDiagnostic {
-  return {
-    severity: "error",
-    code: "ref-unresolved",
-    pointer,
-    message: "Unresolved reference",
-    chain: [`\$ref: ${refTarget}`, `Schema does not exist`],
-  };
-}
-
-/**
- * Create a $ref siblings diagnostic (keywords ignored alongside $ref)
- */
-export function createRefSiblingsDiagnostic(
-  pointer: string,
-  ignoredKeywords: string[],
-): SpecDiagnostic {
-  return {
-    severity: "warning",
-    code: "schema-ref-siblings",
-    pointer,
-    message: "Keywords ignored alongside $ref",
-    ignoredKeywords,
-  };
-}
-
-/**
- * Create a missing example diagnostic
- */
-export function createMissingExampleDiagnostic(
-  pointer: string,
-  schemaRef?: string,
-): SpecDiagnostic {
-  const chain = schemaRef ? [`Will generate from: ${schemaRef}`] : undefined;
-  return {
-    severity: "info",
-    code: "mock-no-example",
-    pointer,
-    message: "No example",
-    chain,
-  };
 }

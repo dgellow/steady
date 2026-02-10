@@ -33,14 +33,13 @@ import { TextLogger } from "./logging/text-logger.ts";
 import { JsonLogger } from "./logging/json-logger.ts";
 import { TuiLogger } from "./logging/tui-logger.ts";
 import { RequestValidator } from "./validator.ts";
-import { DiagnosticCollector } from "./diagnostics/collector.ts";
 import { OpenAPISpecDocument } from "../packages/openapi/document.ts";
 import { TreeValidator } from "../packages/json-schema/tree-validator.ts";
 import {
   type AnalyzeRequest,
   DiagnosticEngine,
 } from "./engine/diagnostic-engine.ts";
-import type { Diagnostic as EngineDiagnostic } from "./diagnostic.ts";
+import type { Diagnostic } from "./diagnostic.ts";
 import { SessionStore } from "./session/store.ts";
 import { handleSessionRequest } from "./session/endpoints.ts";
 import {
@@ -128,7 +127,6 @@ export class MockServer {
   private abortController: AbortController;
   private logger: Logger;
   private validator: RequestValidator;
-  private diagnosticCollector: DiagnosticCollector;
   private diagnosticEngine: DiagnosticEngine;
   private sessionStore: SessionStore;
   private serverFinished: Promise<void> | null = null;
@@ -149,7 +147,6 @@ export class MockServer {
     this.document = new OpenAPIDocument(spec);
 
     this.abortController = new AbortController();
-    this.diagnosticCollector = new DiagnosticCollector();
     this.sessionStore = new SessionStore();
 
     // Create logger based on mode and format
@@ -167,7 +164,7 @@ export class MockServer {
     } else {
       this.logger = new TextLogger({
         level: config.logLevel,
-        color: true,
+        color: config.color ?? true,
         logBodies: config.logBodies,
       });
     }
@@ -186,11 +183,6 @@ export class MockServer {
 
     // Pre-compile all path patterns at construction time
     this.compileRoutes();
-
-    // Collect static diagnostics
-    this.diagnosticCollector.setStaticDiagnostics(
-      this.document.getDiagnostics(),
-    );
   }
 
   /**
@@ -306,7 +298,7 @@ export class MockServer {
    * Log startup event
    */
   private logStartup(): void {
-    const diagnostics = this.diagnosticCollector.getStaticDiagnostics();
+    const startupDiags = this.config.startupDiagnostics ?? [];
 
     // Count endpoints
     let endpointCount = 0;
@@ -327,15 +319,7 @@ export class MockServer {
         url: `http://${this.config.host}:${this.config.port}`,
         rejectOnSdkError: this.config.rejectOnSdkError ?? false,
       },
-      diagnostics: diagnostics.map((d) => ({
-        severity: d.severity,
-        code: d.code,
-        pointer: d.pointer,
-        message: d.message,
-        // Convert related diagnostics to chain format
-        chain: d.related?.map((r) => `${r.pointer}: ${r.message}`),
-        suggestion: d.suggestion,
-      })),
+      diagnostics: startupDiags,
     };
 
     this.logger.startup(event);
@@ -1299,7 +1283,7 @@ export class MockServer {
    */
   private addDiagnosticHeaders(
     response: Response,
-    diagnostics: EngineDiagnostic[],
+    diagnostics: Diagnostic[],
   ): Response {
     const newHeaders = new Headers(response.headers);
     const hasSdkIssues = diagnostics.some((d) => d.category === "sdk-issue");
@@ -1332,7 +1316,7 @@ export class MockServer {
     reqHeaders: Headers,
     body: unknown,
     pathParams?: Record<string, string>,
-  ): EngineDiagnostic[] {
+  ): Diagnostic[] {
     const headers: Record<string, string> = {};
     reqHeaders.forEach((value, key) => {
       headers[key] = value;

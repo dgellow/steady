@@ -79,9 +79,9 @@ export class JsonLogger extends BaseLogger {
       diagnostics: event.diagnostics.map((d) => ({
         severity: d.severity,
         code: d.code,
-        pointer: d.pointer,
+        pointer: d.specPointer,
         message: d.message,
-        chain: d.chain,
+        suggestion: d.suggestion,
       })),
     };
 

@@ -17,7 +17,6 @@ export type {
   LogEvent,
   RequestEvent,
   ShutdownEvent,
-  SpecDiagnostic,
   StartupEvent,
   TopIssue,
   ValidationError,
@@ -27,10 +26,6 @@ export type {
 // Formatting utilities
 export { formatActual, formatExpected, formatPath } from "./format-expected.ts";
 export {
-  createCircularRefDiagnostic,
-  createMissingExampleDiagnostic,
-  createRefSiblingsDiagnostic,
-  createUnresolvedRefDiagnostic,
   formatDiagnostic,
   formatDiagnostics,
   formatDiagnosticSummary,

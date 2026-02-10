@@ -11,7 +11,10 @@ import {
   formatStatus,
 } from "./colors.ts";
 import { formatActual } from "./format-expected.ts";
-import { formatDiagnostics } from "./format-diagnostic.ts";
+import {
+  formatDiagnostics,
+  formatDiagnosticSummary,
+} from "./format-diagnostic.ts";
 import type {
   LoggerOptions,
   RequestEvent,
@@ -233,18 +236,19 @@ export class TextLogger extends BaseLogger {
   startup(event: StartupEvent): void {
     const { spec, server, diagnostics } = event;
 
-    console.log(colorize(`Steady`, colors.bold, this.useColor));
+    console.log(colorize("Steady", colors.bold, this.useColor));
     console.log();
 
     // Spec info
-    const check = colorize("\u2713", colors.green, this.useColor); // ✓
-    console.log(`${check} Loaded: ${spec.title} v${spec.version}`);
-    console.log(`${check} ${spec.endpointCount} endpoints`);
+    console.log(`Loaded: ${spec.title} v${spec.version}`);
+    console.log(`${spec.endpointCount} endpoints`);
 
     // Diagnostics
     if (diagnostics.length > 0) {
       console.log();
       console.log(formatDiagnostics(diagnostics, this.useColor));
+      console.log();
+      console.log(formatDiagnosticSummary(diagnostics, this.useColor));
     }
 
     // Server info
