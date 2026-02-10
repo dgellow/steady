@@ -143,8 +143,8 @@ export class TextLogger extends BaseLogger {
   }
 
   private formatAttribution(error: ValidationError): string {
-    const color = attributionColor(error.attribution.type);
-    const label = attributionLabel(error.attribution.type);
+    const color = attributionColor(error.category);
+    const label = attributionLabel(error.category);
     const confidence = Math.round(error.attribution.confidence * 100);
     return colorize(`[${label} ${confidence}%]`, color, this.useColor);
   }
@@ -157,8 +157,8 @@ export class TextLogger extends BaseLogger {
     console.log(`    Spec: ${error.specPointer}`);
     console.log();
 
-    const attrColor = attributionColor(error.attribution.type);
-    const attrLabel = attributionLabel(error.attribution.type);
+    const attrColor = attributionColor(error.category);
+    const attrLabel = attributionLabel(error.category);
     const confidence = Math.round(error.attribution.confidence * 100);
     console.log(
       colorize(
@@ -236,25 +236,29 @@ export class TextLogger extends BaseLogger {
   startup(event: StartupEvent): void {
     const { spec, server, diagnostics } = event;
 
-    console.log(colorize("Steady", colors.bold, this.useColor));
+    // Title line
+    console.log(
+      colorize("Steady", colors.bold, this.useColor) +
+        ` - ${spec.title} v${spec.version}`,
+    );
     console.log();
 
-    // Spec info
-    console.log(`Loaded: ${spec.title} v${spec.version}`);
-    console.log(`${spec.endpointCount} endpoints`);
-
-    // Diagnostics
+    // Diagnostics (if any)
     if (diagnostics.length > 0) {
-      console.log();
       console.log(formatDiagnostics(diagnostics, this.useColor));
       console.log();
-      console.log(formatDiagnosticSummary(diagnostics, this.useColor));
     }
 
-    // Server info
-    console.log();
+    // Loaded summary with inline diagnostic count
+    let loaded = `Loaded: ${spec.endpointCount} endpoints`;
+    if (diagnostics.length > 0) {
+      loaded += ` (${formatDiagnosticSummary(diagnostics, this.useColor)})`;
+    }
+    console.log(loaded);
+
+    // Listening line
     console.log(
-      `Steady server listening on ${server.url}${
+      `Listening on ${server.url}${
         server.rejectOnSdkError ? " (reject-on-sdk-error)" : ""
       }`,
     );
@@ -262,7 +266,7 @@ export class TextLogger extends BaseLogger {
   }
 
   shutdown(event: ShutdownEvent): void {
-    const { session, topIssues } = event;
+    const { session, topIssues, coverage } = event;
 
     console.log();
     const failed = session.failedCount > 0
@@ -270,13 +274,20 @@ export class TextLogger extends BaseLogger {
       : "0 failed";
     console.log(`Session: ${session.requestCount} requests, ${failed}`);
 
+    if (coverage && coverage.total > 0) {
+      const pct = Math.round((coverage.tested / coverage.total) * 100);
+      console.log(
+        `Coverage: ${coverage.tested}/${coverage.total} endpoints (${pct}%)`,
+      );
+    }
+
     if (topIssues.length > 0) {
       console.log();
       console.log("Top issues:");
       for (const issue of topIssues) {
         const attr = colorize(
-          `[${attributionLabel(issue.attribution.type).split(" ")[0]}]`,
-          attributionColor(issue.attribution.type),
+          `[${attributionLabel(issue.category).split(" ")[0]}]`,
+          attributionColor(issue.category),
           this.useColor,
         );
         console.log(

@@ -271,19 +271,11 @@ export async function main() {
     }
   } catch (error) {
     if (error instanceof FatalSpecError) {
-      console.error(
-        `\n${
-          colorize(
-            "Fatal spec issues — cannot serve this spec",
-            colors.bold + colors.red,
-            useColor,
-          )
-        }\n`,
-      );
       console.error(formatDiagnostics(error.diagnostics, useColor));
-      console.error(
-        `\n${formatDiagnosticSummary(error.diagnostics, useColor)}`,
-      );
+      console.error();
+      console.error(formatDiagnosticSummary(error.diagnostics, useColor));
+      console.error();
+      console.error("Steady cannot load this spec. Fix the error and retry.");
       Deno.exit(3);
     } else if (error instanceof SteadyError) {
       console.error(error.format());
@@ -443,18 +435,14 @@ async function startWithWatch(
       } catch (error) {
         server = null;
         if (error instanceof FatalSpecError) {
-          console.error(
-            `\n${
-              colorize(
-                "Fatal spec issues — cannot serve this spec",
-                colors.bold + colors.red,
-                useColor,
-              )
-            }\n`,
-          );
           console.error(formatDiagnostics(error.diagnostics, useColor));
+          console.error();
           console.error(
-            `\n${formatDiagnosticSummary(error.diagnostics, useColor)}`,
+            formatDiagnosticSummary(error.diagnostics, useColor),
+          );
+          console.error();
+          console.error(
+            "Steady cannot load this spec. Fix the error and retry.",
           );
         } else if (error instanceof SteadyError) {
           console.error(error.format());

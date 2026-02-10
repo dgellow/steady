@@ -5,11 +5,9 @@
  * for any validation issue or diagnostic.
  */
 
-import type { Attribution } from "../types.ts";
-import type { Diagnostic } from "../diagnostic.ts";
+import type { Diagnostic, IssueCategory } from "../diagnostic.ts";
 
-// Re-export Attribution for convenience
-export type { Attribution } from "../types.ts";
+export type { IssueCategory } from "../diagnostic.ts";
 
 /**
  * A validation error with complete context for logging display.
@@ -29,7 +27,8 @@ export interface ValidationError {
   actual: unknown; // The specific failing value
 
   // Attribution
-  attribution: Attribution;
+  category: IssueCategory;
+  attribution: { confidence: number; reasoning: string[] };
 
   // Fix
   suggestion?: string;
@@ -107,7 +106,8 @@ export interface TopIssue {
   method: string;
   message: string;
   count: number;
-  attribution: Attribution;
+  category: IssueCategory;
+  attribution: { confidence: number; reasoning: string[] };
 }
 
 /**
@@ -123,6 +123,7 @@ export interface ShutdownEvent extends LogEvent {
   };
 
   topIssues: TopIssue[];
+  coverage?: { tested: number; total: number };
 }
 
 /**

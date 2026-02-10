@@ -2,7 +2,7 @@
  * ANSI Color Constants - Single source of truth for terminal colors
  */
 
-import type { Attribution } from "./types.ts";
+import type { IssueCategory } from "../diagnostic.ts";
 
 export const colors = {
   reset: "\x1b[0m",
@@ -35,28 +35,32 @@ export function statusColor(code: number): string {
 }
 
 /**
- * Get color for attribution type
+ * Get color for issue category
  */
-export function attributionColor(type: Attribution["type"]): string {
-  switch (type) {
+export function attributionColor(category: IssueCategory): string {
+  switch (category) {
     case "sdk-issue":
       return colors.red;
     case "spec-issue":
       return colors.yellow;
+    case "content-note":
+      return colors.blue;
     case "ambiguous":
       return colors.gray;
   }
 }
 
 /**
- * Get human-readable label for attribution type
+ * Get human-readable label for issue category
  */
-export function attributionLabel(type: Attribution["type"]): string {
-  switch (type) {
+export function attributionLabel(category: IssueCategory): string {
+  switch (category) {
     case "sdk-issue":
       return "SDK Issue";
     case "spec-issue":
       return "Spec Issue";
+    case "content-note":
+      return "Content Note";
     case "ambiguous":
       return "Unknown";
   }

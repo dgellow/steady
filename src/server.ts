@@ -47,6 +47,7 @@ import {
   matchCompiledPath,
   type PathSegment,
 } from "./path-matcher.ts";
+import { DiagnosticCollector } from "./diagnostics/collector.ts";
 import {
   createStreamingResponse,
   getStreamFormat,
@@ -128,11 +129,13 @@ export class MockServer {
   private logger: Logger;
   private validator: RequestValidator;
   private diagnosticEngine: DiagnosticEngine;
+  private collector: DiagnosticCollector;
   private sessionStore: SessionStore;
   private serverFinished: Promise<void> | null = null;
   private startTime: Date = new Date();
   private requestCount = 0;
   private failedCount = 0;
+  private endpointCount = 0;
 
   // Pre-compiled routes for O(1) exact matches and efficient pattern matching
   // exactRoutes: basePath -> array of routes (to handle /files and /files?beta=true)
@@ -180,6 +183,10 @@ export class MockServer {
       resolveRef: (ref) => specDoc.resolveSchema(ref),
     });
     this.diagnosticEngine = new DiagnosticEngine(specDoc, treeValidator);
+
+    // Diagnostic collector for session-level aggregation
+    this.collector = new DiagnosticCollector();
+    this.collector.setStaticDiagnostics(config.startupDiagnostics ?? []);
 
     // Pre-compile all path patterns at construction time
     this.compileRoutes();
@@ -300,10 +307,10 @@ export class MockServer {
   private logStartup(): void {
     const startupDiags = this.config.startupDiagnostics ?? [];
 
-    // Count endpoints
-    let endpointCount = 0;
+    // Count endpoints (stored for reuse at shutdown)
+    this.endpointCount = 0;
     for (const pathItem of Object.values(this.spec.paths)) {
-      endpointCount += this.getMethodsForPath(pathItem).length;
+      this.endpointCount += this.getMethodsForPath(pathItem).length;
     }
 
     const event: StartupEvent = {
@@ -313,7 +320,7 @@ export class MockServer {
       spec: {
         title: this.spec.info.title,
         version: this.spec.info.version,
-        endpointCount,
+        endpointCount: this.endpointCount,
       },
       server: {
         url: `http://${this.config.host}:${this.config.port}`,
@@ -331,8 +338,14 @@ export class MockServer {
   private logShutdown(): void {
     const duration = Date.now() - this.startTime.getTime();
 
-    // TODO: Build top issues from diagnostic collector
-    const topIssues: ShutdownEvent["topIssues"] = [];
+    const topIssues = this.collector.getTopIssues().map((issue) => ({
+      path: issue.path,
+      method: issue.method.toUpperCase(),
+      message: issue.example.message,
+      count: issue.count,
+      category: issue.example.category,
+      attribution: issue.example.attribution,
+    }));
 
     const event: ShutdownEvent = {
       id: crypto.randomUUID(),
@@ -344,6 +357,7 @@ export class MockServer {
         failedCount: this.failedCount,
       },
       topIssues,
+      coverage: this.collector.getCoverage(this.endpointCount),
     };
 
     this.logger.shutdown(event);
@@ -393,8 +407,9 @@ export class MockServer {
         consumedQueryParams,
       );
 
-      // Track request count
+      // Track request count and endpoint coverage
       this.requestCount++;
+      this.collector.trackEndpoint(method, pathPattern);
 
       // Run new diagnostics engine
       const engineDiagnostics = this.runDiagnosticEngine(
@@ -417,10 +432,18 @@ export class MockServer {
         );
       }
 
-      // If --reject-on-sdk-error is active and engine found SDK issues, return 400
+      // Collect runtime diagnostics
       const hasSdkIssues = engineDiagnostics.some(
         (d) => d.category === "sdk-issue",
       );
+      this.collector.addRuntimeDiagnostics(
+        engineDiagnostics,
+        method,
+        path,
+        !hasSdkIssues,
+      );
+
+      // If --reject-on-sdk-error is active and engine found SDK issues, return 400
       if (hasSdkIssues && rejectOnSdkError) {
         this.failedCount++;
         const timing = Math.round(performance.now() - startTime);
@@ -520,6 +543,14 @@ export class MockServer {
           undefined,
         );
 
+        // Collect runtime diagnostics
+        this.collector.addRuntimeDiagnostics(
+          engineDiagnostics,
+          method,
+          path,
+          false,
+        );
+
         // Track session if X-Steady-Session header present
         const sessionId = req.headers.get("X-Steady-Session");
         if (sessionId) {
@@ -580,10 +611,10 @@ export class MockServer {
       message: issue.message,
       expected: issue.expected || "",
       actual: issue.actual,
-      attribution: issue.attribution || {
-        type: "ambiguous",
+      category: issue.category ?? "ambiguous",
+      attribution: issue.attribution ?? {
         confidence: 0.5,
-        reasoning: "Attribution not determined",
+        reasoning: ["Attribution not determined"],
       },
       suggestion: issue.suggestion,
     };

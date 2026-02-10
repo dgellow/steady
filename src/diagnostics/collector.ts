@@ -7,6 +7,13 @@
 
 import type { Diagnostic } from "../diagnostic.ts";
 
+/** A runtime diagnostic with request context. */
+interface RuntimeEntry {
+  diagnostic: Diagnostic;
+  method: string;
+  path: string;
+}
+
 /**
  * Session statistics
  */
@@ -28,7 +35,8 @@ export interface SessionStats {
  */
 export class DiagnosticCollector {
   private staticDiagnostics: Diagnostic[] = [];
-  private runtimeDiagnostics: Diagnostic[] = [];
+  private runtimeEntries: RuntimeEntry[] = [];
+  private testedEndpoints = new Set<string>();
   private stats: SessionStats;
 
   constructor() {
@@ -57,8 +65,15 @@ export class DiagnosticCollector {
   /**
    * Add runtime diagnostics (called per request)
    */
-  addRuntimeDiagnostics(diagnostics: Diagnostic[], success: boolean): void {
-    this.runtimeDiagnostics.push(...diagnostics);
+  addRuntimeDiagnostics(
+    diagnostics: Diagnostic[],
+    method: string,
+    path: string,
+    success: boolean,
+  ): void {
+    for (const diagnostic of diagnostics) {
+      this.runtimeEntries.push({ diagnostic, method, path });
+    }
     this.stats.requestCount++;
     if (success) {
       this.stats.successCount++;
@@ -71,7 +86,7 @@ export class DiagnosticCollector {
    * Get all runtime diagnostics
    */
   getRuntimeDiagnostics(): Diagnostic[] {
-    return this.runtimeDiagnostics;
+    return this.runtimeEntries.map((e) => e.diagnostic);
   }
 
   /**
@@ -89,23 +104,40 @@ export class DiagnosticCollector {
    */
   getTopIssues(
     limit = 10,
-  ): Array<{ code: string; count: number; example: Diagnostic }> {
-    const grouped = new Map<string, Diagnostic[]>();
-    for (const d of this.runtimeDiagnostics) {
-      const existing = grouped.get(d.code);
+  ): Array<{
+    code: string;
+    count: number;
+    example: Diagnostic;
+    method: string;
+    path: string;
+  }> {
+    const grouped = new Map<string, RuntimeEntry[]>();
+    for (const entry of this.runtimeEntries) {
+      const existing = grouped.get(entry.diagnostic.code);
       if (existing) {
-        existing.push(d);
+        existing.push(entry);
       } else {
-        grouped.set(d.code, [d]);
+        grouped.set(entry.diagnostic.code, [entry]);
       }
     }
 
-    const entries: Array<{ code: string; count: number; example: Diagnostic }> =
-      [];
-    for (const [code, diagnostics] of grouped) {
-      const first = diagnostics[0];
+    const entries: Array<{
+      code: string;
+      count: number;
+      example: Diagnostic;
+      method: string;
+      path: string;
+    }> = [];
+    for (const [code, runtimeEntries] of grouped) {
+      const first = runtimeEntries[0];
       if (first) {
-        entries.push({ code, count: diagnostics.length, example: first });
+        entries.push({
+          code,
+          count: runtimeEntries.length,
+          example: first.diagnostic,
+          method: first.method,
+          path: first.path,
+        });
       }
     }
 
@@ -114,10 +146,25 @@ export class DiagnosticCollector {
   }
 
   /**
+   * Track a tested endpoint
+   */
+  trackEndpoint(method: string, pathPattern: string): void {
+    this.testedEndpoints.add(`${method.toUpperCase()} ${pathPattern}`);
+  }
+
+  /**
+   * Get endpoint coverage
+   */
+  getCoverage(totalEndpoints: number): { tested: number; total: number } {
+    return { tested: this.testedEndpoints.size, total: totalEndpoints };
+  }
+
+  /**
    * Reset runtime diagnostics (useful for testing)
    */
   resetRuntime(): void {
-    this.runtimeDiagnostics = [];
+    this.runtimeEntries = [];
+    this.testedEndpoints.clear();
     this.stats = {
       requestCount: 0,
       successCount: 0,

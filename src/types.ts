@@ -5,7 +5,7 @@ import type {
   ResponseObject,
   SchemaObject,
 } from "@steady/openapi";
-import type { Diagnostic } from "./diagnostic.ts";
+import type { Diagnostic, IssueCategory } from "./diagnostic.ts";
 import type { LogLevel } from "./logging/mod.ts";
 
 export { VERSION } from "./version.ts";
@@ -245,16 +245,6 @@ export interface ServerConfig {
 // Validation types
 
 /**
- * Attribution information for a validation error.
- * Indicates whether the issue is likely caused by the SDK or the spec.
- */
-export interface Attribution {
-  type: "sdk-issue" | "spec-issue" | "ambiguous";
-  confidence: number; // 0.0-1.0
-  reasoning: string;
-}
-
-/**
  * Represents a single validation issue found during request validation.
  * Contains full context for debugging and error attribution.
  */
@@ -272,7 +262,8 @@ export interface ValidationIssue {
   actual?: unknown; // The specific failing value
 
   // Attribution
-  attribution?: Attribution;
+  category?: IssueCategory;
+  attribution?: { confidence: number; reasoning: string[] };
 
   // Fix
   suggestion?: string;

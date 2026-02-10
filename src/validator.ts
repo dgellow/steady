@@ -1094,15 +1094,17 @@ export class RequestValidator {
       actual: err.data !== undefined ? err.data : value,
 
       // Attribution (from SchemaValidationError if present)
+      category: err.attribution
+        ? (err.attribution.type === "sdk-error"
+          ? "sdk-issue" as const
+          : err.attribution.type === "spec-error"
+          ? "spec-issue" as const
+          : "ambiguous" as const)
+        : undefined,
       attribution: err.attribution
         ? {
-          type: err.attribution.type === "sdk-error"
-            ? "sdk-issue"
-            : err.attribution.type === "spec-error"
-            ? "spec-issue"
-            : "ambiguous",
           confidence: err.attribution.confidence,
-          reasoning: err.attribution.reasoning,
+          reasoning: [err.attribution.reasoning],
         }
         : undefined,
 

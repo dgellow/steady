@@ -13,7 +13,7 @@ export { TuiLogger } from "./tui-logger.ts";
 
 // Types
 export type {
-  Attribution,
+  IssueCategory,
   LogEvent,
   RequestEvent,
   ShutdownEvent,

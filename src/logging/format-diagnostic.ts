@@ -96,6 +96,24 @@ export function formatDiagnostic(
     }
   }
 
+  // Expected/actual (= prefix)
+  if (d.expected !== undefined || d.actual !== undefined) {
+    if (d.expected !== undefined) {
+      lines.push(
+        `  ${colorize("=", colors.dim, useColor)} expected: ${
+          formatValue(d.expected)
+        }`,
+      );
+    }
+    if (d.actual !== undefined) {
+      lines.push(
+        `  ${colorize("=", colors.dim, useColor)}   actual: ${
+          formatValue(d.actual)
+        }`,
+      );
+    }
+  }
+
   // Suggestion (= prefix)
   if (d.suggestion) {
     lines.push(
@@ -164,4 +182,13 @@ export function formatDiagnosticSummary(
   }
 
   return parts.join(", ");
+}
+
+/**
+ * Format a value for expected/actual display.
+ * Strings pass through as-is, everything else gets JSON.stringify.
+ */
+function formatValue(v: unknown): string {
+  if (typeof v === "string") return v;
+  return JSON.stringify(v);
 }

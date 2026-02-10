@@ -17,6 +17,7 @@ import {
   formatStatus,
 } from "./colors.ts";
 import { formatActual } from "./format-expected.ts";
+import type { IssueCategory } from "../diagnostic.ts";
 import type {
   LoggerOptions,
   RequestEvent,
@@ -646,8 +647,8 @@ export class TuiLogger extends BaseLogger {
         );
 
         // Attribution
-        const attrColor = attributionColor(error.attribution.type);
-        const attrLabel = attributionLabel(error.attribution.type);
+        const attrColor = attributionColor(error.category);
+        const attrLabel = attributionLabel(error.category);
         const confidence = Math.round(error.attribution.confidence * 100);
         lines.push(
           `${indent}  ${
@@ -720,14 +721,11 @@ export class TuiLogger extends BaseLogger {
   }
 
   private formatAttribution(error: {
-    attribution: { type: string; confidence: number };
+    category: IssueCategory;
+    attribution: { confidence: number };
   }): string {
-    const color = attributionColor(
-      error.attribution.type as "sdk-issue" | "spec-issue" | "ambiguous",
-    );
-    const label = attributionLabel(
-      error.attribution.type as "sdk-issue" | "spec-issue" | "ambiguous",
-    );
+    const color = attributionColor(error.category);
+    const label = attributionLabel(error.category);
     const confidence = Math.round(error.attribution.confidence * 100);
     return colorize(`[${label} ${confidence}%]`, color, this.useColor);
   }

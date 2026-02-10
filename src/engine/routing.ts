@@ -13,7 +13,7 @@ import type {
   PathItemObject,
   PathsObject,
 } from "@steady/openapi";
-import type { Diagnostic } from "../diagnostic.ts";
+import type { Diagnostic, DiagnosticDisplay } from "../diagnostic.ts";
 import { getCode } from "../codes/registry.ts";
 import { matchPathPattern } from "../path-matcher.ts";
 
@@ -182,9 +182,11 @@ function createPathNotFound(
     }`
     : "No paths defined in the OpenAPI spec";
 
-  const { confidence, reasoning } = enrichWithDoubleQuestion(request, 0.7, [
-    `No path definition matches "${request.path}"`,
-  ]);
+  const { confidence, reasoning, display } = enrichWithDoubleQuestion(
+    request,
+    0.7,
+    [`No path definition matches "${request.path}"`],
+  );
 
   return {
     code: "E2001",
@@ -195,6 +197,7 @@ function createPathNotFound(
     message: `Path not found: ${request.path}`,
     attribution: { confidence, reasoning },
     suggestion,
+    ...(display ? { display } : {}),
   };
 }
 
@@ -210,9 +213,13 @@ function createMethodNotAllowed(
     available.map((m) => m.toUpperCase()).join(", ")
   }`;
 
-  const { confidence, reasoning } = enrichWithDoubleQuestion(request, 0.7, [
-    `Path "${matchedPattern}" matched, but method ${request.method.toUpperCase()} is not defined`,
-  ]);
+  const { confidence, reasoning, display } = enrichWithDoubleQuestion(
+    request,
+    0.7,
+    [
+      `Path "${matchedPattern}" matched, but method ${request.method.toUpperCase()} is not defined`,
+    ],
+  );
 
   return {
     code: "E2002",
@@ -224,7 +231,15 @@ function createMethodNotAllowed(
       `Method ${request.method.toUpperCase()} not allowed for ${matchedPattern}`,
     attribution: { confidence, reasoning },
     suggestion,
+    ...(display ? { display } : {}),
   };
+}
+
+/** Result of double-? enrichment. */
+interface EnrichmentResult {
+  confidence: number;
+  reasoning: string[];
+  display?: DiagnosticDisplay;
 }
 
 /**
@@ -237,13 +252,16 @@ function enrichWithDoubleQuestion(
   request: RoutingRequest,
   defaultConfidence: number,
   baseReasoning: string[],
-): { confidence: number; reasoning: string[] } {
+): EnrichmentResult {
   if (!request.queryParams) {
     return { confidence: defaultConfidence, reasoning: baseReasoning };
   }
 
-  for (const [, value] of request.queryParams) {
-    if (value.includes("?")) {
+  for (const [key, value] of request.queryParams) {
+    const qIdx = value.indexOf("?");
+    if (qIdx >= 0) {
+      const text = `${key}=${value}`;
+      const highlightStart = key.length + 1 + qIdx; // skip "key="
       return {
         confidence: 0.95,
         reasoning: [
@@ -251,6 +269,16 @@ function enrichWithDoubleQuestion(
           "Query parameter value contains '?' — likely URL construction bug",
           "SDK may be appending '?params' to a URL already containing '?'",
         ],
+        display: {
+          context: [{
+            text,
+            highlight: {
+              start: highlightStart,
+              end: highlightStart + 1,
+              label: "'?' in value — likely double-? bug",
+            },
+          }],
+        },
       };
     }
   }

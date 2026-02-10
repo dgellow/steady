@@ -197,6 +197,65 @@ Deno.test("formatDiagnosticSummary: mixed counts", () => {
   assertEquals(result, "2 errors, 1 warning");
 });
 
+Deno.test("formatDiagnostic: renders expected and actual", () => {
+  const d = diag({
+    code: "E3007",
+    message: "Wrong type",
+    specPointer: "#/paths/~1users/post/requestBody",
+    expected: "string",
+    actual: 12345,
+    suggestion: "Send a string value",
+  });
+
+  const result = formatDiagnostic(d, false);
+  const lines = result.split("\n");
+
+  assertEquals(lines[0], "error[E3007]: Wrong type");
+  assertEquals(lines[1], " --> #/paths/~1users/post/requestBody");
+  assertEquals(lines[2], "  = expected: string");
+  assertEquals(lines[3], "  =   actual: 12345");
+  assertEquals(lines[4], "  = Send a string value");
+});
+
+Deno.test("formatDiagnostic: renders only actual when expected is absent", () => {
+  const d = diag({
+    code: "E3007",
+    message: "Unexpected value",
+    specPointer: "#/foo",
+    actual: "oops",
+  });
+
+  const result = formatDiagnostic(d, false);
+  const lines = result.split("\n");
+
+  assertEquals(lines[2], "  =   actual: oops");
+});
+
+Deno.test("formatDiagnostic: expected/actual after notes, before suggestion", () => {
+  const d = diag({
+    code: "E3007",
+    message: "Wrong type",
+    specPointer: "#/foo",
+    expected: "number",
+    actual: "hello",
+    suggestion: "Fix it",
+    display: {
+      notes: ["Schema requires a numeric type"],
+    },
+  });
+
+  const result = formatDiagnostic(d, false);
+  const lines = result.split("\n");
+
+  // notes first
+  assertEquals(lines[2], "  = Schema requires a numeric type");
+  // then expected/actual
+  assertEquals(lines[3], "  = expected: number");
+  assertEquals(lines[4], "  =   actual: hello");
+  // then suggestion
+  assertEquals(lines[5], "  = Fix it");
+});
+
 Deno.test("formatDiagnosticSummary: single error", () => {
   const diagnostics = [
     diag({ code: "E1004", severity: "error", message: "a" }),

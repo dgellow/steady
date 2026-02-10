@@ -45,10 +45,8 @@ export class JsonLogger extends BaseLogger {
           expected: e.expected,
           actual: e.actual,
           specPointer: e.specPointer,
-          attribution: {
-            type: e.attribution.type,
-            confidence: e.attribution.confidence,
-          },
+          category: e.category,
+          confidence: e.attribution.confidence,
           suggestion: e.suggestion,
         })),
         warnings: event.validation.warnings.map((w) => ({
@@ -57,10 +55,8 @@ export class JsonLogger extends BaseLogger {
           expected: w.expected,
           actual: w.actual,
           specPointer: w.specPointer,
-          attribution: {
-            type: w.attribution.type,
-            confidence: w.attribution.confidence,
-          },
+          category: w.category,
+          confidence: w.attribution.confidence,
           suggestion: w.suggestion,
         })),
       },
@@ -89,7 +85,7 @@ export class JsonLogger extends BaseLogger {
   }
 
   shutdown(event: ShutdownEvent): void {
-    const output = {
+    const output: Record<string, unknown> = {
       type: "shutdown",
       id: event.id,
       timestamp: event.timestamp.toISOString(),
@@ -99,9 +95,13 @@ export class JsonLogger extends BaseLogger {
         path: i.path,
         message: i.message,
         count: i.count,
-        attribution: i.attribution.type,
+        category: i.category,
       })),
     };
+
+    if (event.coverage) {
+      output.coverage = event.coverage;
+    }
 
     console.log(JSON.stringify(output));
   }

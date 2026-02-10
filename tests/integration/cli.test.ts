@@ -244,7 +244,7 @@ Deno.test("server: fatal spec → exit 3, stderr has E1004", async () => {
     assertEquals(result.code, 3);
     assert(result.stderr.includes("E1004"), `stderr: ${result.stderr}`);
     assert(
-      result.stderr.includes("Fatal spec issues"),
+      result.stderr.includes("cannot load this spec"),
       `stderr: ${result.stderr}`,
     );
   });

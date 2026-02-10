@@ -13,6 +13,7 @@ snapshot[`validate: fatal spec → snapshot stderr 1`] = `
   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |        Target does not exist
   |
+  =   actual: #/components/schemas/Ghost
   = Check that the referenced path exists in the spec
 
 1 error
