@@ -1,0 +1,139 @@
+export const snapshot = {};
+
+snapshot[`PUT /count — string instead of integer → mock with diagnostics 1`] = `
+{
+  "x-steady-error-1-code": "E3008",
+  "x-steady-error-1-message": "Expected type integer, got string",
+  "x-steady-error-1-path": "body",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/count",
+  "x-steady-valid": "false",
+}
+`;
+
+snapshot[`POST /json-v{version}/users/{userId} — invalid path param type 1`] = `
+{
+  "x-steady-error-1-code": "E3001",
+  "x-steady-error-1-message": "Expected type integer, got string",
+  "x-steady-error-1-path": "path.version",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/json-v{version}/users/{userId}",
+  "x-steady-valid": "false",
+}
+`;
+
+snapshot[`POST /json-v{version}/users/{userId} — missing required query params 1`] = `
+{
+  "x-steady-error-1-code": "E3002",
+  "x-steady-error-1-message": "Missing required query parameter: date",
+  "x-steady-error-1-path": "query.date",
+  "x-steady-error-2-code": "E3002",
+  "x-steady-error-2-message": "Missing required query parameter: time",
+  "x-steady-error-2-path": "query.time",
+  "x-steady-error-3-code": "E3002",
+  "x-steady-error-3-message": "Missing required query parameter: datetime",
+  "x-steady-error-3-path": "query.datetime",
+  "x-steady-error-count": "3",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/json-v{version}/users/{userId}",
+  "x-steady-valid": "false",
+}
+`;
+
+snapshot[`POST /json-v{version}/users/{userId} — boolean as string in body 1`] = `
+{
+  "x-steady-error-1-code": "E3008",
+  "x-steady-error-1-message": "Expected type boolean, got string",
+  "x-steady-error-1-path": "body.preferences.alerts",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/json-v{version}/users/{userId}",
+  "x-steady-valid": "false",
+}
+`;
+
+snapshot[`GET /paginated — size exceeds max → mock with diagnostics 1`] = `
+{
+  "x-steady-error-1-code": "E4004",
+  "x-steady-error-1-message": "Numeric range violation",
+  "x-steady-error-1-path": "query.size",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/paginated",
+  "x-steady-valid": "true",
+}
+`;
+
+snapshot[`POST /bulk — empty array → mock with diagnostics 1`] = `
+{
+  "x-steady-error-1-code": "E4005",
+  "x-steady-error-1-message": "Array size violation",
+  "x-steady-error-1-path": "body",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/bulk",
+  "x-steady-valid": "true",
+}
+`;
+
+snapshot[`POST /bulk — invalid item schema → mock with diagnostics 1`] = `
+{
+  "x-steady-error-1-code": "E3007",
+  "x-steady-error-1-message": "Missing required property: baz",
+  "x-steady-error-1-path": "body.0",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/bulk",
+  "x-steady-valid": "false",
+}
+`;
+
+snapshot[`POST /nullable — missing required field → mock with diagnostics 1`] = `
+{
+  "x-steady-error-1-code": "E3007",
+  "x-steady-error-1-message": "Missing required property: requiredField",
+  "x-steady-error-1-path": "body",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/nullable",
+  "x-steady-valid": "false",
+}
+`;
+
+snapshot[`GET /search — invalid enum value → mock with diagnostics 1`] = `
+{
+  "x-steady-error-1-code": "E3003",
+  "x-steady-error-1-message": "Expected type array, got string",
+  "x-steady-error-1-path": "query.status",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/search",
+  "x-steady-valid": "false",
+}
+`;
+
+snapshot[`GET /session — missing required cookie → mock with diagnostics 1`] = `
+{
+  "x-steady-error-1-code": "E3007",
+  "x-steady-error-1-message": "Missing required cookie parameter: session_id",
+  "x-steady-error-1-path": "cookie.session_id",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/session",
+  "x-steady-valid": "false",
+}
+`;
+
+snapshot[`GET /session — invalid cookie pattern → mock with diagnostics 1`] = `
+{
+  "x-steady-error-1-code": "E4002",
+  "x-steady-error-1-message": "Pattern mismatch",
+  "x-steady-error-1-path": "cookie.session_id",
+  "x-steady-error-count": "1",
+  "x-steady-example-source": "generated",
+  "x-steady-matched-path": "/session",
+  "x-steady-valid": "true",
+}
+`;

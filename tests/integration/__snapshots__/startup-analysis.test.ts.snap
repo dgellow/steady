@@ -1,0 +1,62 @@
+export const snapshot = {};
+
+snapshot[`missing responses → E1010 1`] = `
+[
+  {
+    attribution: {
+      confidence: 1,
+      reasoning: [
+        "Detected during spec analysis at startup",
+      ],
+    },
+    category: "spec-issue",
+    code: "E1010",
+    message: "Operation GET /test has no response definitions",
+    requestPath: "",
+    severity: "warning",
+    specPointer: "#/paths/~1test/get/responses",
+    suggestion: "Every operation should define at least one response status code",
+  },
+]
+`;
+
+snapshot[`duplicate path parameter names → E1009 1`] = `
+[
+  {
+    attribution: {
+      confidence: 1,
+      reasoning: [
+        "Detected during spec analysis at startup",
+      ],
+    },
+    category: "spec-issue",
+    code: "E1009",
+    message: 'Path "/users/{id}/posts/{id}" has duplicate parameter name "{id}"',
+    requestPath: "",
+    severity: "warning",
+    specPointer: "#/paths/~1users~1{id}~1posts~1{id}",
+    suggestion: "Each path parameter name must be unique within a path template",
+  },
+]
+`;
+
+snapshot[`unresolved \$ref → E1004 + fatal 1`] = `
+[
+  {
+    actual: "#/components/schemas/Ghost",
+    attribution: {
+      confidence: 1,
+      reasoning: [
+        "Detected during spec analysis at startup",
+      ],
+    },
+    category: "spec-issue",
+    code: "E1004",
+    message: "Unresolved reference: #/components/schemas/Ghost",
+    requestPath: "",
+    severity: "error",
+    specPointer: "#/paths/~1users/get/responses/200/content/application~1json/schema",
+    suggestion: "Check that the referenced path exists in the spec",
+  },
+]
+`;

@@ -1,0 +1,271 @@
+export const snapshot = {};
+
+snapshot[`unknown path → E2001 1`] = `
+[
+  {
+    attribution: {
+      confidence: 0.7,
+      reasoning: [
+        'No path definition matches "/nonexistent"',
+      ],
+    },
+    category: "sdk-issue",
+    code: "E2001",
+    message: "Path not found: /nonexistent",
+    requestPath: "/nonexistent",
+    severity: "error",
+    specPointer: "#/paths",
+    suggestion: "Available paths: /oas.json, /accounts, /accounts/{account_id}, /accounts/{account_id}/link, /accounts/{account_id}/friends...",
+  },
+]
+`;
+
+snapshot[`wrong method → E2002 1`] = `
+[
+  {
+    attribution: {
+      confidence: 0.7,
+      reasoning: [
+        'Path "/accounts" matched, but method DELETE is not defined',
+      ],
+    },
+    category: "sdk-issue",
+    code: "E2002",
+    message: "Method DELETE not allowed for /accounts",
+    requestPath: "/accounts",
+    severity: "error",
+    specPointer: "#/paths/~1accounts",
+    suggestion: 'Available methods for "/accounts": GET, POST',
+  },
+]
+`;
+
+snapshot[`POST /accounts with empty body → missing required field 1`] = `
+[
+  {
+    actual: undefined,
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Missing required field at body",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3007",
+    expected: undefined,
+    message: "Missing required property: name",
+    requestPath: "body",
+    severity: "error",
+    specPointer: "#/components/schemas/Account",
+  },
+]
+`;
+
+snapshot[`POST /accounts with wrong type → E3008 1`] = `
+[
+  {
+    actual: "number",
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Field type mismatch at body.name",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3008",
+    expected: "string",
+    message: "Expected type string, got number",
+    requestPath: "body.name",
+    severity: "error",
+    specPointer: "#/components/schemas/Account/properties/name",
+  },
+]
+`;
+
+snapshot[`POST /accounts with invalid enum → E3016 1`] = `
+[
+  {
+    actual: "INVALID",
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Invalid enum value at body.plan",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3016",
+    expected: [
+      "FREE",
+      "PREMIUM",
+    ],
+    message: 'Value "INVALID" is not in allowed values',
+    requestPath: "body.plan",
+    severity: "error",
+    specPointer: "#/components/schemas/Account/properties/plan",
+  },
+]
+`;
+
+snapshot[`POST /accounts with invalid nested address → errors at nested path 1`] = `
+[
+  {
+    actual: undefined,
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Missing required field at body.address",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3007",
+    expected: undefined,
+    message: "Missing required property: address1",
+    requestPath: "body.address",
+    severity: "error",
+    specPointer: "#/components/schemas/Address",
+  },
+  {
+    actual: undefined,
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Missing required field at body.address",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3007",
+    expected: undefined,
+    message: "Missing required property: country",
+    requestPath: "body.address",
+    severity: "error",
+    specPointer: "#/components/schemas/Address",
+  },
+  {
+    actual: undefined,
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Missing required field at body.address",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3007",
+    expected: undefined,
+    message: "Missing required property: postal_code",
+    requestPath: "body.address",
+    severity: "error",
+    specPointer: "#/components/schemas/Address",
+  },
+  {
+    actual: undefined,
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Missing required field at body.address",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3007",
+    expected: undefined,
+    message: "Missing required property: state",
+    requestPath: "body.address",
+    severity: "error",
+    specPointer: "#/components/schemas/Address",
+  },
+  {
+    actual: "number",
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Field type mismatch at body.address.city",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3008",
+    expected: "string",
+    message: "Expected type string, got number",
+    requestPath: "body.address.city",
+    severity: "error",
+    specPointer: "#/components/schemas/Address/properties/city",
+  },
+]
+`;
+
+snapshot[`POST /accounts/{id}/link with wrong variant data → errors 1`] = `
+[
+  {
+    attribution: {
+      confidence: 0.5,
+      reasoning: [
+        "Variant 0: 1 structural failure(s), 1 total",
+        "Variant 1: 1 structural failure(s), 1 total",
+      ],
+    },
+    category: "ambiguous",
+    code: "E3012",
+    message: "No variant matched: 2 variants all failed structurally",
+    requestPath: "body",
+    severity: "warning",
+    specPointer: "#/components/schemas/AccountLink/oneOf",
+  },
+]
+`;
+
+snapshot[`multiple errors: wrong type + invalid enum 1`] = `
+[
+  {
+    actual: "number",
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Field type mismatch at body.name",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3008",
+    expected: "string",
+    message: "Expected type string, got number",
+    requestPath: "body.name",
+    severity: "error",
+    specPointer: "#/components/schemas/Account/properties/name",
+  },
+  {
+    actual: "INVALID",
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Invalid enum value at body.plan",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3016",
+    expected: [
+      "FREE",
+      "PREMIUM",
+    ],
+    message: 'Value "INVALID" is not in allowed values',
+    requestPath: "body.plan",
+    severity: "error",
+    specPointer: "#/components/schemas/Account/properties/plan",
+  },
+  {
+    actual: "UNKNOWN",
+    attribution: {
+      confidence: 0.9,
+      reasoning: [
+        "Invalid enum value at body.state",
+      ],
+    },
+    category: "sdk-issue",
+    code: "E3016",
+    expected: [
+      "ACTIVE",
+      "PAUSED",
+    ],
+    message: 'Value "UNKNOWN" is not in allowed values',
+    requestPath: "body.state",
+    severity: "error",
+    specPointer: "#/components/schemas/Account/properties/state",
+  },
+]
+`;
