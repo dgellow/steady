@@ -5,6 +5,7 @@ import type {
   ResponseObject,
   SchemaObject,
 } from "@steady/openapi";
+import type { Diagnostic } from "./diagnostic.ts";
 import type { LogLevel } from "./logging/mod.ts";
 
 export { VERSION } from "./version.ts";
@@ -234,9 +235,11 @@ export interface ServerConfig {
   logBodies?: boolean;
   showValidation?: boolean;
   interactive?: boolean;
+  color?: boolean;
   validator?: ValidatorConfig;
   generator?: GeneratorConfig;
   streaming?: StreamingConfig;
+  startupDiagnostics?: Diagnostic[];
 }
 
 // Validation types

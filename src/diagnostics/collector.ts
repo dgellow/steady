@@ -5,8 +5,7 @@
  * to provide session-level insights.
  */
 
-import type { Diagnostic, DiagnosticSummary } from "@steady/json-schema";
-import { groupByCode, summarizeDiagnostics } from "@steady/json-schema";
+import type { Diagnostic } from "../diagnostic.ts";
 
 /**
  * Session statistics
@@ -22,20 +21,6 @@ export interface SessionStats {
   startTime: Date;
   /** Duration in milliseconds (set on getStats) */
   durationMs?: number;
-}
-
-/**
- * Complete session summary
- */
-export interface SessionSummary {
-  stats: SessionStats;
-  staticDiagnostics: DiagnosticSummary;
-  runtimeDiagnostics: DiagnosticSummary;
-  topIssues: Array<{
-    code: string;
-    count: number;
-    example: Diagnostic;
-  }>;
 }
 
 /**
@@ -100,25 +85,32 @@ export class DiagnosticCollector {
   }
 
   /**
-   * Get complete session summary
+   * Get top issues grouped by code
    */
-  getSummary(): SessionSummary {
-    const grouped = groupByCode(this.runtimeDiagnostics);
-    const topIssues = Array.from(grouped.entries())
-      .map(([code, diagnostics]) => ({
-        code,
-        count: diagnostics.length,
-        example: diagnostics[0]!,
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+  getTopIssues(
+    limit = 10,
+  ): Array<{ code: string; count: number; example: Diagnostic }> {
+    const grouped = new Map<string, Diagnostic[]>();
+    for (const d of this.runtimeDiagnostics) {
+      const existing = grouped.get(d.code);
+      if (existing) {
+        existing.push(d);
+      } else {
+        grouped.set(d.code, [d]);
+      }
+    }
 
-    return {
-      stats: this.getStats(),
-      staticDiagnostics: summarizeDiagnostics(this.staticDiagnostics),
-      runtimeDiagnostics: summarizeDiagnostics(this.runtimeDiagnostics),
-      topIssues,
-    };
+    const entries: Array<{ code: string; count: number; example: Diagnostic }> =
+      [];
+    for (const [code, diagnostics] of grouped) {
+      const first = diagnostics[0];
+      if (first) {
+        entries.push({ code, count: diagnostics.length, example: first });
+      }
+    }
+
+    entries.sort((a, b) => b.count - a.count);
+    return entries.slice(0, limit);
   }
 
   /**
@@ -155,26 +147,4 @@ export class DiagnosticCollector {
   hasStaticErrors(): boolean {
     return this.getStaticErrorCount() > 0;
   }
-}
-
-/**
- * Global collector instance for the server
- */
-let globalCollector: DiagnosticCollector | null = null;
-
-/**
- * Get or create the global collector
- */
-export function getCollector(): DiagnosticCollector {
-  if (!globalCollector) {
-    globalCollector = new DiagnosticCollector();
-  }
-  return globalCollector;
-}
-
-/**
- * Reset the global collector (useful for testing)
- */
-export function resetCollector(): void {
-  globalCollector = null;
 }
