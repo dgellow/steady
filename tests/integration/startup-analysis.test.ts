@@ -35,7 +35,12 @@ Deno.test("duplicate path parameter names → E1009", async (t) => {
       "/users/{id}/posts/{id}": {
         get: {
           parameters: [
-            { name: "id", in: "path", required: true, schema: { type: "string" } },
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
           ],
           responses: { "200": { description: "OK" } },
         },

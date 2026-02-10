@@ -52,6 +52,18 @@ snapshot[`unresolved \$ref → E1004 + fatal 1`] = `
     },
     category: "spec-issue",
     code: "E1004",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 34,
+            label: "Target does not exist",
+            start: 6,
+          },
+          text: "\$ref: '#/components/schemas/Ghost'",
+        },
+      ],
+    },
     message: "Unresolved reference: #/components/schemas/Ghost",
     requestPath: "",
     severity: "error",

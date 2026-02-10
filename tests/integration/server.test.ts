@@ -70,15 +70,24 @@ const DATADOG_SPEC = "./tests/fixtures/datadog-openapi.json";
 // ── Path matching (unit-level, no server) ───────────────────────────
 
 Deno.test("path parameter extraction", () => {
-  const r1 = matchPathPattern("/api/v1/dashboard/abc-123-def", "/api/v1/dashboard/{dashboard_id}");
+  const r1 = matchPathPattern(
+    "/api/v1/dashboard/abc-123-def",
+    "/api/v1/dashboard/{dashboard_id}",
+  );
   assertExists(r1);
   assertEquals(r1.dashboard_id, "abc-123-def");
 
-  const r2 = matchPathPattern("/api/v1/events/event-456", "/api/v1/events/{event_id}");
+  const r2 = matchPathPattern(
+    "/api/v1/events/event-456",
+    "/api/v1/events/{event_id}",
+  );
   assertExists(r2);
   assertEquals(r2.event_id, "event-456");
 
-  const r3 = matchPathPattern("/api/v1/host/my-host.example.com/mute", "/api/v1/host/{host_name}/mute");
+  const r3 = matchPathPattern(
+    "/api/v1/host/my-host.example.com/mute",
+    "/api/v1/host/{host_name}/mute",
+  );
   assertExists(r3);
   assertEquals(r3.host_name, "my-host.example.com");
 });
@@ -92,7 +101,10 @@ Deno.test("multiple path parameters + URL encoding", () => {
   assertEquals(result.user_id, "123");
   assertEquals(result.post_id, "456");
 
-  const encoded = matchPathPattern("/api/v1/items/hello%20world", "/api/v1/items/{item_id}");
+  const encoded = matchPathPattern(
+    "/api/v1/items/hello%20world",
+    "/api/v1/items/{item_id}",
+  );
   assertExists(encoded);
   assertEquals(encoded.item_id, "hello world");
 });
@@ -127,7 +139,11 @@ Deno.test({
       const response = await ctx.fetch("/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Alice", email: "alice@example.com", age: 30 }),
+        body: JSON.stringify({
+          name: "Alice",
+          email: "alice@example.com",
+          age: 30,
+        }),
       });
       assertEquals(response.status, 200);
       await response.text();
@@ -162,7 +178,11 @@ Deno.test({
       const response = await ctx.fetch("/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Charlie", email: "not-an-email", age: "not-a-number" }),
+        body: JSON.stringify({
+          name: "Charlie",
+          email: "not-an-email",
+          age: "not-a-number",
+        }),
       });
       assertEquals(response.status !== 404, true);
       await assertSnapshot(t, diagnosticHeaders(response));
@@ -222,7 +242,11 @@ Deno.test({
 
       assertExists(response);
       await response.text();
-      assertEquals(duration < 500, true, `Validation took ${duration}ms, expected < 500ms`);
+      assertEquals(
+        duration < 500,
+        true,
+        `Validation took ${duration}ms, expected < 500ms`,
+      );
     });
   },
 });

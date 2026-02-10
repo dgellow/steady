@@ -118,8 +118,14 @@ Deno.test({
 
       const response = await fetch(url.toString(), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Trace-ID": "TRACEID123" },
-        body: JSON.stringify({ blorp: "zux", preferences: { theme: "dark", alerts: true } }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-Trace-ID": "TRACEID123",
+        },
+        body: JSON.stringify({
+          blorp: "zux",
+          preferences: { theme: "dark", alerts: true },
+        }),
       });
       assertEquals(response.status, 200);
       await response.text();
@@ -135,7 +141,11 @@ Deno.test({
     await withServer(async (ctx) => {
       const response = await ctx.fetch(
         "/json-vXYZ/users/abc?date=2025-01-02&time=15:04:00&datetime=2026-01-02T15:04:05Z",
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        },
       );
       assertEquals(response.status, 200);
       await assertSnapshot(t, diagnosticHeaders(response));
@@ -173,7 +183,10 @@ Deno.test({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ blorp: "zux", preferences: { theme: "gray", alerts: "no" } }),
+          body: JSON.stringify({
+            blorp: "zux",
+            preferences: { theme: "gray", alerts: "no" },
+          }),
         },
       );
       assertEquals(response.status !== 404, true);
@@ -264,7 +277,10 @@ Deno.test({
       const response = await ctx.fetch("/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify([{ foo: "item1", baz: 1 }, { foo: "item2", baz: 2 }]),
+        body: JSON.stringify([{ foo: "item1", baz: 1 }, {
+          foo: "item2",
+          baz: 2,
+        }]),
       });
       assertEquals(response.status, 200);
       await response.text();
@@ -356,7 +372,12 @@ Deno.test({
       const response = await ctx.fetch("/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "click", x: 100, y: 200, element: "button" }),
+        body: JSON.stringify({
+          type: "click",
+          x: 100,
+          y: 200,
+          element: "button",
+        }),
       });
       assertEquals(response.status, 200);
       await response.text();
@@ -384,7 +405,8 @@ Deno.test({
 // ── /items/{item-id}/sub-items/{sub_item_id} — special chars ────────
 
 Deno.test({
-  name: "GET /items/{item-id}/sub-items/{sub_item_id} — hyphens and underscores",
+  name:
+    "GET /items/{item-id}/sub-items/{sub_item_id} — hyphens and underscores",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -404,7 +426,9 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     await withServer(async (ctx) => {
-      const response = await ctx.fetch("/search?q=test&status=draft&status=published&sort=asc");
+      const response = await ctx.fetch(
+        "/search?q=test&status=draft&status=published&sort=asc",
+      );
       assertEquals(response.status, 200);
       await response.text();
     });
@@ -434,7 +458,9 @@ Deno.test({
   fn: async () => {
     await withServer(async (ctx) => {
       const response = await ctx.fetch("/session", {
-        headers: { Cookie: "session_id=0123456789abcdef0123456789abcdef; user_pref=dark" },
+        headers: {
+          Cookie: "session_id=0123456789abcdef0123456789abcdef; user_pref=dark",
+        },
       });
       assertEquals(response.status, 200);
       await response.text();
@@ -492,8 +518,14 @@ Deno.test({
 
       const response = await fetch(url.toString(), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Trace-ID": "TRACEID" },
-        body: JSON.stringify({ blorp: "zux", preferences: { theme: "dark", alerts: true } }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-Trace-ID": "TRACEID",
+        },
+        body: JSON.stringify({
+          blorp: "zux",
+          preferences: { theme: "dark", alerts: true },
+        }),
       });
       assertEquals(response.status, 200);
       await response.text();
@@ -516,7 +548,11 @@ Deno.test({
 
       const response = await fetch(url.toString(), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Trace-ID": "TRACE123", "X-Flags": "F1, F2" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Trace-ID": "TRACE123",
+          "X-Flags": "F1, F2",
+        },
         body: JSON.stringify({}),
       });
       assertEquals(response.status, 200);

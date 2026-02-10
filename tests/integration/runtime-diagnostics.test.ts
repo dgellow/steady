@@ -62,7 +62,10 @@ Deno.test("wrong method → E2002", async (t) => {
 });
 
 Deno.test("path with parameter matches correctly", async () => {
-  const diagnostics = await analyze({ path: "/accounts/abc-123", method: "GET" });
+  const diagnostics = await analyze({
+    path: "/accounts/abc-123",
+    method: "GET",
+  });
   assertEquals(diagnostics.length, 0);
 });
 

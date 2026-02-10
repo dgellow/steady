@@ -313,7 +313,6 @@ Deno.test("parseSpec - cursed: empty responses object", async (t) => {
   }
 });
 
-
 Deno.test("parseSpec - OpenAPI 3.1 specific fields", async (t) => {
   await t.step("validates jsonSchemaDialect type", async () => {
     await assertRejects(
