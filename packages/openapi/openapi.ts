@@ -189,6 +189,9 @@ export interface SchemaObject {
   // Number validation
   minimum?: number;
   maximum?: number;
+  exclusiveMinimum?: boolean | number; // boolean in 3.0.x, number in 3.1.x
+  exclusiveMaximum?: boolean | number; // boolean in 3.0.x, number in 3.1.x
+  multipleOf?: number;
 
   // Array validation
   items?: SchemaObject;
