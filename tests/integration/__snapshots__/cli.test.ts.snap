@@ -22,21 +22,15 @@ For details, try: steady explain E1004
 `;
 
 snapshot[`validate: warnings → snapshot stderr 1`] = `
-'warning[E1008]: Path "/users/{id}" conflicts with: /users/{userId}
- --> #/paths/~1users~1{id}
-  |
-  |  /users/{userId}
-  |
-  = These paths are ambiguous — they match the same URL patterns
-
-warning[E1008]: Path "/users/{userId}" conflicts with: /users/{id}
- --> #/paths/~1users~1{userId}
+"warning[E1008]: Conflicting path patterns: /users/{id}, /users/{userId}
+ --> #/paths
   |
   |  /users/{id}
+  |  /users/{userId}
   |
-  = These paths are ambiguous — they match the same URL patterns
+  = These paths match the same URL patterns — routing will use first match
 
-2 warnings
+1 warning
 For details, try: steady explain E1008
-'
+"
 `;

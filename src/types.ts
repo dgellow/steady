@@ -240,6 +240,8 @@ export interface ServerConfig {
   generator?: GeneratorConfig;
   streaming?: StreamingConfig;
   startupDiagnostics?: Diagnostic[];
+  /** Path to the spec file, for "run `steady validate <spec>`" hints. */
+  specPath?: string;
   /** Exit with code 1 if any runtime diagnostic has category "ambiguous". */
   failOnAmbiguous?: boolean;
   /** Exit with code 1 if any runtime diagnostic has severity "warning". */

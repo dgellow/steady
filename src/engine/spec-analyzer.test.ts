@@ -186,7 +186,9 @@ Deno.test("E1008 — detects duplicate path patterns", async () => {
   });
 
   const result = await analyzeSpec(spec);
-  filterCode(result.diagnostics, "E1008", 2); // One for each conflicting path
+  const d = singleDiag(result.diagnostics, "E1008"); // One per conflict group
+  assertEquals(d.message.includes("/users/{userId}"), true);
+  assertEquals(d.message.includes("/users/{id}"), true);
 });
 
 Deno.test("E1008 — no false positive for different structures", async () => {
@@ -354,6 +356,37 @@ Deno.test("E1007 — summary/description alongside $ref are ignored", async () =
   filterCode(result.diagnostics, "E1007", 0);
 });
 
+Deno.test("E1007 — no warning for webhook schemas", async () => {
+  const spec = minimalSpec({
+    webhooks: {
+      "card.created": {
+        post: {
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: {
+                  allOf: [
+                    { $ref: "#/components/schemas/Event", type: "object" },
+                  ],
+                },
+              },
+            },
+          },
+          responses: { "200": { description: "OK" } },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        Event: { type: "object" },
+      },
+    },
+  } as Partial<OpenAPISpec>);
+
+  const result = await analyzeSpec(spec);
+  filterCode(result.diagnostics, "E1007", 0);
+});
+
 Deno.test("E1007 — no warning for 3.1.x specs", async () => {
   const spec: OpenAPISpec = {
     openapi: "3.1.0",
@@ -446,7 +479,7 @@ Deno.test("E1004 — valid $ref produces no diagnostic", async () => {
 
 // ── E1005: Circular $ref ────────────────────────────────────────────
 
-Deno.test("E1005 — detects direct circular $ref", async () => {
+Deno.test("E1005 — suppresses cycle through optional property", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -461,11 +494,10 @@ Deno.test("E1005 — detects direct circular $ref", async () => {
   });
 
   const result = await analyzeSpec(spec);
-  const e1005 = result.diagnostics.filter((d) => d.code === "E1005");
-  assertEquals(e1005.length >= 1, true);
+  filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 — detects indirect circular $ref", async () => {
+Deno.test("E1005 — suppresses indirect cycle through optional properties", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -486,8 +518,7 @@ Deno.test("E1005 — detects indirect circular $ref", async () => {
   });
 
   const result = await analyzeSpec(spec);
-  const e1005 = result.diagnostics.filter((d) => d.code === "E1005");
-  assertEquals(e1005.length >= 1, true);
+  filterCode(result.diagnostics, "E1005", 0);
 });
 
 Deno.test("E1005 — non-circular refs are fine", async () => {
@@ -501,6 +532,125 @@ Deno.test("E1005 — non-circular refs are fine", async () => {
           },
         },
         Address: { type: "object" },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  filterCode(result.diagnostics, "E1005", 0);
+});
+
+Deno.test("E1005 — detects forced self-reference (required property)", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Infinite: {
+          type: "object",
+          required: ["next"],
+          properties: {
+            next: { $ref: "#/components/schemas/Infinite" },
+          },
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const e1005 = result.diagnostics.filter((d) => d.code === "E1005");
+  assertEquals(e1005.length >= 1, true);
+});
+
+Deno.test("E1005 — detects forced indirect cycle (all edges required)", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        A: {
+          type: "object",
+          required: ["b"],
+          properties: {
+            b: { $ref: "#/components/schemas/B" },
+          },
+        },
+        B: {
+          type: "object",
+          required: ["a"],
+          properties: {
+            a: { $ref: "#/components/schemas/A" },
+          },
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const e1005 = result.diagnostics.filter((d) => d.code === "E1005");
+  assertEquals(e1005.length >= 1, true);
+});
+
+Deno.test("E1005 — suppresses cycle through array items", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        TreeNode: {
+          type: "object",
+          required: ["children"],
+          properties: {
+            children: {
+              type: "array",
+              items: { $ref: "#/components/schemas/TreeNode" },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  filterCode(result.diagnostics, "E1005", 0);
+});
+
+Deno.test("E1005 — suppresses cycle through oneOf alternative", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Expression: {
+          oneOf: [
+            { type: "string" },
+            {
+              type: "object",
+              required: ["left", "right"],
+              properties: {
+                left: { $ref: "#/components/schemas/Expression" },
+                right: { $ref: "#/components/schemas/Expression" },
+              },
+            },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  filterCode(result.diagnostics, "E1005", 0);
+});
+
+Deno.test("E1005 — mixed: forced + optional edge → suppressed", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        A: {
+          type: "object",
+          required: ["b"],
+          properties: {
+            b: { $ref: "#/components/schemas/B" },
+          },
+        },
+        B: {
+          type: "object",
+          properties: {
+            a: { $ref: "#/components/schemas/A" },
+          },
+        },
       },
     },
   });
@@ -733,7 +883,7 @@ Deno.test("analyzeSpec — fatal flag is false for warnings only", async () => {
 
 // ── E1005: 3-node cycle ─────────────────────────────────────────────
 
-Deno.test("E1005 — detects 3-node circular chain (A → B → C → A)", async () => {
+Deno.test("E1005 — suppresses 3-node cycle through optional properties", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -754,15 +904,14 @@ Deno.test("E1005 — detects 3-node circular chain (A → B → C → A)", async
   });
 
   const result = await analyzeSpec(spec);
-  const e1005 = result.diagnostics.filter((d) => d.code === "E1005");
-  assertEquals(e1005.length >= 1, true);
+  filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 — detects multiple independent cycles", async () => {
+Deno.test("E1005 — suppresses multiple independent optional cycles", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
-        // Cycle 1: X ↔ Y
+        // Cycle 1: X ↔ Y (both optional)
         X: {
           type: "object",
           properties: { y: { $ref: "#/components/schemas/Y" } },
@@ -771,7 +920,7 @@ Deno.test("E1005 — detects multiple independent cycles", async () => {
           type: "object",
           properties: { x: { $ref: "#/components/schemas/X" } },
         },
-        // Cycle 2: P ↔ Q
+        // Cycle 2: P ↔ Q (both optional)
         P: {
           type: "object",
           properties: { q: { $ref: "#/components/schemas/Q" } },
@@ -785,8 +934,7 @@ Deno.test("E1005 — detects multiple independent cycles", async () => {
   });
 
   const result = await analyzeSpec(spec);
-  const e1005 = result.diagnostics.filter((d) => d.code === "E1005");
-  assertEquals(e1005.length >= 2, true);
+  filterCode(result.diagnostics, "E1005", 0);
 });
 
 // ── E1004: external refs are ignored ────────────────────────────────

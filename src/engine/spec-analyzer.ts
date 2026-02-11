@@ -50,7 +50,7 @@ export async function analyzeSpec(
   const walkResult = walkSpec(spec);
   diagnostics.push(...checkRefSiblings(spec, walkResult.refs));
   diagnostics.push(...checkUnresolvedRefs(spec, walkResult.refs));
-  diagnostics.push(...checkCircularRefs(walkResult.refs));
+  diagnostics.push(...checkCircularRefs(walkResult.refs, spec));
   diagnostics.push(
     ...checkImpossibleConstraints(walkResult.schemas),
   );
@@ -386,23 +386,20 @@ function checkDuplicatePathPatterns(spec: OpenAPISpec): Diagnostic[] {
 
   for (const [_norm, paths] of normalized) {
     if (paths.length > 1) {
-      for (const path of paths) {
-        const others = paths.filter((p) => p !== path);
-        diagnostics.push(
-          specDiagnostic(
-            "E1008",
-            `#/paths/${escapeJsonPointer(path)}`,
-            `Path "${path}" conflicts with: ${others.join(", ")}`,
-            {
-              suggestion:
-                "These paths are ambiguous — they match the same URL patterns",
-              display: {
-                context: others.map((other) => ({ text: other })),
-              },
+      diagnostics.push(
+        specDiagnostic(
+          "E1008",
+          "#/paths",
+          `Conflicting path patterns: ${paths.join(", ")}`,
+          {
+            suggestion:
+              "These paths match the same URL patterns — routing will use first match",
+            display: {
+              context: paths.map((p) => ({ text: p })),
             },
-          ),
-        );
-      }
+          },
+        ),
+      );
     }
   }
 
@@ -894,6 +891,8 @@ function checkRefSiblings(
 
   for (const info of refs) {
     if (info.siblingKeys.length === 0) continue;
+    // Steady doesn't serve webhooks — skip refs from webhook schemas
+    if (info.pointer.startsWith("/webhooks/")) continue;
     // summary/description alongside $ref are so commonly used that flagging
     // them would be noisy. Skip them.
     const meaningful = info.siblingKeys.filter(
@@ -972,7 +971,10 @@ function checkUnresolvedRefs(
 
 // ── E1005: Circular $ref ────────────────────────────────────────────
 
-function checkCircularRefs(refs: RefInfo[]): Diagnostic[] {
+function checkCircularRefs(
+  refs: RefInfo[],
+  spec: OpenAPISpec,
+): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
   // Collect all ref targets as graph nodes
@@ -985,9 +987,9 @@ function checkCircularRefs(refs: RefInfo[]): Diagnostic[] {
   // Build a sorted list of targets for efficient prefix matching
   const sortedTargets = [...targets].sort((a, b) => b.length - a.length);
 
-  // Build adjacency list: for each ref target T, find all refs nested
-  // under T and add edges T → (those refs' targets).
+  // Build adjacency list AND track which RefInfos create each edge
   const edges = new Map<string, Set<string>>();
+  const edgeRefs = new Map<string, Map<string, RefInfo[]>>();
 
   for (const info of refs) {
     if (!info.ref.startsWith("#")) continue;
@@ -1009,47 +1011,74 @@ function checkCircularRefs(refs: RefInfo[]): Diagnostic[] {
 
     if (container === null) continue;
 
+    // Add to adjacency list
     const existing = edges.get(container);
     if (existing) {
       existing.add(refTarget);
     } else {
       edges.set(container, new Set([refTarget]));
     }
+
+    // Track RefInfo for this edge
+    let containerMap = edgeRefs.get(container);
+    if (!containerMap) {
+      containerMap = new Map();
+      edgeRefs.set(container, containerMap);
+    }
+    let targetList = containerMap.get(refTarget);
+    if (!targetList) {
+      targetList = [];
+      containerMap.set(refTarget, targetList);
+    }
+    targetList.push(info);
   }
 
-  // DFS cycle detection
+  // DFS cycle detection with path tracking
   const WHITE = 0;
   const GRAY = 1;
   const BLACK = 2;
   const color = new Map<string, number>();
   const reported = new Set<string>();
+  const stack: string[] = [];
 
   function dfs(node: string): void {
     color.set(node, GRAY);
+    stack.push(node);
 
     const neighbors = edges.get(node);
     if (neighbors) {
       for (const next of neighbors) {
         const nextColor = color.get(next) ?? WHITE;
         if (nextColor === GRAY) {
-          const cycleKey = [node, next].sort().join(" <-> ");
-          if (!reported.has(cycleKey)) {
+          // Back-edge found: cycle is stack[indexOf(next)..] → next
+          const startIdx = stack.indexOf(next);
+          if (startIdx < 0) continue;
+
+          const cyclePath = stack.slice(startIdx);
+          const cycleKey = [...cyclePath].sort().join(",");
+          if (reported.has(cycleKey)) continue;
+
+          // Only report forced cycles (no escape hatch on any edge)
+          if (isCycleForced(cyclePath, edgeRefs, spec)) {
             reported.add(cycleKey);
+
+            const displayContext: Array<{ text: string }> = [];
+            for (let j = 0; j < cyclePath.length; j++) {
+              const n = cyclePath[j];
+              if (n === undefined) continue;
+              displayContext.push({ text: j === 0 ? n : `-> ${n}` });
+            }
+            displayContext.push({ text: `-> ${next} (cycle)` });
+
             diagnostics.push(
               specDiagnostic(
                 "E1005",
-                `#${node}`,
-                `Circular reference detected at ${node}`,
+                `#${next}`,
+                `Forced circular reference (no base case) at ${next}`,
                 {
                   suggestion:
-                    "Break the cycle by removing one of the circular $ref references, or ensure there is a base case that terminates the recursion",
-                  display: {
-                    context: [
-                      { text: node },
-                      { text: `-> ${next}` },
-                      { text: `-> ${node} (cycle)` },
-                    ],
-                  },
+                    "All paths through this cycle use required properties with no non-recursive alternative. Response generation will truncate at depth limit.",
+                  display: { context: displayContext },
                 },
               ),
             );
@@ -1060,6 +1089,7 @@ function checkCircularRefs(refs: RefInfo[]): Diagnostic[] {
       }
     }
 
+    stack.pop();
     color.set(node, BLACK);
   }
 
@@ -1071,6 +1101,106 @@ function checkCircularRefs(refs: RefInfo[]): Diagnostic[] {
   }
 
   return diagnostics;
+}
+
+/**
+ * Check if every edge in a cycle is forced (no escape hatch).
+ * A cycle is forced only if there is no way to break it.
+ */
+function isCycleForced(
+  cyclePath: string[],
+  edgeRefs: Map<string, Map<string, RefInfo[]>>,
+  spec: OpenAPISpec,
+): boolean {
+  for (let i = 0; i < cyclePath.length; i++) {
+    const from = cyclePath[i];
+    const to = cyclePath[(i + 1) % cyclePath.length];
+    if (from === undefined || to === undefined) return false;
+
+    const refInfos = edgeRefs.get(from)?.get(to) ?? [];
+    if (!isEdgeForced(spec, from, refInfos)) {
+      return false; // This edge has an escape → cycle not forced
+    }
+  }
+  return true;
+}
+
+/**
+ * An edge is forced if at least one ref path has no escape hatch.
+ * (If all ref paths from container to target have escape hatches,
+ * you never HAVE to follow this edge.)
+ */
+function isEdgeForced(
+  spec: OpenAPISpec,
+  container: string,
+  refInfos: RefInfo[],
+): boolean {
+  for (const info of refInfos) {
+    if (!refPathHasEscapeHatch(spec, container, info.pointer)) {
+      return true; // At least one forced path exists
+    }
+  }
+  return false; // All paths have escape hatches → edge not forced
+}
+
+/** Get the `required` array from a schema at the given pointer, or empty. */
+function getRequiredAt(spec: OpenAPISpec, pointer: string): string[] {
+  const schema = resolve(spec, pointer);
+  if (typeof schema !== "object" || schema === null) return [];
+  if (!("required" in schema)) return [];
+  const req = schema.required;
+  return Array.isArray(req) ? req : [];
+}
+
+/**
+ * Check if a ref path from container to refPointer has an escape hatch.
+ *
+ * Escape hatches:
+ * - Optional property (not in parent's `required` array)
+ * - Array `items` (default minItems is 0 → empty array is valid)
+ * - `oneOf` / `anyOf` (at least one non-recursive alternative)
+ * - `additionalProperties` (optional by nature)
+ */
+function refPathHasEscapeHatch(
+  spec: OpenAPISpec,
+  containerPointer: string,
+  refPointer: string,
+): boolean {
+  const relativePath = refPointer.slice(containerPointer.length);
+  if (!relativePath.startsWith("/")) return false;
+
+  const segments = relativePath.slice(1).split("/");
+
+  let currentPath = containerPointer;
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    if (segment === undefined) continue;
+
+    if (segment === "properties") {
+      const propName = segments[i + 1];
+      if (propName === undefined) {
+        currentPath += "/properties";
+        continue;
+      }
+      // Check if this property is required in the schema at currentPath
+      const required = getRequiredAt(spec, currentPath);
+      if (!required.includes(propName)) {
+        return true; // Optional property → escape hatch
+      }
+      currentPath += `/properties/${propName}`;
+      i++; // skip the property name segment
+    } else if (segment === "items") {
+      return true; // Array items → escape hatch (minItems defaults to 0)
+    } else if (segment === "oneOf" || segment === "anyOf") {
+      return true; // Variant type → escape hatch
+    } else if (segment === "additionalProperties") {
+      return true; // Additional properties are optional
+    } else {
+      currentPath += `/${segment}`;
+    }
+  }
+
+  return false; // No escape hatch found → path is forced
 }
 
 // ── E1012: Impossible schema constraints ────────────────────────────

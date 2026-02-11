@@ -264,7 +264,7 @@ the server continues.
 | E1002 | Unsupported OpenAPI version     | error    | yes   | startup |
 | E1003 | Missing required spec field     | error    | no    | startup |
 | E1004 | Unresolved reference            | error    | yes   | startup |
-| E1005 | Circular reference              | warning  | no    | startup |
+| E1005 | Forced circular reference       | warning  | no    | startup |
 | E1006 | Invalid schema definition       | error    | yes   | startup |
 | E1007 | Keywords alongside $ref ignored | warning  | no    | startup |
 | E1008 | Duplicate path patterns         | warning  | no    | both    |
@@ -283,6 +283,23 @@ Note on E1009: Path `/users/{id}/posts/{id}` uses `{id}` twice. Parameter names
 must be unique within a path template per OpenAPI spec. When both segments
 match, behavior is undefined (second typically overwrites first). Real-world
 occurrence: auto-generated specs from ORMs that nest resources.
+
+Note on E1005: Most circular `$ref` chains in real specs are valid recursion
+with base cases (optional properties, nullable types, `oneOf`/`anyOf`
+alternatives, arrays with default `minItems: 0`). Steady only warns about cycles
+where **every edge is forced** — all properties in the chain are required, with
+no non-recursive alternatives. Cycles with any escape path are suppressed
+entirely, since they represent intentional recursive data structures. For forced
+cycles, response generation truncates at a depth limit.
+
+Note on E1007: Webhooks (`#/webhooks/...`) are filtered out. Steady doesn't
+serve webhooks, so `$ref` sibling keyword issues in webhook schemas are
+unactionable noise.
+
+Note on E1008: Conflicting paths are grouped: one diagnostic per conflict group,
+not one per path. A 3-way conflict between `/path/{a}`, `/path/{b}`, `/path/{c}`
+produces a single diagnostic listing all three paths, with `specPointer` set to
+`#/paths`.
 
 Note on E1010: Endpoint has no `responses` defined. Steady returns 204 No
 Content for these endpoints. At runtime, E1010 is reported alongside any request
@@ -790,6 +807,78 @@ Clean, actionable, shows reasoning chain for debugging.
 **Confidence: 80%** — The design is sound. Implementation details (timeout, max
 sessions, etc.) need tuning based on real usage.
 
+### 5.7 Startup Diagnostic Display
+
+Startup diagnostics use threshold-based display to avoid overwhelming the user
+while ensuring critical issues are always visible.
+
+**Rules:**
+
+1. **Errors always shown in full** — compiler-style format with context,
+   pointer, and suggestion
+2. **Non-errors (warnings/info) ≤ 5:** shown in full, same compiler-style format
+3. **Non-errors > 5:** collapsed into a grouped summary with a pointer to
+   `steady validate` for full details
+
+**Example — many warnings (collapsed):**
+
+```
+Steady - Stainless Demo API v1.0.0
+
+  6 warnings: 3× E1007 Keywords alongside $ref ignored, 2× E1008 Duplicate path patterns, 1× E1011 Invalid component name
+  Run `steady validate sdk-tests/sink-python/openapi-spec.yml` for details
+
+Loaded: 265/265 endpoints (6 warnings)
+Ready to accept requests on http://localhost:3011
+```
+
+**Example — few warnings (shown in full):**
+
+```
+Steady - Some API v1.0.0
+
+warning[E1008]: Conflicting path patterns
+ --> #/paths
+  |
+  |  /secrets/{secret_id}
+  |  /secrets/{secret_key}
+  |
+  = These paths match the same URL patterns — routing will use first match
+
+Loaded: 15/15 endpoints (1 warning)
+Ready to accept requests on http://localhost:3000
+```
+
+**Example — errors present plus many warnings:**
+
+```
+Steady - Some API v1.0.0
+
+error[E1003]: Missing required spec field
+  |
+  |  Missing: openapi, info.title, info.version
+  |
+  = Assuming OpenAPI 3.1.0
+
+  6 warnings: 3× E1007 Keywords alongside $ref ignored, 2× E1008 Duplicate path patterns, 1× E1011 Invalid component name
+  Run `steady validate api.yaml` for details
+
+Loaded: 265/265 endpoints (1 error, 6 warnings)
+Ready to accept requests on http://localhost:3000
+```
+
+**Design principle:** `steady validate` is the deep-dive command — it always
+shows all diagnostics in full compiler-style format. The startup banner is
+optimized for "start testing quickly" — surface problems, don't overwhelm.
+
+When diagnostics are collapsed, the `steady explain` hint is omitted (since the
+user is directed to `steady validate` instead).
+
+To bypass collapse and see all diagnostics at startup, use `--log-level full`.
+
+**Confidence: 95%** — Threshold-based collapse is well-validated against
+real-world specs.
+
 ---
 
 ## 6. Control Surface
@@ -874,13 +963,17 @@ users who want it.
 
 ### 6.5 Output Verbosity
 
-Controls detail level in output.
+Controls detail level in request logging output. Also affects startup diagnostic
+display.
 
-| Level     | Behavior                             |
-| --------- | ------------------------------------ |
-| `summary` | Counts and top issues only           |
-| `details` | Full issue descriptions (default)    |
-| `full`    | All data including all sample values |
+| Level     | Request Logging                      | Startup Diagnostics            |
+| --------- | ------------------------------------ | ------------------------------ |
+| `summary` | Counts and top issues only (default) | Threshold-based collapse (5.7) |
+| `details` | Full issue descriptions              | Threshold-based collapse (5.7) |
+| `full`    | All data including all sample values | All diagnostics shown in full  |
+
+Use `--log-level full` to see all startup diagnostics without running
+`steady validate` separately.
 
 **Confidence: 90%** — Standard verbosity levels.
 
@@ -1096,6 +1189,24 @@ The following are explicitly out of scope:
 
 **Confidence: 95%** — Clear boundaries help focus development.
 
+### 10.1 Known Response Generator Limitations
+
+The response generator has known limitations discovered during real-world SDK
+testing. These are not diagnostics issues — they are generator improvements to
+address separately.
+
+1. **allOf with nested
+   $ref-to-allOf**: The merge resolves one level of `$ref`.
+   If a`$ref`points to a schema that is itself an`allOf`,
+   the inner allOf's properties and required fields aren't merged transitively.
+   Result: responses may be missing properties from deeply nested allOf chains.
+
+2. **Only required properties generated**: The generator produces minimal
+   responses (required properties only). Optional properties declared in
+   `properties` are omitted. This is a deliberate design choice for consistency,
+   but means responses for schemas where most fields are optional may be nearly
+   empty.
+
 ---
 
 ## Appendix A: Scenario Reference
@@ -1213,20 +1324,18 @@ templated names MUST NOT exist as they are identical."
 
 Real-world occurrence: ArcadeAI API spec.
 
+Conflicting paths are grouped into a single diagnostic per conflict group:
+
 ```
 $ steady serve cursed-spec.yaml
 
-warning[E1008]: Duplicate path patterns
- --> paths
+warning[E1008]: Conflicting path patterns: /secrets/{secret_id}, /secrets/{secret_key}
+ --> #/paths
   |
-  |  /secrets/{secret_id}  (DELETE)
-  |  /secrets/{secret_key} (POST)
-  |           ^^^^^^^^^^^^
-  |           Same URL pattern as {secret_id}
+  |  /secrets/{secret_id}
+  |  /secrets/{secret_key}
   |
-  = This violates OpenAPI 3.0.3 path templating rules
-  = Steady handles this gracefully, but other tools may not
-  = Consider using a single path with both methods
+  = These paths match the same URL patterns — routing will use first match
 
 Loaded: 15/15 endpoints (1 warning)
 Ready to accept requests on http://localhost:3000

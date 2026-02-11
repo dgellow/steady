@@ -15,6 +15,7 @@ import {
   formatDiagnostics,
   formatDiagnosticSummary,
   formatExplainHint,
+  formatStartupDiagnostics,
 } from "./format-diagnostic.ts";
 import type {
   LoggerOptions,
@@ -246,8 +247,21 @@ export class TextLogger extends BaseLogger {
 
     // Diagnostics (if any)
     if (diagnostics.length > 0) {
-      console.log(formatDiagnostics(diagnostics, this.useColor));
-      console.log(formatExplainHint(diagnostics, this.useColor));
+      const nonErrors = diagnostics.filter((d) => d.severity !== "error");
+      const collapsed = !this.showFull() && nonErrors.length > 5;
+      if (this.showFull()) {
+        // --level full: show all diagnostics in detail
+        console.log(formatDiagnostics(diagnostics, this.useColor));
+        console.log(formatExplainHint(diagnostics, this.useColor));
+      } else {
+        console.log(
+          formatStartupDiagnostics(diagnostics, event.specPath, this.useColor),
+        );
+        // Only show explain hint when diagnostics are shown in full
+        if (!collapsed) {
+          console.log(formatExplainHint(diagnostics, this.useColor));
+        }
+      }
       console.log();
     }
 

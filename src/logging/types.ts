@@ -95,6 +95,9 @@ export interface StartupEvent extends LogEvent {
     rejectOnSdkError: boolean;
   };
 
+  /** Path to spec file, used in "run `steady validate <spec>`" hints. */
+  specPath?: string;
+
   diagnostics: Diagnostic[];
 }
 

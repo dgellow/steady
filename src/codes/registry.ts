@@ -56,7 +56,7 @@ const CODES = {
     context: "both",
   },
   E1005: {
-    title: "Circular reference",
+    title: "Forced circular reference",
     severity: "warning",
     category: "spec-issue",
     context: "startup",

@@ -15,6 +15,7 @@
 
 import { colorize, colors } from "./colors.ts";
 import type { Diagnostic } from "../diagnostic.ts";
+import { getCode, hasCode } from "../codes/registry.ts";
 
 /**
  * Get color code for severity level.
@@ -216,6 +217,75 @@ export function formatExplainHint(
     colors.dim,
     useColor,
   );
+}
+
+/**
+ * Format diagnostics for startup output with threshold-based collapse.
+ *
+ * - Errors: always shown in full
+ * - Non-errors (warnings/info): shown in full if ≤ 5, otherwise collapsed
+ *   into a grouped summary with a pointer to `steady validate`
+ */
+export function formatStartupDiagnostics(
+  diagnostics: Diagnostic[],
+  specPath: string | undefined,
+  useColor = true,
+): string {
+  if (diagnostics.length === 0) return "";
+
+  const errors = diagnostics.filter((d) => d.severity === "error");
+  const nonErrors = diagnostics.filter((d) => d.severity !== "error");
+
+  const lines: string[] = [];
+
+  // Errors always shown in full
+  if (errors.length > 0) {
+    lines.push(formatDiagnostics(errors, useColor));
+  }
+
+  // Non-errors: show in full if ≤ 5, otherwise collapse
+  if (nonErrors.length <= 5) {
+    if (nonErrors.length > 0) {
+      if (lines.length > 0) lines.push("");
+      lines.push(formatDiagnostics(nonErrors, useColor));
+    }
+  } else {
+    // Group by code, sorted by count descending
+    const counts = new Map<string, number>();
+    for (const d of nonErrors) {
+      counts.set(d.code, (counts.get(d.code) ?? 0) + 1);
+    }
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+
+    const total = nonErrors.length;
+    const label = total === 1 ? "warning" : "warnings";
+
+    let summary: string;
+    if (sorted.length === 1) {
+      // Single code — no need for per-code counts
+      const [code] = sorted[0] ?? [""];
+      const title = hasCode(code) ? ` ${getCode(code).title}` : "";
+      summary = `  ${total} ${label}: ${code}${title}`;
+    } else {
+      const parts = sorted.map(([code, count]) => {
+        const title = hasCode(code) ? ` ${getCode(code).title}` : "";
+        return `${count}\u00D7 ${code}${title}`;
+      });
+      summary = `  ${total} ${label}: ${parts.join(", ")}`;
+    }
+
+    if (lines.length > 0) lines.push("");
+    lines.push(colorize(summary, colors.dim, useColor));
+
+    const validateCmd = specPath
+      ? `steady validate ${specPath}`
+      : "steady validate <spec>";
+    lines.push(
+      colorize(`  Run \`${validateCmd}\` for details`, colors.dim, useColor),
+    );
+  }
+
+  return lines.join("\n");
 }
 
 /**

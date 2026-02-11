@@ -6,6 +6,7 @@ import {
   formatDiagnostics,
   formatDiagnosticSummary,
   formatExplainHint,
+  formatStartupDiagnostics,
 } from "../../src/logging/format-diagnostic.ts";
 
 /** Helper: create a minimal Diagnostic. */
@@ -302,4 +303,69 @@ Deno.test("formatExplainHint: truncates after 3 codes", () => {
     formatExplainHint(diagnostics, false),
     `"For details, try: steady explain E1004 E1005 E1008 ..."`,
   );
+});
+
+// ── formatStartupDiagnostics ─────────────────────────────────────────
+
+Deno.test("formatStartupDiagnostics: ≤5 non-errors shown in full", () => {
+  const diagnostics = [
+    diag({ code: "E1005", severity: "warning", message: "Circular ref A" }),
+    diag({ code: "E1008", severity: "warning", message: "Duplicate paths" }),
+  ];
+
+  const result = formatStartupDiagnostics(diagnostics, undefined, false);
+  // Should contain full diagnostic output (code + message)
+  assertEquals(result.includes("warning[E1005]"), true);
+  assertEquals(result.includes("warning[E1008]"), true);
+  // Should NOT contain the collapse summary
+  assertEquals(result.includes("Run `steady validate"), false);
+});
+
+Deno.test("formatStartupDiagnostics: >5 non-errors collapsed", () => {
+  const diagnostics = [
+    diag({ code: "E1005", severity: "warning", message: "a" }),
+    diag({ code: "E1005", severity: "warning", message: "b" }),
+    diag({ code: "E1005", severity: "warning", message: "c" }),
+    diag({ code: "E1007", severity: "warning", message: "d" }),
+    diag({ code: "E1007", severity: "warning", message: "e" }),
+    diag({ code: "E1008", severity: "warning", message: "f" }),
+  ];
+
+  const result = formatStartupDiagnostics(diagnostics, "api.yaml", false);
+  // Should NOT contain full diagnostics
+  assertEquals(result.includes("warning[E1005]"), false);
+  // Should contain grouped summary
+  assertEquals(result.includes("6 warnings"), true);
+  assertEquals(result.includes("E1005"), true);
+  assertEquals(result.includes("E1007"), true);
+  assertEquals(result.includes("E1008"), true);
+  // Should include code titles
+  assertEquals(result.includes("Forced circular reference"), true);
+  assertEquals(result.includes("Keywords alongside $ref ignored"), true);
+  assertEquals(result.includes("Duplicate path patterns"), true);
+  // Should contain validate hint with spec path
+  assertEquals(result.includes("steady validate api.yaml"), true);
+});
+
+Deno.test("formatStartupDiagnostics: errors always shown even when warnings collapsed", () => {
+  const diagnostics = [
+    diag({ code: "E1003", severity: "error", message: "Missing field" }),
+    diag({ code: "E1005", severity: "warning", message: "a" }),
+    diag({ code: "E1005", severity: "warning", message: "b" }),
+    diag({ code: "E1005", severity: "warning", message: "c" }),
+    diag({ code: "E1007", severity: "warning", message: "d" }),
+    diag({ code: "E1007", severity: "warning", message: "e" }),
+    diag({ code: "E1008", severity: "warning", message: "f" }),
+  ];
+
+  const result = formatStartupDiagnostics(diagnostics, "api.yaml", false);
+  // Error shown in full
+  assertEquals(result.includes("error[E1003]"), true);
+  // Warnings collapsed
+  assertEquals(result.includes("6 warnings"), true);
+  assertEquals(result.includes("steady validate api.yaml"), true);
+});
+
+Deno.test("formatStartupDiagnostics: empty list returns empty", () => {
+  assertEquals(formatStartupDiagnostics([], undefined, false), "");
 });

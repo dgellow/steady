@@ -326,6 +326,7 @@ export class MockServer {
         url: `http://${this.config.host}:${this.config.port}`,
         rejectOnSdkError: this.config.rejectOnSdkError ?? false,
       },
+      specPath: this.config.specPath,
       diagnostics: startupDiags,
     };
 

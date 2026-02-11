@@ -374,6 +374,7 @@ async function startServer(
     generator: options.generator,
     streaming: options.streaming,
     startupDiagnostics: analysis.diagnostics,
+    specPath,
     failOnAmbiguous: options.failOnAmbiguous,
     failOnWarnings: options.failOnWarnings,
   };
