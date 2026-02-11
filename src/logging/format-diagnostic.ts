@@ -13,6 +13,7 @@
  *     = Check that the referenced path exists in the spec
  */
 
+import { relative } from "@std/path";
 import { colorize, colors } from "./colors.ts";
 import type { Diagnostic } from "../diagnostic.ts";
 import { getCode, hasCode } from "../codes/registry.ts";
@@ -250,38 +251,66 @@ export function formatStartupDiagnostics(
       lines.push(formatDiagnostics(nonErrors, useColor));
     }
   } else {
-    // Group by code, sorted by count descending
-    const counts = new Map<string, number>();
-    for (const d of nonErrors) {
-      counts.set(d.code, (counts.get(d.code) ?? 0) + 1);
-    }
-    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-
-    const total = nonErrors.length;
-    const label = total === 1 ? "warning" : "warnings";
-
-    let summary: string;
-    if (sorted.length === 1) {
-      // Single code — no need for per-code counts
-      const [code] = sorted[0] ?? [""];
-      const title = hasCode(code) ? ` ${getCode(code).title}` : "";
-      summary = `  ${total} ${label}: ${code}${title}`;
-    } else {
-      const parts = sorted.map(([code, count]) => {
-        const title = hasCode(code) ? ` ${getCode(code).title}` : "";
-        return `${count}\u00D7 ${code}${title}`;
-      });
-      summary = `  ${total} ${label}: ${parts.join(", ")}`;
-    }
-
     if (lines.length > 0) lines.push("");
-    lines.push(colorize(summary, colors.dim, useColor));
 
-    const validateCmd = specPath
-      ? `steady validate ${specPath}`
+    // Group by severity, then by code within each severity
+    const bySeverity = new Map<string, Diagnostic[]>();
+    for (const d of nonErrors) {
+      const existing = bySeverity.get(d.severity);
+      if (existing) {
+        existing.push(d);
+      } else {
+        bySeverity.set(d.severity, [d]);
+      }
+    }
+
+    // Output one line per severity (warnings before info)
+    const severityOrder = ["warning", "info"];
+    for (const sev of severityOrder) {
+      const group = bySeverity.get(sev);
+      if (!group || group.length === 0) continue;
+
+      const counts = new Map<string, number>();
+      for (const d of group) {
+        counts.set(d.code, (counts.get(d.code) ?? 0) + 1);
+      }
+      const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+      const total = group.length;
+      const label = sev === "warning"
+        ? (total === 1 ? "warning" : "warnings")
+        : "info";
+
+      let summaryLine: string;
+      if (sorted.length === 1) {
+        const [code] = sorted[0] ?? [""];
+        const title = hasCode(code) ? ` ${getCode(code).title}` : "";
+        summaryLine = `  ${total} ${label}: ${code}${title}`;
+      } else {
+        const parts = sorted.map(([code, count]) => {
+          const title = hasCode(code) ? ` ${getCode(code).title}` : "";
+          return `${count}\u00D7 ${code}${title}`;
+        });
+        summaryLine = `  ${total} ${label}: ${parts.join(", ")}`;
+      }
+
+      lines.push(colorize(summaryLine, colors.dim, useColor));
+    }
+
+    const displayPath = specPath && specPath.startsWith("/")
+      ? relative(Deno.cwd(), specPath)
+      : specPath;
+    const validateCmd = displayPath
+      ? `steady validate ${displayPath}`
       : "steady validate <spec>";
     lines.push(
       colorize(`  Run \`${validateCmd}\` for details`, colors.dim, useColor),
+    );
+    lines.push(
+      colorize(
+        "  Or use --log-level full to show all diagnostics at startup",
+        colors.dim,
+        useColor,
+      ),
     );
   }
 

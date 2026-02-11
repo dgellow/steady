@@ -345,6 +345,25 @@ Deno.test("formatStartupDiagnostics: >5 non-errors collapsed", () => {
   assertEquals(result.includes("Duplicate path patterns"), true);
   // Should contain validate hint with spec path
   assertEquals(result.includes("steady validate api.yaml"), true);
+  // Should contain --log-level hint
+  assertEquals(result.includes("--log-level full"), true);
+});
+
+Deno.test("formatStartupDiagnostics: mixed severities get separate lines", () => {
+  const diagnostics = [
+    diag({ code: "E1008", severity: "warning", message: "a" }),
+    diag({ code: "E1008", severity: "warning", message: "b" }),
+    diag({ code: "E1015", severity: "info", message: "c" }),
+    diag({ code: "E1015", severity: "info", message: "d" }),
+    diag({ code: "E1015", severity: "info", message: "e" }),
+    diag({ code: "E1015", severity: "info", message: "f" }),
+  ];
+
+  const result = formatStartupDiagnostics(diagnostics, "api.yaml", false);
+  // Warnings on their own line
+  assertEquals(result.includes("2 warnings: E1008"), true);
+  // Info on their own line
+  assertEquals(result.includes("4 info: E1015"), true);
 });
 
 Deno.test("formatStartupDiagnostics: errors always shown even when warnings collapsed", () => {

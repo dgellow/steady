@@ -827,6 +827,7 @@ Steady - Stainless Demo API v1.0.0
 
   6 warnings: 3× E1007 Keywords alongside $ref ignored, 2× E1008 Duplicate path patterns, 1× E1011 Invalid component name
   Run `steady validate sdk-tests/sink-python/openapi-spec.yml` for details
+  Or use --log-level full to show all diagnostics at startup
 
 Loaded: 265/265 endpoints (6 warnings)
 Ready to accept requests on http://localhost:3011
@@ -862,6 +863,7 @@ error[E1003]: Missing required spec field
 
   6 warnings: 3× E1007 Keywords alongside $ref ignored, 2× E1008 Duplicate path patterns, 1× E1011 Invalid component name
   Run `steady validate api.yaml` for details
+  Or use --log-level full to show all diagnostics at startup
 
 Loaded: 265/265 endpoints (1 error, 6 warnings)
 Ready to accept requests on http://localhost:3000
@@ -1195,17 +1197,37 @@ The response generator has known limitations discovered during real-world SDK
 testing. These are not diagnostics issues — they are generator improvements to
 address separately.
 
-1. **allOf with nested
-   $ref-to-allOf**: The merge resolves one level of `$ref`.
-   If a`$ref`points to a schema that is itself an`allOf`,
-   the inner allOf's properties and required fields aren't merged transitively.
-   Result: responses may be missing properties from deeply nested allOf chains.
+1. **allOf with nested $ref-to-allOf**: The merge resolves one level of `$ref`.
+   If a `$ref` points to a schema that is itself an `allOf`, the inner allOf's
+   properties and required fields aren't merged transitively. Result: responses
+   may be missing properties from deeply nested allOf chains.
 
 2. **Only required properties generated**: The generator produces minimal
    responses (required properties only). Optional properties declared in
    `properties` are omitted. This is a deliberate design choice for consistency,
    but means responses for schemas where most fields are optional may be nearly
    empty.
+
+### 10.2 Planned Improvements
+
+The following are known UX gaps discovered during SDK testing that should be
+addressed:
+
+1. **Silent response generation failures**: When the generator produces an
+   incorrect or empty response (e.g., due to the allOf merge limitation above),
+   the request log shows `200 OK` with no diagnostics. The SDK test fails, but
+   Steady gives no indication that the response was wrong. From Steady's
+   perspective the request was valid — the problem is on the response side.
+   Possible approaches: detect when the generator produces an empty body for a
+   schema that requires properties; emit a runtime diagnostic or log annotation
+   when allOf merge fails to resolve nested refs; add a `--response-debug` mode
+   that logs generated response bodies alongside requests.
+
+2. **Uncovered endpoint list in shutdown summary**: The session summary shows
+   coverage percentage (e.g., `Coverage: 226/265 endpoints (85%)`) but doesn't
+   list which endpoints were not tested. Showing the uncovered endpoints —
+   perhaps grouped by path prefix or resource — would help SDK developers
+   identify gaps in their test suite without manual comparison.
 
 ---
 

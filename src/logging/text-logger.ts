@@ -137,11 +137,13 @@ export class TextLogger extends BaseLogger {
   private formatErrorSummary(error: ValidationError): string {
     const x = colorize("\u2717", colors.red, this.useColor); // ✗
     const path = error.path;
-    const expected = error.expected;
     const actual = formatActual(error.actual, 30);
     const attr = this.formatAttribution(error);
 
-    return `${x} ${path}: expected ${expected}, got ${actual} ${attr}`;
+    if (error.expected) {
+      return `${x} ${path}: expected ${error.expected}, got ${actual} ${attr}`;
+    }
+    return `${x} ${path}: got ${actual} ${attr}`;
   }
 
   private formatAttribution(error: ValidationError): string {
