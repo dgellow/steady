@@ -240,6 +240,10 @@ export interface ServerConfig {
   generator?: GeneratorConfig;
   streaming?: StreamingConfig;
   startupDiagnostics?: Diagnostic[];
+  /** Exit with code 1 if any runtime diagnostic has category "ambiguous". */
+  failOnAmbiguous?: boolean;
+  /** Exit with code 1 if any runtime diagnostic has severity "warning". */
+  failOnWarnings?: boolean;
 }
 
 // Validation types

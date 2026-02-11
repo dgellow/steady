@@ -17,6 +17,7 @@ snapshot[`validate: fatal spec → snapshot stderr 1`] = `
   = Check that the referenced path exists in the spec
 
 1 error
+For details, try: steady explain E1004
 "
 `;
 
@@ -36,5 +37,6 @@ warning[E1008]: Path "/users/{userId}" conflicts with: /users/{id}
   = These paths are ambiguous — they match the same URL patterns
 
 2 warnings
+For details, try: steady explain E1008
 '
 `;

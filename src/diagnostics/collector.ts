@@ -5,7 +5,7 @@
  * to provide session-level insights.
  */
 
-import type { Diagnostic } from "../diagnostic.ts";
+import type { Diagnostic, IssueCategory } from "../diagnostic.ts";
 
 /** A runtime diagnostic with request context. */
 interface RuntimeEntry {
@@ -157,6 +157,19 @@ export class DiagnosticCollector {
    */
   getCoverage(totalEndpoints: number): { tested: number; total: number } {
     return { tested: this.testedEndpoints.size, total: totalEndpoints };
+  }
+
+  /**
+   * Get category breakdown of runtime diagnostics.
+   * Returns counts per IssueCategory, only including non-zero categories.
+   */
+  getCategoryBreakdown(): Partial<Record<IssueCategory, number>> {
+    const counts: Partial<Record<IssueCategory, number>> = {};
+    for (const entry of this.runtimeEntries) {
+      const cat = entry.diagnostic.category;
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    }
+    return counts;
   }
 
   /**

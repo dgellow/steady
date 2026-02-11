@@ -1,5 +1,4 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { assertSnapshot } from "@std/testing/snapshot";
 import { parseSpec, parseSpecFromFile } from "./parser.ts";
 import { ParseError, SpecValidationError } from "./errors.ts";
 
@@ -287,30 +286,6 @@ Deno.test("parseSpec - paths validation", async (t) => {
     const result = await parseSpec(json(validSpec()));
     assertEquals(result.paths, {});
   });
-});
-
-// =============================================================================
-// Cursed Specs: Responses validation (OAS 3.1.0 Section 4.8.16)
-// "The Responses Object MUST contain at least one response code"
-// =============================================================================
-
-Deno.test("parseSpec - cursed: empty responses object", async (t) => {
-  const spec = validSpec({
-    paths: {
-      "/test": {
-        get: {
-          responses: {},
-        },
-      },
-    },
-  });
-  try {
-    await parseSpec(json(spec));
-    throw new Error("Should have thrown");
-  } catch (e) {
-    assertEquals(e instanceof SpecValidationError, true);
-    await assertSnapshot(t, (e as SpecValidationError).context);
-  }
 });
 
 Deno.test("parseSpec - OpenAPI 3.1 specific fields", async (t) => {

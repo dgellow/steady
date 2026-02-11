@@ -14,6 +14,7 @@ import { formatActual } from "./format-expected.ts";
 import {
   formatDiagnostics,
   formatDiagnosticSummary,
+  formatExplainHint,
 } from "./format-diagnostic.ts";
 import type {
   LoggerOptions,
@@ -246,11 +247,13 @@ export class TextLogger extends BaseLogger {
     // Diagnostics (if any)
     if (diagnostics.length > 0) {
       console.log(formatDiagnostics(diagnostics, this.useColor));
+      console.log(formatExplainHint(diagnostics, this.useColor));
       console.log();
     }
 
     // Loaded summary with inline diagnostic count
-    let loaded = `Loaded: ${spec.endpointCount} endpoints`;
+    let loaded =
+      `Loaded: ${spec.endpointCount}/${spec.endpointCount} endpoints`;
     if (diagnostics.length > 0) {
       loaded += ` (${formatDiagnosticSummary(diagnostics, this.useColor)})`;
     }
@@ -258,7 +261,7 @@ export class TextLogger extends BaseLogger {
 
     // Listening line
     console.log(
-      `Listening on ${server.url}${
+      `Ready to accept requests on ${server.url}${
         server.rejectOnSdkError ? " (reject-on-sdk-error)" : ""
       }`,
     );
@@ -269,10 +272,20 @@ export class TextLogger extends BaseLogger {
     const { session, topIssues, coverage } = event;
 
     console.log();
-    const failed = session.failedCount > 0
-      ? colorize(`${session.failedCount} failed`, colors.red, this.useColor)
-      : "0 failed";
-    console.log(`Session: ${session.requestCount} requests, ${failed}`);
+
+    // Session line with validity rate
+    const validPct = Math.round(session.validityRate * 100);
+    console.log(
+      `Session: ${session.requestCount} requests (${validPct}% structurally valid)`,
+    );
+
+    // Issues line — only if there are issues, only non-zero categories
+    const categoryEntries = Object.entries(session.categoryBreakdown)
+      .filter(([_, count]) => count > 0);
+    if (categoryEntries.length > 0) {
+      const parts = categoryEntries.map(([cat, count]) => `${count} ${cat}`);
+      console.log(`Issues: ${parts.join(", ")}`);
+    }
 
     if (coverage && coverage.total > 0) {
       const pct = Math.round((coverage.tested / coverage.total) * 100);

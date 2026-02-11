@@ -176,7 +176,7 @@ function createPathNotFound(
   const e2001 = getCode("E2001");
   const availablePaths = Object.keys(paths);
 
-  const suggestion = availablePaths.length > 0
+  const defaultSuggestion = availablePaths.length > 0
     ? `Available paths: ${availablePaths.slice(0, 5).join(", ")}${
       availablePaths.length > 5 ? "..." : ""
     }`
@@ -188,12 +188,17 @@ function createPathNotFound(
     [`No path definition matches "${request.path}"`],
   );
 
+  // When double-? detected, use a targeted suggestion instead of generic paths list
+  const suggestion = display
+    ? "Use '&' to separate additional query parameters"
+    : defaultSuggestion;
+
   return {
     code: "E2001",
     severity: e2001.severity,
     category: e2001.category,
     requestPath: request.path,
-    specPointer: "#/paths",
+    specPointer: `${request.method.toUpperCase()} ${request.path}`,
     message: `Path not found: ${request.path}`,
     attribution: { confidence, reasoning },
     suggestion,
@@ -226,7 +231,7 @@ function createMethodNotAllowed(
     severity: e2002.severity,
     category: e2002.category,
     requestPath: request.path,
-    specPointer: `#/paths/${escapeJsonPointer(matchedPattern)}`,
+    specPointer: `${request.method.toUpperCase()} ${request.path}`,
     message:
       `Method ${request.method.toUpperCase()} not allowed for ${matchedPattern}`,
     attribution: { confidence, reasoning },
@@ -278,14 +283,14 @@ function enrichWithDoubleQuestion(
               label: "'?' in value — likely double-? bug",
             },
           }],
+          notes: [
+            "SDK may be appending '?params' to a URL that already has '?'",
+            "Use '&' to separate additional query parameters",
+          ],
         },
       };
     }
   }
 
   return { confidence: defaultConfidence, reasoning: baseReasoning };
-}
-
-function escapeJsonPointer(path: string): string {
-  return path.replace(/~/g, "~0").replace(/\//g, "~1");
 }

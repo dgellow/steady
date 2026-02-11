@@ -277,7 +277,7 @@ export class MockServer {
       }
       this.logShutdown();
       this.stop();
-      Deno.exit(0);
+      Deno.exit(this.computeExitCode());
     };
     // Handle common shutdown signals
     for (const signal of ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"] as const) {
@@ -347,6 +347,11 @@ export class MockServer {
       attribution: issue.example.attribution,
     }));
 
+    const stats = this.collector.getStats();
+    const validityRate = stats.requestCount > 0
+      ? stats.successCount / stats.requestCount
+      : 1;
+
     const event: ShutdownEvent = {
       id: crypto.randomUUID(),
       timestamp: new Date(),
@@ -355,12 +360,40 @@ export class MockServer {
         duration,
         requestCount: this.requestCount,
         failedCount: this.failedCount,
+        validityRate,
+        categoryBreakdown: this.collector.getCategoryBreakdown(),
       },
       topIssues,
       coverage: this.collector.getCoverage(this.endpointCount),
     };
 
     this.logger.shutdown(event);
+  }
+
+  /**
+   * Compute exit code based on session diagnostics and config flags.
+   * 0 = clean, 1 = issues detected matching fail criteria.
+   */
+  private computeExitCode(): number {
+    if (this.failedCount > 0) return 1;
+
+    const runtimeDiags = this.collector.getRuntimeDiagnostics();
+
+    if (
+      this.config.failOnAmbiguous &&
+      runtimeDiags.some((d) => d.category === "ambiguous")
+    ) {
+      return 1;
+    }
+
+    if (
+      this.config.failOnWarnings &&
+      runtimeDiags.some((d) => d.severity === "warning")
+    ) {
+      return 1;
+    }
+
+    return 0;
   }
 
   private getMethodsForPath(pathItem: PathItemObject): HttpMethod[] {
@@ -983,9 +1016,8 @@ export class MockServer {
       const contentKeys = Object.keys(responseObj.content);
       if (contentKeys.length === 0) {
         // Content object exists but is empty - this is unusual and likely a spec issue
-        console.warn(
-          `[Steady] Warning: Response for ${method.toUpperCase()} ${path} has empty content object. ` +
-            `Using default application/json with no body.`,
+        this.logger.warning(
+          `Response for ${method.toUpperCase()} ${path} has empty content object. Using default application/json with no body.`,
         );
       }
 

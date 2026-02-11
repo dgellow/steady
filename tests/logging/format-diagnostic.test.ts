@@ -1,9 +1,11 @@
 import { assertEquals } from "@std/assert";
+import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import type { Diagnostic } from "../../src/diagnostic.ts";
 import {
   formatDiagnostic,
   formatDiagnostics,
   formatDiagnosticSummary,
+  formatExplainHint,
 } from "../../src/logging/format-diagnostic.ts";
 
 /** Helper: create a minimal Diagnostic. */
@@ -193,8 +195,10 @@ Deno.test("formatDiagnosticSummary: mixed counts", () => {
     diag({ code: "E1008", severity: "warning", message: "c" }),
   ];
 
-  const result = formatDiagnosticSummary(diagnostics, false);
-  assertEquals(result, "2 errors, 1 warning");
+  assertInlineSnapshot(
+    formatDiagnosticSummary(diagnostics, false),
+    `"2 errors, 1 warning"`,
+  );
 });
 
 Deno.test("formatDiagnostic: renders expected and actual", () => {
@@ -261,6 +265,41 @@ Deno.test("formatDiagnosticSummary: single error", () => {
     diag({ code: "E1004", severity: "error", message: "a" }),
   ];
 
-  const result = formatDiagnosticSummary(diagnostics, false);
-  assertEquals(result, "1 error");
+  assertInlineSnapshot(
+    formatDiagnosticSummary(diagnostics, false),
+    `"1 error"`,
+  );
+});
+
+// ── formatExplainHint ───────────────────────────────────────────────
+
+Deno.test("formatExplainHint: empty list", () => {
+  assertEquals(formatExplainHint([], false), "");
+});
+
+Deno.test("formatExplainHint: shows unique codes", () => {
+  const diagnostics = [
+    diag({ code: "E1004", severity: "error", message: "a" }),
+    diag({ code: "E1004", severity: "error", message: "b" }),
+    diag({ code: "E1008", severity: "warning", message: "c" }),
+  ];
+
+  assertInlineSnapshot(
+    formatExplainHint(diagnostics, false),
+    `"For details, try: steady explain E1004 E1008"`,
+  );
+});
+
+Deno.test("formatExplainHint: truncates after 3 codes", () => {
+  const diagnostics = [
+    diag({ code: "E1004", severity: "error", message: "a" }),
+    diag({ code: "E1005", severity: "warning", message: "b" }),
+    diag({ code: "E1008", severity: "warning", message: "c" }),
+    diag({ code: "E1012", severity: "error", message: "d" }),
+  ];
+
+  assertInlineSnapshot(
+    formatExplainHint(diagnostics, false),
+    `"For details, try: steady explain E1004 E1005 E1008 ..."`,
+  );
 });

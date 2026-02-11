@@ -17,6 +17,7 @@ import { colorize, colors } from "../src/logging/colors.ts";
 import {
   formatDiagnostics,
   formatDiagnosticSummary,
+  formatExplainHint,
 } from "../src/logging/format-diagnostic.ts";
 
 type LogFormat = "text" | "json";
@@ -41,6 +42,8 @@ export async function main() {
       "interactive",
       "validator-strict-oneof",
       "no-color",
+      "fail-on-ambiguous",
+      "fail-on-warnings",
     ],
     string: [
       "port",
@@ -96,10 +99,16 @@ export async function main() {
     Deno.exit(0);
   }
 
-  // Check for validate command
+  // Check for subcommands
   const firstArg = String(args._[0]);
   if (firstArg === "validate") {
     await validateCommand(args._.slice(1).map(String), useColor);
+    return;
+  }
+
+  if (firstArg === "explain") {
+    const { explainCommand } = await import("../src/codes/explain.ts");
+    explainCommand(args._.slice(1).map(String), useColor);
     return;
   }
 
@@ -240,6 +249,8 @@ export async function main() {
     portOverride,
     host: args.host,
     color: useColor,
+    failOnAmbiguous: args["fail-on-ambiguous"],
+    failOnWarnings: args["fail-on-warnings"],
     validator: {
       strictOneOf: args["validator-strict-oneof"],
       queryArrayFormat,
@@ -274,6 +285,7 @@ export async function main() {
       console.error(formatDiagnostics(error.diagnostics, useColor));
       console.error();
       console.error(formatDiagnosticSummary(error.diagnostics, useColor));
+      console.error(formatExplainHint(error.diagnostics, useColor));
       console.error();
       console.error("Steady cannot load this spec. Fix the error and retry.");
       Deno.exit(3);
@@ -301,6 +313,8 @@ async function startServer(
     portOverride?: number;
     host?: string;
     color: boolean;
+    failOnAmbiguous?: boolean;
+    failOnWarnings?: boolean;
     validator?: {
       strictOneOf?: boolean;
       queryArrayFormat?: QueryArrayFormat;
@@ -322,7 +336,8 @@ async function startServer(
   const spec = await parseSpecFromFile(specPath);
 
   // Run spec analysis
-  const analysis = analyzeSpec(spec);
+  const baseUri = specPathToBaseUri(specPath);
+  const analysis = await analyzeSpec(spec, { baseUri });
   if (analysis.fatal) {
     throw new FatalSpecError(analysis.diagnostics);
   }
@@ -359,6 +374,8 @@ async function startServer(
     generator: options.generator,
     streaming: options.streaming,
     startupDiagnostics: analysis.diagnostics,
+    failOnAmbiguous: options.failOnAmbiguous,
+    failOnWarnings: options.failOnWarnings,
   };
 
   // Create and start server
@@ -379,6 +396,8 @@ async function startWithWatch(
     portOverride?: number;
     host?: string;
     color: boolean;
+    failOnAmbiguous?: boolean;
+    failOnWarnings?: boolean;
     validator?: {
       strictOneOf?: boolean;
       queryArrayFormat?: QueryArrayFormat;
@@ -440,6 +459,7 @@ async function startWithWatch(
           console.error(
             formatDiagnosticSummary(error.diagnostics, useColor),
           );
+          console.error(formatExplainHint(error.diagnostics, useColor));
           console.error();
           console.error(
             "Steady cannot load this spec. Fix the error and retry.",
@@ -497,7 +517,8 @@ Examples:
     const spec = await parseSpecFromFile(specPath);
 
     // Run spec analysis
-    const analysis = analyzeSpec(spec);
+    const baseUri = specPathToBaseUri(specPath);
+    const analysis = await analyzeSpec(spec, { baseUri });
 
     if (analysis.diagnostics.length === 0) {
       console.log("All good");
@@ -506,9 +527,9 @@ Examples:
 
     // Display diagnostics using shared formatter
     console.error(formatDiagnostics(analysis.diagnostics, useColor));
-    console.error(
-      `\n${formatDiagnosticSummary(analysis.diagnostics, useColor)}`,
-    );
+    console.error();
+    console.error(formatDiagnosticSummary(analysis.diagnostics, useColor));
+    console.error(formatExplainHint(analysis.diagnostics, useColor));
 
     if (analysis.fatal) {
       Deno.exit(3);
@@ -526,6 +547,12 @@ Examples:
   }
 }
 
+function specPathToBaseUri(specPath: string): string {
+  const isUrl = specPath.startsWith("http://") ||
+    specPath.startsWith("https://");
+  return isUrl ? specPath : `file://${specPath}`;
+}
+
 function printHelp(useColor: boolean) {
   console.log(`
 ${colorize("Steady", colors.bold, useColor)} - OpenAPI 3 mock server
@@ -534,6 +561,7 @@ Usage: steady [command] [options] <openapi-spec>
 
 Commands:
   validate <spec>          Validate an OpenAPI specification
+  explain [code...]        Explain diagnostic codes (e.g., steady explain E3008)
   <spec>                   Start mock server (default command)
 
 Arguments:
@@ -549,6 +577,8 @@ Options:
   --log-bodies             Show request/response bodies in summary mode
   --no-log                 Disable request logging
   --reject-on-sdk-error    Return 400 for SDK issues (E3xxx) instead of mock response
+  --fail-on-ambiguous      Exit 1 if any ambiguous diagnostics found (CI mode)
+  --fail-on-warnings       Exit 1 if any warning-level diagnostics found (CI mode)
   --no-color               Disable colored output (also respects NO_COLOR env)
   -h, --help               Show this help message
   --version                Show version number
@@ -627,6 +657,8 @@ Examples:
   steady api.yaml                          # Start with default settings
   steady -p 4010 api.yaml                  # Start on port 4010
   steady validate api.yaml                 # Validate specification
+  steady explain E3008                     # Explain a diagnostic code
+  steady explain                           # List all diagnostic codes
   steady --log-level=details api.yaml      # Show detailed logs
   steady --log-format=json api.yaml        # NDJSON output for CI
   steady --log-bodies api.yaml             # Show bodies in summary mode

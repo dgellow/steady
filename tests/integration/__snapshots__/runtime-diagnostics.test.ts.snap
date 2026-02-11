@@ -14,7 +14,7 @@ snapshot[`unknown path → E2001 1`] = `
     message: "Path not found: /nonexistent",
     requestPath: "/nonexistent",
     severity: "error",
-    specPointer: "#/paths",
+    specPointer: "GET /nonexistent",
     suggestion: "Available paths: /oas.json, /accounts, /accounts/{account_id}, /accounts/{account_id}/link, /accounts/{account_id}/friends...",
   },
 ]
@@ -34,7 +34,7 @@ snapshot[`wrong method → E2002 1`] = `
     message: "Method DELETE not allowed for /accounts",
     requestPath: "/accounts",
     severity: "error",
-    specPointer: "#/paths/~1accounts",
+    specPointer: "DELETE /accounts",
     suggestion: 'Available methods for "/accounts": GET, POST',
   },
 ]

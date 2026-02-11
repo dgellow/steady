@@ -29,6 +29,7 @@ export {
   formatDiagnostic,
   formatDiagnostics,
   formatDiagnosticSummary,
+  formatExplainHint,
 } from "./format-diagnostic.ts";
 
 // Colors

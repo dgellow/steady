@@ -120,6 +120,8 @@ export interface ShutdownEvent extends LogEvent {
     duration: number;
     requestCount: number;
     failedCount: number;
+    validityRate: number;
+    categoryBreakdown: Partial<Record<IssueCategory, number>>;
   };
 
   topIssues: TopIssue[];

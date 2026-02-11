@@ -85,6 +85,13 @@ with: `/design-review docs/diagnostics-spec.md`
 
 See `.claude/skills/design-review/SKILL.md` for full process.
 
+### /steady-dev
+
+Project context and working conventions. Read this before making changes.
+
+See `.claude/skills/steady-dev/SKILL.md` for architecture, design philosophy,
+and common task guides.
+
 ## Investigation Standards
 
 **INVESTIGATE BEFORE IMPLEMENTING**: Always research the correct behavior first.

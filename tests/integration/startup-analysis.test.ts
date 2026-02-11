@@ -23,7 +23,7 @@ Deno.test("missing responses → E1010", async (t) => {
     },
   }));
 
-  const result = analyzeSpec(spec);
+  const result = await analyzeSpec(spec);
   await assertSnapshot(t, result.diagnostics);
 });
 
@@ -48,7 +48,7 @@ Deno.test("duplicate path parameter names → E1009", async (t) => {
     },
   }));
 
-  const result = analyzeSpec(spec);
+  const result = await analyzeSpec(spec);
   await assertSnapshot(t, result.diagnostics);
 });
 
@@ -74,7 +74,7 @@ Deno.test("unresolved $ref → E1004 + fatal", async (t) => {
     },
   }));
 
-  const result = analyzeSpec(spec);
+  const result = await analyzeSpec(spec);
   assertEquals(result.fatal, true);
   await assertSnapshot(t, result.diagnostics);
 });
@@ -90,7 +90,7 @@ Deno.test("clean spec → no diagnostics", async () => {
     },
   }));
 
-  const result = analyzeSpec(spec);
+  const result = await analyzeSpec(spec);
   assertEquals(result.diagnostics.length, 0);
   assertEquals(result.fatal, false);
 });

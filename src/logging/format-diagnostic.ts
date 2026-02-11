@@ -26,7 +26,7 @@ function severityColor(severity: Diagnostic["severity"]): string {
     case "warning":
       return colors.yellow;
     case "info":
-      return colors.blue;
+      return colors.gray;
   }
 }
 
@@ -121,7 +121,20 @@ export function formatDiagnostic(
     );
   }
 
-  return lines.join("\n");
+  const result = lines.join("\n");
+
+  // Grey out entire info diagnostic — re-apply gray after every internal
+  // color reset so the grey carries through nested colorize() calls.
+  // Also strip dim codes — dim on top of gray is too dark.
+  if (d.severity === "info" && useColor) {
+    return colors.gray +
+      result
+        .replaceAll(colors.dim, colors.gray)
+        .replaceAll(colors.reset, colors.reset + colors.gray) +
+      colors.reset;
+  }
+
+  return result;
 }
 
 /**
@@ -166,15 +179,15 @@ export function formatDiagnosticSummary(
 
   if (errors > 0) {
     const text = `${errors} error${errors > 1 ? "s" : ""}`;
-    parts.push(colorize(text, colors.red, useColor));
+    parts.push(colorize(text, severityColor("error"), useColor));
   }
   if (warnings > 0) {
     const text = `${warnings} warning${warnings > 1 ? "s" : ""}`;
-    parts.push(colorize(text, colors.yellow, useColor));
+    parts.push(colorize(text, severityColor("warning"), useColor));
   }
   if (infoCount > 0) {
     const text = `${infoCount} info`;
-    parts.push(colorize(text, colors.blue, useColor));
+    parts.push(colorize(text, severityColor("info"), useColor));
   }
 
   if (parts.length === 0) {
@@ -182,6 +195,27 @@ export function formatDiagnosticSummary(
   }
 
   return parts.join(", ");
+}
+
+/**
+ * Format a "For details, try: steady explain ..." hint line.
+ * Returns empty string if no diagnostics.
+ */
+export function formatExplainHint(
+  diagnostics: Diagnostic[],
+  useColor = true,
+): string {
+  const uniqueCodes = [...new Set(diagnostics.map((d) => d.code))];
+  if (uniqueCodes.length === 0) return "";
+
+  const maxCodes = 3;
+  const shown = uniqueCodes.slice(0, maxCodes).join(" ");
+  const suffix = uniqueCodes.length > maxCodes ? " ..." : "";
+  return colorize(
+    `For details, try: steady explain ${shown}${suffix}`,
+    colors.dim,
+    useColor,
+  );
 }
 
 /**

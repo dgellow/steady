@@ -643,7 +643,7 @@ groq.BadRequestError: Error code: 400 - {'error': 'Validation failed', ...}
 1. Test framework generates session ID (UUID)
 2. Configures SDK client to send X-Steady-Session header
 3. Runs test (requests accumulate in session)
-4. Queries GET /_steady/sessions/{id} for validation report
+4. Queries GET /_x-steady/sessions/{id} for validation report
 5. Reports errors cleanly, fails test if SDK issues present
 ```
 
@@ -660,7 +660,7 @@ X-Steady-Session: 550e8400-e29b-41d4-a716-446655440000
 **Query endpoint:**
 
 ```http
-GET /_steady/sessions/{session_id}
+GET /_x-steady/sessions/{session_id}
 ```
 
 **Response:**
@@ -733,7 +733,7 @@ def steady_session(client):
 
     # After test: check for validation errors
     report = httpx.get(
-        f"http://localhost:4010/_steady/sessions/{session_id}"
+        f"http://localhost:4010/_x-steady/sessions/{session_id}"
     ).json()
 
     # Warn about spec issues (informational, doesn't fail test)

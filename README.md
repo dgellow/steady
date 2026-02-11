@@ -36,6 +36,12 @@ steady api.yaml
 # Validate spec without starting server
 steady validate api.yaml
 
+# Explain a diagnostic code
+steady explain E3008
+
+# List all diagnostic codes
+steady explain
+
 # Watch for spec changes
 steady -r api.yaml
 
@@ -50,6 +56,7 @@ steady [command] [options] <spec-file>
 
 Commands:
   validate <spec>    Validate an OpenAPI spec (doesn't start server)
+  explain [code...]  Explain diagnostic codes (e.g., steady explain E3008)
   <spec>             Start mock server (default)
 
 Options:
@@ -60,6 +67,9 @@ Options:
   --log-bodies            Show request/response bodies
   --log=false             Disable request logging
   --reject-on-sdk-error   Return 400 for SDK issues instead of mock response
+  --fail-on-ambiguous     Exit 1 if any ambiguous diagnostics found (CI mode)
+  --fail-on-warnings      Exit 1 if any warning-level diagnostics found (CI mode)
+  --no-color              Disable colored output (also respects NO_COLOR env)
   -h, --help              Show help
 
 Validator Options:
@@ -387,21 +397,25 @@ Supports JSON Schema draft 2020-12 with ~91% compliance.
 - `$dynamicRef` / `$dynamicAnchor`
 - External `$ref` (http://, file://)
 
-## Error Attribution
+## Diagnostics
 
-Errors indicate whether the issue is likely in the spec or the client request:
+Steady attributes every validation issue to a responsible party — SDK, spec, or
+ambiguous — using compiler-style output:
 
 ```
-POST /users → 400 Bad Request
+error[E3002]: Missing required query parameter
+ --> GET /users
+  |
+  |  Required parameter 'limit' not found in query string
+  |
+  = expected: query parameter 'limit' (type: integer)
+  = Add the required parameter to the request
 
-Validation errors:
-  1. Required parameter missing
-     Path: query.limit
-     Expected: integer
-
-Attribution: SDK issue (high confidence)
-Suggestion: Check SDK implementation - required parameter not sent
+For details, try: steady explain E3002
 ```
+
+Use `steady explain <code>` for detailed documentation on any diagnostic code,
+including what it means, why it's categorized that way, and what to do about it.
 
 ## Development
 

@@ -7,7 +7,9 @@
  */
 
 import type { ComponentsObject, OpenAPISpec } from "@steady/openapi";
+import { openapi31Metaschema } from "@steady/openapi";
 import { resolve } from "@steady/json-pointer";
+import { JsonSchemaProcessor, type Schema } from "@steady/json-schema";
 import type { Diagnostic, DiagnosticDisplay } from "../diagnostic.ts";
 import { type ECode, getCode, hasCode } from "../codes/registry.ts";
 
@@ -19,12 +21,23 @@ export interface SpecAnalysisResult {
   fatal: boolean;
 }
 
+export interface AnalyzeSpecOptions {
+  /** Base URI for resolving references during metaschema validation. */
+  baseUri?: string;
+}
+
 /**
  * Analyze a parsed OpenAPI spec for structural issues.
  * Returns diagnostics and whether any are fatal (spec cannot be served).
  */
-export function analyzeSpec(spec: OpenAPISpec): SpecAnalysisResult {
+export async function analyzeSpec(
+  spec: OpenAPISpec,
+  options?: AnalyzeSpecOptions,
+): Promise<SpecAnalysisResult> {
   const diagnostics: Diagnostic[] = [];
+
+  // Metaschema validation for OpenAPI 3.1.x
+  diagnostics.push(...await checkMetaschema(spec, options?.baseUri));
 
   diagnostics.push(...checkMultipleQuestionMarks(spec));
   diagnostics.push(...checkQuestionMarkInParams(spec));
@@ -117,6 +130,95 @@ const HTTP_METHODS = [
   "options",
   "trace",
 ] as const;
+
+// ── Metaschema validation (E1006 fatal / E1015 info) ────────────────
+
+const metaschema = openapi31Metaschema as unknown as Schema;
+
+/**
+ * Translate a metaschema keyword into a user-facing message.
+ * Avoids "metaschema" jargon — speaks in terms the spec author understands.
+ */
+function metaschemaMessage(keyword: string): string {
+  switch (keyword) {
+    case "unevaluatedProperties":
+    case "unevaluatedItems":
+      return `Keyword '${keyword}' is not recognized here`;
+    case "additionalProperties":
+      return "Unexpected property at this location in the spec";
+    default:
+      return `Keyword '${keyword}' is not recognized at this spec location`;
+  }
+}
+
+/**
+ * Run OpenAPI 3.1 metaschema validation, producing diagnostics.
+ *
+ * Fatal errors → E1006 (spec cannot be served).
+ * Warnings → E1015 with user-centric messages pointing at the spec location.
+ * Deduplicated by instancePath + keyword.
+ */
+async function checkMetaschema(
+  spec: OpenAPISpec,
+  baseUri?: string,
+): Promise<Diagnostic[]> {
+  if (!spec.openapi.startsWith("3.1.")) return [];
+
+  const processor = new JsonSchemaProcessor();
+  const result = await processor.process(spec, { metaschema, baseUri });
+
+  if (result.valid || result.errors.length === 0) return [];
+
+  const diagnostics: Diagnostic[] = [];
+
+  // Separate fatal errors from warnings
+  const fatalErrors = result.errors.filter((e) => e.severity !== "warning");
+  const warnings = result.errors.filter((e) => e.severity === "warning");
+
+  // Fatal metaschema errors → E1006
+  for (const error of fatalErrors) {
+    const isRefError = error.type === "ref-not-found" ||
+      error.keyword === "$ref" ||
+      error.message.toLowerCase().includes("ref");
+
+    diagnostics.push(
+      specDiagnostic(
+        "E1006",
+        error.instancePath ? `#${error.instancePath}` : "#",
+        isRefError
+          ? `Invalid reference: ${error.message}`
+          : `Invalid schema: ${error.message}`,
+        {
+          suggestion: error.suggestion,
+        },
+      ),
+    );
+  }
+
+  // Warnings → E1015, deduplicated by instancePath + keyword
+  const seen = new Set<string>();
+  for (const warning of warnings) {
+    const dedupeKey = `${warning.instancePath}|${warning.keyword}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    const pointer = warning.instancePath ? `#${warning.instancePath}` : "#";
+
+    diagnostics.push(
+      specDiagnostic(
+        "E1015",
+        pointer,
+        metaschemaMessage(warning.keyword),
+        {
+          suggestion:
+            "Steady ignores unrecognized keywords — no impact on validation. Other OpenAPI tools may reject your spec",
+        },
+      ),
+    );
+  }
+
+  return diagnostics;
+}
 
 // ── E1013: Multiple question marks in path ──────────────────────────
 

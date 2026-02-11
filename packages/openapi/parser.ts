@@ -1,11 +1,6 @@
 import { parse as parseYAML } from "@std/yaml";
 import { OpenAPISpec } from "./openapi.ts";
 import { ErrorContext, ParseError, SpecValidationError } from "./errors.ts";
-import { JsonSchemaProcessor, type Schema } from "@steady/json-schema";
-import metaschemaJson from "./schemas/openapi-3.1.json" with { type: "json" };
-import { warn } from "../../src/logging/mod.ts";
-
-const metaschema = metaschemaJson as unknown as Schema;
 
 /**
  * Options for parsing OpenAPI specs
@@ -13,8 +8,6 @@ const metaschema = metaschemaJson as unknown as Schema;
 export interface ParseOptions {
   /** Format hint: 'json', 'yaml', or 'auto' (default: 'auto') */
   format?: "json" | "yaml" | "auto";
-  /** Base URI for resolving references (optional) */
-  baseUri?: string;
 }
 
 /**
@@ -57,8 +50,8 @@ export function parseSpec(
     });
   }
 
-  // Validate and return
-  return validateOpenAPISpec(spec, options.baseUri);
+  // Validate and return (wrapped in Promise for backwards compatibility)
+  return Promise.resolve(validateOpenAPISpec(spec));
 }
 
 /**
@@ -126,12 +119,8 @@ export async function parseSpecFromFile(path: string): Promise<OpenAPISpec> {
   }
 
   // Parse with context
-  const baseUri = isUrl ? path : `file://${path}`;
   try {
-    return await parseSpec(content, {
-      format,
-      baseUri,
-    });
+    return await parseSpec(content, { format });
   } catch (error) {
     // Add file context to errors
     if (error instanceof ParseError || error instanceof SpecValidationError) {
@@ -143,12 +132,11 @@ export async function parseSpecFromFile(path: string): Promise<OpenAPISpec> {
 
 /**
  * Validate a parsed object as an OpenAPI spec.
- * Performs structural validation and OpenAPI 3.1 metaschema validation.
+ * Performs structural validation of required fields and version constraints.
  */
-async function validateOpenAPISpec(
+function validateOpenAPISpec(
   spec: unknown,
-  baseUri?: string,
-): Promise<OpenAPISpec> {
+): OpenAPISpec {
   // Basic structural validation - must be an object
   if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
     throw new SpecValidationError("Invalid OpenAPI spec structure", {
@@ -329,52 +317,6 @@ async function validateOpenAPISpec(
           allErrors: errors,
         },
       );
-    }
-  }
-
-  // Metaschema validation for OpenAPI 3.1.x
-  if (version?.startsWith("3.1.")) {
-    const processor = new JsonSchemaProcessor();
-    const validationResult = await processor.process(spec, {
-      metaschema,
-      baseUri,
-    });
-
-    if (!validationResult.valid && validationResult.errors.length > 0) {
-      // Separate warnings from errors based on severity
-      const realErrors = validationResult.errors.filter(
-        (e) => e.severity !== "warning",
-      );
-      const warnings = validationResult.errors.filter(
-        (e) => e.severity === "warning",
-      );
-
-      // Emit warnings
-      for (const warning of warnings) {
-        const schemaPath = warning.schemaPath.split("/").slice(1).join("/");
-        warn(
-          `OpenAPI 3.1 metaschema: ${warning.message} at ${schemaPath}`,
-        );
-      }
-
-      // Throw error for actual errors
-      if (realErrors.length > 0) {
-        const error = realErrors[0]!;
-        const isRefError = error.type === "ref-not-found" ||
-          error.keyword === "$ref" ||
-          error.message.toLowerCase().includes("ref");
-        throw new SpecValidationError(
-          isRefError
-            ? "Invalid reference in OpenAPI spec"
-            : "OpenAPI spec validation failed",
-          {
-            errorType: "validate",
-            schemaPath: error.schemaPath.split("/").slice(1),
-            reason: error.message,
-            suggestion: error.suggestion,
-          },
-        );
-      }
     }
   }
 
