@@ -92,6 +92,13 @@ Project context and working conventions. Read this before making changes.
 See `.claude/skills/steady-dev/SKILL.md` for architecture, design philosophy,
 and common task guides.
 
+### /user-experiment
+
+Simulate being a real SDK developer to find UX friction in Steady. Use with:
+`/user-experiment sink-python`
+
+See `.claude/skills/user-experiment/SKILL.md` for the full methodology.
+
 ## Investigation Standards
 
 **INVESTIGATE BEFORE IMPLEMENTING**: Always research the correct behavior first.

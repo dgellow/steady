@@ -1197,10 +1197,11 @@ The response generator has known limitations discovered during real-world SDK
 testing. These are not diagnostics issues — they are generator improvements to
 address separately.
 
-1. **allOf with nested $ref-to-allOf**: The merge resolves one level of `$ref`.
-   If a `$ref` points to a schema that is itself an `allOf`, the inner allOf's
-   properties and required fields aren't merged transitively. Result: responses
-   may be missing properties from deeply nested allOf chains.
+1. **allOf with nested
+   $ref-to-allOf**: The merge resolves one level of `$ref`.
+   If a`$ref`points to a schema that is itself an`allOf`,
+   the inner allOf's properties and required fields aren't merged transitively.
+   Result: responses may be missing properties from deeply nested allOf chains.
 
 2. **Only required properties generated**: The generator produces minimal
    responses (required properties only). Optional properties declared in
@@ -1210,24 +1211,83 @@ address separately.
 
 ### 10.2 Planned Improvements
 
-The following are known UX gaps discovered during SDK testing that should be
-addressed:
+Discovered during real-world SDK testing (sink-python: 5135 passed, 35 failed,
+265 endpoints). Ordered by impact on the developer experience.
+
+#### Response visibility
 
 1. **Silent response generation failures**: When the generator produces an
    incorrect or empty response (e.g., due to the allOf merge limitation above),
    the request log shows `200 OK` with no diagnostics. The SDK test fails, but
-   Steady gives no indication that the response was wrong. From Steady's
-   perspective the request was valid — the problem is on the response side.
-   Possible approaches: detect when the generator produces an empty body for a
-   schema that requires properties; emit a runtime diagnostic or log annotation
-   when allOf merge fails to resolve nested refs; add a `--response-debug` mode
-   that logs generated response bodies alongside requests.
+   Steady gives no indication that the response was wrong. Every signal —
+   `x-steady-valid: true`, `x-steady-error-count: 0`, `200 OK` — tells the
+   developer their request is fine, while the response is broken. This is the
+   highest-friction issue: the developer has zero indication from Steady that
+   anything is wrong and must resort to manually curling endpoints.
 
-2. **Uncovered endpoint list in shutdown summary**: The session summary shows
-   coverage percentage (e.g., `Coverage: 226/265 endpoints (85%)`) but doesn't
-   list which endpoints were not tested. Showing the uncovered endpoints —
-   perhaps grouped by path prefix or resource — would help SDK developers
-   identify gaps in their test suite without manual comparison.
+   Possible approaches:
+   - Detect when the generator produces an empty body for a schema with required
+     properties and emit a log annotation (e.g.,
+     `⚠ generated empty body for
+     schema with 2 required properties`)
+   - Emit a runtime diagnostic when allOf merge fails to resolve nested refs
+   - Add response body size to the request log line (e.g.,
+     `→ 200 OK (0ms)
+     [2 bytes]`) — an empty `{}` for a complex schema is
+     immediately suspicious
+
+2. **No way to see generated response bodies**: A developer investigating test
+   failures must `curl` each endpoint manually to see what Steady returned.
+   There is no built-in way to see response bodies in the log. `--log-bodies`
+   exists but only works with `--log-level summary` for request bodies. Consider
+   showing response bodies in the request log when `--log-level full` is used,
+   or adding a dedicated `--response-debug` flag.
+
+#### Missing diagnostics
+
+3. **Required property not in `properties` (potential E1016)**: The spec can
+   declare `required: [foo]` when no property named `foo` exists in
+   `properties`. This is almost always a typo (e.g., `required: [meta]` when the
+   property is `has_more`). Steady should emit a startup diagnostic for this.
+   Real-world occurrence: sink-python's `/paginated/cursor_with_nested_has_more`
+   has `required: [meta]` instead of `required: [has_more]`, causing the
+   generator to produce `{"meta": true}` instead of `{"has_more": false}`.
+
+4. **Blank "expected" in validation errors**: Some validation errors are created
+   without an `expected` field, producing output like
+   `✗ body: got undefined [Unknown 50%]`. The display layer now handles this
+   gracefully (omits "expected X" when empty), but the root cause is that
+   several validation code paths in `validator.ts` don't populate `expected`.
+   Every validation error should include a meaningful expected value.
+
+#### Shutdown and coverage
+
+5. **Uncovered endpoint list**: The session summary shows coverage percentage
+   (e.g., `Coverage: 226/265 endpoints (85%)`) but doesn't list which endpoints
+   were not tested. Showing the uncovered endpoints — perhaps grouped by path
+   prefix or resource — would help SDK developers identify gaps in their test
+   suite without manual comparison.
+
+#### Response headers and documentation
+
+6. **Undocumented `x-steady-*` headers**: Response headers like
+   `x-steady-example-source: generated`, `x-steady-valid: true`, and
+   `x-steady-error-count: 0` are useful clues, but only if the developer knows
+   to look for them and understands what they mean. There is no documentation in
+   the output or in `--help` explaining these headers. A first-time user seeing
+   `x-steady-example-source: generated` has no idea whether that's good or bad,
+   or whether it means the response might be incorrect.
+
+#### Test output integration
+
+7. **pytest output volume**: With 5000+ tests, the pytest output is ~80K
+   characters. Failure tracebacks are buried in the middle. The
+   `short test
+   summary info` at the end lists failed test names but not error
+   messages. Steady can't control pytest's output, but could provide a summary
+   of endpoints that returned potentially problematic responses (empty bodies,
+   generation failures) as part of the shutdown report, giving the developer a
+   starting point that's separate from the test runner noise.
 
 ---
 
