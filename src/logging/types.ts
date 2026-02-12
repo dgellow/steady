@@ -134,24 +134,6 @@ export interface ShutdownEvent extends LogEvent {
 }
 
 /**
- * Warning event
- */
-export interface WarningEvent extends LogEvent {
-  type: "warning";
-  message: string;
-  context?: Record<string, unknown>;
-}
-
-/**
- * Error event
- */
-export interface ErrorEvent extends LogEvent {
-  type: "error";
-  message: string;
-  context?: Record<string, unknown>;
-}
-
-/**
  * Log level controlling output verbosity
  */
 export type LogLevel = "summary" | "details" | "full";
@@ -169,24 +151,4 @@ export interface LoggerOptions {
   format: LogFormat;
   color: boolean;
   logBodies: boolean;
-}
-
-/**
- * Stored request for TUI - includes all context for display
- */
-export interface StoredRequest {
-  id: string;
-  timestamp: Date;
-  method: string;
-  path: string;
-  pathPattern: string;
-  query: string;
-  headers: Headers;
-  body?: unknown;
-  statusCode: number;
-  statusText: string;
-  responseHeaders?: Headers;
-  responseBody?: unknown;
-  timing: number;
-  validation: ValidationResult;
 }

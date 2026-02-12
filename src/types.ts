@@ -1,10 +1,5 @@
 // Internal types for Steady (non-OpenAPI types)
 
-import type {
-  OperationObject,
-  ResponseObject,
-  SchemaObject,
-} from "@steady/openapi";
 import type { Diagnostic, IssueCategory } from "./diagnostic.ts";
 import type { LogLevel } from "./logging/mod.ts";
 
@@ -53,31 +48,6 @@ export const HEADERS = {
   /** Indicates the response is being streamed */
   STREAMING: "X-Steady-Streaming",
 } as const;
-
-export interface ResolvedOperation {
-  method: string;
-  path: string;
-  operation: OperationObject;
-  resolvedResponses: Map<string, ResolvedResponse>;
-}
-
-export interface ResolvedResponse {
-  statusCode: string;
-  response: ResponseObject;
-  mediaTypes: Map<string, ResolvedMediaType>;
-}
-
-export interface ResolvedMediaType {
-  mediaType: string;
-  schema?: ResolvedSchema;
-  example?: unknown;
-  examples?: { [name: string]: unknown };
-}
-
-export interface ResolvedSchema extends Omit<SchemaObject, "$ref"> {
-  // Schema with all $refs resolved
-  resolvedFrom?: string; // Track where this was resolved from
-}
 
 /**
  * How array query parameters are serialized.

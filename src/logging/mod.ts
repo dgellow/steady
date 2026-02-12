@@ -12,19 +12,10 @@ export { JsonLogger } from "./json-logger.ts";
 export { TuiLogger } from "./tui-logger.ts";
 
 // Types
-export type {
-  IssueCategory,
-  LogEvent,
-  RequestEvent,
-  ShutdownEvent,
-  StartupEvent,
-  TopIssue,
-  ValidationError,
-  ValidationResult,
-} from "./types.ts";
+export type { RequestEvent, ShutdownEvent, StartupEvent } from "./types.ts";
 
 // Formatting utilities
-export { formatActual, formatExpected, formatPath } from "./format-expected.ts";
+export { formatActual, formatExpected } from "./format-expected.ts";
 export {
   formatDiagnostic,
   formatDiagnostics,

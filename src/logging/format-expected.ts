@@ -153,38 +153,3 @@ export function formatActual(value: unknown, maxLength = 50): string {
     return String(value);
   }
 }
-
-/**
- * Format a validation error path from JSON pointer format to dot notation
- * e.g., "/body/user/email" -> "body.user.email"
- * e.g., "/body/items/0/name" -> "body.items[0].name"
- */
-export function formatPath(instancePath: string): string {
-  if (!instancePath || instancePath === "") return "root";
-
-  return instancePath
-    .split("/")
-    .filter(Boolean)
-    .map((segment, index) => {
-      // Unescape JSON pointer encoding
-      const unescaped = segment.replace(/~1/g, "/").replace(/~0/g, "~");
-
-      // Check if this is an array index
-      if (/^\d+$/.test(unescaped)) {
-        return `[${unescaped}]`;
-      }
-
-      // Check if property name needs quoting (contains dots or special chars)
-      if (/[.\[\]"]/.test(unescaped)) {
-        return `["${unescaped.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`;
-      }
-
-      // Regular property name
-      if (index === 0) {
-        return unescaped;
-      }
-      return `.${unescaped}`;
-    })
-    .join("")
-    .replace(/\.\[/g, "["); // Fix array notation: .[ -> [
-}
