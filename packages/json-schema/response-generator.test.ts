@@ -238,6 +238,105 @@ Deno.test("RegistryResponseGenerator - allOf with $ref resolves referenced schem
   );
 });
 
+Deno.test("RegistryResponseGenerator - allOf with nested $ref-to-allOf flattens recursively", () => {
+  // Pattern: FinancialTransaction.allOf -> $ref BaseTransaction,
+  // where BaseTransaction is itself allOf[CoreFields, TimestampFields]
+  const document = {
+    components: {
+      schemas: {
+        CoreFields: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            status: { type: "string" },
+          },
+          required: ["id", "status"],
+        },
+        TimestampFields: {
+          type: "object",
+          properties: {
+            created_at: { type: "string", format: "date-time" },
+            updated_at: { type: "string", format: "date-time" },
+          },
+          required: ["created_at", "updated_at"],
+        },
+        BaseTransaction: {
+          allOf: [
+            { $ref: "#/components/schemas/CoreFields" },
+            { $ref: "#/components/schemas/TimestampFields" },
+          ],
+        },
+        FinancialTransaction: {
+          allOf: [
+            { $ref: "#/components/schemas/BaseTransaction" },
+            {
+              type: "object",
+              properties: {
+                amount: { type: "number" },
+                currency: { type: "string" },
+              },
+              required: ["amount", "currency"],
+            },
+          ],
+        },
+      },
+    },
+  };
+
+  const registry = new SchemaRegistry(document);
+  const generator = new RegistryResponseGenerator(registry);
+
+  const result = generator.generate(
+    "#/components/schemas/FinancialTransaction",
+  ) as Record<string, unknown>;
+
+  assertEquals(typeof result, "object", "Result should be an object");
+
+  // Properties from CoreFields (nested via BaseTransaction.allOf)
+  assertEquals(
+    "id" in result,
+    true,
+    `Should include 'id' from CoreFields, got: ${JSON.stringify(result)}`,
+  );
+  assertEquals(
+    "status" in result,
+    true,
+    `Should include 'status' from CoreFields, got: ${JSON.stringify(result)}`,
+  );
+
+  // Properties from TimestampFields (nested via BaseTransaction.allOf)
+  assertEquals(
+    "created_at" in result,
+    true,
+    `Should include 'created_at' from TimestampFields, got: ${
+      JSON.stringify(result)
+    }`,
+  );
+  assertEquals(
+    "updated_at" in result,
+    true,
+    `Should include 'updated_at' from TimestampFields, got: ${
+      JSON.stringify(result)
+    }`,
+  );
+
+  // Properties from inline schema
+  assertEquals(
+    "amount" in result,
+    true,
+    `Should include 'amount' from inline schema, got: ${
+      JSON.stringify(result)
+    }`,
+  );
+  assertEquals(
+    "currency" in result,
+    true,
+    `Should include 'currency' from inline schema, got: ${
+      JSON.stringify(result)
+    }`,
+  );
+});
+
 Deno.test("RegistryResponseGenerator - seeded RNG produces deterministic output per generate() call", () => {
   const document = {
     components: {

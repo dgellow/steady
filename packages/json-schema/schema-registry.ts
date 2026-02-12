@@ -364,37 +364,7 @@ export class RegistryResponseGenerator {
     if (schema.allOf?.length) {
       // Merge all subschemas into one combined schema, then generate from it
       const merged: Schema = {};
-      for (let i = 0; i < schema.allOf.length; i++) {
-        const subSchema = schema.allOf[i]!;
-        if (typeof subSchema === "boolean") continue;
-
-        // Resolve $ref to get the actual schema
-        let resolved: Schema = subSchema;
-        if (subSchema.$ref) {
-          const refResult = this.registry.resolveRef(subSchema.$ref);
-          if (refResult) {
-            resolved = refResult.raw as Schema;
-          }
-        }
-
-        // Deep merge schema properties
-        for (const [key, value] of Object.entries(resolved)) {
-          if (key === "properties" && merged.properties) {
-            // Merge properties objects
-            merged.properties = {
-              ...merged.properties,
-              ...(value as Schema["properties"]),
-            };
-          } else if (key === "required" && merged.required) {
-            // Merge required arrays (union)
-            merged.required = [
-              ...new Set([...merged.required, ...(value as string[])]),
-            ];
-          } else {
-            (merged as Record<string, unknown>)[key] = value;
-          }
-        }
-      }
+      this.mergeAllOfInto(merged, schema.allOf, 0);
       // Generate from merged schema (remove allOf to avoid infinite recursion)
       const { allOf: _, ...mergedWithoutAllOf } = merged;
       return this.generateFromSchema(mergedWithoutAllOf, pointer);
@@ -432,6 +402,50 @@ export class RegistryResponseGenerator {
           return null;
         }
         return {};
+    }
+  }
+
+  /** Recursively flatten allOf members into `merged`, resolving $refs. */
+  private mergeAllOfInto(
+    merged: Schema,
+    members: ReadonlyArray<Schema | boolean>,
+    depth: number,
+  ): void {
+    if (depth > 10) return; // guard against pathological specs
+
+    for (const subSchema of members) {
+      if (typeof subSchema === "boolean") continue;
+
+      // Resolve $ref to get the actual schema
+      let resolved: Schema = subSchema;
+      if (subSchema.$ref) {
+        const refResult = this.registry.resolveRef(subSchema.$ref);
+        if (refResult) {
+          resolved = refResult.raw as Schema;
+        }
+      }
+
+      for (const [key, value] of Object.entries(resolved)) {
+        if (key === "allOf") {
+          // Recursively flatten nested allOf
+          this.mergeAllOfInto(
+            merged,
+            value as Array<Schema | boolean>,
+            depth + 1,
+          );
+        } else if (key === "properties" && merged.properties) {
+          merged.properties = {
+            ...merged.properties,
+            ...(value as Schema["properties"]),
+          };
+        } else if (key === "required" && merged.required) {
+          merged.required = [
+            ...new Set([...merged.required, ...(value as string[])]),
+          ];
+        } else {
+          (merged as Record<string, unknown>)[key] = value;
+        }
+      }
     }
   }
 
