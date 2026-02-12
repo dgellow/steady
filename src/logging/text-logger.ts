@@ -68,9 +68,18 @@ export class TextLogger extends BaseLogger {
         this.useColor,
       )
       : "";
+    const warning = event.response.responseWarning
+      ? ` ${
+        colorize(
+          "\u26A0 " + event.response.responseWarning + " response",
+          colors.yellow,
+          this.useColor,
+        )
+      }`
+      : "";
     let line = `${ts} ${method} ${path}${query} → ${status} ${timing}${
       bodySize ? ` ${bodySize}` : ""
-    }`;
+    }${warning}`;
 
     // Add first validation error if any
     if (!event.validation.valid && event.validation.errors.length > 0) {
@@ -112,7 +121,18 @@ export class TextLogger extends BaseLogger {
     event: RequestEvent,
   ): void {
     const ts = colorize(`[${timestamp}]`, colors.dim, this.useColor);
-    console.log(`${ts} ${method} ${path}${query} → ${status} ${timing}`);
+    const warning = event.response.responseWarning
+      ? ` ${
+        colorize(
+          "\u26A0 " + event.response.responseWarning + " response",
+          colors.yellow,
+          this.useColor,
+        )
+      }`
+      : "";
+    console.log(
+      `${ts} ${method} ${path}${query} → ${status} ${timing}${warning}`,
+    );
     console.log();
 
     // Request details
@@ -165,7 +185,9 @@ export class TextLogger extends BaseLogger {
   private logValidationError(error: ValidationError): void {
     console.log("  Validation Error:");
     console.log(`    Path: ${error.path}`);
-    console.log(`    Expected: ${error.expected}`);
+    if (error.expected) {
+      console.log(`    Expected: ${error.expected}`);
+    }
     console.log(`    Received: ${formatActual(error.actual)}`);
     console.log(`    Spec: ${error.specPointer}`);
     console.log();

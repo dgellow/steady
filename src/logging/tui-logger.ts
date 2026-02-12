@@ -495,7 +495,17 @@ export class TuiLogger extends BaseLogger {
         line += `[${ts}] `;
       }
 
-      line += `${hexId}  ${method} ${path}${query}  ${status}  ${timing}`;
+      const warning = entry.response.responseWarning
+        ? `  ${
+          colorize(
+            "\u26A0 " + entry.response.responseWarning,
+            colors.yellow,
+            this.useColor,
+          )
+        }`
+        : "";
+      line +=
+        `${hexId}  ${method} ${path}${query}  ${status}  ${timing}${warning}`;
 
       if (isSelected) {
         line = `${colorize(">", colors.cyan, this.useColor)} ${line}`;
@@ -638,7 +648,9 @@ export class TuiLogger extends BaseLogger {
       for (const error of entry.validation.errors) {
         lines.push("");
         lines.push(`${indent}  Path: ${error.path}`);
-        lines.push(`${indent}  Expected: ${error.expected}`);
+        if (error.expected) {
+          lines.push(`${indent}  Expected: ${error.expected}`);
+        }
         lines.push(`${indent}  Received: ${formatActual(error.actual)}`);
         lines.push(
           `${indent}  Spec: ${
@@ -695,6 +707,17 @@ export class TuiLogger extends BaseLogger {
         colorize(`${entry.response.timing}ms`, colors.dim, this.useColor)
       }`,
     );
+    if (entry.response.responseWarning) {
+      lines.push(
+        `${indent}  ${
+          colorize(
+            "\u26A0 " + entry.response.responseWarning + " response",
+            colors.yellow,
+            this.useColor,
+          )
+        }`,
+      );
+    }
 
     // Response headers
     if (this.showFull()) {

@@ -74,6 +74,7 @@ export interface RequestEvent extends LogEvent {
     headers: Headers;
     body?: unknown;
     bodySize?: number;
+    responseWarning?: string;
   };
 
   validation: ValidationResult;

@@ -36,6 +36,9 @@ export class JsonLogger extends BaseLogger {
         ...(this.shouldShowBodies() && event.response.body !== undefined
           ? { body: event.response.body }
           : {}),
+        ...(event.response.responseWarning
+          ? { responseWarning: event.response.responseWarning }
+          : {}),
       },
       validation: {
         valid: event.validation.valid,

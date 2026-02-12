@@ -8,6 +8,7 @@ snapshot[`missing required field → mock response with diagnostics 1`] = `
   "x-steady-error-count": "1",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/users",
+  "x-steady-response-warning": "minimal",
   "x-steady-valid": "false",
 }
 `;
@@ -23,6 +24,7 @@ snapshot[`type mismatch in body → mock response with diagnostics 1`] = `
   "x-steady-error-count": "2",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/users",
+  "x-steady-response-warning": "minimal",
   "x-steady-valid": "false",
 }
 `;

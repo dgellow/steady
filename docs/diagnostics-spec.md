@@ -1236,22 +1236,15 @@ Discovered during real-world SDK testing (sink-python: 5135 passed, 35 failed,
      [2 bytes]`) — an empty `{}` for a complex schema is
      immediately suspicious
 
-2. **No way to see generated response bodies**: A developer investigating test
-   failures must `curl` each endpoint manually to see what Steady returned.
-   There is no built-in way to see response bodies in the log. `--log-bodies`
-   exists but only works with `--log-level summary` for request bodies. Consider
-   showing response bodies in the request log when `--log-level full` is used,
-   or adding a dedicated `--response-debug` flag.
+2. **~~No way to see generated response bodies~~** (Done): `--log-bodies` and
+   `--log-level full` both show response bodies in all logger modes (text, JSON,
+   TUI).
 
 #### Missing diagnostics
 
-3. **Required property not in `properties` (potential E1016)**: The spec can
-   declare `required: [foo]` when no property named `foo` exists in
-   `properties`. This is almost always a typo (e.g., `required: [meta]` when the
-   property is `has_more`). Steady should emit a startup diagnostic for this.
-   Real-world occurrence: sink-python's `/paginated/cursor_with_nested_has_more`
-   has `required: [meta]` instead of `required: [has_more]`, causing the
-   generator to produce `{"meta": true}` instead of `{"has_more": false}`.
+3. **~~Required property not in `properties` (E1016)~~** (Done): Implemented in
+   `spec-analyzer.ts` with E1016 code. Detects `required` entries missing from
+   `properties` and reports at startup. Tests in `spec-analyzer.test.ts`.
 
 4. **Blank "expected" in validation errors**: Some validation errors are created
    without an `expected` field, producing output like

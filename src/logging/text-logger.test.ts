@@ -95,6 +95,122 @@ Deno.test("TextLogger: bodies not shown in summary mode without logBodies", () =
   }
 });
 
+Deno.test("TextLogger: summary mode shows response warning marker", () => {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "));
+  };
+
+  try {
+    const logger = new TextLogger({
+      level: "summary",
+      color: false,
+    });
+
+    const event = createMockRequestEvent({
+      response: {
+        status: 200,
+        statusText: "OK",
+        timing: 10,
+        headers: new Headers(),
+        body: {},
+        bodySize: 2,
+        responseWarning: "minimal",
+      },
+    });
+    logger.request(event);
+
+    const output = logs.join("\n");
+    assertEquals(
+      output.includes("minimal response"),
+      true,
+      "Summary line should include warning marker for minimal response",
+    );
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+Deno.test("TextLogger: detailed mode shows response warning marker", () => {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "));
+  };
+
+  try {
+    const logger = new TextLogger({
+      level: "details",
+      color: false,
+    });
+
+    const event = createMockRequestEvent({
+      response: {
+        status: 200,
+        statusText: "OK",
+        timing: 10,
+        headers: new Headers(),
+        body: {},
+        bodySize: 2,
+        responseWarning: "minimal",
+      },
+    });
+    logger.request(event);
+
+    const output = logs.join("\n");
+    assertEquals(
+      output.includes("minimal response"),
+      true,
+      "Detailed output should include warning marker for minimal response",
+    );
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+Deno.test("TextLogger: detailed mode skips blank Expected line", () => {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "));
+  };
+
+  try {
+    const logger = new TextLogger({
+      level: "details",
+      color: false,
+    });
+
+    const event = createMockRequestEvent({
+      validation: {
+        valid: false,
+        errors: [{
+          path: "body",
+          specPointer: "#/test",
+          keyword: "format",
+          message: "Some error",
+          expected: "",
+          actual: "bad-value",
+          category: "sdk-issue",
+          attribution: { confidence: 0.9, reasoning: ["test"] },
+        }],
+        warnings: [],
+      },
+    });
+    logger.request(event);
+
+    const output = logs.join("\n");
+    assertEquals(
+      output.includes("Expected: "),
+      false,
+      "Should not show blank Expected: line when expected is empty",
+    );
+  } finally {
+    console.log = originalLog;
+  }
+});
+
 Deno.test("TextLogger: bodies shown in full mode regardless of logBodies", () => {
   const logs: string[] = [];
   const originalLog = console.log;

@@ -130,8 +130,10 @@ export class RequestValidator {
           // Spec issue: reference points to non-existent parameter
           warnings.push({
             path: `parameters`,
+            keyword: "$ref",
             message:
               `Unresolved parameter reference "${param.$ref}" - parameter skipped during validation`,
+            expected: "resolvable parameter reference",
           });
           continue;
         }
@@ -874,16 +876,20 @@ export class RequestValidator {
       if (isNaN(size) || size < 0) {
         errors.push({
           path: "body",
+          keyword: "format",
           message:
             `Invalid Content-Length header: "${contentLength}" is not a valid non-negative integer`,
+          expected: "valid non-negative integer",
         });
         return { valid: false, errors, warnings };
       }
       if (size > MAX_BODY_SIZE) {
         errors.push({
           path: "body",
+          keyword: "maxLength",
           message:
             `Request body too large: ${size} bytes exceeds limit of ${MAX_BODY_SIZE} bytes`,
+          expected: `at most ${MAX_BODY_SIZE} bytes`,
         });
         return { valid: false, errors, warnings };
       }
@@ -928,7 +934,9 @@ export class RequestValidator {
         if (body === "") {
           errors.push({
             path: "body",
+            keyword: "required",
             message: "Expected JSON body but received empty request body",
+            expected: "non-empty JSON body",
           });
           return { valid: false, errors, warnings };
         }
@@ -956,19 +964,25 @@ export class RequestValidator {
       if (error instanceof BodyTooLargeError) {
         errors.push({
           path: "body",
+          keyword: "maxLength",
           message: error.message,
+          expected: `at most ${MAX_BODY_SIZE} bytes`,
         });
       } else if (error instanceof SyntaxError) {
         errors.push({
           path: "body",
+          keyword: "format",
           message: `Invalid ${mediaType} format: ${error.message}`,
+          expected: `valid ${mediaType}`,
         });
       } else {
         errors.push({
           path: "body",
+          keyword: "format",
           message: `Failed to read request body: ${
             error instanceof Error ? error.message : String(error)
           }`,
+          expected: "readable request body",
         });
       }
       return { valid: false, errors, warnings };

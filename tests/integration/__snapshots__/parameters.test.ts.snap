@@ -8,6 +8,7 @@ snapshot[`PUT /count - string instead of integer → mock with diagnostics 1`] =
   "x-steady-error-count": "1",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/count",
+  "x-steady-response-warning": "minimal",
   "x-steady-valid": "false",
 }
 `;
@@ -74,6 +75,7 @@ snapshot[`POST /bulk - empty array → mock with diagnostics 1`] = `
   "x-steady-error-count": "1",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/bulk",
+  "x-steady-response-warning": "minimal",
   "x-steady-valid": "true",
 }
 `;
@@ -86,6 +88,7 @@ snapshot[`POST /bulk - invalid item schema → mock with diagnostics 1`] = `
   "x-steady-error-count": "1",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/bulk",
+  "x-steady-response-warning": "minimal",
   "x-steady-valid": "false",
 }
 `;
@@ -98,6 +101,7 @@ snapshot[`POST /nullable - missing required field → mock with diagnostics 1`] 
   "x-steady-error-count": "1",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/nullable",
+  "x-steady-response-warning": "minimal",
   "x-steady-valid": "false",
 }
 `;
@@ -122,6 +126,7 @@ snapshot[`GET /session - missing required cookie → mock with diagnostics 1`] =
   "x-steady-error-count": "1",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/session",
+  "x-steady-response-warning": "minimal",
   "x-steady-valid": "false",
 }
 `;
@@ -134,6 +139,7 @@ snapshot[`GET /session - invalid cookie pattern → mock with diagnostics 1`] = 
   "x-steady-error-count": "1",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/session",
+  "x-steady-response-warning": "minimal",
   "x-steady-valid": "true",
 }
 `;

@@ -1572,3 +1572,115 @@ Deno.test("Validator: parses boolean from anyOf with boolean variant", async () 
 
   assertEquals(result.valid, true);
 });
+
+// =============================================================================
+// Expected field population (Item 4: no blank "expected" values)
+// =============================================================================
+
+Deno.test("Validator: empty JSON body error has non-empty expected", async () => {
+  const validator = createValidator();
+  const operation = operationWithBody({
+    required: true,
+    schema: { type: "object" },
+  });
+
+  const req = mockRequest("http://localhost/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "",
+  });
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, false);
+  const bodyError = result.errors.find((e) => e.path === "body");
+  assertExists(bodyError, "Should have a body error");
+  assertExists(bodyError.expected, "expected field should be populated");
+  assertEquals(
+    bodyError.expected !== "",
+    true,
+    "expected field should not be blank",
+  );
+});
+
+Deno.test("Validator: invalid Content-Length error has non-empty expected", async () => {
+  const validator = createValidator();
+  const operation = operationWithBody({
+    required: true,
+    schema: { type: "object" },
+  });
+
+  const req = mockRequest("http://localhost/test", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": "not-a-number",
+    },
+    body: "{}",
+  });
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, false);
+  const error = result.errors.find((e) =>
+    e.message?.includes("Invalid Content-Length")
+  );
+  assertExists(error, "Should have content-length error");
+  assertExists(error.expected, "expected field should be populated");
+  assertEquals(
+    error.expected !== "",
+    true,
+    "expected field should not be blank",
+  );
+});
+
+Deno.test("Validator: body too large error has non-empty expected", async () => {
+  const validator = createValidator();
+  const operation = operationWithBody({
+    required: true,
+    schema: { type: "object" },
+  });
+
+  const req = mockRequest("http://localhost/test", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": "999999999999",
+    },
+    body: "{}",
+  });
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, false);
+  const error = result.errors.find((e) => e.message?.includes("too large"));
+  assertExists(error, "Should have body too large error");
+  assertExists(error.expected, "expected field should be populated");
+  assertEquals(
+    error.expected !== "",
+    true,
+    "expected field should not be blank",
+  );
+});
+
+Deno.test("Validator: malformed JSON body error has non-empty expected", async () => {
+  const validator = createValidator();
+  const operation = operationWithBody({
+    required: true,
+    schema: { type: "object" },
+  });
+
+  const req = mockRequest("http://localhost/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{ invalid json }",
+  });
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, false);
+  const error = result.errors.find((e) => e.path === "body");
+  assertExists(error, "Should have a body error");
+  assertExists(error.expected, "expected field should be populated");
+  assertEquals(
+    error.expected !== "",
+    true,
+    "expected field should not be blank",
+  );
+});

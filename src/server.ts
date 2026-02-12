@@ -532,7 +532,7 @@ export class MockServer {
       const streamingOptions = this.getEffectiveStreamingOptions(req);
       streamingOptions.generatorOptions = generatorOptions;
 
-      const { response, body: responseBody } = this.generateResponse(
+      const { response, body: responseBody, minimal } = this.generateResponse(
         req.headers.get("Accept"),
         operation,
         statusCode,
@@ -542,6 +542,11 @@ export class MockServer {
         generatorOptions,
         streamingOptions,
       );
+
+      // Add response warning header for minimal responses
+      if (minimal) {
+        response.headers.set("X-Steady-Response-Warning", "minimal");
+      }
 
       const timing = Math.round(performance.now() - startTime);
       const status = parseInt(statusCode, 10);
@@ -563,6 +568,7 @@ export class MockServer {
         validation,
         response.headers,
         responseBody,
+        minimal ? "minimal" : undefined,
       );
 
       // Add diagnostic headers to response
@@ -681,6 +687,7 @@ export class MockServer {
     },
     responseHeaders?: Headers,
     responseBody?: unknown,
+    responseWarning?: string,
   ): void {
     const url = new URL(req.url);
 
@@ -705,6 +712,7 @@ export class MockServer {
         bodySize: responseBody !== undefined
           ? new TextEncoder().encode(JSON.stringify(responseBody)).length
           : undefined,
+        responseWarning,
       },
       validation: validation
         ? {
@@ -954,7 +962,7 @@ export class MockServer {
     pathPattern: string,
     generatorOptions: GenerateOptions,
     streamingOptions: StreamingOptions,
-  ): { response: Response; body?: unknown } {
+  ): { response: Response; body?: unknown; minimal?: boolean } {
     const responseObjOrRef = operation.responses[statusCode];
     if (!responseObjOrRef) {
       throw new MatchError("Response not defined", {
@@ -1018,9 +1026,10 @@ export class MockServer {
     pathPattern: string,
     generatorOptions: GenerateOptions,
     streamingOptions: StreamingOptions,
-  ): { response: Response; body?: unknown } {
+  ): { response: Response; body?: unknown; minimal?: boolean } {
     let body: unknown = null;
     let contentType: string | null = null;
+    let minimal = false;
 
     const acceptTypes = parseAcceptHeader(requestAcceptHeader);
 
@@ -1110,12 +1119,7 @@ export class MockServer {
 
           if (isMinimalResponse(body, mediaType.schema)) {
             this.collector.trackGenerationWarning(method, pathPattern);
-            this.logger.warning(
-              `Generated minimal response for ${method.toUpperCase()} ${pathPattern} - ` +
-                `schema has required properties but response is ${
-                  JSON.stringify(body)
-                }`,
-            );
+            minimal = true;
           }
         }
 
@@ -1176,6 +1180,7 @@ export class MockServer {
         },
       ),
       body,
+      minimal,
     };
   }
 
