@@ -71,9 +71,9 @@ export class SemanticDeduplicator {
     auditTrail: DeduplicationDecision[];
     failedGroups: SchemaGroup[];
   }> {
-    console.log("🔍 Analyzing structural groups...");
+    console.log("Analyzing structural groups...");
     console.log(
-      `📊 Using naming strategy: ${describeStrategy(this.namingStrategy)}`,
+      `Using naming strategy: ${describeStrategy(this.namingStrategy)}`,
     );
 
     // Phase 1: Group by structural fingerprint
@@ -116,10 +116,10 @@ export class SemanticDeduplicator {
     }
 
     // Phase 2: Semantic analysis with structured output
-    console.log("🤖 Performing semantic analysis...");
+    console.log("Performing semantic analysis...");
     const totalBatches = Math.ceil(duplicateGroups.length / this.batchSize);
     console.log(
-      `   📦 Processing ${duplicateGroups.length} groups in ${totalBatches} batches (batch size: ${this.batchSize}, concurrency: ${this.concurrency})`,
+      `   Processing ${duplicateGroups.length} groups in ${totalBatches} batches (batch size: ${this.batchSize}, concurrency: ${this.concurrency})`,
     );
 
     const analysisStart = performance.now();
@@ -129,10 +129,10 @@ export class SemanticDeduplicator {
     );
     const analysisTime = (performance.now() - analysisStart) / 1000;
 
-    console.log(`   ⏱️  Analysis completed in ${analysisTime.toFixed(1)}s`);
+    console.log(`   Analysis completed in ${analysisTime.toFixed(1)}s`);
 
     // Phase 3: Apply decisions
-    console.log("✅ Applying deduplication decisions...");
+    console.log("Applying deduplication decisions...");
     const mergedContexts = this.applyDecisions(contexts, groups, decisions);
 
     const mergeDecisions = decisions.filter((d) => d.decision === "MERGE");
@@ -150,7 +150,9 @@ export class SemanticDeduplicator {
 
     // Report failures if any
     if (failedGroups.length > 0) {
-      console.error(`\n⚠️  Failed to analyze ${failedGroups.length} groups:`);
+      console.error(
+        `\nwarning: Failed to analyze ${failedGroups.length} groups:`,
+      );
       for (const group of failedGroups.slice(0, 5)) {
         console.error(`  - Group ${group.id}: ${group.schemas.length} schemas`);
         console.error(
@@ -264,7 +266,7 @@ export class SemanticDeduplicator {
 
       if (this.llmClient.verbose) {
         console.log(
-          `   🔄 Processing groups ${i + 1}-${
+          `   Processing groups ${i + 1}-${
             Math.min(chunkEnd, totalGroups)
           } of ${totalGroups}...`,
         );

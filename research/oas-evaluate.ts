@@ -60,13 +60,13 @@ async function main() {
 
   try {
     // Load the spec
-    console.log(`📄 Loading OpenAPI spec from ${inputFile}...`);
+    console.log(`Loading OpenAPI spec from ${inputFile}...`);
     const { spec } = await parseSpec(inputFile);
 
     if (args.compare) {
       // Compare all strategies
       console.log(
-        `\n🔬 Comparing all naming strategies with ${args.runs} runs each...\n`,
+        `\nComparing all naming strategies with ${args.runs} runs each...\n`,
       );
 
       const strategies: Array<{ name: string; strategy: NamingStrategy }> = [
@@ -103,7 +103,7 @@ async function main() {
           fullReport += formatStabilityReport(report) + "\n---\n\n";
         }
         await Deno.writeTextFile(args.output, fullReport);
-        console.log(`\n📊 Full report saved to ${args.output}`);
+        console.log(`\nFull report saved to ${args.output}`);
       }
     } else {
       // Evaluate single strategy
@@ -113,7 +113,7 @@ async function main() {
       );
 
       console.log(
-        `\n🔬 Evaluating ${strategy.type} strategy with ${args.runs} runs...\n`,
+        `\nEvaluating ${strategy.type} strategy with ${args.runs} runs...\n`,
       );
 
       const report = await evaluateStability(
@@ -128,12 +128,12 @@ async function main() {
 
       if (args.output) {
         await Deno.writeTextFile(args.output, formatted);
-        console.log(`\n📊 Report saved to ${args.output}`);
+        console.log(`\nReport saved to ${args.output}`);
       }
     }
   } catch (error) {
     console.error(
-      "\n❌ Error:",
+      "\nerror:",
       error instanceof Error ? error.message : String(error),
     );
     if (args.verbose && error instanceof Error && error.stack) {

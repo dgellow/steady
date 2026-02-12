@@ -20,7 +20,7 @@ for batch_size in 20 50 80 100; do
     --dedup-batch-size $batch_size \
     --dedup-concurrency 5 \
     --dedup-delay 50 \
-    -o batch-${batch_size}-output.json 2>&1 | grep -E "(Extraction complete|Processing|📦)"
+    -o batch-${batch_size}-output.json 2>&1 | grep -E "(Extraction complete|Processing)"
   
   end_time=$(date +%s)
   duration=$((end_time - start_time))

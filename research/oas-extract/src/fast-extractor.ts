@@ -47,7 +47,7 @@ export class FastExtractor {
 
     // Step 1: Fast analysis
     if (this.options.verbose) {
-      console.log("⚡ Fast-analyzing OpenAPI spec...");
+      console.log("Fast-analyzing OpenAPI spec...");
     }
     const contexts = this.analyzer.analyze(spec);
 
@@ -65,7 +65,7 @@ export class FastExtractor {
 
     // Step 2: Semantic deduplication
     if (this.options.verbose) {
-      console.log("🧠 Performing semantic deduplication...");
+      console.log("Performing semantic deduplication...");
     }
 
     // Collect existing schema names from the spec
@@ -120,7 +120,7 @@ export class FastExtractor {
 
     // Step 5: Transform spec
     if (this.options.verbose) {
-      console.log("🔄 Transforming spec...");
+      console.log("Transforming spec...");
     }
     const transformedSpec = this.transformer.transform(spec, extractedSchemas);
 
@@ -141,11 +141,11 @@ export class FastExtractor {
     };
 
     if (this.options.verbose) {
-      console.log(`\n📊 Production Metrics:`, JSON.stringify(metrics, null, 2));
+      console.log(`\nProduction Metrics:`, JSON.stringify(metrics, null, 2));
     }
 
     console.log(
-      `✅ Extraction complete in ${
+      `Extraction complete in ${
         (totalTime / 1000).toFixed(1)
       }s! Extracted ${extractedSchemas.length} schemas`,
     );

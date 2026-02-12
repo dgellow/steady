@@ -86,7 +86,7 @@ Deno.test({
   fn: () => {
     if (!submoduleAvailable) {
       console.log(
-        "⚠️  openapi-directory submodule not initialized. Run: git submodule update --init",
+        "warning: openapi-directory submodule not initialized. Run: git submodule update --init",
       );
     }
     // Don't fail - just warn
@@ -113,7 +113,7 @@ Deno.test({
         passed++;
       } else {
         failed++;
-        console.log(`❌ ${spec.name}: ${result.error}`);
+        console.log(`FAIL ${spec.name}: ${result.error}`);
       }
     }
 
@@ -181,7 +181,7 @@ Deno.test({
 
       if (result.success) {
         passed++;
-        console.log(`✅ ${spec.name} (${duration.toFixed(0)}ms)`);
+        console.log(`OK ${spec.name} (${duration.toFixed(0)}ms)`);
       } else {
         failures.push(`${spec.name}: ${result.error}`);
       }
@@ -194,7 +194,7 @@ Deno.test({
     if (failures.length > 0) {
       console.log("Failures:");
       for (const f of failures) {
-        console.log(`  ❌ ${f}`);
+        console.log(`  FAIL ${f}`);
       }
     }
 
@@ -249,7 +249,7 @@ Deno.test({
     if (failures.length > 0) {
       console.log("Sample failures:");
       for (const f of failures) {
-        console.log(`  ❌ ${f}`);
+        console.log(`  FAIL ${f}`);
       }
     }
 
@@ -280,7 +280,7 @@ Deno.test({
       const specs = await findSpecs(OPENAPI_DIR, (p) => p.includes(api));
 
       if (specs.length === 0) {
-        console.log(`⚠️  No specs found for ${api}`);
+        console.log(`warning: No specs found for ${api}`);
         continue;
       }
 
@@ -290,11 +290,11 @@ Deno.test({
       const result = await parseSpecFile(spec.path);
 
       if (result.success) {
-        console.log(`✅ ${api}`);
+        console.log(`OK ${api}`);
       } else {
         // Don't fail on missing paths (webhook specs)
         if (result.error?.includes("Missing paths")) {
-          console.log(`⚠️  ${api} (webhook-only spec)`);
+          console.log(`warning: ${api} (webhook-only spec)`);
         } else {
           assertEquals(
             result.success,

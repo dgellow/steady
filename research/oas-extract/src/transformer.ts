@@ -172,7 +172,7 @@ export class SpecTransformer {
 
     if (errors.length > 0) {
       console.error(
-        `\n❌ Validation failed: ${errors.length} invalid references found`,
+        `\nerror: Validation failed: ${errors.length} invalid references found`,
       );
       for (const error of errors.slice(0, 5)) {
         console.error(`  - ${error}`);
@@ -186,7 +186,7 @@ export class SpecTransformer {
     }
 
     console.log(
-      `✅ Validation passed: All ${replacementCount} references are valid`,
+      `Validation passed: All ${replacementCount} references are valid`,
     );
   }
 

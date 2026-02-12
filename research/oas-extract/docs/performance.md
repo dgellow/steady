@@ -80,16 +80,16 @@ oas-extract extract api.json \
 ## Batch Size Trade-offs
 
 - **Larger batches (50-100)**:
-  - ✅ Fewer LLM calls = faster
-  - ✅ Better for homogeneous APIs
-  - ❌ Less context-aware decisions
-  - ❌ Potential quality degradation
+  - Pro: Fewer LLM calls = faster
+  - Pro: Better for homogeneous APIs
+  - Con: Less context-aware decisions
+  - Con: Potential quality degradation
 
 - **Smaller batches (10-30)**:
-  - ✅ More focused analysis
-  - ✅ Better naming quality
-  - ❌ More LLM calls = slower
-  - ❌ Higher costs
+  - Pro: More focused analysis
+  - Pro: Better naming quality
+  - Con: More LLM calls = slower
+  - Con: Higher costs
 
 ## Example: Optimizing Datadog API
 

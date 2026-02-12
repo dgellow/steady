@@ -23,16 +23,16 @@ Tests for composition keywords (allOf/anyOf/oneOf) with edge cases:
 
 #### `allOf-incorrect.test.ts` (18 test cases)
 
-- ✅ Circular allOf references
-- ✅ Conflicting type requirements in allOf
-- ✅ Deeply nested allOf (100 levels)
-- ✅ allOf with circular refs through properties
-- ✅ Indirect circular references through allOf chains
-- ✅ Mixed composition with recursion
-- ✅ allOf with additionalProperties false
-- ✅ Empty and boolean schemas in allOf
-- ✅ Nested allOf structures
-- ✅ Performance with many allOf schemas (100+)
+- [x] Circular allOf references
+- [x] Conflicting type requirements in allOf
+- [x] Deeply nested allOf (100 levels)
+- [x] allOf with circular refs through properties
+- [x] Indirect circular references through allOf chains
+- [x] Mixed composition with recursion
+- [x] allOf with additionalProperties false
+- [x] Empty and boolean schemas in allOf
+- [x] Nested allOf structures
+- [x] Performance with many allOf schemas (100+)
 
 **Why these matter**: The `allOf` keyword is frequently used to merge base
 schemas with extensions, but many tools break when these schemas become
@@ -45,17 +45,17 @@ Tests for patterns that cause infinite loops in validation/generation:
 
 #### `variant-loops.test.ts` (19 test cases)
 
-- ✅ oneOf with recursive array items
-- ✅ anyOf with mutual recursion between schemas
-- ✅ Complex variant nesting (oneOf > allOf > anyOf)
-- ✅ Multiple recursive branches in variants
-- ✅ Discriminator with recursion (breaks Prism)
-- ✅ Circular chains through variant properties
-- ✅ All branches recursive in oneOf
-- ✅ Performance with many recursive variants (50+)
-- ✅ Response generation without infinite loops
-- ✅ Variants with unevaluatedProperties recursion
-- ✅ Triple nested variants with recursion
+- [x] oneOf with recursive array items
+- [x] anyOf with mutual recursion between schemas
+- [x] Complex variant nesting (oneOf > allOf > anyOf)
+- [x] Multiple recursive branches in variants
+- [x] Discriminator with recursion (breaks Prism)
+- [x] Circular chains through variant properties
+- [x] All branches recursive in oneOf
+- [x] Performance with many recursive variants (50+)
+- [x] Response generation without infinite loops
+- [x] Variants with unevaluatedProperties recursion
+- [x] Triple nested variants with recursion
 
 **Why these matter**: Schema variants (oneOf/anyOf) with recursion are common in
 real APIs (e.g., tree structures, ASTs, recursive types), but they cause many
@@ -68,21 +68,21 @@ Tests for messy, real-world spec errors:
 
 #### `invalid-refs.test.ts` (22 test cases)
 
-- ✅ Double hash in $ref (`##/definitions/User`)
-- ✅ Trailing slash in $ref (`#/components/schemas/`)
-- ✅ Missing slash after hash (`#components/schemas/User`)
-- ✅ Missing hash entirely (`components/schemas/User`)
-- ✅ Spaces in $ref paths (unencoded)
-- ✅ URL-encoded characters in $ref (properly handled)
-- ✅ Backslashes instead of forward slashes
-- ✅ Query strings in $ref
-- ✅ Multiple fragment identifiers
-- ✅ Dots, tildes, slashes in schema names
-- ✅ Proper escaping vs unescaped special chars
-- ✅ Empty string as schema key
-- ✅ Non-existent deep paths
-- ✅ Array index syntax in $refs
-- ✅ Siblings to $ref (ignored in 2020-12)
+- [x] Double hash in $ref (`##/definitions/User`)
+- [x] Trailing slash in $ref (`#/components/schemas/`)
+- [x] Missing slash after hash (`#components/schemas/User`)
+- [x] Missing hash entirely (`components/schemas/User`)
+- [x] Spaces in $ref paths (unencoded)
+- [x] URL-encoded characters in $ref (properly handled)
+- [x] Backslashes instead of forward slashes
+- [x] Query strings in $ref
+- [x] Multiple fragment identifiers
+- [x] Dots, tildes, slashes in schema names
+- [x] Proper escaping vs unescaped special chars
+- [x] Empty string as schema key
+- [x] Non-existent deep paths
+- [x] Array index syntax in $refs
+- [x] Siblings to $ref (ignored in 2020-12)
 
 **Why these matter**: Real-world OpenAPI specs are often created by hand or by
 tools that don't fully validate syntax. Common typos like `##/definitions` or
@@ -130,12 +130,12 @@ deno task test
 
 **Current Status**: 59 edge case tests implemented
 
-- ✅ **allOf Edge Cases**: 18/18 tests (100%)
-- ✅ **Variant Loops**: 19/19 tests (100%)
-- ✅ **Malformed $refs**: 22/22 tests (100%)
-- ⏳ **Circular References**: 0/20 tests (Planned)
-- ⏳ **Tool-Breaking Patterns**: 0/30 tests (Planned)
-- ⏳ **Enterprise Scale**: 0/15 tests (Planned)
+- [x] **allOf Edge Cases**: 18/18 tests (100%)
+- [x] **Variant Loops**: 19/19 tests (100%)
+- [x] **Malformed $refs**: 22/22 tests (100%)
+- Pending **Circular References**: 0/20 tests (Planned)
+- Pending **Tool-Breaking Patterns**: 0/30 tests (Planned)
+- Pending **Enterprise Scale**: 0/15 tests (Planned)
 
 **Target**: 150+ edge case tests covering all categories
 
@@ -223,7 +223,7 @@ and code generators.
 }
 ```
 
-**Breaks**: Stoplight Prism, many code generators **Steady**: ✅ Works correctly
+**Breaks**: Stoplight Prism, many code generators **Steady**: Works correctly
 with cycle detection
 
 ### Example 2: Incorrect allOf Merge
@@ -235,12 +235,12 @@ with cycle detection
     { properties: { a: { type: "string" } } },
     { properties: { b: { type: "string" } } }
   ],
-  additionalProperties: false  // ❌ BUG: Rejects a and b!
+  additionalProperties: false  // BUG: Rejects a and b!
 }
 ```
 
 **Breaks**: Many validators incorrectly reject properties from allOf **Steady**:
-✅ Correctly allows properties from all allOf schemas
+Correctly allows properties from all allOf schemas
 
 ### Example 3: Typo in $ref
 
@@ -249,12 +249,12 @@ with cycle detection
   properties: {
     user: {
       $ref: "##/components/schemas/User";
-    } // ❌ Double hash
+    } // Double hash - invalid
   }
 }
 ```
 
-**Breaks**: Most tools with cryptic "reference not found" error **Steady**: ✅
+**Breaks**: Most tools with cryptic "reference not found" error **Steady**:
 Clear error: "Double hash in $ref - remove one #"
 
 ## Future Enhancements
@@ -293,21 +293,21 @@ Clear error: "Double hash in $ref - remove one #"
 
 ## Comparison with Other Tools
 
-**⚠️ IMPORTANT**: These comparisons represent _expected behavior_ based on test
+**!! IMPORTANT**: These comparisons represent _expected behavior_ based on test
 implementation. Tests have not yet been executed to verify actual behavior.
 Comparison with other tools is based on documented known issues.
 
-| Pattern             | Prism             | Swagger UI     | OpenAPI Gen      | **Steady (Expected)**      |
-| ------------------- | ----------------- | -------------- | ---------------- | -------------------------- |
-| Recursive oneOf     | ❌ Hangs          | ❌ Hangs       | ❌ Crashes       | ⏳ Should work             |
-| allOf circular ref  | ❌ Error          | ⚠️ Partial     | ❌ Crashes       | ⏳ Should work             |
-| Double hash in $ref | ❌ Cryptic error  | ❌ Silent fail | ❌ Cryptic error | ⏳ Should give clear error |
-| allOf + addlProps   | ⚠️ Wrong          | ⚠️ Wrong       | ❌ Crashes       | ⏳ Should be correct       |
-| 100-level nesting   | ❌ Stack overflow | ❌ Hangs       | ❌ Crashes       | ⏳ Should work             |
-| 19K+ references     | ❌ OOM            | N/A            | ❌ Slow          | ⏳ Should be fast          |
+| Pattern             | Prism               | Swagger UI       | OpenAPI Gen        | **Steady (Expected)**           |
+| ------------------- | ------------------- | ---------------- | ------------------ | ------------------------------- |
+| Recursive oneOf     | FAIL Hangs          | FAIL Hangs       | FAIL Crashes       | Pending Should work             |
+| allOf circular ref  | FAIL Error          | Partial          | FAIL Crashes       | Pending Should work             |
+| Double hash in $ref | FAIL Cryptic error  | FAIL Silent fail | FAIL Cryptic error | Pending Should give clear error |
+| allOf + addlProps   | WARN Wrong          | WARN Wrong       | FAIL Crashes       | Pending Should be correct       |
+| 100-level nesting   | FAIL Stack overflow | FAIL Hangs       | FAIL Crashes       | Pending Should work             |
+| 19K+ references     | FAIL OOM            | N/A              | FAIL Slow          | Pending Should be fast          |
 
-Legend: ✅ Verified | ⏳ Expected (untested) | ❌ Known issue | ⚠️ Partial
-support
+Legend: PASS = Verified | Pending = Expected (untested) | FAIL = Known issue |
+Partial/WARN = Partial support
 
 ## Contributing Edge Cases
 
@@ -343,10 +343,3 @@ Deno.test("EDGE: Description of the pattern", async () => {
 - **RFC 6901 (JSON Pointer)**: https://tools.ietf.org/html/rfc6901
 - **Steady Architecture**: See `/CLAUDE.md` and
   `/TESTING-INFRASTRUCTURE-REVIEW.md`
-
----
-
-**Status**: 🟡 Initial Implementation (Tests Not Yet Executed) **Last Updated**:
-2025-11-24 **Tests Written**: 59 test cases **Tests Passing**: Not yet executed
-(awaiting environment setup) **Coverage**: Test structure complete, execution
-and validation pending

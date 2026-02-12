@@ -252,7 +252,7 @@ export function formatStabilityReport(report: StabilityReport): string {
       output += `... and ${report.variations.length - 10} more variations\n`;
     }
   } else {
-    output += `\n✅ No naming variations detected - 100% stable!\n`;
+    output += `\nNo naming variations detected - 100% stable!\n`;
   }
 
   return output;

@@ -186,15 +186,15 @@ src/
 ### Startup
 
 ```
-🚀 Steady Mock Server v1.0.0
-📄 Loaded spec: Cloudflare API v4.0.0
-🔗 Server running at http://localhost:3000
+Steady Mock Server v1.0.0
+Loaded spec: Cloudflare API v4.0.0
+Server running at http://localhost:3000
 
 Schema Analysis:
   Total refs: 4421
   Cyclic refs: 0
 
-⚠️  Diagnostics: 2 warnings, 15 info
+Diagnostics: 2 warnings, 15 info
 
   warning: schema-ref-siblings (3 occurrences)
     Schemas have $ref with sibling keywords that will be ignored

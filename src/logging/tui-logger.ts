@@ -498,7 +498,7 @@ export class TuiLogger extends BaseLogger {
       const warning = entry.response.responseWarning
         ? `  ${
           colorize(
-            "\u26A0 " + entry.response.responseWarning,
+            "!! " + entry.response.responseWarning,
             colors.yellow,
             this.useColor,
           )
@@ -711,7 +711,7 @@ export class TuiLogger extends BaseLogger {
       lines.push(
         `${indent}  ${
           colorize(
-            "\u26A0 " + entry.response.responseWarning + " response",
+            "!! " + entry.response.responseWarning + " response",
             colors.yellow,
             this.useColor,
           )

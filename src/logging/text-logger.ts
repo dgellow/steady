@@ -71,7 +71,7 @@ export class TextLogger extends BaseLogger {
     const warning = event.response.responseWarning
       ? ` ${
         colorize(
-          "\u26A0 " + event.response.responseWarning + " response",
+          "!! " + event.response.responseWarning + " response",
           colors.yellow,
           this.useColor,
         )
@@ -124,7 +124,7 @@ export class TextLogger extends BaseLogger {
     const warning = event.response.responseWarning
       ? ` ${
         colorize(
-          "\u26A0 " + event.response.responseWarning + " response",
+          "!! " + event.response.responseWarning + " response",
           colors.yellow,
           this.useColor,
         )

@@ -83,7 +83,7 @@ export class GeminiClient {
             const delay = baseDelay + jitter;
 
             console.log(
-              `⏳ API error (${response.status}), retrying in ${
+              `API error (${response.status}), retrying in ${
                 (delay / 1000).toFixed(1)
               }s... (attempt ${attempt + 1}/${maxRetries + 1})`,
             );
@@ -175,7 +175,7 @@ export class GeminiClient {
             const delay = baseDelay + jitter;
 
             console.log(
-              `⏳ API error (${response.status}), retrying in ${
+              `API error (${response.status}), retrying in ${
                 (delay / 1000).toFixed(1)
               }s... (attempt ${attempt + 1}/${maxRetries + 1})`,
             );

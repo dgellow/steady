@@ -1228,7 +1228,7 @@ Discovered during real-world SDK testing (sink-python: 5135 passed, 35 failed,
    Possible approaches:
    - Detect when the generator produces an empty body for a schema with required
      properties and emit a log annotation (e.g.,
-     `⚠ generated empty body for
+     `!! generated empty body for
      schema with 2 required properties`)
    - Emit a runtime diagnostic when allOf merge fails to resolve nested refs
    - Add response body size to the request log line (e.g.,

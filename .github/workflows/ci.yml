@@ -225,7 +225,7 @@ jobs:
             body += `\n`;
 
             if (regressions.length > 0) {
-              body += `### ⚠️ Regressions (${regressions.length})\n\n`;
+              body += `### Regressions (${regressions.length})\n\n`;
               body += `These SDKs were passing on main but are now failing:\n\n`;
               for (const r of regressions) {
                 body += `- **${r.name}**${r.error ? `: ${r.error}` : ''}\n`;
@@ -234,7 +234,7 @@ jobs:
             }
 
             if (improvements.length > 0) {
-              body += `### ✅ Improvements (${improvements.length})\n\n`;
+              body += `### Improvements (${improvements.length})\n\n`;
               body += `These SDKs were failing on main but are now passing:\n\n`;
               for (const name of improvements) {
                 body += `- **${name}**\n`;
@@ -243,9 +243,9 @@ jobs:
             }
 
             if (newTests.length > 0) {
-              body += `### 🆕 New SDKs (${newTests.length})\n\n`;
+              body += `### New SDKs (${newTests.length})\n\n`;
               for (const r of newTests) {
-                body += `- **${r.name}**: ${r.passed ? '✅ PASS' : '❌ FAIL'}\n`;
+                body += `- **${r.name}**: ${r.passed ? 'PASS' : 'FAIL'}\n`;
               }
               body += `\n`;
             }
@@ -253,7 +253,7 @@ jobs:
             body += `\n<details><summary>Full Results</summary>\n\n`;
             body += `| SDK | Status |\n|-----|--------|\n`;
             for (const r of current.results) {
-              body += `| ${r.name} | ${r.passed ? '✅' : '❌'} |\n`;
+              body += `| ${r.name} | ${r.passed ? 'PASS' : 'FAIL'} |\n`;
             }
             body += `\n</details>\n`;
 

@@ -17,7 +17,7 @@ import { blue, dim, green, red, yellow } from "@std/fmt/colors";
 const log = (msg: string) => console.log(`${blue("==>")} ${msg}`);
 const success = (msg: string) => console.log(`${green("✓")}   ${msg}`);
 const fail = (msg: string) => console.log(`${red("✗")}   ${msg}`);
-const warn = (msg: string) => console.log(`${yellow("⚠")}   ${msg}`);
+const warn = (msg: string) => console.log(`${yellow("!!")}  ${msg}`);
 
 const STEADY_DIR = path.dirname(
   path.dirname(path.fromFileUrl(import.meta.url)),

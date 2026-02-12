@@ -171,7 +171,7 @@ async function main() {
 
   try {
     // Load the spec
-    console.log(`📄 Loading OpenAPI spec from ${inputFile}...`);
+    console.log(`Loading OpenAPI spec from ${inputFile}...`);
     const spec = await loadSpec(inputFile);
 
     // If analyze command, run deduplication analysis only
@@ -181,7 +181,7 @@ async function main() {
         parseInt(args["min-properties"] as string),
       );
 
-      console.log("⚡ Analyzing OpenAPI spec...");
+      console.log("Analyzing OpenAPI spec...");
       const contexts = analyzer.analyze(spec);
       console.log(`Found ${contexts.length} schemas`);
 
@@ -208,12 +208,12 @@ async function main() {
         namingStrategy,
       );
 
-      console.log("\n🧠 Performing semantic deduplication analysis...");
+      console.log("\nPerforming semantic deduplication analysis...");
       const result = await deduplicator.deduplicateSchemas(contexts);
 
       // Show detailed results
       const mergedCount = contexts.length - result.mergedContexts.length;
-      console.log(`\n📊 Deduplication Analysis Results:`);
+      console.log(`\nDeduplication Analysis Results:`);
       console.log(`   Original schemas: ${contexts.length}`);
       console.log(`   After deduplication: ${result.mergedContexts.length}`);
       console.log(`   Schemas merged: ${mergedCount}`);
@@ -237,7 +237,7 @@ async function main() {
       console.log(`   - Low: ${byConfidence.LOW.length}`);
 
       if (args.verbose && result.auditTrail.length > 0) {
-        console.log("\n🔍 Detailed merge decisions:");
+        console.log("\nDetailed merge decisions:");
         for (
           const decision of result.auditTrail.filter((
             d: DeduplicationDecision,
@@ -279,7 +279,7 @@ async function main() {
     const result = await extractor.extract(spec);
 
     // Save the transformed spec
-    console.log(`💾 Saving extracted spec to ${outputFile}...`);
+    console.log(`Saving extracted spec to ${outputFile}...`);
     await saveSpec(result.spec, outputFile);
 
     // Save report if requested
@@ -290,11 +290,11 @@ async function main() {
         result.extracted,
       );
       await Deno.writeTextFile(args.report as string, reportContent);
-      console.log(`📊 Report saved to ${args.report}`);
+      console.log(`Report saved to ${args.report}`);
     }
 
     // Print summary
-    console.log("\n📊 Extraction Summary:");
+    console.log("\nExtraction Summary:");
     console.log(`   Total schemas found: ${result.report.totalSchemasFound}`);
     console.log(`   Schemas extracted: ${result.report.totalExtracted}`);
     console.log("\n   By type:");
@@ -305,10 +305,10 @@ async function main() {
     console.log(`   - Parameters: ${result.report.byLocation.parameters}`);
     console.log(`   - Nested objects: ${result.report.byLocation.nested}`);
 
-    console.log(`\n✅ Success! Extracted spec saved to ${outputFile}`);
+    console.log(`\nSuccess! Extracted spec saved to ${outputFile}`);
   } catch (error) {
     console.error(
-      "\n❌ Error:",
+      "\nerror:",
       error instanceof Error ? error.message : String(error),
     );
     if (args.verbose && error instanceof Error && error.stack) {
