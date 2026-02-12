@@ -63,10 +63,10 @@ function diagnosticHeaders(response: Response): Record<string, string> {
   return result;
 }
 
-// ── /count — integer body ───────────────────────────────────────────
+// ── /count - integer body ───────────────────────────────────────────
 
 Deno.test({
-  name: "PUT /count — integer body accepted",
+  name: "PUT /count - integer body accepted",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -83,7 +83,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "PUT /count — string instead of integer → mock with diagnostics",
+  name: "PUT /count - string instead of integer → mock with diagnostics",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -100,10 +100,10 @@ Deno.test({
   },
 });
 
-// ── /json-v{version}/users/{userId} — mixed params ─────────────────
+// ── /json-v{version}/users/{userId} - mixed params ─────────────────
 
 Deno.test({
-  name: "POST /json-v{version}/users/{userId} — valid request",
+  name: "POST /json-v{version}/users/{userId} - valid request",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -134,7 +134,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "POST /json-v{version}/users/{userId} — invalid path param type",
+  name: "POST /json-v{version}/users/{userId} - invalid path param type",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -155,7 +155,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "POST /json-v{version}/users/{userId} — missing required query params",
+  name: "POST /json-v{version}/users/{userId} - missing required query params",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -173,7 +173,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "POST /json-v{version}/users/{userId} — boolean as string in body",
+  name: "POST /json-v{version}/users/{userId} - boolean as string in body",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -199,7 +199,7 @@ Deno.test({
 // ── /paginated ──────────────────────────────────────────────────────
 
 Deno.test({
-  name: "GET /paginated — defaults work",
+  name: "GET /paginated - defaults work",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -212,7 +212,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "GET /paginated — custom page and size",
+  name: "GET /paginated - custom page and size",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -225,7 +225,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "GET /paginated — size exceeds max → mock with diagnostics",
+  name: "GET /paginated - size exceeds max → mock with diagnostics",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -239,7 +239,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "GET /paginated — array tags param",
+  name: "GET /paginated - array tags param",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -251,10 +251,10 @@ Deno.test({
   },
 });
 
-// ── /ping — empty body ──────────────────────────────────────────────
+// ── /ping - empty body ──────────────────────────────────────────────
 
 Deno.test({
-  name: "POST /ping — no body required",
+  name: "POST /ping - no body required",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -266,10 +266,10 @@ Deno.test({
   },
 });
 
-// ── /bulk — array body ──────────────────────────────────────────────
+// ── /bulk - array body ──────────────────────────────────────────────
 
 Deno.test({
-  name: "POST /bulk — valid array body",
+  name: "POST /bulk - valid array body",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -289,7 +289,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "POST /bulk — empty array → mock with diagnostics",
+  name: "POST /bulk - empty array → mock with diagnostics",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -307,7 +307,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "POST /bulk — invalid item schema → mock with diagnostics",
+  name: "POST /bulk - invalid item schema → mock with diagnostics",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -327,7 +327,7 @@ Deno.test({
 // ── /nullable ───────────────────────────────────────────────────────
 
 Deno.test({
-  name: "POST /nullable — null for nullable field accepted",
+  name: "POST /nullable - null for nullable field accepted",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -344,7 +344,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "POST /nullable — missing required field → mock with diagnostics",
+  name: "POST /nullable - missing required field → mock with diagnostics",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -361,10 +361,10 @@ Deno.test({
   },
 });
 
-// ── /events — oneOf with discriminator ──────────────────────────────
+// ── /events - oneOf with discriminator ──────────────────────────────
 
 Deno.test({
-  name: "POST /events — click event accepted",
+  name: "POST /events - click event accepted",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -386,7 +386,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "POST /events — view event accepted",
+  name: "POST /events - view event accepted",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -402,11 +402,11 @@ Deno.test({
   },
 });
 
-// ── /items/{item-id}/sub-items/{sub_item_id} — special chars ────────
+// ── /items/{item-id}/sub-items/{sub_item_id} - special chars ────────
 
 Deno.test({
   name:
-    "GET /items/{item-id}/sub-items/{sub_item_id} — hyphens and underscores",
+    "GET /items/{item-id}/sub-items/{sub_item_id} - hyphens and underscores",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -418,10 +418,10 @@ Deno.test({
   },
 });
 
-// ── /search — enum array query params ───────────────────────────────
+// ── /search - enum array query params ───────────────────────────────
 
 Deno.test({
-  name: "GET /search — valid enum array query param",
+  name: "GET /search - valid enum array query param",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -436,7 +436,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "GET /search — invalid enum value → mock with diagnostics",
+  name: "GET /search - invalid enum value → mock with diagnostics",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -449,10 +449,10 @@ Deno.test({
   },
 });
 
-// ── /session — cookie parameters ────────────────────────────────────
+// ── /session - cookie parameters ────────────────────────────────────
 
 Deno.test({
-  name: "GET /session — valid cookie accepted",
+  name: "GET /session - valid cookie accepted",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -469,7 +469,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "GET /session — missing required cookie → mock with diagnostics",
+  name: "GET /session - missing required cookie → mock with diagnostics",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {
@@ -483,7 +483,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "GET /session — invalid cookie pattern → mock with diagnostics",
+  name: "GET /session - invalid cookie pattern → mock with diagnostics",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {

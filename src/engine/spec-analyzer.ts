@@ -1,5 +1,5 @@
 /**
- * Startup spec analyzer — detects spec issues before serving requests.
+ * Startup spec analyzer. Detects spec issues before serving requests.
  *
  * Single-pass analysis of a parsed OpenAPI spec, producing E1xxx diagnostics.
  * Runs at startup (before the server accepts requests) to catch spec problems
@@ -151,7 +151,7 @@ function checkMissingMetadata(defaultedFields: string[]): Diagnostic[] {
       specDiagnostic(
         "E1003",
         `#/${field.replace(/\./g, "/")}`,
-        `Missing required field "${field}" — Steady applied a default`,
+        `Missing required field "${field}". Steady applied a default`,
         {
           suggestion: `Add the "${field}" field to your spec`,
           expected: field,
@@ -169,7 +169,7 @@ const metaschema = openapi31Metaschema as unknown as Schema;
 
 /**
  * Translate a metaschema keyword into a user-facing message.
- * Avoids "metaschema" jargon — speaks in terms the spec author understands.
+ * Avoids "metaschema" jargon. Speaks in terms the spec author understands.
  */
 function metaschemaMessage(keyword: string): string {
   switch (keyword) {
@@ -243,7 +243,7 @@ async function checkMetaschema(
         metaschemaMessage(warning.keyword),
         {
           suggestion:
-            "Steady ignores unrecognized keywords — no impact on validation. Other OpenAPI tools may reject your spec",
+            "Steady ignores unrecognized keywords, no impact on validation. Other OpenAPI tools may reject your spec",
         },
       ),
     );
@@ -425,7 +425,7 @@ function checkDuplicatePathPatterns(spec: OpenAPISpec): Diagnostic[] {
           `Conflicting path patterns: ${paths.join(", ")}`,
           {
             suggestion:
-              "These paths match the same URL patterns — routing will use first match",
+              "These paths match the same URL patterns. Routing will use first match",
             display: {
               context: paths.map((p) => ({ text: p })),
             },
@@ -916,14 +916,14 @@ function checkRefSiblings(
   refs: RefInfo[],
 ): Diagnostic[] {
   // In OpenAPI 3.1.x, siblings alongside $ref are valid (JSON Schema 2020-12).
-  // In 3.0.x, only $ref is processed — siblings are ignored.
+  // In 3.0.x, only $ref is processed. Siblings are ignored.
   if (spec.openapi.startsWith("3.1")) return [];
 
   const diagnostics: Diagnostic[] = [];
 
   for (const info of refs) {
     if (info.siblingKeys.length === 0) continue;
-    // Steady doesn't serve webhooks — skip refs from webhook schemas
+    // Steady doesn't serve webhooks. Skip refs from webhook schemas
     if (info.pointer.startsWith("/webhooks/")) continue;
     // summary/description alongside $ref are so commonly used that flagging
     // them would be noisy. Skip them.

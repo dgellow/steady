@@ -6,12 +6,12 @@
  * applicator keywords (properties/items).
  *
  * Three kinds of nodes in the output:
- *   1. Composition: oneOf, anyOf, allOf — have keyword + children
- *   2. Container: root, variant wrappers — have children, no keyword
- *   3. Leaf: keyword failures — no children
+ *   1. Composition: oneOf, anyOf, allOf; have keyword + children
+ *   2. Container: root, variant wrappers; have children, no keyword
+ *   3. Leaf: keyword failures; no children
  *
  * Applicator keywords (properties, items, patternProperties) are
- * transparent — their child errors surface as leaves with full dotted
+ * transparent; their child errors surface as leaves with full dotted
  * paths (e.g., "body.address.city").
  */
 
@@ -126,7 +126,7 @@ export class TreeValidator {
       return;
     }
 
-    // $ref — resolve and validate transparently
+    // $ref: resolve and validate transparently
     if (schema.$ref) {
       const resolved = this.resolveRef(schema.$ref, rootSchema);
       if (resolved !== undefined) {
@@ -146,7 +146,7 @@ export class TreeValidator {
       return;
     }
 
-    // Composition keywords — create tree nodes
+    // Composition keywords, create tree nodes
     if (schema.oneOf) {
       this.validateOneOf(
         data,
@@ -210,7 +210,7 @@ export class TreeValidator {
         );
       }
 
-      // properties (applicator — flattened)
+      // properties (applicator, flattened)
       const evaluatedProps = new Set<string>();
       if (schema.properties) {
         this.validateProperties(
@@ -363,7 +363,7 @@ export class TreeValidator {
     }
   }
 
-  // ── Properties (applicator — flattened) ──────────────────────────
+  // ── Properties (applicator, flattened) ──────────────────────────
 
   private validateProperties(
     obj: Record<string, unknown>,
@@ -548,7 +548,7 @@ export class TreeValidator {
           });
         }
       } catch {
-        // Invalid regex — skip validation
+        // Invalid regex, skip validation
       }
     }
 
@@ -663,7 +663,7 @@ export class TreeValidator {
       });
     }
 
-    // items — validate each element (flattened, indexed paths)
+    // items: validate each element (flattened, indexed paths)
     if (
       schema.items && typeof schema.items === "object" &&
       !Array.isArray(schema.items)
@@ -681,7 +681,7 @@ export class TreeValidator {
       }
     }
 
-    // prefixItems — validate positional items
+    // prefixItems: validate positional items
     if (schema.prefixItems) {
       for (let i = 0; i < schema.prefixItems.length && i < data.length; i++) {
         const itemSchema = schema.prefixItems[i];
@@ -974,7 +974,7 @@ function validateFormat(value: string, format: string): boolean {
     case "ipv6":
       return value.includes(":");
     default:
-      // Unknown format — pass (conservative)
+      // Unknown format, pass (conservative)
       return true;
   }
 }

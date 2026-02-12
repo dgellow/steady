@@ -1,5 +1,5 @@
 /**
- * Recursive interpreter — transforms a validation tree into diagnostics.
+ * Recursive interpreter. Transforms a validation tree into diagnostics.
  *
  * Walks the validation tree bottom-up:
  * - Leaves: classify keyword, build Diagnostic
@@ -40,7 +40,7 @@ export function interpret(
   location: DiagnosticLocation,
   data: unknown,
 ): InterpretResult {
-  // Valid node — nothing to report
+  // Valid node, nothing to report
   if (node.valid) {
     return {
       diagnostics: [],
@@ -49,7 +49,7 @@ export function interpret(
     };
   }
 
-  // Node with children — recurse
+  // Node with children, recurse
   if (node.children && node.children.length > 0) {
     const childResults = node.children.map((child) =>
       interpret(child, spec, location, data)
@@ -76,7 +76,7 @@ export function interpret(
       }
     }
 
-    // Container node (root, variant wrapper) — merge children
+    // Container node (root, variant wrapper). Merge children
     return {
       diagnostics: childResults.flatMap((c) => c.diagnostics),
       structurallyValid: childResults.every((c) => c.structurallyValid),
@@ -87,7 +87,7 @@ export function interpret(
     };
   }
 
-  // Leaf error — attribute and classify
+  // Leaf error, attribute and classify
   return interpretLeaf(node, spec, location);
 }
 
@@ -99,7 +99,7 @@ function interpretLeaf(
   spec: SpecResolver,
   location: DiagnosticLocation,
 ): InterpretResult {
-  // A leaf without a keyword is unexpected — treat as structurally invalid
+  // A leaf without a keyword is unexpected. Treat as structurally invalid
   // with no diagnostic rather than silently ignoring
   if (!node.keyword) {
     return {
@@ -144,7 +144,7 @@ export function resolveDataAtPath(
   } else if (path.startsWith(prefix)) {
     relativePath = path.slice(prefix.length);
   } else {
-    // Path doesn't match location — return full data as fallback
+    // Path doesn't match location, return full data as fallback
     return data;
   }
 

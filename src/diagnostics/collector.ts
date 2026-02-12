@@ -190,7 +190,7 @@ export class DiagnosticCollector {
    * Get list of endpoints with generation warnings.
    */
   getGenerationWarnings(): string[] {
-    return this.generationWarnings;
+    return [...this.generationWarnings];
   }
 
   /**
@@ -212,6 +212,7 @@ export class DiagnosticCollector {
   resetRuntime(): void {
     this.runtimeEntries = [];
     this.testedEndpoints.clear();
+    this.generationWarnings = [];
     this.stats = {
       requestCount: 0,
       successCount: 0,

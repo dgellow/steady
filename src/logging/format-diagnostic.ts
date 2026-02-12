@@ -1,5 +1,5 @@
 /**
- * Format Diagnostics — Compiler-style output (Rust/Elm inspired)
+ * Format Diagnostics. Compiler-style output (Rust/Elm inspired)
  *
  * Renders Diagnostic objects as structured terminal output:
  *
@@ -125,9 +125,9 @@ export function formatDiagnostic(
 
   const result = lines.join("\n");
 
-  // Grey out entire info diagnostic — re-apply gray after every internal
+  // Grey out entire info diagnostic. Re-apply gray after every internal
   // color reset so the grey carries through nested colorize() calls.
-  // Also strip dim codes — dim on top of gray is too dark.
+  // Also strip dim codes. Dim on top of gray is too dark.
   if (d.severity === "info" && useColor) {
     return colors.gray +
       result

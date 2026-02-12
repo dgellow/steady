@@ -5,7 +5,7 @@
  *   spec file → parseSpecFromFile → OpenAPISpecDocument → TreeValidator →
  *   DiagnosticEngine → analyze(request) → assert on diagnostics
  *
- * No mocks, no shortcuts — exercises the real parser, schema resolution,
+ * No mocks, no shortcuts. Exercises the real parser, schema resolution,
  * tree validation, and diagnostic engine against the acme-api fixture.
  */
 

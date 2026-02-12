@@ -1,11 +1,11 @@
 /**
- * SpecDocument implementation — structured access to an OpenAPI spec.
+ * SpecDocument implementation. Structured access to an OpenAPI spec.
  *
  * Wraps a parsed OpenAPISpec and provides the interface the diagnostics
  * engine needs: parameters, body schemas, response checking, and schema
  * resolution. Handles $ref resolution and parameter merging.
  *
- * This module bridges packages/openapi/ and src/engine/ — the engine
+ * This module bridges packages/openapi/ and src/engine/. The engine
  * works against the SpecDocument interface, not raw OpenAPI types.
  */
 
@@ -187,7 +187,7 @@ export class OpenAPISpecDocument {
     const jsonContent = requestBody.content["application/json"];
     if (!jsonContent?.schema) return null;
 
-    // Ensure schema is a plain object (not a $ref — those should be resolved upstream)
+    // Ensure schema is a plain object (not a $ref, those should be resolved upstream)
     if (!isSchemaLike(jsonContent.schema)) return null;
 
     // Build the schema path
@@ -293,7 +293,7 @@ export class OpenAPISpecDocument {
       return { param: resolved, pointer: `#${pointer}` };
     }
 
-    // Inline parameter — compute its pointer
+    // Inline parameter. Compute its pointer
     const escapedPath = escapeJsonPointer(pathPattern);
     let pointer: string;
     if (level === "pathItem") {

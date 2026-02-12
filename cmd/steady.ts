@@ -462,7 +462,7 @@ async function startWithWatch(
   const useColor = options.color;
   let server: { start: () => void; stop: () => Promise<void> } | null = null;
 
-  // Initial start — fatal spec errors exit immediately
+  // Initial start. Fatal spec errors exit immediately
   try {
     server = await startServer(specPath, options);
   } catch (error) {

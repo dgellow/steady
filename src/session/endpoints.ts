@@ -1,5 +1,5 @@
 /**
- * Session endpoint handler — GET /_x-steady/sessions/{session_id}
+ * Session endpoint handler. GET /_x-steady/sessions/{session_id}
  *
  * Returns the session report as JSON with diagnostics grouped by category.
  * The JSON keys use snake_case to match the spec's API convention.

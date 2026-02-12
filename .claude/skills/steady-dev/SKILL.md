@@ -100,7 +100,7 @@ aspirational sections. When implementing:
 Run `steady <spec>` and look at the output. Does it help? Is it noisy? Is the
 important thing visible?
 
-**No type hacks.** No `as` casts, no `!` non-null assertions. Use type guards,
+**No type hacks.** No `as` casts, no non-null assertions. Use type guards,
 `satisfies`, narrowing, or restructure parameters.
 
 **Red-green testing.** Write the failing test first. Run it. See it fail.

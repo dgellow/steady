@@ -9,7 +9,7 @@
  * 2. Structural failure count: fewer failures = more likely intended
  * 3. No clear variant → E3012
  *
- * Uses `structuralFailureCount` from InterpretResult — NOT the diagnostic's
+ * Uses `structuralFailureCount` from InterpretResult, NOT the diagnostic's
  * category. Structural classification and attribution are independent:
  * E5001 has category "ambiguous" but keyword "type" which IS structural.
  */
@@ -44,7 +44,7 @@ export function analyzeAllFailed(
     };
   }
 
-  // Single variant — it's the only possibility
+  // Single variant. It's the only possibility
   const single = childResults[0];
   if (childResults.length === 1 && single) {
     return {
@@ -59,15 +59,15 @@ export function analyzeAllFailed(
     result,
   }));
 
-  // Step 1: Property overlap — compare request keys against variant properties
+  // Step 1: Property overlap. Compare request keys against variant properties
   const overlapResult = identifyByPropertyOverlap(variantDetails, context);
   if (overlapResult) return overlapResult;
 
-  // Step 2: Structural failure count — fewer failures = more likely intended
+  // Step 2: Structural failure count. Fewer failures = more likely intended
   const failureCountResult = identifyByFailureCount(variantDetails);
   if (failureCountResult) return failureCountResult;
 
-  // Step 3: No clear variant — report E3012
+  // Step 3: No clear variant. Report E3012
   return reportAmbiguous(variantDetails, context);
 }
 

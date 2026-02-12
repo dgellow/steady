@@ -1,5 +1,5 @@
 /**
- * E-code explanations — detailed documentation for `steady explain`.
+ * E-code explanations: detailed documentation for `steady explain`.
  *
  * Each explanation is written from the user's perspective: what happened,
  * why it matters, a concrete example, and what to do about it.
@@ -34,7 +34,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "This usually means a syntax error like a missing comma, unclosed\n" +
       "bracket, or invalid YAML indentation.",
     reasoning:
-      "This is a spec issue — the file itself is malformed before Steady\n" +
+      "This is a spec issue. The file itself is malformed before Steady\n" +
       "can even read the API definition.",
     example:
       '  paths:\n    /users:\n      get:\n        summary: "List users"\n' +
@@ -51,9 +51,9 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "Steady supports OpenAPI 3.0.x and 3.1.x. Swagger 2.0 and earlier\n" +
       "versions are not supported.",
     reasoning:
-      "This is a spec issue — the version declaration is outside the\n" +
+      "This is a spec issue. The version declaration is outside the\n" +
       "range Steady can work with.",
-    example: '  openapi: "2.0.0"    # Swagger 2.0 — not supported\n' +
+    example: '  openapi: "2.0.0"    # Swagger 2.0, not supported\n' +
       '  openapi: "3.1.0"    # Supported\n' +
       '  openapi: "3.0.3"    # Supported',
     fix: "If you have a Swagger 2.0 spec, convert it to OpenAPI 3.x using\n" +
@@ -66,7 +66,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "`info.title`, or `info.version`. Steady fills in defaults and\n" +
       "continues, but the spec should be fixed.",
     reasoning:
-      "This is a spec issue — these fields are required by the OpenAPI\n" +
+      "This is a spec issue. These fields are required by the OpenAPI\n" +
       "specification. Steady is lenient here but other tools may reject it.",
     example: "  # Missing info.title:\n" +
       "  openapi: 3.1.0\n" +
@@ -80,7 +80,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "Steady cannot resolve the reference and cannot serve endpoints\n" +
       "that depend on it.",
     reasoning:
-      "This is a spec issue — the reference target is missing. This is\n" +
+      "This is a spec issue. The reference target is missing. This is\n" +
       "fatal because Steady needs the referenced schema to validate\n" +
       "requests and generate responses.",
     example: "  schema:\n" +
@@ -98,7 +98,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "references A). Steady handles most circular references but they\n" +
       "may cause issues with response generation.",
     reasoning:
-      "This is a spec issue — while circular references are technically\n" +
+      "This is a spec issue. While circular references are technically\n" +
       "allowed in OpenAPI 3.1, they often indicate a modeling problem\n" +
       "and can cause issues with code generators and other tools.",
     example: "  # Parent references Child, Child references Parent:\n" +
@@ -123,7 +123,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "schema rules so severely that Steady cannot interpret it. This\n" +
       "is distinct from E1015 (non-standard but tolerable usage).",
     reasoning:
-      "This is a spec issue and it's fatal — Steady relies on schema\n" +
+      "This is a spec issue and it's fatal. Steady relies on schema\n" +
       "structure for validation and response generation. A fundamentally\n" +
       "broken schema cannot be used.",
     example: "  # type must be a string (or array in 3.1), not an object:\n" +
@@ -140,10 +140,9 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     description:
       "In OpenAPI 3.0, keywords placed alongside a $ref are silently\n" +
       "ignored per the JSON Reference specification. Only the $ref is\n" +
-      "processed — sibling keywords like description, nullable, or\n" +
+      "processed. Sibling keywords like description, nullable, or\n" +
       "additional properties have no effect.",
-    reasoning:
-      "This is a spec issue — the spec author likely intended those\n" +
+    reasoning: "This is a spec issue. The spec author likely intended those\n" +
       "sibling keywords to take effect, but they're invisible to any\n" +
       "compliant 3.0 parser. In OpenAPI 3.1 (which uses JSON Schema),\n" +
       "$ref siblings ARE processed.",
@@ -165,8 +164,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "Two or more path templates resolve to the same pattern. For\n" +
       "example, /users/{id} and /users/{userId} are different templates\n" +
       "but match the same requests, making routing ambiguous.",
-    reasoning:
-      "This is a spec issue — OpenAPI requires path templates to be\n" +
+    reasoning: "This is a spec issue. OpenAPI requires path templates to be\n" +
       "unique after parameter substitution. Which operation handles\n" +
       "a request to /users/123 is undefined.",
     example: "  paths:\n" +
@@ -184,9 +182,9 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     description:
       "A path template uses the same parameter name more than once.\n" +
       "For example, /users/{id}/posts/{id} uses {id} twice. Which\n" +
-      "value wins is undefined — typically the last one overwrites.",
+      "value wins is undefined; typically the last one overwrites.",
     reasoning:
-      "This is a spec issue — parameter names must be unique within a\n" +
+      "This is a spec issue. Parameter names must be unique within a\n" +
       "path template per the OpenAPI spec. Common cause: auto-generated\n" +
       "specs from ORMs that nest resources.",
     example: "  paths:\n" +
@@ -205,7 +203,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "204 No Content for these endpoints. The diagnostic appears at\n" +
       "startup and alongside any runtime request validation results.",
     reasoning:
-      "This is a spec issue — the responses object is required by the\n" +
+      "This is a spec issue. The responses object is required by the\n" +
       "OpenAPI spec. Missing responses hide coverage gaps: a passing\n" +
       "SDK test might just mean the endpoint has no schema to validate\n" +
       "against, not that the SDK is correct.",
@@ -213,7 +211,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "    /users:\n" +
       "      post:\n" +
       "        summary: Create user\n" +
-      "        # no responses defined — Steady returns 204",
+      "        # no responses defined, Steady returns 204",
     fix: "Add at least one response (typically 200 or 201) with a schema\n" +
       "describing what the API returns.",
   },
@@ -221,18 +219,18 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
   E1011: {
     description:
       "A component name contains characters that the OpenAPI spec\n" +
-      "forbids. Names must match ^[a-zA-Z0-9.\\-_]+$ — no spaces,\n" +
+      "forbids. Names must match ^[a-zA-Z0-9.\\-_]+$: no spaces,\n" +
       "no special characters. Steady handles these via percent-encoded\n" +
       "$refs, but code generators will likely produce invalid output.",
     reasoning:
-      "This is a spec issue — while Steady resolves these references\n" +
+      "This is a spec issue. While Steady resolves these references\n" +
       "correctly, tools like openapi-generator will produce broken code\n" +
       "(e.g., `interface Api Response` with a space).",
     example: "  components:\n" +
       "    schemas:\n" +
-      '      "Api Response":    # space in name — forbidden\n' +
+      '      "Api Response":    # space in name, forbidden\n' +
       "        type: object\n" +
-      '      "User[Admin]":     # brackets — forbidden\n' +
+      '      "User[Admin]":     # brackets, forbidden\n' +
       "        type: object",
     fix: "Rename the component to use only alphanumeric characters, dots,\n" +
       "hyphens, and underscores: ApiResponse, User-Admin, user_admin.",
@@ -243,15 +241,15 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "A schema is syntactically valid but logically impossible to\n" +
       "satisfy. No value could ever pass validation against it.",
     reasoning:
-      "This is a spec issue — the schema's constraints contradict each\n" +
+      "This is a spec issue. The schema's constraints contradict each\n" +
       "other. SDKs cannot produce valid data for an impossible schema,\n" +
       "so any validation failure against it is meaningless.",
     example:
-      "  # Type conflict in allOf — no value is both string and number:\n" +
+      "  # Type conflict in allOf, no value is both string and number:\n" +
       "  allOf:\n" +
       "    - type: string\n" +
       "    - type: number\n\n" +
-      "  # Range inversion — no number satisfies both:\n" +
+      "  # Range inversion, no number satisfies both:\n" +
       "  type: integer\n" +
       "  minimum: 100\n" +
       "  maximum: 5",
@@ -264,11 +262,11 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
   E1013: {
     description:
       "A path template in the spec contains multiple ? characters.\n" +
-      "Only the first ? starts the query string — subsequent ? become\n" +
+      "Only the first ? starts the query string. Subsequent ? become\n" +
       "literal characters in parameter values, almost certainly not\n" +
       "what was intended.",
     reasoning:
-      "This is a spec issue — it usually means a URL construction bug\n" +
+      "This is a spec issue. It usually means a URL construction bug\n" +
       "was baked into the spec's path definitions. For example, someone\n" +
       "concatenated query parameters with ? instead of &.",
     example: "  paths:\n" +
@@ -283,10 +281,9 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
   E1014: {
     description:
       "A query parameter name or enum value contains a ? character.\n" +
-      "Since ? is the URL query delimiter, this creates ambiguity —\n" +
+      "Since ? is the URL query delimiter, this creates ambiguity.\n" +
       "some HTTP libraries will percent-encode it, others won't.",
-    reasoning:
-      "This is a spec issue — the ? character in parameter names is\n" +
+    reasoning: "This is a spec issue. The ? character in parameter names is\n" +
       "a source of interoperability problems across HTTP libraries.\n" +
       "Common in Ruby-style boolean conventions (is_valid?).",
     example: "  parameters:\n" +
@@ -304,7 +301,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "according to the OpenAPI metaschema. Steady ignores unrecognized\n" +
       "keywords and serves the spec normally.",
     reasoning:
-      "This is a spec note — it doesn't affect Steady's behavior, but\n" +
+      "This is a spec note. It doesn't affect Steady's behavior, but\n" +
       "other OpenAPI tools may reject the spec. Common examples:\n" +
       "unevaluatedProperties in places the spec doesn't expect it,\n" +
       "or vendor extensions in non-extension positions.",
@@ -325,8 +322,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "`properties`. This means the schema demands a field but never\n" +
       "defines its type or constraints. SDKs and code generators won't\n" +
       "know what type to use for the required field.",
-    reasoning:
-      "This is a spec issue — the required array references a field\n" +
+    reasoning: "This is a spec issue. The required array references a field\n" +
       "name that has no matching property definition. It's almost always\n" +
       "a typo or a leftover from a rename.",
     example: "  User:\n" +
@@ -348,8 +344,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "The SDK sent a request to a URL path that doesn't match any\n" +
       "operation in the spec. Steady checked every path template and\n" +
       "none matched.",
-    reasoning:
-      "This is an SDK issue — the SDK constructs the URL, so a path\n" +
+    reasoning: "This is an SDK issue. The SDK constructs the URL, so a path\n" +
       "that doesn't exist in the spec means the SDK built it wrong.\n" +
       "Common causes: wrong base path, URL encoding issues, or a\n" +
       "double-? bug where query parameters are joined with ? instead\n" +
@@ -370,7 +365,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "is not defined for that path. For example, the SDK sent a PUT\n" +
       "but the spec only defines GET and POST for that path.",
     reasoning:
-      "This is an SDK issue — the SDK chose the wrong HTTP method for\n" +
+      "This is an SDK issue. The SDK chose the wrong HTTP method for\n" +
       "this endpoint. The path is correct, so the SDK knows about the\n" +
       "resource but is using the wrong verb.",
     example: "  # Spec defines: GET /users, POST /users\n" +
@@ -389,7 +384,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "should be one type (e.g., integer) but the SDK sent another\n" +
       "(e.g., a non-numeric string).",
     reasoning:
-      "This is an SDK issue — path parameters are part of the URL, and\n" +
+      "This is an SDK issue. Path parameters are part of the URL, and\n" +
       "the SDK constructs the URL. If the spec says {id} is an integer\n" +
       'and the SDK puts "abc" there, the SDK has a type mapping bug.',
     example: "  # Spec: /users/{id} where id is type: integer\n" +
@@ -404,7 +399,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "A required query parameter is missing from the request. The\n" +
       "spec marks it as required but the SDK didn't include it.",
     reasoning:
-      "This is an SDK issue — a well-designed SDK should either require\n" +
+      "This is an SDK issue. A well-designed SDK should either require\n" +
       "this parameter in its API or provide a documented default. If\n" +
       "neither happens, the SDK's parameter handling is incomplete.",
     example: "  # Spec requires: ?page=N\n" +
@@ -420,14 +415,14 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "A query parameter has the wrong type. The spec says it should\n" +
       "be one type (e.g., integer) but the SDK sent another.",
     reasoning:
-      "This is an SDK issue — the SDK controls how query parameters are\n" +
+      "This is an SDK issue. The SDK controls how query parameters are\n" +
       "serialized into the URL. If the spec says `limit` is an integer\n" +
       "and the SDK sends ?limit=abc, the SDK's serialization is wrong.",
     example: "  # Spec: limit is type: integer\n" +
       "  # SDK sends: ?limit=ten     (string, not integer)\n" +
       "  # Should be: ?limit=10",
     fix: "Check the SDK's query parameter serialization for this type.\n" +
-      "Also check array format — if the spec expects comma-separated\n" +
+      "Also check array format: if the spec expects comma-separated\n" +
       "but the SDK sends repeated params, types may not match.",
     seeAlso: ["E3001", "E3008"],
   },
@@ -437,7 +432,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "A required header is missing from the request. The spec marks\n" +
       "it as required but the SDK didn't send it.",
     reasoning:
-      "This is an SDK issue — the SDK controls which headers are sent.\n" +
+      "This is an SDK issue. The SDK controls which headers are sent.\n" +
       "Required headers must always be included, either from user input\n" +
       "or SDK defaults.",
     example: "  # Spec requires: X-Api-Version header\n" +
@@ -451,7 +446,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
   E3005: {
     description: "The operation requires a request body, but the SDK sent a\n" +
       "request with no body (or an empty body).",
-    reasoning: "This is an SDK issue — the SDK decides whether to include a\n" +
+    reasoning: "This is an SDK issue. The SDK decides whether to include a\n" +
       "body. If the spec says the body is required, the SDK must\n" +
       "always send one.",
     example: "  # Spec: POST /users with required requestBody\n" +
@@ -466,8 +461,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     description:
       "The request's Content-Type header doesn't match any media type\n" +
       "the spec defines for this operation's request body.",
-    reasoning:
-      "This is an SDK issue — the SDK sets the Content-Type header.\n" +
+    reasoning: "This is an SDK issue. The SDK sets the Content-Type header.\n" +
       "If the spec says application/json but the SDK sends text/plain\n" +
       "or multipart/form-data, the SDK is packaging the body wrong.",
     example: "  # Spec accepts: application/json\n" +
@@ -502,10 +496,10 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "A field in the request body has the wrong type. The spec says\n" +
       "one type (e.g., string) but the SDK sent another (e.g., number).",
     reasoning:
-      "This is an SDK issue — the SDK controls serialization. When the\n" +
+      "This is an SDK issue. The SDK controls serialization. When the\n" +
       'spec says "type: string" and the SDK sends a number, the SDK\'s\n' +
       "type mapping is wrong. This is true even if the developer passed\n" +
-      "a number — the SDK should enforce or convert types.",
+      "a number, the SDK should enforce or convert types.",
     example: "  # Spec: email is type: string\n" +
       '  # SDK sends: {"email": 12345}      (number, not string)\n' +
       '  # Should be: {"email": "user@example.com"}',
@@ -524,7 +518,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "This is an SDK issue, but with low confidence. Often this is a\n" +
       "serialization format mismatch rather than a true extra property.\n" +
       "For example, the SDK sends items[] (bracket notation) but the\n" +
-      "spec expects items — same data, different encoding.\n\n" +
+      "spec expects items. Same data, different encoding.\n\n" +
       "It can also indicate an allOf + additionalProperties pitfall in\n" +
       "the spec. When that's detected, Steady re-attributes this to\n" +
       "spec-issue.",
@@ -542,7 +536,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     description:
       "An item in an array has the wrong type. The spec's items schema\n" +
       "expects one type but the SDK sent another.",
-    reasoning: "This is an SDK issue — the SDK controls how array items are\n" +
+    reasoning: "This is an SDK issue. The SDK controls how array items are\n" +
       "serialized. If the spec says items are strings and the SDK\n" +
       "sends numbers, the SDK's array serialization is wrong.",
     example: "  # Spec: tags is array of strings\n" +
@@ -584,7 +578,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     example: "  # Spec: oneOf [CreditCard, BankTransfer]\n" +
       "  # CreditCard requires: cardNumber, expiry\n" +
       "  # BankTransfer requires: accountNumber, routing\n" +
-      '  # SDK sends: {"cardNumber": "4111..."}   (missing expiry — no variant matches)',
+      '  # SDK sends: {"cardNumber": "4111..."}   (missing expiry, no variant matches)',
     fix: "Look at which variant the SDK intended to match, then check\n" +
       "what's missing. If the composition is complex, the spec might\n" +
       "benefit from a discriminator to make matching explicit.",
@@ -620,10 +614,9 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     description:
       "A query parameter was sent with a different serialization format\n" +
       "than the spec expects. The base parameter name is recognized, but\n" +
-      "the format differs — e.g., the SDK sent `items[]` (bracket style)\n" +
+      "the format differs. For example, the SDK sent `items[]` (bracket style)\n" +
       "but the spec defines `items` (expecting comma or repeat style).",
-    reasoning:
-      "This is an SDK issue — the SDK chose the wrong serialization\n" +
+    reasoning: "This is an SDK issue. The SDK chose the wrong serialization\n" +
       "format for this parameter. The parameter name is correct (the\n" +
       "base name matches), so the intent is clear, but the encoding\n" +
       "doesn't match what the spec expects.",
@@ -632,7 +625,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "  # Expected:     ?items=a&items=b      (repeat style)\n" +
       "  #           or: ?items=a,b            (comma style)",
     fix: "Check the SDK's query parameter serialization format. The spec\n" +
-      "expects a specific style — check the parameter's style/explode\n" +
+      "expects a specific style. Check the parameter's style/explode\n" +
       "settings, or use Steady's --validator-query-array-format flag.",
     seeAlso: ["E3002", "E3003", "E3015"],
   },
@@ -660,10 +653,10 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
   E3016: {
     description:
       "The SDK sent a value not in the schema's enum list. Enum values\n" +
-      "are structural — a well-designed SDK exposes typed options (e.g.,\n" +
+      "are structural. A well-designed SDK exposes typed options (e.g.,\n" +
       "Status.ACTIVE) rather than accepting free-form strings.",
     reasoning:
-      "This is an SDK issue — the SDK should constrain enum inputs to\n" +
+      "This is an SDK issue. The SDK should constrain enum inputs to\n" +
       "the values the spec declares. If the SDK sends an unknown value,\n" +
       "its input validation or type system is incomplete.",
     example: '  # Spec: status enum ["active", "inactive", "pending"]\n' +
@@ -677,10 +670,10 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
   E3017: {
     description:
       "The SDK sent a value that doesn't match a const constraint.\n" +
-      "Const values are fixed by the spec — the SDK should set them\n" +
+      "Const values are fixed by the spec. The SDK should set them\n" +
       "automatically, not rely on user input.",
     reasoning:
-      "This is an SDK issue — const values are typically discriminator\n" +
+      "This is an SDK issue. Const values are typically discriminator\n" +
       "fields, API version headers, or fixed identifiers. The SDK\n" +
       "should hardcode these, not expose them as user-configurable.",
     example: '  # Spec: apiVersion const "2024-01-01"\n' +
@@ -694,7 +687,7 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     description:
       "The SDK used the wrong encoding for a field with a format like\n" +
       "binary or byte. These are encoding instructions, not value\n" +
-      "validators — binary means a binary stream, byte means base64.",
+      "validators. Binary means a binary stream, byte means base64.",
     reasoning: "This is an SDK issue with high confidence. Encoding formats\n" +
       "(binary, byte) tell the SDK HOW to encode data. This is\n" +
       "fundamentally different from value-validation formats (email,\n" +
@@ -718,11 +711,11 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "This is a content note, not an SDK issue. The SDK's job is to\n" +
       "transport the user's string to the server. Whether that string\n" +
       "is actually a valid email or URI is the server's job to check.\n" +
-      "The SDK correctly sent a string — the value just doesn't match\n" +
+      "The SDK correctly sent a string. The value just doesn't match\n" +
       "the format.",
     example: "  # Spec: email is type: string, format: email\n" +
       '  # SDK sends: {"email": "not-an-email"}   (string, but not email format)\n' +
-      "  # The SDK did its job — it sent a string. The value is the user's problem.",
+      "  # The SDK did its job: it sent a string. The value is the user's problem.",
     fix: "This is informational. If you're testing SDK correctness, you\n" +
       "can ignore these. If you want to test with realistic data,\n" +
       "provide valid format values in your test fixtures.",
@@ -735,10 +728,10 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     reasoning:
       "This is a content note. Pattern constraints validate the content\n" +
       "of a value, not how it's transported. The SDK correctly sent a\n" +
-      "string — it just doesn't match the pattern the spec requires.",
+      "string. It just doesn't match the pattern the spec requires.",
     example: '  # Spec: code matches pattern "^[A-Z]{3}$"\n' +
       '  # SDK sends: {"code": "abc"}   (lowercase, doesn\'t match)\n' +
-      "  # The SDK sent a string — the pattern is a content concern",
+      "  # The SDK sent a string. The pattern is a content concern",
     fix: "Informational. If your tests need valid data, use values that\n" +
       "match the pattern.",
     seeAlso: ["E4001", "E4003"],
@@ -825,14 +818,14 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     description:
       "The request body contains extra properties, and the schema\n" +
       "doesn't say whether additional properties are allowed or not.\n" +
-      "The schema has no additionalProperties declaration — it's\n" +
+      "The schema has no additionalProperties declaration; it's\n" +
       "silent on the matter.",
     reasoning: "This is ambiguous. When a schema doesn't declare\n" +
       "additionalProperties, the JSON Schema default is true (allow\n" +
       "them). But many spec authors intend a strict shape without\n" +
       "explicitly saying so. Steady can't know the intent.\n\n" +
       "Contrast with E3009 where the spec explicitly says\n" +
-      "additionalProperties: false — there the intent is clear.",
+      "additionalProperties: false, where the intent is clear.",
     example:
       '  # Spec: User has properties {name, email}\n  #       (no additionalProperties declaration)\n  # SDK sends: {"name": "Alice", "email": "a@b.com", "nickname": "Al"}\n  #             Is "nickname" OK? Spec doesn\'t say.',
     fix: "If the spec should reject extra properties, add\n" +

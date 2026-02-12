@@ -4,7 +4,7 @@
  * Determines whether a keyword failure means the variant's structure doesn't
  * match (structural) or the value doesn't meet a constraint (content).
  *
- * This is a function, not a table — some keywords depend on schema context:
+ * This is a function, not a table. Some keywords depend on schema context:
  * - `format` is structural for encoding formats (binary, byte), content for
  *   value-validation formats (email, uri, etc.)
  * - `additionalProperties` is structural when explicitly false
@@ -22,7 +22,7 @@ export const STRUCTURAL_FORMATS: ReadonlySet<string> = new Set([
   "byte",
 ]);
 
-/** Keywords that are always structural — failure means the variant doesn't match. */
+/** Keywords that are always structural. Failure means the variant doesn't match. */
 const ALWAYS_STRUCTURAL: ReadonlySet<string> = new Set([
   "type",
   "required",
@@ -30,7 +30,7 @@ const ALWAYS_STRUCTURAL: ReadonlySet<string> = new Set([
   "const",
 ]);
 
-/** Keywords that are always content — failure means the value is wrong, not the structure. */
+/** Keywords that are always content. Failure means the value is wrong, not the structure. */
 const ALWAYS_CONTENT: ReadonlySet<string> = new Set([
   "pattern",
   "minLength",
@@ -73,6 +73,6 @@ export function isStructural(keyword: string, schema: Schema): boolean {
     return schema.additionalProperties === false;
   }
 
-  // Unknown keyword — conservative default: not structural
+  // Unknown keyword. Conservative default: not structural
   return false;
 }

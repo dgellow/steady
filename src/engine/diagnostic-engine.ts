@@ -1,5 +1,5 @@
 /**
- * Top-level diagnostic engine — coordinates route matching, parameter
+ * Top-level diagnostic engine. Coordinates route matching, parameter
  * presence checking, body validation, and spec issue detection.
  *
  * The engine works against a SpecDocument abstraction, not raw OpenAPI
@@ -245,7 +245,7 @@ export class DiagnosticEngine {
     const bodyInfo = this.spec.getBodySchema(pathPattern, method);
     if (bodyInfo) {
       if (request.body === undefined) {
-        // Body not provided — E3005 if required, skip validation otherwise
+        // Body not provided. E3005 if required, skip validation otherwise
         if (bodyInfo.required) {
           diagnostics.push(
             createMissingBodyDiagnostic(pathPattern, method),
@@ -532,7 +532,7 @@ function getParameterValue(
  *
  * HTTP parameters are always strings. When the schema expects integer,
  * number, or boolean, the engine must parse the string before validation.
- * If parsing fails, the raw string is returned — the validator will
+ * If parsing fails, the raw string is returned. The validator will
  * produce the type mismatch diagnostic.
  */
 /**

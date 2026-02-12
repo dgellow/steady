@@ -1,5 +1,5 @@
 /**
- * `steady explain` — detailed documentation for E-codes.
+ * `steady explain`: detailed documentation for E-codes.
  *
  * Renders rich, user-centric explanations in the terminal, reusing the
  * compiler-style header format for consistency with diagnostic output.
@@ -60,7 +60,7 @@ function normalizeCode(input: string): string {
     return upper;
   }
 
-  // Just a number — add E prefix
+  // Just a number, add E prefix
   if (/^\d+$/.test(input)) {
     return `E${input}`;
   }
@@ -69,7 +69,7 @@ function normalizeCode(input: string): string {
 }
 
 /**
- * Print all codes grouped by range — the reference card.
+ * Print all codes grouped by range, the reference card.
  */
 function printAllCodes(useColor: boolean): void {
   const codes = allCodes();
@@ -93,7 +93,7 @@ function printAllCodes(useColor: boolean): void {
     if (groupEntries.length === 0) continue;
 
     console.log(
-      colorize(`  ${group.prefix}xxx — ${group.title}`, colors.bold, useColor),
+      colorize(`  ${group.prefix}xxx: ${group.title}`, colors.bold, useColor),
     );
     console.log();
 
@@ -127,7 +127,7 @@ function printExplanation(code: ECode, useColor: boolean): void {
   const def = getCode(code);
   const explanation = EXPLANATIONS[code];
 
-  // Header — same style as diagnostic output
+  // Header, same style as diagnostic output
   const severityColor = def.severity === "error"
     ? colors.red
     : def.severity === "warning"

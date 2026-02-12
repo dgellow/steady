@@ -74,7 +74,7 @@ Deno.test({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Alice" }),
     });
-    // Mock response returned — validation issues reported in headers only
+    // Mock response returned. Validation issues reported in headers only.
     assertEquals(response.status, 201);
     assertEquals(response.headers.get("X-Steady-Valid"), "false");
 
@@ -342,7 +342,7 @@ Deno.test({
   ...serverTestOpts,
 }, async () => {
   await withServer({}, async (_server, baseUrl) => {
-    // Missing required 'email' field — but default is to always mock
+    // Missing required 'email' field, but default is to always mock
     const response = await fetch(`${baseUrl}/users`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -409,7 +409,7 @@ Deno.test({
         },
         body: JSON.stringify({ name: "Alice" }),
       });
-      // Header disables rejection — mock response returned
+      // Header disables rejection, so mock response returned
       assertEquals(response.status, 201);
       assertEquals(response.headers.get("X-Steady-Valid"), "false");
       await response.body?.cancel();
@@ -438,7 +438,7 @@ Deno.test({
   ...serverTestOpts,
 }, async () => {
   await withServer({}, async (_server, baseUrl) => {
-    // Missing required X-API-Key header — engine produces E3004 (sdk-issue)
+    // Missing required X-API-Key header. Engine produces E3004 (sdk-issue).
     const response = await fetch(`${baseUrl}/items`);
     assertEquals(response.status, 200);
     assertEquals(response.headers.get("X-Steady-Valid"), "false");
@@ -526,7 +526,7 @@ Deno.test({
   ...serverTestOpts,
 }, async () => {
   await withServer({}, async (_server, baseUrl) => {
-    // Invalid path param — default always returns mock + diagnostic headers
+    // Invalid path param. Default always returns mock + diagnostic headers.
     const response = await fetch(`${baseUrl}/users/not-a-number`);
     assertEquals(response.status, 200);
 
@@ -590,7 +590,7 @@ Deno.test(
   },
   async () => {
     await withServer({}, async (_server, baseUrl) => {
-      // Wrong content-type — default always mocks
+      // Wrong content-type. Default always mocks.
       const response = await fetch(`${baseUrl}/users`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
@@ -983,7 +983,7 @@ Deno.test({
   ...serverTestOpts,
 }, async () => {
   await withCursedQmarkServer(async (_server, baseUrl) => {
-    // Param name is "active?" — must be percent-encoded as active%3F in the URL
+    // Param name is "active?", must be percent-encoded as active%3F in the URL
     const response = await fetch(
       `${baseUrl}/search?q=hello&active%3F=true`,
     );
@@ -998,7 +998,7 @@ Deno.test({
   ...serverTestOpts,
 }, async () => {
   await withCursedQmarkServer(async (_server, baseUrl) => {
-    // Enum value "maybe?" — the ? is part of the value, percent-encoded
+    // Enum value "maybe?": the ? is part of the value, percent-encoded
     const response = await fetch(
       `${baseUrl}/search?q=hello&confidence=maybe%3F`,
     );
@@ -1014,7 +1014,7 @@ Deno.test({
   ...serverTestOpts,
 }, async () => {
   await withCursedQmarkServer(async (_server, baseUrl) => {
-    // Param name "filter[is_valid?]" — both brackets and ? need encoding
+    // Param name "filter[is_valid?]": both brackets and ? need encoding
     const response = await fetch(
       `${baseUrl}/search?q=hello&filter%5Bis_valid%3F%5D=true`,
     );
@@ -1046,7 +1046,7 @@ Deno.test({
   ...serverTestOpts,
 }, async () => {
   await withCursedQmarkServer(async (_server, baseUrl) => {
-    // "maybe?" sent unencoded — the ? is inside the query value
+    // "maybe?" sent unencoded. The ? is inside the query value.
     // /search?q=hello&confidence=maybe?
     // Server parses: q=hello, confidence=maybe? (trailing ? is part of value)
     const response = await fetch(
@@ -1092,7 +1092,7 @@ Deno.test({
   ...serverTestOpts,
 }, async () => {
   await withCursedClientServer(async (_server, baseUrl) => {
-    // Go SDK bug: ?beta=true?extra=1 — second ? instead of &
+    // Go SDK bug: ?beta=true?extra=1, second ? instead of &
     // Server sees beta="true?extra=1", not beta="true"
     // Should NOT match the ?beta=true route
     const response = await fetch(`${baseUrl}/files?beta=true?extra=1`);
@@ -1111,7 +1111,7 @@ Deno.test({
   ...serverTestOpts,
 }, async () => {
   await withCursedClientServer(async (_server, baseUrl) => {
-    // Correct URL with & — should match beta route
+    // Correct URL with &. Should match beta route.
     const response = await fetch(`${baseUrl}/files?beta=true&extra=1`);
     assertEquals(response.status, 200);
     const data = await response.json();

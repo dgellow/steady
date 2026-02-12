@@ -28,7 +28,7 @@ snapshot[`validate: warnings → snapshot stderr 1`] = `
   |  /users/{id}
   |  /users/{userId}
   |
-  = These paths match the same URL patterns — routing will use first match
+  = These paths match the same URL patterns. Routing will use first match
 
 1 warning
 For details, try: steady explain E1008

@@ -1,16 +1,16 @@
 /**
- * E-code registry — source of truth for diagnostic code definitions.
+ * E-code registry. Source of truth for diagnostic code definitions.
  *
  * Each E-code has a default category and severity. The interpreter may override
  * the category based on context (e.g., E3009 re-attributed to spec-issue when
  * caused by allOf + additionalProperties pitfall).
  *
  * Code ranges:
- *   E1xxx — Spec issues (problems with the OpenAPI spec itself)
- *   E2xxx — Routing (request doesn't match any operation)
- *   E3xxx — Transport/structural (SDK's responsibility)
- *   E4xxx — Content (value validation, not SDK's fault)
- *   E5xxx — Ambiguous (can't determine responsibility)
+ *   E1xxx: Spec issues (problems with the OpenAPI spec itself)
+ *   E2xxx: Routing (request doesn't match any operation)
+ *   E3xxx: Transport/structural (SDK's responsibility)
+ *   E4xxx: Content (value validation, not SDK's fault)
+ *   E5xxx: Ambiguous (can't determine responsibility)
  */
 
 import type { IssueCategory, Severity } from "../diagnostic.ts";
@@ -18,7 +18,7 @@ import type { IssueCategory, Severity } from "../diagnostic.ts";
 export interface ECodeDefinition {
   title: string;
   severity: Severity;
-  /** Default category — engine may override based on context. */
+  /** Default category. Engine may override based on context. */
   category: IssueCategory;
   /** If true, Steady cannot serve this spec at all. */
   fatal?: boolean;
@@ -287,7 +287,7 @@ const CODES = {
 export type ECode = keyof typeof CODES;
 
 /**
- * Look up an E-code definition. Only accepts known codes — enforced at compile time.
+ * Look up an E-code definition. Only accepts known codes, enforced at compile time.
  */
 export function getCode(code: ECode): ECodeDefinition {
   return CODES[code];

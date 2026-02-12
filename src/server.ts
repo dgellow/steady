@@ -15,8 +15,6 @@ import type {
   OpenAPISpec,
   OperationObject,
   PathItemObject,
-  ReferenceObject,
-  SchemaObject,
 } from "@steady/openapi";
 import { MatchError, missingExampleError } from "./errors.ts";
 import {
@@ -50,6 +48,7 @@ import {
   type PathSegment,
 } from "./path-matcher.ts";
 import { DiagnosticCollector } from "./diagnostics/collector.ts";
+import { isMinimalResponse } from "./diagnostics/response-check.ts";
 import {
   createStreamingResponse,
   getStreamFormat,
@@ -103,43 +102,7 @@ function acceptsJson(acceptTypes: string[]): boolean {
   return false;
 }
 
-/**
- * Check if a generated response body is suspiciously minimal given the schema.
- * Returns true if body is {} or [] but the schema declares required properties
- * or has non-trivial property definitions.
- */
-function isMinimalResponse(
-  body: unknown,
-  schema: SchemaObject | ReferenceObject,
-): boolean {
-  if (body === null || body === undefined) return false;
-
-  const isEmptyObject = typeof body === "object" && !Array.isArray(body) &&
-    Object.keys(body ?? {}).length === 0;
-  const isEmptyArray = Array.isArray(body) && body.length === 0;
-
-  if (!isEmptyObject && !isEmptyArray) return false;
-
-  // Pure $ref schemas can't be inspected without resolution
-  if (!("properties" in schema) && !("required" in schema)) return false;
-
-  if (
-    "required" in schema && Array.isArray(schema.required) &&
-    schema.required.length > 0
-  ) {
-    return true;
-  }
-
-  if (
-    "properties" in schema && schema.properties &&
-    typeof schema.properties === "object" &&
-    Object.keys(schema.properties).length > 0
-  ) {
-    return true;
-  }
-
-  return false;
-}
+// isMinimalResponse is extracted to diagnostics/response-check.ts for testability
 
 /** HTTP methods supported by OpenAPI */
 const HTTP_METHODS = [
@@ -613,7 +576,7 @@ export class MockServer {
         // Log 404 error
         this.logRequestEvent(req, path, path, method, 404, "Not Found", timing);
 
-        // Run the diagnostics engine — produces E2001/E2002 with enrichment
+        // Run the diagnostics engine. Produces E2001/E2002 with enrichment
         const engineDiagnostics = this.runDiagnosticEngine(
           path,
           method,
@@ -740,7 +703,7 @@ export class MockServer {
         headers: responseHeaders || new Headers(),
         body: responseBody,
         bodySize: responseBody !== undefined
-          ? JSON.stringify(responseBody).length
+          ? new TextEncoder().encode(JSON.stringify(responseBody)).length
           : undefined,
       },
       validation: validation

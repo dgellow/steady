@@ -27,7 +27,7 @@ export function attributeOneOf(
   childResults: InterpretResult[],
   context: CompositionContext,
 ): InterpretResult {
-  // 1. Discriminator shortcut — deterministic variant selection
+  // 1. Discriminator shortcut. Deterministic variant selection
   const disc = context.schema.discriminator;
   if (disc && typeof disc.propertyName === "string") {
     return handleDiscriminator(childResults, context, disc.propertyName);
@@ -226,7 +226,7 @@ function reportMultipleMatches(
     requestPath: context.path,
     specPointer: context.schemaPath,
     message:
-      `${structuralMatches.length} variants structurally match — ambiguous`,
+      `${structuralMatches.length} variants structurally match, ambiguous`,
     attribution: {
       confidence: 0.4,
       reasoning: [

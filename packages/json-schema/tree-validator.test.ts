@@ -103,7 +103,7 @@ Deno.test("TreeValidator", async (t) => {
     assertEquals(tree.valid, true);
   });
 
-  // ── properties (applicator — flattened) ──────────────────────────
+  // ── properties (applicator, flattened) ──────────────────────────
 
   await t.step("nested property error has dotted path", () => {
     const tree = validate(

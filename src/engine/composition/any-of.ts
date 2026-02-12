@@ -2,7 +2,7 @@
  * anyOf composition logic.
  *
  * anyOf requires AT LEAST ONE child to match. Unlike oneOf, multiple
- * structural matches are fine — they all contribute diagnostics.
+ * structural matches are fine. They all contribute diagnostics.
  *
  * Cases:
  * 1. One or more structural matches → success, merge their diagnostics

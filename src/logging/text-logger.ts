@@ -304,7 +304,7 @@ export class TextLogger extends BaseLogger {
       `Session: ${session.requestCount} requests (${validPct}% structurally valid)`,
     );
 
-    // Issues line — only if there are issues, only non-zero categories
+    // Issues line, only if there are issues, only non-zero categories
     const categoryEntries = Object.entries(session.categoryBreakdown)
       .filter(([_, count]) => count > 0);
     if (categoryEntries.length > 0) {

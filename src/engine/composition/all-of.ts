@@ -2,7 +2,7 @@
  * allOf composition logic.
  *
  * allOf requires ALL children to match. Structural match is the AND of all
- * children. Unlike oneOf, there's no variant selection — every child's
+ * children. Unlike oneOf, there's no variant selection. Every child's
  * diagnostics are reported.
  *
  * Pitfall detection:
@@ -21,7 +21,7 @@ export function attributeAllOf(
   childResults: InterpretResult[],
   context: CompositionContext,
 ): InterpretResult {
-  // Pitfall: contradictory types — check first since it overrides everything
+  // Pitfall: contradictory types. Check first since it overrides everything
   const contradictory = detectContradictoryTypes(childResults, context);
   if (contradictory) {
     return contradictory;

@@ -4,7 +4,7 @@
  * Each test goes through the full pipeline:
  *   raw JSON string → parseSpec → analyzeSpec → assert on diagnostics
  *
- * No mocks, no shortcuts — these exercise the real parser and analyzer.
+ * No mocks, no shortcuts. These exercise the real parser and analyzer.
  */
 
 import { assertEquals } from "@std/assert";

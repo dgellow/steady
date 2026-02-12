@@ -35,7 +35,7 @@ export interface RoutingRequest {
   path: string;
   /** HTTP method (case-insensitive). */
   method: string;
-  /** Query parameters — used for double-? enrichment. */
+  /** Query parameters, used for double-? enrichment. */
   queryParams?: URLSearchParams;
 }
 
@@ -120,7 +120,7 @@ export function matchRoute(
     }
   }
 
-  // No match — produce routing diagnostic
+  // No match. Produce routing diagnostic
   if (firstPathMatch) {
     return {
       matched: false,
@@ -142,7 +142,7 @@ export function matchRoute(
 
 /**
  * Get the operation for a method from a PathItemObject.
- * Type-safe without `as` casts — uses Pick to narrow.
+ * Type-safe without `as` casts. Uses Pick to narrow.
  */
 function getOperation(
   pathItem: PathItemObject,
@@ -271,7 +271,7 @@ function enrichWithDoubleQuestion(
         confidence: 0.95,
         reasoning: [
           ...baseReasoning,
-          "Query parameter value contains '?' — likely URL construction bug",
+          "Query parameter value contains '?'. Likely URL construction bug",
           "SDK may be appending '?params' to a URL already containing '?'",
         ],
         display: {
@@ -280,7 +280,7 @@ function enrichWithDoubleQuestion(
             highlight: {
               start: highlightStart,
               end: highlightStart + 1,
-              label: "'?' in value — likely double-? bug",
+              label: "'?' in value, likely double-? bug",
             },
           }],
           notes: [

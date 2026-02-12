@@ -1,5 +1,5 @@
 /**
- * Leaf attribution — maps a leaf validation error to an E-code.
+ * Leaf attribution. Maps a leaf validation error to an E-code.
  *
  * Given (keyword, location, schema context), determines which E-code to assign.
  * Some keywords have a single E-code regardless of context. Others depend on
@@ -87,7 +87,7 @@ export function attributeLeafCode(
       return "E4007";
 
     default:
-      // Unknown keyword — content-note is the conservative default
+      // Unknown keyword, content-note is the conservative default
       return "E4002";
   }
 }
@@ -187,15 +187,15 @@ function isNullable(schema: Schema): boolean {
 function defaultConfidence(code: ECode): number {
   const prefix = code.charAt(1);
   switch (prefix) {
-    case "1": // Spec issues — high confidence in attribution
+    case "1": // Spec issues, high confidence in attribution
       return 0.9;
-    case "2": // Routing — high confidence
+    case "2": // Routing, high confidence
       return 0.9;
-    case "3": // Transport — high confidence (SDK's job)
+    case "3": // Transport, high confidence (SDK's job)
       return 0.9;
-    case "4": // Content — high confidence (not SDK's job)
+    case "4": // Content, high confidence (not SDK's job)
       return 0.9;
-    case "5": // Ambiguous — lower confidence
+    case "5": // Ambiguous, lower confidence
       return 0.5;
     default:
       return 0.5;

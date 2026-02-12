@@ -75,6 +75,11 @@ Name"` (percent-decoded before JSON Pointer parsing).
 7. **No chained bash commands** - When running commands (not writing scripts),
    never use `|`, `&&`, or `||`. Run each command as a separate, distinct
    invocation
+8. **No em-dashes** - Never use `—` (U+2014) anywhere in the codebase: comments,
+   strings, messages, or docs. Em-dashes are non-ASCII and cause ByteString
+   crashes when diagnostic messages flow into HTTP headers via `Headers.set()`.
+   Use normal punctuation instead (periods, commas, semicolons). Two sentences
+   are better than one long sentence joined by an em-dash.
 
 ## Skills
 

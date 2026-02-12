@@ -115,7 +115,7 @@ Deno.test("formatDiagnostic: with display notes", () => {
   assertEquals(lines[6], "  = Move other keywords into the referenced schema");
 });
 
-Deno.test("formatDiagnostic: no specPointer — omits arrow line", () => {
+Deno.test("formatDiagnostic: no specPointer - omits arrow line", () => {
   const d = diag({
     code: "E1012",
     message: "Impossible constraint",

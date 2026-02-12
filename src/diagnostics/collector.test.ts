@@ -46,3 +46,62 @@ Deno.test("getCoverage with all endpoints tested returns empty untested", () => 
   assertEquals(coverage.total, 2);
   assertEquals(coverage.untestedEndpoints, []);
 });
+
+// ── Generation warnings ──────────────────────────────────────────────
+
+Deno.test("trackGenerationWarning accumulates warnings", () => {
+  const collector = new DiagnosticCollector();
+  collector.trackGenerationWarning("POST", "/users");
+  assertEquals(collector.getGenerationWarnings(), ["POST /users"]);
+});
+
+Deno.test("trackGenerationWarning - multiple warnings accumulate", () => {
+  const collector = new DiagnosticCollector();
+  collector.trackGenerationWarning("POST", "/users");
+  collector.trackGenerationWarning("GET", "/items");
+  collector.trackGenerationWarning("PUT", "/orders/{id}");
+  assertEquals(collector.getGenerationWarnings(), [
+    "POST /users",
+    "GET /items",
+    "PUT /orders/{id}",
+  ]);
+});
+
+Deno.test("resetRuntime clears all runtime state", () => {
+  const collector = new DiagnosticCollector();
+  collector.setAllEndpoints(["GET /users", "POST /users"]);
+
+  // Populate all runtime fields
+  collector.addRuntimeDiagnostics(
+    [{
+      code: "E3001",
+      severity: "error",
+      category: "sdk-issue",
+      requestPath: "",
+      specPointer: "",
+      message: "test",
+      attribution: { confidence: 1.0, reasoning: ["test"] },
+    }],
+    "GET",
+    "/users",
+    false,
+  );
+  collector.trackEndpoint("GET", "/users");
+  collector.trackGenerationWarning("POST", "/users");
+
+  // Verify populated
+  assertEquals(collector.getRuntimeDiagnostics().length, 1);
+  assertEquals(collector.getCoverage().tested, 1);
+  assertEquals(collector.getGenerationWarnings().length, 1);
+  assertEquals(collector.getStats().requestCount, 1);
+
+  collector.resetRuntime();
+
+  // Verify all cleared
+  assertEquals(collector.getRuntimeDiagnostics(), []);
+  assertEquals(collector.getCoverage().tested, 0);
+  assertEquals(collector.getGenerationWarnings(), []);
+  assertEquals(collector.getStats().requestCount, 0);
+  // allEndpoints should NOT be cleared (it's startup data)
+  assertEquals(collector.getCoverage().total, 2);
+});

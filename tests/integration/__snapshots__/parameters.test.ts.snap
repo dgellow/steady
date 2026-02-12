@@ -1,6 +1,6 @@
 export const snapshot = {};
 
-snapshot[`PUT /count — string instead of integer → mock with diagnostics 1`] = `
+snapshot[`PUT /count - string instead of integer → mock with diagnostics 1`] = `
 {
   "x-steady-error-1-code": "E3008",
   "x-steady-error-1-message": "Expected type integer, got string",
@@ -12,7 +12,7 @@ snapshot[`PUT /count — string instead of integer → mock with diagnostics 1`]
 }
 `;
 
-snapshot[`POST /json-v{version}/users/{userId} — invalid path param type 1`] = `
+snapshot[`POST /json-v{version}/users/{userId} - invalid path param type 1`] = `
 {
   "x-steady-error-1-code": "E3001",
   "x-steady-error-1-message": "Expected type integer, got string",
@@ -24,7 +24,7 @@ snapshot[`POST /json-v{version}/users/{userId} — invalid path param type 1`] =
 }
 `;
 
-snapshot[`POST /json-v{version}/users/{userId} — missing required query params 1`] = `
+snapshot[`POST /json-v{version}/users/{userId} - missing required query params 1`] = `
 {
   "x-steady-error-1-code": "E3002",
   "x-steady-error-1-message": "Missing required query parameter: date",
@@ -42,7 +42,7 @@ snapshot[`POST /json-v{version}/users/{userId} — missing required query params
 }
 `;
 
-snapshot[`POST /json-v{version}/users/{userId} — boolean as string in body 1`] = `
+snapshot[`POST /json-v{version}/users/{userId} - boolean as string in body 1`] = `
 {
   "x-steady-error-1-code": "E3008",
   "x-steady-error-1-message": "Expected type boolean, got string",
@@ -54,7 +54,7 @@ snapshot[`POST /json-v{version}/users/{userId} — boolean as string in body 1`]
 }
 `;
 
-snapshot[`GET /paginated — size exceeds max → mock with diagnostics 1`] = `
+snapshot[`GET /paginated - size exceeds max → mock with diagnostics 1`] = `
 {
   "x-steady-error-1-code": "E4004",
   "x-steady-error-1-message": "Numeric range violation",
@@ -66,7 +66,7 @@ snapshot[`GET /paginated — size exceeds max → mock with diagnostics 1`] = `
 }
 `;
 
-snapshot[`POST /bulk — empty array → mock with diagnostics 1`] = `
+snapshot[`POST /bulk - empty array → mock with diagnostics 1`] = `
 {
   "x-steady-error-1-code": "E4005",
   "x-steady-error-1-message": "Array size violation",
@@ -78,7 +78,7 @@ snapshot[`POST /bulk — empty array → mock with diagnostics 1`] = `
 }
 `;
 
-snapshot[`POST /bulk — invalid item schema → mock with diagnostics 1`] = `
+snapshot[`POST /bulk - invalid item schema → mock with diagnostics 1`] = `
 {
   "x-steady-error-1-code": "E3007",
   "x-steady-error-1-message": "Missing required property: baz",
@@ -90,7 +90,7 @@ snapshot[`POST /bulk — invalid item schema → mock with diagnostics 1`] = `
 }
 `;
 
-snapshot[`POST /nullable — missing required field → mock with diagnostics 1`] = `
+snapshot[`POST /nullable - missing required field → mock with diagnostics 1`] = `
 {
   "x-steady-error-1-code": "E3007",
   "x-steady-error-1-message": "Missing required property: requiredField",
@@ -102,7 +102,7 @@ snapshot[`POST /nullable — missing required field → mock with diagnostics 1`
 }
 `;
 
-snapshot[`GET /search — invalid enum value → mock with diagnostics 1`] = `
+snapshot[`GET /search - invalid enum value → mock with diagnostics 1`] = `
 {
   "x-steady-error-1-code": "E3003",
   "x-steady-error-1-message": "Expected type array, got string",
@@ -114,7 +114,7 @@ snapshot[`GET /search — invalid enum value → mock with diagnostics 1`] = `
 }
 `;
 
-snapshot[`GET /session — missing required cookie → mock with diagnostics 1`] = `
+snapshot[`GET /session - missing required cookie → mock with diagnostics 1`] = `
 {
   "x-steady-error-1-code": "E3007",
   "x-steady-error-1-message": "Missing required cookie parameter: session_id",
@@ -126,7 +126,7 @@ snapshot[`GET /session — missing required cookie → mock with diagnostics 1`]
 }
 `;
 
-snapshot[`GET /session — invalid cookie pattern → mock with diagnostics 1`] = `
+snapshot[`GET /session - invalid cookie pattern → mock with diagnostics 1`] = `
 {
   "x-steady-error-1-code": "E4002",
   "x-steady-error-1-message": "Pattern mismatch",

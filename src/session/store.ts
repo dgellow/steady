@@ -1,5 +1,5 @@
 /**
- * Session store — per-session diagnostic accumulation.
+ * Session store. Per-session diagnostic accumulation.
  *
  * Sessions are created implicitly when a request arrives with an
  * X-Steady-Session header. Diagnostics from each request are grouped

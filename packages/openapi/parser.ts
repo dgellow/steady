@@ -148,8 +148,8 @@ export async function parseSpecFromFile(path: string): Promise<ParseResult> {
  * defaulted so the diagnostics system can produce E1003 warnings.
  *
  * Still throws for:
- * - Non-object spec (array/primitive) — structural invalidity
- * - Unsupported OpenAPI version (E1002 territory) — can't serve Swagger 2.0
+ * - Non-object spec (array/primitive). Structural invalidity
+ * - Unsupported OpenAPI version (E1002 territory). Can't serve Swagger 2.0
  */
 function validateOpenAPISpec(
   spec: unknown,
@@ -166,7 +166,7 @@ function validateOpenAPISpec(
   const s = spec as Record<string, unknown>;
   const defaultedFields: string[] = [];
 
-  // Validate openapi version field — default if missing, throw if unsupported
+  // Validate openapi version field. Default if missing, throw if unsupported
   if (typeof s.openapi !== "string") {
     s.openapi = "3.1.0";
     defaultedFields.push("openapi");
@@ -188,7 +188,7 @@ function validateOpenAPISpec(
 
   const version = s.openapi as string;
 
-  // Validate info object — apply defaults for missing metadata
+  // Validate info object. Apply defaults for missing metadata
   if (!s.info || typeof s.info !== "object" || Array.isArray(s.info)) {
     s.info = { title: "Untitled API", version: "unknown" };
     defaultedFields.push("info");
@@ -209,7 +209,7 @@ function validateOpenAPISpec(
   // OpenAPI 3.1-specific field validation
   const is31 = version.startsWith("3.1.");
 
-  // Validate paths object — default to empty if missing
+  // Validate paths object. Default to empty if missing
   const hasPaths = s.paths && typeof s.paths === "object" &&
     !Array.isArray(s.paths);
 

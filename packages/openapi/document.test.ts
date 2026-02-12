@@ -392,7 +392,7 @@ Deno.test("OpenAPISpecDocument", async (t) => {
 
     // Compile-time check: OpenAPISpecDocument must be assignable to SpecDocument.
     // If the engine's interface changes and this class drifts, this line
-    // fails at type-check time — no runtime assertion needed.
+    // fails at type-check time. No runtime assertion needed.
     const doc: SpecDocument = new OpenAPISpecDocument(spec);
 
     // Sanity: the assigned value works through the interface

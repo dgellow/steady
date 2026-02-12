@@ -4,7 +4,7 @@ import type { SpecResolver, ValidationNode } from "./types.ts";
 import { interpret, resolveDataAtPath } from "./interpreter.ts";
 
 /**
- * Stub spec resolver — returns the schema associated with the given path.
+ * Stub spec resolver. Returns the schema associated with the given path.
  * Tests register schemas by pointer, and the interpreter looks them up.
  */
 function makeResolver(schemas: Record<string, Schema>): SpecResolver {

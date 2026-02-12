@@ -12,12 +12,12 @@ import type { Diagnostic } from "../diagnostic.ts";
  * A node in the validation tree produced by the schema validator.
  *
  * Three kinds of nodes:
- * 1. Composition: oneOf, anyOf, allOf — have children, trigger composition logic
- * 2. Container: root, variant wrapper — have children, merge results
- * 3. Leaf: keyword failure — no children
+ * 1. Composition: oneOf, anyOf, allOf. Have children, trigger composition logic
+ * 2. Container: root, variant wrapper. Have children, merge results
+ * 3. Leaf: keyword failure. No children
  *
  * Applicator keywords (properties, items, patternProperties) are flattened
- * by the validator — they don't appear as nodes. The `path` field carries
+ * by the validator. They don't appear as nodes. The `path` field carries
  * nesting context (e.g., "body.address.street").
  */
 export interface ValidationNode {
@@ -25,7 +25,7 @@ export interface ValidationNode {
   keyword?: string;
   /** Where in the request this error occurred (e.g., "body.email"). */
   path: string;
-  /** JSON pointer into the spec — used to resolve schema context. */
+  /** JSON pointer into the spec, used to resolve schema context. */
   schemaPath: string;
   valid: boolean;
 
@@ -45,7 +45,7 @@ export interface ValidationNode {
   variantIndex?: number;
 }
 
-/** Result of interpreting a node — diagnostics plus structural validity. */
+/** Result of interpreting a node. Contains diagnostics plus structural validity. */
 export interface InterpretResult {
   diagnostics: Diagnostic[];
   /**

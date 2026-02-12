@@ -5,7 +5,7 @@ import { analyzeSpec } from "./spec-analyzer.ts";
 
 // ── Test helpers ────────────────────────────────────────────────────
 
-/** Minimal valid OpenAPI 3.0 spec — no diagnostics expected. */
+/** Minimal valid OpenAPI 3.0 spec. No diagnostics expected. */
 function minimalSpec(overrides?: Partial<OpenAPISpec>): OpenAPISpec {
   return {
     openapi: "3.0.3",
@@ -48,7 +48,7 @@ function unreachable(): never {
 
 // ── Skeleton ────────────────────────────────────────────────────────
 
-Deno.test("analyzeSpec — clean spec produces no diagnostics", async () => {
+Deno.test("analyzeSpec - clean spec produces no diagnostics", async () => {
   const result = await analyzeSpec(minimalSpec());
   assertEquals(result.diagnostics.length, 0);
   assertEquals(result.fatal, false);
@@ -56,7 +56,7 @@ Deno.test("analyzeSpec — clean spec produces no diagnostics", async () => {
 
 // ── E1013: Multiple question marks in path ──────────────────────────
 
-Deno.test("E1013 — detects multiple question marks in path", async () => {
+Deno.test("E1013 - detects multiple question marks in path", async () => {
   const spec = minimalSpec({
     paths: {
       "/search?q=1?page=2": {
@@ -73,7 +73,7 @@ Deno.test("E1013 — detects multiple question marks in path", async () => {
   assertEquals(d.specPointer, "#/paths/~1search?q=1?page=2");
 });
 
-Deno.test("E1013 — single question mark is fine", async () => {
+Deno.test("E1013 - single question mark is fine", async () => {
   const spec = minimalSpec({
     paths: {
       "/search?q=1": {
@@ -88,7 +88,7 @@ Deno.test("E1013 — single question mark is fine", async () => {
 
 // ── E1014: Question mark in parameter name/enum ─────────────────────
 
-Deno.test("E1014 — detects question mark in parameter name", async () => {
+Deno.test("E1014 - detects question mark in parameter name", async () => {
   const spec = minimalSpec({
     paths: {
       "/search": {
@@ -107,7 +107,7 @@ Deno.test("E1014 — detects question mark in parameter name", async () => {
   assertEquals(d.message.includes("q?"), true);
 });
 
-Deno.test("E1014 — detects question mark in enum value", async () => {
+Deno.test("E1014 - detects question mark in enum value", async () => {
   const spec = minimalSpec({
     paths: {
       "/filter": {
@@ -130,7 +130,7 @@ Deno.test("E1014 — detects question mark in enum value", async () => {
   assertEquals(d.message.includes("inactive?"), true);
 });
 
-Deno.test("E1014 — resolves $ref parameters", async () => {
+Deno.test("E1014 - resolves $ref parameters", async () => {
   const spec = minimalSpec({
     paths: {
       "/search": {
@@ -153,7 +153,7 @@ Deno.test("E1014 — resolves $ref parameters", async () => {
   filterCode(result.diagnostics, "E1014", 1);
 });
 
-Deno.test("E1014 — path-level parameters are checked", async () => {
+Deno.test("E1014 - path-level parameters are checked", async () => {
   const spec = minimalSpec({
     paths: {
       "/search": {
@@ -173,7 +173,7 @@ Deno.test("E1014 — path-level parameters are checked", async () => {
 
 // ── E1008: Duplicate path patterns ──────────────────────────────────
 
-Deno.test("E1008 — detects duplicate path patterns", async () => {
+Deno.test("E1008 - detects duplicate path patterns", async () => {
   const spec = minimalSpec({
     paths: {
       "/users/{userId}": {
@@ -191,7 +191,7 @@ Deno.test("E1008 — detects duplicate path patterns", async () => {
   assertEquals(d.message.includes("/users/{id}"), true);
 });
 
-Deno.test("E1008 — no false positive for different structures", async () => {
+Deno.test("E1008 - no false positive for different structures", async () => {
   const spec = minimalSpec({
     paths: {
       "/users/{userId}": {
@@ -209,7 +209,7 @@ Deno.test("E1008 — no false positive for different structures", async () => {
 
 // ── E1009: Duplicate path parameter names ───────────────────────────
 
-Deno.test("E1009 — detects duplicate parameter names in path", async () => {
+Deno.test("E1009 - detects duplicate parameter names in path", async () => {
   const spec = minimalSpec({
     paths: {
       "/users/{id}/posts/{id}": {
@@ -223,7 +223,7 @@ Deno.test("E1009 — detects duplicate parameter names in path", async () => {
   assertEquals(d.message.includes("{id}"), true);
 });
 
-Deno.test("E1009 — unique parameter names are fine", async () => {
+Deno.test("E1009 - unique parameter names are fine", async () => {
   const spec = minimalSpec({
     paths: {
       "/users/{userId}/posts/{postId}": {
@@ -238,7 +238,7 @@ Deno.test("E1009 — unique parameter names are fine", async () => {
 
 // ── E1010: Missing responses ────────────────────────────────────────
 
-Deno.test("E1010 — detects operation with empty responses", async () => {
+Deno.test("E1010 - detects operation with empty responses", async () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -252,14 +252,14 @@ Deno.test("E1010 — detects operation with empty responses", async () => {
   assertEquals(d.message.includes("GET /users"), true);
 });
 
-Deno.test("E1010 — operation with responses is fine", async () => {
+Deno.test("E1010 - operation with responses is fine", async () => {
   const result = await analyzeSpec(minimalSpec());
   filterCode(result.diagnostics, "E1010", 0);
 });
 
 // ── E1011: Invalid component names ──────────────────────────────────
 
-Deno.test("E1011 — detects invalid component name", async () => {
+Deno.test("E1011 - detects invalid component name", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -274,7 +274,7 @@ Deno.test("E1011 — detects invalid component name", async () => {
   filterCode(result.diagnostics, "E1011", 2); // "Invalid Name" and "also/invalid"
 });
 
-Deno.test("E1011 — valid component names are fine", async () => {
+Deno.test("E1011 - valid component names are fine", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -291,7 +291,7 @@ Deno.test("E1011 — valid component names are fine", async () => {
 
 // ── E1007: Keywords alongside $ref (3.0.x) ─────────────────────────
 
-Deno.test("E1007 — detects keywords alongside $ref in 3.0.x", async () => {
+Deno.test("E1007 - detects keywords alongside $ref in 3.0.x", async () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -324,7 +324,7 @@ Deno.test("E1007 — detects keywords alongside $ref in 3.0.x", async () => {
   assertEquals(d.message.includes("nullable"), true);
 });
 
-Deno.test("E1007 — summary/description alongside $ref are ignored", async () => {
+Deno.test("E1007 - summary/description alongside $ref are ignored", async () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -356,7 +356,7 @@ Deno.test("E1007 — summary/description alongside $ref are ignored", async () =
   filterCode(result.diagnostics, "E1007", 0);
 });
 
-Deno.test("E1007 — no warning for webhook schemas", async () => {
+Deno.test("E1007 - no warning for webhook schemas", async () => {
   const spec = minimalSpec({
     webhooks: {
       "card.created": {
@@ -387,7 +387,7 @@ Deno.test("E1007 — no warning for webhook schemas", async () => {
   filterCode(result.diagnostics, "E1007", 0);
 });
 
-Deno.test("E1007 — no warning for 3.1.x specs", async () => {
+Deno.test("E1007 - no warning for 3.1.x specs", async () => {
   const spec: OpenAPISpec = {
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
@@ -423,7 +423,7 @@ Deno.test("E1007 — no warning for 3.1.x specs", async () => {
 
 // ── E1004: Unresolved $ref ──────────────────────────────────────────
 
-Deno.test("E1004 — detects unresolved $ref", async () => {
+Deno.test("E1004 - detects unresolved $ref", async () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -448,7 +448,7 @@ Deno.test("E1004 — detects unresolved $ref", async () => {
   assertEquals(result.fatal, true);
 });
 
-Deno.test("E1004 — valid $ref produces no diagnostic", async () => {
+Deno.test("E1004 - valid $ref produces no diagnostic", async () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -479,7 +479,7 @@ Deno.test("E1004 — valid $ref produces no diagnostic", async () => {
 
 // ── E1005: Circular $ref ────────────────────────────────────────────
 
-Deno.test("E1005 — suppresses cycle through optional property", async () => {
+Deno.test("E1005 - suppresses cycle through optional property", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -497,7 +497,7 @@ Deno.test("E1005 — suppresses cycle through optional property", async () => {
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 — suppresses indirect cycle through optional properties", async () => {
+Deno.test("E1005 - suppresses indirect cycle through optional properties", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -521,7 +521,7 @@ Deno.test("E1005 — suppresses indirect cycle through optional properties", asy
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 — non-circular refs are fine", async () => {
+Deno.test("E1005 - non-circular refs are fine", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -540,7 +540,7 @@ Deno.test("E1005 — non-circular refs are fine", async () => {
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 — detects forced self-reference (required property)", async () => {
+Deno.test("E1005 - detects forced self-reference (required property)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -560,7 +560,7 @@ Deno.test("E1005 — detects forced self-reference (required property)", async (
   assertEquals(e1005.length >= 1, true);
 });
 
-Deno.test("E1005 — detects forced indirect cycle (all edges required)", async () => {
+Deno.test("E1005 - detects forced indirect cycle (all edges required)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -587,7 +587,7 @@ Deno.test("E1005 — detects forced indirect cycle (all edges required)", async 
   assertEquals(e1005.length >= 1, true);
 });
 
-Deno.test("E1005 — suppresses cycle through array items", async () => {
+Deno.test("E1005 - suppresses cycle through array items", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -609,7 +609,7 @@ Deno.test("E1005 — suppresses cycle through array items", async () => {
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 — suppresses cycle through oneOf alternative", async () => {
+Deno.test("E1005 - suppresses cycle through oneOf alternative", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -634,7 +634,7 @@ Deno.test("E1005 — suppresses cycle through oneOf alternative", async () => {
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 — mixed: forced + optional edge → suppressed", async () => {
+Deno.test("E1005 - mixed: forced + optional edge → suppressed", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -661,7 +661,7 @@ Deno.test("E1005 — mixed: forced + optional edge → suppressed", async () => 
 
 // ── E1012: Impossible schema constraints ────────────────────────────
 
-Deno.test("E1012 — detects minimum > maximum", async () => {
+Deno.test("E1012 - detects minimum > maximum", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -675,7 +675,7 @@ Deno.test("E1012 — detects minimum > maximum", async () => {
   assertEquals(d.message.includes("minimum"), true);
 });
 
-Deno.test("E1012 — detects minLength > maxLength", async () => {
+Deno.test("E1012 - detects minLength > maxLength", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -688,7 +688,7 @@ Deno.test("E1012 — detects minLength > maxLength", async () => {
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 — detects minItems > maxItems", async () => {
+Deno.test("E1012 - detects minItems > maxItems", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -706,7 +706,7 @@ Deno.test("E1012 — detects minItems > maxItems", async () => {
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 — detects minProperties > maxProperties", async () => {
+Deno.test("E1012 - detects minProperties > maxProperties", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -719,7 +719,7 @@ Deno.test("E1012 — detects minProperties > maxProperties", async () => {
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 — detects required > maxProperties", async () => {
+Deno.test("E1012 - detects required > maxProperties", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -736,7 +736,7 @@ Deno.test("E1012 — detects required > maxProperties", async () => {
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 — detects empty enum", async () => {
+Deno.test("E1012 - detects empty enum", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -749,7 +749,7 @@ Deno.test("E1012 — detects empty enum", async () => {
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 — detects conflicting allOf types", async () => {
+Deno.test("E1012 - detects conflicting allOf types", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -768,7 +768,7 @@ Deno.test("E1012 — detects conflicting allOf types", async () => {
   assertEquals(d.message.includes("conflicting types"), true);
 });
 
-Deno.test("E1012 — valid constraints produce no diagnostic", async () => {
+Deno.test("E1012 - valid constraints produce no diagnostic", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -790,7 +790,7 @@ Deno.test("E1012 — valid constraints produce no diagnostic", async () => {
 
 // ── E1012: inline schemas ───────────────────────────────────────────
 
-Deno.test("E1012 — detects impossible constraints in inline request body schema", async () => {
+Deno.test("E1012 - detects impossible constraints in inline request body schema", async () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -812,7 +812,7 @@ Deno.test("E1012 — detects impossible constraints in inline request body schem
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 — detects impossible constraints in inline response schema", async () => {
+Deno.test("E1012 - detects impossible constraints in inline response schema", async () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -843,7 +843,7 @@ Deno.test("E1012 — detects impossible constraints in inline response schema", 
 
 // ── Fatal flag ──────────────────────────────────────────────────────
 
-Deno.test("analyzeSpec — fatal flag is true when E1004 is present", async () => {
+Deno.test("analyzeSpec - fatal flag is true when E1004 is present", async () => {
   const spec = minimalSpec({
     paths: {
       "/bad": {
@@ -867,7 +867,7 @@ Deno.test("analyzeSpec — fatal flag is true when E1004 is present", async () =
   assertEquals(result.fatal, true);
 });
 
-Deno.test("analyzeSpec — fatal flag is false for warnings only", async () => {
+Deno.test("analyzeSpec - fatal flag is false for warnings only", async () => {
   const spec = minimalSpec({
     paths: {
       "/search?q=1?page=2": {
@@ -883,7 +883,7 @@ Deno.test("analyzeSpec — fatal flag is false for warnings only", async () => {
 
 // ── E1005: 3-node cycle ─────────────────────────────────────────────
 
-Deno.test("E1005 — suppresses 3-node cycle through optional properties", async () => {
+Deno.test("E1005 - suppresses 3-node cycle through optional properties", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -907,7 +907,7 @@ Deno.test("E1005 — suppresses 3-node cycle through optional properties", async
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 — suppresses multiple independent optional cycles", async () => {
+Deno.test("E1005 - suppresses multiple independent optional cycles", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -939,7 +939,7 @@ Deno.test("E1005 — suppresses multiple independent optional cycles", async () 
 
 // ── E1004: external refs are ignored ────────────────────────────────
 
-Deno.test("E1004 — external refs (non-#) are not flagged as unresolved", async () => {
+Deno.test("E1004 - external refs (non-#) are not flagged as unresolved", async () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -964,9 +964,9 @@ Deno.test("E1004 — external refs (non-#) are not flagged as unresolved", async
   assertEquals(e1004.length, 0);
 });
 
-// ── E1012: exclusive bounds (numeric — 3.1.x style) ─────────────────
+// ── E1012: exclusive bounds (numeric, 3.1.x style) ─────────────────
 
-Deno.test("E1012 — detects exclusiveMinimum >= maximum (numeric)", async () => {
+Deno.test("E1012 - detects exclusiveMinimum >= maximum (numeric)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -980,7 +980,7 @@ Deno.test("E1012 — detects exclusiveMinimum >= maximum (numeric)", async () =>
   assertEquals(d.message.includes("exclusiveMinimum"), true);
 });
 
-Deno.test("E1012 — detects minimum >= exclusiveMaximum (numeric)", async () => {
+Deno.test("E1012 - detects minimum >= exclusiveMaximum (numeric)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -994,7 +994,7 @@ Deno.test("E1012 — detects minimum >= exclusiveMaximum (numeric)", async () =>
   assertEquals(d.message.includes("exclusiveMaximum"), true);
 });
 
-Deno.test("E1012 — detects exclusiveMinimum >= exclusiveMaximum (numeric)", async () => {
+Deno.test("E1012 - detects exclusiveMinimum >= exclusiveMaximum (numeric)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1009,7 +1009,7 @@ Deno.test("E1012 — detects exclusiveMinimum >= exclusiveMaximum (numeric)", as
   assertEquals(d.message.includes("exclusiveMaximum"), true);
 });
 
-Deno.test("E1012 — valid exclusive bounds produce no diagnostic (numeric)", async () => {
+Deno.test("E1012 - valid exclusive bounds produce no diagnostic (numeric)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1022,9 +1022,9 @@ Deno.test("E1012 — valid exclusive bounds produce no diagnostic (numeric)", as
   filterCode(result.diagnostics, "E1012", 0);
 });
 
-// ── E1012: exclusive bounds (boolean — 3.0.x style) ─────────────────
+// ── E1012: exclusive bounds (boolean, 3.0.x style) ─────────────────
 
-Deno.test("E1012 — detects min == max with exclusiveMinimum: true (boolean)", async () => {
+Deno.test("E1012 - detects min == max with exclusiveMinimum: true (boolean)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1043,7 +1043,7 @@ Deno.test("E1012 — detects min == max with exclusiveMinimum: true (boolean)", 
   assertEquals(d.message.includes("exclusiveMinimum"), true);
 });
 
-Deno.test("E1012 — detects min == max with exclusiveMaximum: true (boolean)", async () => {
+Deno.test("E1012 - detects min == max with exclusiveMaximum: true (boolean)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1062,7 +1062,7 @@ Deno.test("E1012 — detects min == max with exclusiveMaximum: true (boolean)", 
   assertEquals(d.message.includes("exclusiveMaximum"), true);
 });
 
-Deno.test("E1012 — min < max with exclusiveMinimum: true is fine (boolean)", async () => {
+Deno.test("E1012 - min < max with exclusiveMinimum: true is fine (boolean)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1082,7 +1082,7 @@ Deno.test("E1012 — min < max with exclusiveMinimum: true is fine (boolean)", a
 
 // ── E1012: inline parameter schemas ─────────────────────────────────
 
-Deno.test("E1012 — detects impossible constraint in inline parameter schema", async () => {
+Deno.test("E1012 - detects impossible constraint in inline parameter schema", async () => {
   const spec = minimalSpec({
     paths: {
       "/search": {
@@ -1106,7 +1106,7 @@ Deno.test("E1012 — detects impossible constraint in inline parameter schema", 
 
 // ── E1012: path-level parameter schemas ─────────────────────────────
 
-Deno.test("E1012 — detects impossible constraint in path-level parameter schema", async () => {
+Deno.test("E1012 - detects impossible constraint in path-level parameter schema", async () => {
   const spec = minimalSpec({
     paths: {
       "/items": {
@@ -1130,7 +1130,7 @@ Deno.test("E1012 — detects impossible constraint in path-level parameter schem
 
 // ── E1012: nested property schemas ──────────────────────────────────
 
-Deno.test("E1012 — detects impossible constraint in deeply nested schema", async () => {
+Deno.test("E1012 - detects impossible constraint in deeply nested schema", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1155,7 +1155,7 @@ Deno.test("E1012 — detects impossible constraint in deeply nested schema", asy
 
 // ── E1015: Non-standard usage ────────────────────────────────────────
 
-Deno.test("E1015 — numeric exclusiveMinimum in 3.0.x spec", async () => {
+Deno.test("E1015 - numeric exclusiveMinimum in 3.0.x spec", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1171,7 +1171,7 @@ Deno.test("E1015 — numeric exclusiveMinimum in 3.0.x spec", async () => {
   assertEquals(d.message.includes("3.0.3"), true);
 });
 
-Deno.test("E1015 — numeric exclusiveMaximum in 3.0.x spec", async () => {
+Deno.test("E1015 - numeric exclusiveMaximum in 3.0.x spec", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1185,7 +1185,7 @@ Deno.test("E1015 — numeric exclusiveMaximum in 3.0.x spec", async () => {
   assertEquals(d.message.includes("exclusiveMaximum"), true);
 });
 
-Deno.test("E1015 — boolean exclusiveMinimum in 3.1.x spec", async () => {
+Deno.test("E1015 - boolean exclusiveMinimum in 3.1.x spec", async () => {
   const spec: OpenAPISpec = {
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
@@ -1210,7 +1210,7 @@ Deno.test("E1015 — boolean exclusiveMinimum in 3.1.x spec", async () => {
   assertEquals(d.message.includes("3.1.0"), true);
 });
 
-Deno.test("E1015 — boolean exclusiveMinimum in 3.0.x is fine (standard)", async () => {
+Deno.test("E1015 - boolean exclusiveMinimum in 3.0.x is fine (standard)", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1228,7 +1228,7 @@ Deno.test("E1015 — boolean exclusiveMinimum in 3.0.x is fine (standard)", asyn
   filterCode(result.diagnostics, "E1015", 0);
 });
 
-Deno.test("E1015 — numeric exclusiveMinimum in 3.1.x is fine (standard)", async () => {
+Deno.test("E1015 - numeric exclusiveMinimum in 3.1.x is fine (standard)", async () => {
   const spec: OpenAPISpec = {
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
@@ -1248,7 +1248,7 @@ Deno.test("E1015 — numeric exclusiveMinimum in 3.1.x is fine (standard)", asyn
 
 // ── E1016: Required property not in properties ──────────────────────
 
-Deno.test("E1016 — detects required field missing from properties", async () => {
+Deno.test("E1016 - detects required field missing from properties", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1271,7 +1271,7 @@ Deno.test("E1016 — detects required field missing from properties", async () =
   assertEquals(d.category, "spec-issue");
 });
 
-Deno.test("E1016 — no false positive when all required are in properties", async () => {
+Deno.test("E1016 - no false positive when all required are in properties", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1290,7 +1290,7 @@ Deno.test("E1016 — no false positive when all required are in properties", asy
   filterCode(result.diagnostics, "E1016", 0);
 });
 
-Deno.test("E1016 — skips schemas with required but no properties", async () => {
+Deno.test("E1016 - skips schemas with required but no properties", async () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1304,4 +1304,40 @@ Deno.test("E1016 — skips schemas with required but no properties", async () =>
 
   const result = await analyzeSpec(spec);
   filterCode(result.diagnostics, "E1016", 0);
+});
+
+// ── E1003: Missing metadata (defaulted fields) ──────────────────────
+
+Deno.test("E1003 - reports diagnostics for defaulted fields", async () => {
+  const spec = minimalSpec();
+  const result = await analyzeSpec(spec, {
+    defaultedFields: ["info.title", "paths"],
+  });
+
+  const e1003 = filterCode(result.diagnostics, "E1003", 2);
+
+  // First diagnostic: info.title
+  assertEquals(e1003[0]?.specPointer, "#/info/title");
+  assertEquals(e1003[0]?.message.includes("info.title"), true);
+  assertEquals(e1003[0]?.suggestion, 'Add the "info.title" field to your spec');
+
+  assertEquals(e1003[0]?.severity, "error");
+  assertEquals(e1003[0]?.category, "spec-issue");
+
+  // Second diagnostic: paths
+  assertEquals(e1003[1]?.specPointer, "#/paths");
+  assertEquals(e1003[1]?.message.includes("paths"), true);
+  assertEquals(e1003[1]?.suggestion, 'Add the "paths" field to your spec');
+});
+
+Deno.test("E1003 - no diagnostics when defaultedFields is empty", async () => {
+  const spec = minimalSpec();
+  const result = await analyzeSpec(spec, { defaultedFields: [] });
+  filterCode(result.diagnostics, "E1003", 0);
+});
+
+Deno.test("E1003 - no diagnostics when defaultedFields is not provided", async () => {
+  const spec = minimalSpec();
+  const result = await analyzeSpec(spec);
+  filterCode(result.diagnostics, "E1003", 0);
 });

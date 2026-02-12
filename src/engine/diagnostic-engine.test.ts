@@ -574,7 +574,7 @@ Deno.test("DiagnosticEngine", async (t) => {
       ];
       const engine = new DiagnosticEngine(spec, new StubValidator());
 
-      // No queryParams at all — param is missing
+      // No queryParams at all. Param is missing
       const result = engine.analyze({ path: "/users", method: "get" });
 
       assertEquals(result.length, 1);
@@ -671,7 +671,7 @@ Deno.test("DiagnosticEngine", async (t) => {
 
       const engine = new DiagnosticEngine(spec, new StubValidator());
 
-      // No pathParams — engine can't validate, should produce no diagnostic
+      // No pathParams. Engine can't validate, should produce no diagnostic
       const result = engine.analyze({
         path: "/users/not-a-number",
         method: "get",

@@ -1,7 +1,7 @@
 /**
  * Core diagnostic types for Steady's diagnostics system.
  *
- * A Diagnostic is the unit of output — it tells the developer what happened,
+ * A Diagnostic is the unit of output. It tells the developer what happened,
  * where, whose responsibility it is, and what to do about it.
  */
 
@@ -56,7 +56,7 @@ export interface Diagnostic {
 
   severity: Severity;
 
-  /** Attribution category — whose responsibility this issue is. */
+  /** Attribution category, whose responsibility this issue is. */
   category: IssueCategory;
 
   /** Where in the request this issue was found (e.g., "body.email"). */
@@ -85,6 +85,6 @@ export interface Diagnostic {
   /** Actionable suggestion for fixing the issue. */
   suggestion?: string;
 
-  /** Rich display context for CLI output. Optional — formatter degrades gracefully. */
+  /** Rich display context for CLI output. Optional, formatter degrades gracefully. */
   display?: DiagnosticDisplay;
 }

@@ -4,3 +4,9 @@ set -e
 deno fmt --check
 deno lint
 deno check
+
+# Em-dashes (U+2014) are non-ASCII and cause ByteString crashes in HTTP headers.
+if grep -r $'\xe2\x80\x94' . --include='*.ts' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=test-fixtures -l; then
+  echo "ERROR: Em-dashes found in the files above. Use periods, commas, or semicolons instead."
+  exit 1
+fi
