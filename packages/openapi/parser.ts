@@ -11,13 +11,22 @@ export interface ParseOptions {
 }
 
 /**
+ * Result of parsing an OpenAPI spec.
+ */
+export interface ParseResult {
+  spec: OpenAPISpec;
+  /** Fields where the parser applied defaults (e.g., "openapi", "info.title"). */
+  defaultedFields: string[];
+}
+
+/**
  * Parse an OpenAPI spec from a string.
  * This is the core parsing function - no file I/O, just pure parsing and validation.
  */
 export function parseSpec(
   content: string,
   options: ParseOptions = {},
-): Promise<OpenAPISpec> {
+): Promise<ParseResult> {
   const format = options.format ?? "auto";
 
   // Parse content based on format
@@ -58,7 +67,7 @@ export function parseSpec(
  * Load and parse an OpenAPI spec from a file or URL.
  * Convenience function that handles file/URL I/O and adds context to errors.
  */
-export async function parseSpecFromFile(path: string): Promise<OpenAPISpec> {
+export async function parseSpecFromFile(path: string): Promise<ParseResult> {
   const isUrl = path.startsWith("http://") || path.startsWith("https://");
 
   // Read content from file or URL
@@ -133,10 +142,18 @@ export async function parseSpecFromFile(path: string): Promise<OpenAPISpec> {
 /**
  * Validate a parsed object as an OpenAPI spec.
  * Performs structural validation of required fields and version constraints.
+ *
+ * Lenient for metadata fields (E1003 territory): applies defaults for missing
+ * openapi, info.title, info.version, and paths. Tracks which fields were
+ * defaulted so the diagnostics system can produce E1003 warnings.
+ *
+ * Still throws for:
+ * - Non-object spec (array/primitive) — structural invalidity
+ * - Unsupported OpenAPI version (E1002 territory) — can't serve Swagger 2.0
  */
 function validateOpenAPISpec(
   spec: unknown,
-): OpenAPISpec {
+): ParseResult {
   // Basic structural validation - must be an object
   if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
     throw new SpecValidationError("Invalid OpenAPI spec structure", {
@@ -147,105 +164,77 @@ function validateOpenAPISpec(
   }
 
   const s = spec as Record<string, unknown>;
-  const errors: SpecValidationError[] = [];
+  const defaultedFields: string[] = [];
 
-  // Helper to collect validation errors
-  function addError(message: string, context: Omit<ErrorContext, "errorType">) {
-    errors.push(
-      new SpecValidationError(message, { ...context, errorType: "validate" }),
-    );
-  }
-
-  // Validate openapi version field
-  let version: string | null = null;
+  // Validate openapi version field — default if missing, throw if unsupported
   if (typeof s.openapi !== "string") {
-    addError("Missing or invalid OpenAPI version", {
-      reason:
-        "Every OpenAPI spec must have an 'openapi' field specifying the version as a string",
-      suggestion: "Add the 'openapi' field at the top of your spec",
-    });
+    s.openapi = "3.1.0";
+    defaultedFields.push("openapi");
   } else {
-    version = s.openapi;
+    const version = s.openapi;
     if (!version.startsWith("3.0.") && !version.startsWith("3.1.")) {
-      addError(`Unsupported OpenAPI version: ${version}`, {
-        reason: "Steady only supports OpenAPI 3.0.x and 3.1.x specifications",
-        suggestion: version.startsWith("2.")
-          ? "Convert your Swagger 2.0 spec to OpenAPI 3.0+ using a migration tool"
-          : `Update your spec to use a supported OpenAPI version (found: ${version})`,
-      });
+      throw new SpecValidationError(
+        `Unsupported OpenAPI version: ${version}`,
+        {
+          errorType: "validate",
+          reason: "Steady only supports OpenAPI 3.0.x and 3.1.x specifications",
+          suggestion: version.startsWith("2.")
+            ? "Convert your Swagger 2.0 spec to OpenAPI 3.0+ using a migration tool"
+            : `Update your spec to use a supported OpenAPI version (found: ${version})`,
+        },
+      );
     }
   }
 
-  // Validate info object
-  let info: Record<string, unknown> | null = null;
+  const version = s.openapi as string;
+
+  // Validate info object — apply defaults for missing metadata
   if (!s.info || typeof s.info !== "object" || Array.isArray(s.info)) {
-    addError("Missing or invalid info object", {
-      reason: "OpenAPI spec must have an 'info' object with API metadata",
-      suggestion: "Add an 'info' object with title and version",
-    });
+    s.info = { title: "Untitled API", version: "unknown" };
+    defaultedFields.push("info");
   } else {
-    info = s.info as Record<string, unknown>;
+    const info = s.info as Record<string, unknown>;
 
     if (typeof info.title !== "string") {
-      addError("Missing API title", {
-        reason: "The info object must have a 'title' field describing the API",
-        suggestion: "Add a title to your info object",
-      });
+      info.title = "Untitled API";
+      defaultedFields.push("info.title");
     }
 
-    // Validate version field
-    // Note: Using schema:"json" in YAML parser prevents date-like strings from being converted to Date
     if (typeof info.version !== "string") {
-      addError("Missing API version", {
-        reason:
-          "The info object must have a 'version' field indicating the API version",
-        suggestion: "Add a version to your info object",
-      });
+      info.version = "unknown";
+      defaultedFields.push("info.version");
     }
   }
 
   // OpenAPI 3.1-specific field validation
-  const is31 = version?.startsWith("3.1.") ?? false;
+  const is31 = version.startsWith("3.1.");
 
-  // Validate paths object
-  // In 3.0.x: paths is required
-  // In 3.1.x: paths is optional if webhooks or components exists
+  // Validate paths object — default to empty if missing
   const hasPaths = s.paths && typeof s.paths === "object" &&
     !Array.isArray(s.paths);
-  const hasWebhooks = s.webhooks && typeof s.webhooks === "object" &&
-    !Array.isArray(s.webhooks);
-  const hasComponents = s.components && typeof s.components === "object" &&
-    !Array.isArray(s.components);
 
   if (!hasPaths) {
-    if (is31) {
-      // OpenAPI 3.1: need at least one of paths, webhooks, or components
-      if (!hasWebhooks && !hasComponents) {
-        addError("Missing paths, webhooks, or components", {
-          reason:
-            "OpenAPI 3.1 spec must have at least one of: paths, webhooks, or components",
-          suggestion:
-            "Add a 'paths' object with your API endpoints, or 'webhooks' for webhook definitions",
-        });
-      }
-    } else {
-      // OpenAPI 3.0.x: paths is required
-      addError("Missing paths object", {
-        reason:
-          "OpenAPI 3.0.x spec must have a 'paths' object defining the API endpoints",
-        suggestion: "Add a 'paths' object with your API endpoints",
-      });
-    }
+    s.paths = {};
+    defaultedFields.push("paths");
   }
   const has31Fields = s.jsonSchemaDialect !== undefined ||
     s.webhooks !== undefined ||
     (s.components && typeof s.components === "object" &&
       (s.components as Record<string, unknown>).pathItems !== undefined);
 
+  const info = s.info as Record<string, unknown>;
+  const errors: SpecValidationError[] = [];
+
+  function addError(message: string, context: Omit<ErrorContext, "errorType">) {
+    errors.push(
+      new SpecValidationError(message, { ...context, errorType: "validate" }),
+    );
+  }
+
   if (is31 || has31Fields) {
     // Validate info.summary
     if (
-      info && info.summary !== undefined && typeof info.summary !== "string"
+      info.summary !== undefined && typeof info.summary !== "string"
     ) {
       addError("Invalid info summary", {
         reason: "The info.summary field must be a string",
@@ -304,7 +293,7 @@ function validateOpenAPISpec(
     }
   }
 
-  // Throw collected errors
+  // Throw collected errors (structural issues that prevent serving)
   if (errors.length > 0) {
     if (errors.length === 1) {
       throw errors[0]!;
@@ -320,5 +309,5 @@ function validateOpenAPISpec(
     }
   }
 
-  return spec as OpenAPISpec;
+  return { spec: spec as OpenAPISpec, defaultedFields };
 }

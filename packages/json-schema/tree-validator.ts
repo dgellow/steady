@@ -357,6 +357,7 @@ export class TreeValidator {
           path: dataPath,
           schemaPath: `${schemaPath}`,
           field,
+          expected: field,
         });
       }
     }
@@ -444,6 +445,7 @@ export class TreeValidator {
           path: dataPath,
           schemaPath,
           field: propName,
+          expected: false,
         });
       } else if (
         typeof schema.additionalProperties === "object" &&
@@ -708,6 +710,8 @@ export class TreeValidator {
             path: dataPath,
             schemaPath,
             message: `Duplicate item at index ${i}`,
+            expected: true,
+            actual: false,
           });
           break;
         }

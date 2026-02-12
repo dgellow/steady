@@ -1245,3 +1245,63 @@ Deno.test("E1015 — numeric exclusiveMinimum in 3.1.x is fine (standard)", asyn
   const result = await analyzeSpec(spec);
   filterCode(result.diagnostics, "E1015", 0);
 });
+
+// ── E1016: Required property not in properties ──────────────────────
+
+Deno.test("E1016 — detects required field missing from properties", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        User: {
+          type: "object",
+          required: ["name", "meta"],
+          properties: {
+            name: { type: "string" },
+            has_more: { type: "boolean" },
+          },
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = singleDiag(result.diagnostics, "E1016");
+  assertEquals(d.message.includes("meta"), true);
+  assertEquals(d.severity, "warning");
+  assertEquals(d.category, "spec-issue");
+});
+
+Deno.test("E1016 — no false positive when all required are in properties", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        User: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: { type: "string" },
+          },
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  filterCode(result.diagnostics, "E1016", 0);
+});
+
+Deno.test("E1016 — skips schemas with required but no properties", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Partial: {
+          type: "object",
+          required: ["id"],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  filterCode(result.diagnostics, "E1016", 0);
+});

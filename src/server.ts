@@ -15,6 +15,8 @@ import type {
   OpenAPISpec,
   OperationObject,
   PathItemObject,
+  ReferenceObject,
+  SchemaObject,
 } from "@steady/openapi";
 import { MatchError, missingExampleError } from "./errors.ts";
 import {
@@ -98,6 +100,44 @@ function acceptsJson(acceptTypes: string[]): boolean {
       return true;
     }
   }
+  return false;
+}
+
+/**
+ * Check if a generated response body is suspiciously minimal given the schema.
+ * Returns true if body is {} or [] but the schema declares required properties
+ * or has non-trivial property definitions.
+ */
+function isMinimalResponse(
+  body: unknown,
+  schema: SchemaObject | ReferenceObject,
+): boolean {
+  if (body === null || body === undefined) return false;
+
+  const isEmptyObject = typeof body === "object" && !Array.isArray(body) &&
+    Object.keys(body ?? {}).length === 0;
+  const isEmptyArray = Array.isArray(body) && body.length === 0;
+
+  if (!isEmptyObject && !isEmptyArray) return false;
+
+  // Pure $ref schemas can't be inspected without resolution
+  if (!("properties" in schema) && !("required" in schema)) return false;
+
+  if (
+    "required" in schema && Array.isArray(schema.required) &&
+    schema.required.length > 0
+  ) {
+    return true;
+  }
+
+  if (
+    "properties" in schema && schema.properties &&
+    typeof schema.properties === "object" &&
+    Object.keys(schema.properties).length > 0
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -307,11 +347,15 @@ export class MockServer {
   private logStartup(): void {
     const startupDiags = this.config.startupDiagnostics ?? [];
 
-    // Count endpoints (stored for reuse at shutdown)
-    this.endpointCount = 0;
-    for (const pathItem of Object.values(this.spec.paths)) {
-      this.endpointCount += this.getMethodsForPath(pathItem).length;
+    // Build full endpoint list and pass to collector
+    const allEndpoints: string[] = [];
+    for (const [pattern, pathItem] of Object.entries(this.spec.paths)) {
+      for (const method of this.getMethodsForPath(pathItem)) {
+        allEndpoints.push(`${method.toUpperCase()} ${pattern}`);
+      }
     }
+    this.collector.setAllEndpoints(allEndpoints);
+    this.endpointCount = allEndpoints.length;
 
     const event: StartupEvent = {
       id: crypto.randomUUID(),
@@ -365,7 +409,8 @@ export class MockServer {
         categoryBreakdown: this.collector.getCategoryBreakdown(),
       },
       topIssues,
-      coverage: this.collector.getCoverage(this.endpointCount),
+      coverage: this.collector.getCoverage(),
+      generationWarnings: this.collector.getGenerationWarnings(),
     };
 
     this.logger.shutdown(event);
@@ -694,6 +739,9 @@ export class MockServer {
         timing,
         headers: responseHeaders || new Headers(),
         body: responseBody,
+        bodySize: responseBody !== undefined
+          ? JSON.stringify(responseBody).length
+          : undefined,
       },
       validation: validation
         ? {
@@ -1096,6 +1144,16 @@ export class MockServer {
             statusCode,
             generatorOptions,
           );
+
+          if (isMinimalResponse(body, mediaType.schema)) {
+            this.collector.trackGenerationWarning(method, pathPattern);
+            this.logger.warning(
+              `Generated minimal response for ${method.toUpperCase()} ${pathPattern} - ` +
+                `schema has required properties but response is ${
+                  JSON.stringify(body)
+                }`,
+            );
+          }
         }
 
         if (body === null && mediaType.schema) {

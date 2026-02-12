@@ -1,5 +1,5 @@
 export { parseSpec, parseSpecFromFile } from "./parser.ts";
-export type { ParseOptions } from "./parser.ts";
+export type { ParseOptions, ParseResult } from "./parser.ts";
 export { ParseError, SpecValidationError, SteadyError } from "./errors.ts";
 // Backwards compatibility alias (deprecated)
 export { SpecValidationError as ValidationError } from "./errors.ts";

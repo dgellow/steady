@@ -319,6 +319,28 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     seeAlso: ["E1006"],
   },
 
+  E1016: {
+    description:
+      "A schema lists a field in `required` that doesn't appear in\n" +
+      "`properties`. This means the schema demands a field but never\n" +
+      "defines its type or constraints. SDKs and code generators won't\n" +
+      "know what type to use for the required field.",
+    reasoning:
+      "This is a spec issue — the required array references a field\n" +
+      "name that has no matching property definition. It's almost always\n" +
+      "a typo or a leftover from a rename.",
+    example: "  User:\n" +
+      "    type: object\n" +
+      "    required: [name, email]\n" +
+      "    properties:\n" +
+      "      name:\n" +
+      "        type: string\n" +
+      "      # 'email' is required but not defined in properties",
+    fix: "Either add the missing property to the properties object, or\n" +
+      "remove it from the required array if it's no longer needed.",
+    seeAlso: ["E1012"],
+  },
+
   // ── E2xxx: Routing ──────────────────────────────────────────────────
 
   E2001: {
@@ -567,6 +589,72 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "what's missing. If the composition is complex, the spec might\n" +
       "benefit from a discriminator to make matching explicit.",
     seeAlso: ["E3009", "E3011"],
+  },
+
+  E3013: {
+    description:
+      "A field is marked as required inside a schema that is itself an\n" +
+      "optional property of a parent object. If the parent field is\n" +
+      "omitted entirely, the required constraint is moot. But if the\n" +
+      "parent is present, the nested field becomes mandatory.",
+    reasoning:
+      "This is ambiguous. The SDK might intentionally omit the parent\n" +
+      "object (in which case the required field is irrelevant), or it\n" +
+      "might include the parent but forget the nested required field.\n" +
+      "Steady can't determine which scenario the SDK intended.",
+    example: "  # address is optional, but if present, street is required:\n" +
+      "  User:\n" +
+      "    properties:\n" +
+      "      address:                # optional parent\n" +
+      "        type: object\n" +
+      "        required: [street]    # required child\n" +
+      "        properties:\n" +
+      "          street: { type: string }",
+    fix: "If the SDK includes the parent object, make sure all its\n" +
+      "required fields are present. If the parent is optional, consider\n" +
+      "whether omitting it entirely is the correct approach.",
+    seeAlso: ["E3007"],
+  },
+
+  E3014: {
+    description:
+      "A query parameter was sent with a different serialization format\n" +
+      "than the spec expects. The base parameter name is recognized, but\n" +
+      "the format differs — e.g., the SDK sent `items[]` (bracket style)\n" +
+      "but the spec defines `items` (expecting comma or repeat style).",
+    reasoning:
+      "This is an SDK issue — the SDK chose the wrong serialization\n" +
+      "format for this parameter. The parameter name is correct (the\n" +
+      "base name matches), so the intent is clear, but the encoding\n" +
+      "doesn't match what the spec expects.",
+    example: "  # Spec defines: items (type: array, style: form)\n" +
+      "  # SDK sends:    ?items[]=a&items[]=b  (bracket notation)\n" +
+      "  # Expected:     ?items=a&items=b      (repeat style)\n" +
+      "  #           or: ?items=a,b            (comma style)",
+    fix: "Check the SDK's query parameter serialization format. The spec\n" +
+      "expects a specific style — check the parameter's style/explode\n" +
+      "settings, or use Steady's --validator-query-array-format flag.",
+    seeAlso: ["E3002", "E3003", "E3015"],
+  },
+
+  E3015: {
+    description:
+      "The SDK sent a query parameter that isn't defined in the spec\n" +
+      "for this operation. The parameter name doesn't match any declared\n" +
+      "query parameter, even after accounting for common serialization\n" +
+      "format variations.",
+    reasoning: "This is ambiguous. The extra parameter could be:\n" +
+      "  - An SDK bug: the SDK is sending a parameter that doesn't exist\n" +
+      "  - A spec gap: the spec forgot to declare this parameter\n" +
+      "  - A framework artifact: debug_mode, _timestamp, etc.\n" +
+      "Steady can't determine which, so it's informational.",
+    example: "  # Spec defines query parameters: page, limit\n" +
+      "  # SDK sends: ?page=1&limit=10&debug_mode=true\n" +
+      "  #                              ^^^^^^^^^^^ not in spec",
+    fix: "If the parameter is intentional, add it to the spec. If it's\n" +
+      "a framework artifact or debugging parameter, you can ignore this.\n" +
+      "If the SDK shouldn't send it, remove it from the request.",
+    seeAlso: ["E3014", "E3002"],
   },
 
   E3016: {

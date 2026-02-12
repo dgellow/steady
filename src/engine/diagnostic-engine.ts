@@ -188,6 +188,35 @@ export class DiagnosticEngine {
       }
     }
 
+    // 3.5 Unknown query parameter detection
+    if (request.queryParams) {
+      const specParamNames = new Set(
+        parameters.filter((p) => p.in === "query").map((p) => p.name),
+      );
+      const seen = new Set<string>();
+      for (const key of request.queryParams.keys()) {
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (specParamNames.has(key)) continue;
+
+        const baseName = extractBaseName(key);
+
+        if (baseName !== key && specParamNames.has(baseName)) {
+          diagnostics.push(
+            createSerializationMismatchDiagnostic(
+              key,
+              baseName,
+              pathPattern,
+            ),
+          );
+        } else if (!specParamNames.has(baseName)) {
+          diagnostics.push(
+            createUndocumentedParamDiagnostic(key, pathPattern),
+          );
+        }
+      }
+    }
+
     // 4. Content-Type validation
     const acceptedTypes = this.spec.getAcceptedContentTypes(
       pathPattern,
@@ -355,10 +384,8 @@ function createMissingBodyDiagnostic(
 /**
  * Create an E1010 diagnostic for an operation with no response definitions.
  *
- * TODO: `requestPath` is meant to point at a location in the request (e.g.,
- * "body.email"), but spec issues like E1010 don't have a request location.
- * Evaluate whether Diagnostic needs a separate field for spec-issue context,
- * or whether `requestPath` should be optional for non-request diagnostics.
+ * Convention: requestPath is empty string for diagnostics that don't relate
+ * to a specific request location (e.g., E1010 missing responses).
  */
 function createMissingResponsesDiagnostic(
   pathPattern: string,
@@ -508,6 +535,80 @@ function getParameterValue(
  * If parsing fails, the raw string is returned — the validator will
  * produce the type mismatch diagnostic.
  */
+/**
+ * Extract the base name from a serialized query parameter key.
+ * "items[]" → "items", "user.name" → "user", "user[name]" → "user"
+ * If no serialization suffix is found, returns the key unchanged.
+ */
+function extractBaseName(key: string): string {
+  // Bracket notation: items[] or user[name]
+  const bracketIndex = key.indexOf("[");
+  if (bracketIndex > 0) return key.slice(0, bracketIndex);
+
+  // Dot notation: user.name
+  const dotIndex = key.indexOf(".");
+  if (dotIndex > 0) return key.slice(0, dotIndex);
+
+  return key;
+}
+
+/**
+ * Create an E3014 diagnostic for a parameter serialization mismatch.
+ */
+function createSerializationMismatchDiagnostic(
+  actualKey: string,
+  baseName: string,
+  pathPattern: string,
+): Diagnostic {
+  const e3014 = getCode("E3014");
+
+  return {
+    code: "E3014",
+    severity: e3014.severity,
+    category: e3014.category,
+    requestPath: `query.${actualKey}`,
+    specPointer: `#/paths/${escapeJsonPointer(pathPattern)}`,
+    message:
+      `Query parameter "${actualKey}" looks like a serialization of "${baseName}" - check the encoding format`,
+    expected: baseName,
+    actual: actualKey,
+    suggestion:
+      `The spec defines "${baseName}" but the SDK sent "${actualKey}". Check the SDK's query parameter serialization format`,
+    attribution: {
+      confidence: 0.7,
+      reasoning: [
+        `"${actualKey}" appears to be a serialized form of the known parameter "${baseName}"`,
+      ],
+    },
+  };
+}
+
+/**
+ * Create an E3015 diagnostic for an undocumented query parameter.
+ */
+function createUndocumentedParamDiagnostic(
+  key: string,
+  pathPattern: string,
+): Diagnostic {
+  const e3015 = getCode("E3015");
+
+  return {
+    code: "E3015",
+    severity: e3015.severity,
+    category: e3015.category,
+    requestPath: `query.${key}`,
+    specPointer: `#/paths/${escapeJsonPointer(pathPattern)}`,
+    message: `Query parameter "${key}" is not defined in the spec`,
+    actual: key,
+    attribution: {
+      confidence: 0.5,
+      reasoning: [
+        `"${key}" does not match any declared query parameter for this operation`,
+      ],
+    },
+  };
+}
+
 function coerceParameterValue(raw: string, schema: Schema): unknown {
   if (typeof schema === "boolean") return raw;
 

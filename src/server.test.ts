@@ -24,7 +24,7 @@ async function withServer(
   opts: { rejectOnSdkError?: boolean; port?: number },
   fn: (server: MockServer, baseUrl: string) => Promise<void>,
 ): Promise<void> {
-  const spec = await parseSpecFromFile(TEST_SPEC_PATH);
+  const { spec } = await parseSpecFromFile(TEST_SPEC_PATH);
   const port = opts.port ?? 3100 + Math.floor(Math.random() * 900);
   const server = new MockServer(spec, {
     port,
@@ -618,7 +618,7 @@ async function withArrayServer(
   },
   fn: (server: MockServer, baseUrl: string) => Promise<void>,
 ): Promise<void> {
-  const spec = await parseSpecFromFile(ARRAY_TEST_SPEC_PATH);
+  const { spec } = await parseSpecFromFile(ARRAY_TEST_SPEC_PATH);
   const port = opts.port ?? 3100 + Math.floor(Math.random() * 900);
   const server = new MockServer(spec, {
     port,
@@ -810,7 +810,7 @@ const QUERY_PATH_SPEC = "./tests/specs/query-in-path.yaml";
 async function withQueryPathServer(
   fn: (server: MockServer, baseUrl: string) => Promise<void>,
 ): Promise<void> {
-  const spec = await parseSpecFromFile(QUERY_PATH_SPEC);
+  const { spec } = await parseSpecFromFile(QUERY_PATH_SPEC);
   const port = 3100 + Math.floor(Math.random() * 900);
   const server = new MockServer(spec, {
     port,
@@ -893,7 +893,7 @@ const SAME_PATTERN_SPEC_PATH =
 async function withSamePatternServer(
   fn: (server: MockServer, baseUrl: string) => Promise<void>,
 ): Promise<void> {
-  const spec = await parseSpecFromFile(SAME_PATTERN_SPEC_PATH);
+  const { spec } = await parseSpecFromFile(SAME_PATTERN_SPEC_PATH);
   const port = 3100 + Math.floor(Math.random() * 900);
   const server = new MockServer(spec, {
     port,
@@ -958,7 +958,7 @@ const CURSED_QMARK_SPEC =
 async function withCursedQmarkServer(
   fn: (server: MockServer, baseUrl: string) => Promise<void>,
 ): Promise<void> {
-  const spec = await parseSpecFromFile(CURSED_QMARK_SPEC);
+  const { spec } = await parseSpecFromFile(CURSED_QMARK_SPEC);
   const port = 3100 + Math.floor(Math.random() * 900);
   const server = new MockServer(spec, {
     port,
@@ -1066,7 +1066,7 @@ const CURSED_CLIENT_SPEC = "./tests/specs/query-in-path.yaml";
 async function withCursedClientServer(
   fn: (server: MockServer, baseUrl: string) => Promise<void>,
 ): Promise<void> {
-  const spec = await parseSpecFromFile(CURSED_CLIENT_SPEC);
+  const { spec } = await parseSpecFromFile(CURSED_CLIENT_SPEC);
   const port = 3100 + Math.floor(Math.random() * 900);
   const server = new MockServer(spec, {
     port,

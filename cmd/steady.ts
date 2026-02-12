@@ -1,5 +1,10 @@
 import { parseArgs } from "@std/cli/parse-args";
-import { parseSpecFromFile, SteadyError } from "@steady/openapi";
+import {
+  ParseError,
+  parseSpecFromFile,
+  SpecValidationError,
+  SteadyError,
+} from "@steady/openapi";
 import type { LogLevel } from "../src/logging/mod.ts";
 import {
   DEFAULT_PORT,
@@ -13,6 +18,7 @@ import {
 } from "../src/types.ts";
 import { analyzeSpec } from "../src/engine/spec-analyzer.ts";
 import type { Diagnostic } from "../src/diagnostic.ts";
+import { getCode } from "../src/codes/registry.ts";
 import { colorize, colors } from "../src/logging/colors.ts";
 import {
   formatDiagnostics,
@@ -28,6 +34,36 @@ class FatalSpecError extends Error {
     super("Fatal spec issues detected");
     this.name = "FatalSpecError";
   }
+}
+
+/**
+ * Convert a ParseError or SpecValidationError into Diagnostic[] for
+ * consistent CLI display through the diagnostics formatter.
+ */
+function errorToDiagnostics(
+  error: ParseError | SpecValidationError,
+): Diagnostic[] {
+  const isParseError = error instanceof ParseError;
+  const code = isParseError ? "E1001" : "E1002";
+  const def = getCode(code);
+
+  return [{
+    code,
+    severity: def.severity,
+    category: def.category,
+    requestPath: "",
+    specPointer: "",
+    message: error.message,
+    attribution: {
+      confidence: 1.0,
+      reasoning: [
+        isParseError
+          ? "File could not be parsed as valid JSON or YAML"
+          : "OpenAPI version is not supported",
+      ],
+    },
+    suggestion: error.context.suggestion,
+  }];
 }
 
 export async function main() {
@@ -289,6 +325,15 @@ export async function main() {
       console.error();
       console.error("Steady cannot load this spec. Fix the error and retry.");
       Deno.exit(3);
+    } else if (
+      error instanceof ParseError || error instanceof SpecValidationError
+    ) {
+      const diagnostics = errorToDiagnostics(error);
+      console.error(formatDiagnostics(diagnostics, useColor));
+      console.error();
+      console.error(formatDiagnosticSummary(diagnostics, useColor));
+      console.error(formatExplainHint(diagnostics, useColor));
+      Deno.exit(3);
     } else if (error instanceof SteadyError) {
       console.error(error.format());
     } else {
@@ -333,11 +378,11 @@ async function startServer(
   // Lazy import to avoid loading server code for validate command
   const { MockServer } = await import("../src/server.ts");
   // Parse the OpenAPI spec
-  const spec = await parseSpecFromFile(specPath);
+  const { spec, defaultedFields } = await parseSpecFromFile(specPath);
 
   // Run spec analysis
   const baseUri = specPathToBaseUri(specPath);
-  const analysis = await analyzeSpec(spec, { baseUri });
+  const analysis = await analyzeSpec(spec, { baseUri, defaultedFields });
   if (analysis.fatal) {
     throw new FatalSpecError(analysis.diagnostics);
   }
@@ -515,11 +560,11 @@ Examples:
 
   try {
     // Parse the spec - this will throw if invalid
-    const spec = await parseSpecFromFile(specPath);
+    const { spec, defaultedFields } = await parseSpecFromFile(specPath);
 
     // Run spec analysis
     const baseUri = specPathToBaseUri(specPath);
-    const analysis = await analyzeSpec(spec, { baseUri });
+    const analysis = await analyzeSpec(spec, { baseUri, defaultedFields });
 
     if (analysis.diagnostics.length === 0) {
       console.log("All good");
@@ -536,7 +581,16 @@ Examples:
       Deno.exit(3);
     }
   } catch (error) {
-    if (error instanceof SteadyError) {
+    if (
+      error instanceof ParseError || error instanceof SpecValidationError
+    ) {
+      const diagnostics = errorToDiagnostics(error);
+      console.error(formatDiagnostics(diagnostics, useColor));
+      console.error();
+      console.error(formatDiagnosticSummary(diagnostics, useColor));
+      console.error(formatExplainHint(diagnostics, useColor));
+      Deno.exit(3);
+    } else if (error instanceof SteadyError) {
       console.error(error.format());
     } else {
       console.error(
@@ -649,10 +703,14 @@ Request Headers (per-request overrides):
   X-Steady-Stream-Interval-Ms: <n>  Interval between streamed items in ms (default: 100)
 
 Response Headers (informational):
-  X-Steady-Valid                   Whether the request passed SDK validation
-  X-Steady-Error-Count             Number of diagnostic issues found
-  X-Steady-Matched-Path           The OpenAPI path pattern that matched
-  X-Steady-Example-Source         How the response was generated (generated|none)
+  X-Steady-Valid                   "true" if no SDK issues, "false" otherwise
+  X-Steady-Error-Count             Number of validation diagnostics
+  X-Steady-Error-N-Code            E-code for Nth diagnostic
+  X-Steady-Error-N-Path            Request location (e.g., body.email)
+  X-Steady-Error-N-Message         Human-readable description
+  X-Steady-Matched-Path            Spec path pattern matched (e.g., /users/{id})
+  X-Steady-Example-Source          "generated" if response was generated from schema,
+                                   "none" if no response body
 
 Examples:
   steady api.yaml                          # Start with default settings

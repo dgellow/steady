@@ -80,7 +80,8 @@ Examples:
 
 async function loadSpec(path: string): Promise<OpenAPISpec> {
   // Use the parser from packages/openapi which handles both JSON and YAML
-  return await parseSpec(path);
+  const { spec } = await parseSpec(path);
+  return spec;
 }
 
 async function saveSpec(spec: OpenAPISpec, path: string): Promise<void> {

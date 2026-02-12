@@ -30,7 +30,7 @@ async function withServer(
   opts?: { validator?: { queryObjectFormat?: "brackets" | "dots" } },
 ): Promise<void> {
   const port = nextPort++;
-  const spec = await parseSpecFromFile(specPath);
+  const { spec } = await parseSpecFromFile(specPath);
   const server = new MockServer(spec, {
     port,
     host: "localhost",
@@ -121,7 +121,7 @@ Deno.test("path matching edge cases", () => {
 // ── Spec loading ────────────────────────────────────────────────────
 
 Deno.test("load Datadog spec (8.4MB, 323 endpoints)", async () => {
-  const spec = await parseSpecFromFile(DATADOG_SPEC);
+  const { spec } = await parseSpecFromFile(DATADOG_SPEC);
 
   assertEquals(spec.openapi, "3.0.3");
   assertEquals(spec.info.title, "Datadog API Collection");

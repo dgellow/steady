@@ -73,6 +73,7 @@ export interface RequestEvent extends LogEvent {
     timing: number;
     headers: Headers;
     body?: unknown;
+    bodySize?: number;
   };
 
   validation: ValidationResult;
@@ -128,7 +129,8 @@ export interface ShutdownEvent extends LogEvent {
   };
 
   topIssues: TopIssue[];
-  coverage?: { tested: number; total: number };
+  coverage?: { tested: number; total: number; untestedEndpoints: string[] };
+  generationWarnings?: string[];
 }
 
 /**

@@ -37,6 +37,8 @@ export class DiagnosticCollector {
   private staticDiagnostics: Diagnostic[] = [];
   private runtimeEntries: RuntimeEntry[] = [];
   private testedEndpoints = new Set<string>();
+  private allEndpoints: string[] = [];
+  private generationWarnings: string[] = [];
   private stats: SessionStats;
 
   constructor() {
@@ -153,10 +155,42 @@ export class DiagnosticCollector {
   }
 
   /**
-   * Get endpoint coverage
+   * Set the full list of endpoints from the spec (called at startup).
    */
-  getCoverage(totalEndpoints: number): { tested: number; total: number } {
-    return { tested: this.testedEndpoints.size, total: totalEndpoints };
+  setAllEndpoints(endpoints: string[]): void {
+    this.allEndpoints = endpoints;
+  }
+
+  /**
+   * Get endpoint coverage including untested endpoint list.
+   */
+  getCoverage(): {
+    tested: number;
+    total: number;
+    untestedEndpoints: string[];
+  } {
+    const untested = this.allEndpoints.filter(
+      (e) => !this.testedEndpoints.has(e),
+    );
+    return {
+      tested: this.testedEndpoints.size,
+      total: this.allEndpoints.length,
+      untestedEndpoints: untested,
+    };
+  }
+
+  /**
+   * Track an endpoint where the response generator produced a minimal response.
+   */
+  trackGenerationWarning(method: string, pathPattern: string): void {
+    this.generationWarnings.push(`${method.toUpperCase()} ${pathPattern}`);
+  }
+
+  /**
+   * Get list of endpoints with generation warnings.
+   */
+  getGenerationWarnings(): string[] {
+    return this.generationWarnings;
   }
 
   /**

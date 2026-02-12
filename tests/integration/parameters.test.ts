@@ -29,7 +29,7 @@ async function withServer(
   opts?: { validator?: { queryObjectFormat?: "brackets" | "dots" } },
 ): Promise<void> {
   const port = nextPort++;
-  const spec = await parseSpecFromFile(SPEC_PATH);
+  const { spec } = await parseSpecFromFile(SPEC_PATH);
   const server = new MockServer(spec, {
     port,
     host: "localhost",

@@ -67,7 +67,7 @@ async function analyzeSpec(path: string): Promise<SpecDiagnostics | null> {
     const format = path.endsWith(".yaml") || path.endsWith(".yml")
       ? "yaml"
       : "json";
-    const spec = await parseSpec(content, { format });
+    const { spec } = await parseSpec(content, { format });
 
     const doc = new OpenAPIDocument(spec);
     const diagnostics = doc.getDiagnostics();

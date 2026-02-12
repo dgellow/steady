@@ -61,7 +61,7 @@ async function main() {
   try {
     // Load the spec
     console.log(`📄 Loading OpenAPI spec from ${inputFile}...`);
-    const spec = await parseSpec(inputFile);
+    const { spec } = await parseSpec(inputFile);
 
     if (args.compare) {
       // Compare all strategies

@@ -84,6 +84,17 @@ Deno.test("TreeValidator", async (t) => {
     assertEquals(leaves[0]!.path, "body");
   });
 
+  await t.step("missing required property → leaf has expected field", () => {
+    const tree = validate(
+      { type: "object", required: ["name", "email"] },
+      { name: "Alice" },
+    );
+
+    assertEquals(tree.valid, false);
+    const leaf = tree.children?.find((c) => c.keyword === "required");
+    assertEquals(leaf?.expected, "email");
+  });
+
   await t.step("all required present → valid", () => {
     const tree = validate(
       { type: "object", required: ["name"] },
@@ -154,6 +165,26 @@ Deno.test("TreeValidator", async (t) => {
     assertEquals(leaf.keyword, "additionalProperties");
     assertEquals(leaf.field, "extra");
   });
+
+  await t.step(
+    "additional property when false → leaf has expected: false",
+    () => {
+      const tree = validate(
+        {
+          type: "object",
+          properties: { name: { type: "string" } },
+          additionalProperties: false,
+        },
+        { name: "Alice", extra: true },
+      );
+
+      assertEquals(tree.valid, false);
+      const leaf = tree.children?.find(
+        (c) => c.keyword === "additionalProperties",
+      );
+      assertEquals(leaf?.expected, false);
+    },
+  );
 
   // ── enum / const ─────────────────────────────────────────────────
 
@@ -283,6 +314,18 @@ Deno.test("TreeValidator", async (t) => {
       assertEquals(leaf.arrayItem, undefined);
     },
   );
+
+  await t.step("uniqueItems violation → leaf has expected: true", () => {
+    const tree = validate(
+      { type: "array", uniqueItems: true },
+      [1, 2, 1],
+    );
+
+    assertEquals(tree.valid, false);
+    const leaf = tree.children?.find((c) => c.keyword === "uniqueItems");
+    assertEquals(leaf?.expected, true);
+    assertEquals(leaf?.actual, false);
+  });
 
   await t.step("minItems violation → leaf", () => {
     const tree = validate({ type: "array", minItems: 3 }, [1]);

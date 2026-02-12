@@ -61,7 +61,16 @@ export class TextLogger extends BaseLogger {
     event: RequestEvent,
   ): void {
     const ts = colorize(`[${timestamp}]`, colors.dim, this.useColor);
-    let line = `${ts} ${method} ${path}${query} → ${status} ${timing}`;
+    const bodySize = event.response.bodySize !== undefined
+      ? colorize(
+        `[${event.response.bodySize} bytes]`,
+        colors.dim,
+        this.useColor,
+      )
+      : "";
+    let line = `${ts} ${method} ${path}${query} → ${status} ${timing}${
+      bodySize ? ` ${bodySize}` : ""
+    }`;
 
     // Add first validation error if any
     if (!event.validation.valid && event.validation.errors.length > 0) {
@@ -308,6 +317,63 @@ export class TextLogger extends BaseLogger {
       console.log(
         `Coverage: ${coverage.tested}/${coverage.total} endpoints (${pct}%)`,
       );
+
+      if (coverage.untestedEndpoints.length > 0) {
+        // Group untested endpoints by path prefix for compact display
+        const grouped = new Map<string, string[]>();
+        for (const ep of coverage.untestedEndpoints) {
+          const [method, path] = ep.split(" ", 2);
+          // Use the first path segment as the group key
+          const prefix = "/" + (path?.split("/")[1] ?? "");
+          const existing = grouped.get(prefix);
+          if (existing) {
+            existing.push(`${method} ${path}`);
+          } else {
+            grouped.set(prefix, [`${method} ${path}`]);
+          }
+        }
+
+        if (coverage.untestedEndpoints.length <= 30) {
+          console.log("  Untested:");
+          for (const [prefix, endpoints] of grouped) {
+            console.log(
+              `    ${prefix} - ${endpoints.join(", ")} (${endpoints.length})`,
+            );
+          }
+        } else {
+          console.log(
+            `  Untested: ${coverage.untestedEndpoints.length} endpoints across ${grouped.size} path groups`,
+          );
+          // Show top groups by count
+          const sorted = [...grouped.entries()].sort(
+            (a, b) => b[1].length - a[1].length,
+          );
+          for (const [prefix, endpoints] of sorted.slice(0, 5)) {
+            console.log(`    ${prefix} (${endpoints.length} endpoints)`);
+          }
+          if (sorted.length > 5) {
+            console.log(`    ... and ${sorted.length - 5} more groups`);
+          }
+        }
+      }
+    }
+
+    if (
+      event.generationWarnings && event.generationWarnings.length > 0
+    ) {
+      // Deduplicate (same endpoint may warn multiple times)
+      const unique = [...new Set(event.generationWarnings)];
+      console.log(
+        `Response warnings: ${unique.length} endpoint${
+          unique.length === 1 ? "" : "s"
+        } returned minimal responses`,
+      );
+      for (const ep of unique.slice(0, 10)) {
+        console.log(`  ${ep}`);
+      }
+      if (unique.length > 10) {
+        console.log(`  ... and ${unique.length - 10} more`);
+      }
     }
 
     if (topIssues.length > 0) {

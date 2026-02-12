@@ -13,7 +13,7 @@ import { parseSpec } from "@steady/openapi";
 import { analyzeSpec } from "../../src/engine/spec-analyzer.ts";
 
 Deno.test("missing responses → E1010", async (t) => {
-  const spec = await parseSpec(JSON.stringify({
+  const { spec } = await parseSpec(JSON.stringify({
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
     paths: {
@@ -28,7 +28,7 @@ Deno.test("missing responses → E1010", async (t) => {
 });
 
 Deno.test("duplicate path parameter names → E1009", async (t) => {
-  const spec = await parseSpec(JSON.stringify({
+  const { spec } = await parseSpec(JSON.stringify({
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
     paths: {
@@ -53,7 +53,7 @@ Deno.test("duplicate path parameter names → E1009", async (t) => {
 });
 
 Deno.test("unresolved $ref → E1004 + fatal", async (t) => {
-  const spec = await parseSpec(JSON.stringify({
+  const { spec } = await parseSpec(JSON.stringify({
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
     paths: {
@@ -80,7 +80,7 @@ Deno.test("unresolved $ref → E1004 + fatal", async (t) => {
 });
 
 Deno.test("clean spec → no diagnostics", async () => {
-  const spec = await parseSpec(JSON.stringify({
+  const { spec } = await parseSpec(JSON.stringify({
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
     paths: {

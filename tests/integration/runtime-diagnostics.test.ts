@@ -26,7 +26,7 @@ let engine: DiagnosticEngine;
 async function getEngine(): Promise<DiagnosticEngine> {
   if (engine) return engine;
 
-  const spec = await parseSpecFromFile("test-fixtures/acme-api-3.1.yaml");
+  const { spec } = await parseSpecFromFile("test-fixtures/acme-api-3.1.yaml");
   const doc = new OpenAPISpecDocument(spec);
   const validator = new TreeValidator({
     resolveRef: (ref) => {

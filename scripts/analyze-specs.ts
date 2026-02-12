@@ -158,7 +158,8 @@ async function processSpec(
   const parseStart = performance.now();
   let spec: unknown;
   try {
-    spec = await parseSpec(content, { format });
+    const parseResult = await parseSpec(content, { format });
+    spec = parseResult.spec;
     result.parseTimeMs = performance.now() - parseStart;
 
     // Extract version

@@ -49,7 +49,7 @@ async function main() {
     try {
       const content = await Deno.readTextFile(path);
       const format = path.endsWith(".yaml") ? "yaml" : "json";
-      const spec = await parseSpec(content, { format });
+      const { spec } = await parseSpec(content, { format });
       const doc = new OpenAPIDocument(spec);
       const diagnostics = doc.getDiagnostics();
 

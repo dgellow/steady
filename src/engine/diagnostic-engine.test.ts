@@ -937,6 +937,148 @@ Deno.test("DiagnosticEngine", async (t) => {
     assertEquals(result.filter((d) => d.code === "E3006").length, 0);
   });
 
+  // ── Unknown query parameter detection ──────────────────────────
+
+  await t.step("bracket param when spec defines base name → E3014", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "items",
+        in: "query",
+        required: false,
+        schema: { type: "array" },
+        schemaPath: null,
+      },
+    ];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const queryParams = new URLSearchParams();
+    queryParams.append("items[]", "a");
+    queryParams.append("items[]", "b");
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "get",
+      queryParams,
+    });
+
+    const e3014 = result.filter((d) => d.code === "E3014");
+    assertEquals(e3014.length, 1);
+    assertEquals(e3014[0]?.category, "sdk-issue");
+    assertEquals(e3014[0]?.severity, "warning");
+  });
+
+  await t.step("dot-notation param when spec defines base name → E3014", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "user",
+        in: "query",
+        required: false,
+        schema: { type: "object" },
+        schemaPath: null,
+      },
+    ];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const queryParams = new URLSearchParams();
+    queryParams.set("user.name", "alice");
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "get",
+      queryParams,
+    });
+
+    const e3014 = result.filter((d) => d.code === "E3014");
+    assertEquals(e3014.length, 1);
+  });
+
+  await t.step("truly undocumented query param → E3015", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "limit",
+        in: "query",
+        required: false,
+        schema: null,
+        schemaPath: null,
+      },
+    ];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const queryParams = new URLSearchParams();
+    queryParams.set("limit", "10");
+    queryParams.set("debug_mode", "true");
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "get",
+      queryParams,
+    });
+
+    const e3015 = result.filter((d) => d.code === "E3015");
+    assertEquals(e3015.length, 1);
+    assertEquals(e3015[0]?.category, "ambiguous");
+    assertEquals(e3015[0]?.severity, "info");
+  });
+
+  await t.step("known query params → no E3014/E3015", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "limit",
+        in: "query",
+        required: false,
+        schema: null,
+        schemaPath: null,
+      },
+      {
+        name: "page",
+        in: "query",
+        required: false,
+        schema: null,
+        schemaPath: null,
+      },
+    ];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const queryParams = new URLSearchParams();
+    queryParams.set("limit", "10");
+    queryParams.set("page", "1");
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "get",
+      queryParams,
+    });
+
+    assertEquals(result.filter((d) => d.code === "E3014").length, 0);
+    assertEquals(result.filter((d) => d.code === "E3015").length, 0);
+  });
+
+  await t.step("no query params → no E3014/E3015", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    spec.parameters = [
+      {
+        name: "limit",
+        in: "query",
+        required: false,
+        schema: null,
+        schemaPath: null,
+      },
+    ];
+    const engine = new DiagnosticEngine(spec, new StubValidator());
+
+    const result = engine.analyze({
+      path: "/users",
+      method: "get",
+    });
+
+    assertEquals(result.filter((d) => d.code === "E3014").length, 0);
+    assertEquals(result.filter((d) => d.code === "E3015").length, 0);
+  });
+
   // ── Valid request ───────────────────────────────────────────────
 
   await t.step("valid request → no diagnostics", () => {

@@ -122,6 +122,12 @@ const CODES = {
     category: "spec-issue",
     context: "startup",
   },
+  E1016: {
+    title: "Required property not in properties",
+    severity: "warning",
+    category: "spec-issue",
+    context: "startup",
+  },
 
   // ── E2xxx: Routing ──────────────────────────────────────────────────
   E2001: {
@@ -197,6 +203,24 @@ const CODES = {
     title: "Schema composition mismatch",
     severity: "warning",
     category: "ambiguous",
+  },
+  E3013: {
+    title: "Required field in optional parent",
+    severity: "warning",
+    category: "ambiguous",
+    context: "runtime",
+  },
+  E3014: {
+    title: "Parameter serialization mismatch",
+    severity: "warning",
+    category: "sdk-issue",
+    context: "runtime",
+  },
+  E3015: {
+    title: "Undocumented query parameter",
+    severity: "info",
+    category: "ambiguous",
+    context: "runtime",
   },
   E3016: {
     title: "Invalid enum value",

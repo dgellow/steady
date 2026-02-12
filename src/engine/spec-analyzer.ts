@@ -24,6 +24,8 @@ export interface SpecAnalysisResult {
 export interface AnalyzeSpecOptions {
   /** Base URI for resolving references during metaschema validation. */
   baseUri?: string;
+  /** Fields where the parser applied defaults (triggers E1003 diagnostics). */
+  defaultedFields?: string[];
 }
 
 /**
@@ -35,6 +37,11 @@ export async function analyzeSpec(
   options?: AnalyzeSpecOptions,
 ): Promise<SpecAnalysisResult> {
   const diagnostics: Diagnostic[] = [];
+
+  // E1003: Missing metadata fields (parser applied defaults)
+  if (options?.defaultedFields && options.defaultedFields.length > 0) {
+    diagnostics.push(...checkMissingMetadata(options.defaultedFields));
+  }
 
   // Metaschema validation for OpenAPI 3.1.x
   diagnostics.push(...await checkMetaschema(spec, options?.baseUri));
@@ -53,6 +60,9 @@ export async function analyzeSpec(
   diagnostics.push(...checkCircularRefs(walkResult.refs, spec));
   diagnostics.push(
     ...checkImpossibleConstraints(walkResult.schemas),
+  );
+  diagnostics.push(
+    ...checkRequiredNotInProperties(walkResult.schemas),
   );
   diagnostics.push(
     ...checkNonStandardUsage(walkResult.schemas, spec.openapi),
@@ -130,6 +140,28 @@ const HTTP_METHODS = [
   "options",
   "trace",
 ] as const;
+
+// ── E1003: Missing required metadata ─────────────────────────────────
+
+function checkMissingMetadata(defaultedFields: string[]): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+
+  for (const field of defaultedFields) {
+    diagnostics.push(
+      specDiagnostic(
+        "E1003",
+        `#/${field.replace(/\./g, "/")}`,
+        `Missing required field "${field}" — Steady applied a default`,
+        {
+          suggestion: `Add the "${field}" field to your spec`,
+          expected: field,
+        },
+      ),
+    );
+  }
+
+  return diagnostics;
+}
 
 // ── Metaschema validation (E1006 fatal / E1015 info) ────────────────
 
@@ -1415,6 +1447,41 @@ function checkImpossibleConstraints(
               suggestion:
                 "An allOf with conflicting type requirements can never validate",
               actual: [...uniqueSingle],
+            },
+          ),
+        );
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
+// ── E1016: Required property not in properties ──────────────────────
+
+function checkRequiredNotInProperties(
+  schemas: WalkResult["schemas"],
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+
+  for (const { schema, pointer } of schemas) {
+    const required = schema.required;
+    const properties = schema.properties;
+    if (!Array.isArray(required) || !isObject(properties)) continue;
+
+    const propertyNames = new Set(Object.keys(properties));
+    for (const field of required) {
+      if (typeof field !== "string") continue;
+      if (!propertyNames.has(field)) {
+        diagnostics.push(
+          specDiagnostic(
+            "E1016",
+            pointer,
+            `Required field "${field}" is not defined in properties`,
+            {
+              suggestion:
+                `Add "${field}" to the properties object, or remove it from the required array`,
+              expected: field,
             },
           ),
         );
