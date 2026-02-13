@@ -146,11 +146,23 @@ const SDKS: SDK[] = [
     repo: "stainless-commons/stripe-python",
     name: "stripe-python",
     language: "python",
+    validatorFlags: [
+      "--validator-query-array-format=brackets",
+      "--validator-query-object-format=brackets",
+      "--validator-form-array-format=brackets",
+      "--validator-form-object-format=brackets",
+    ],
   },
   {
     repo: "stainless-commons/stripe-node",
     name: "stripe-typescript",
     language: "typescript",
+    validatorFlags: [
+      "--validator-query-array-format=brackets",
+      "--validator-query-object-format=brackets",
+      "--validator-form-array-format=brackets",
+      "--validator-form-object-format=brackets",
+    ],
   },
   {
     repo: "stainless-sdks/sink-python-public",
