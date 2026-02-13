@@ -1050,6 +1050,82 @@ Deno.test("Validator: queryObjectFormat=brackets works with anyOf containing obj
   assertEquals(result.errors.length, 0);
 });
 
+Deno.test("Validator: queryObjectFormat=brackets coerces integer values inside anyOf object variant", async () => {
+  // Stripe's `created` param uses anyOf with an object containing integer properties
+  // e.g. created[gt]=0&created[gte]=0 should coerce "0" to 0
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "brackets",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "created",
+        in: "query",
+        schema: {
+          anyOf: [
+            {
+              type: "object",
+              properties: {
+                gt: { type: "integer" },
+                gte: { type: "integer" },
+                lt: { type: "integer" },
+                lte: { type: "integer" },
+              },
+            },
+            { type: "integer" },
+          ],
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest(
+    "http://localhost/test?created[gt]=0&created[gte]=0&created[lt]=0&created[lte]=0",
+  );
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+});
+
+Deno.test("Validator: queryObjectFormat=dots coerces integer values inside anyOf object variant", async () => {
+  const registry = new SchemaRegistry({});
+  const validator = new RequestValidator(registry, {
+    queryObjectFormat: "dots",
+  });
+  const operation: OperationObject = {
+    responses: {},
+    parameters: [
+      {
+        name: "created",
+        in: "query",
+        schema: {
+          anyOf: [
+            {
+              type: "object",
+              properties: {
+                gt: { type: "integer" },
+                gte: { type: "integer" },
+              },
+            },
+            { type: "integer" },
+          ],
+        },
+      },
+    ],
+  };
+
+  const req = mockRequest(
+    "http://localhost/test?created.gt=0&created.gte=0",
+  );
+  const result = await validator.validateRequest(req, operation, {});
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+});
+
 // =============================================================================
 // Additional Array Format Tests (space, pipe)
 // =============================================================================

@@ -346,7 +346,8 @@ export class RequestValidator {
   }
 
   /**
-   * Get the schema for a nested property path
+   * Get the schema for a nested property path.
+   * Resolves through anyOf/oneOf/allOf to find the object variant with properties.
    */
   private getNestedPropertySchema(
     schema: SchemaObject | undefined,
@@ -357,8 +358,10 @@ export class RequestValidator {
     let current: SchemaObject | undefined = schema;
 
     for (const segment of path) {
-      if (!current?.properties) return undefined;
-      const prop = current.properties[segment];
+      // Resolve through anyOf/oneOf/allOf to find the object variant
+      const objectSchema = this.getObjectSchemaFromComposition(current);
+      if (!objectSchema?.properties) return undefined;
+      const prop = objectSchema.properties[segment];
       if (!prop) return undefined;
       if (isReference(prop)) {
         current = this.resolveSchema(prop);
