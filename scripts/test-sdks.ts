@@ -143,6 +143,16 @@ const SDKS: SDK[] = [
     language: "python",
   },
   {
+    repo: "stainless-commons/stripe-python",
+    name: "stripe-python",
+    language: "python",
+  },
+  {
+    repo: "stainless-commons/stripe-node",
+    name: "stripe-typescript",
+    language: "typescript",
+  },
+  {
     repo: "stainless-sdks/sink-python-public",
     name: "sink-python",
     language: "python",
