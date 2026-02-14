@@ -4,24 +4,28 @@
 
 ### Features
 
-- add runtime diagnostic for double-? URL construction bug on 404 <details><summary>Details</summary>
+- add runtime diagnostic for double-? URL construction bug on 404
+  <details><summary>Details</summary>
   https://claude.ai/code/session_01Vkjfuc2oJXkawBwva7Pwy2
+
 </details>
 
-- add startup diagnostics for question marks in query params and paths <details><summary>Details</summary>
+- add startup diagnostics for question marks in query params and paths
+  <details><summary>Details</summary>
   https://claude.ai/code/session_01Vkjfuc2oJXkawBwva7Pwy2
-</details>
 
+</details>
 
 ### Bug Fixes
 
-- resolve query param type coercion through anyOf/oneOf/allOf schemas <details><summary>Details</summary>
-  getNestedPropertySchema() was only checking direct .properties on the
-  schema, so bracket/dot-style object params like created[gt]=0 with an
-  anyOf-wrapped object schema would fail to find the property schema and
-  skip type coercion, leaving values as strings instead of integers.
-</details>
+- resolve query param type coercion through anyOf/oneOf/allOf schemas
+  <details><summary>Details</summary> getNestedPropertySchema() was only
+  checking direct .properties on the schema, so bracket/dot-style object params
+  like created[gt]=0 with an anyOf-wrapped object schema would fail to find the
+  property schema and skip type coercion, leaving values as strings instead of
+  integers.
 
+</details>
 
 ### Documentation
 

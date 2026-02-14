@@ -700,6 +700,42 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     seeAlso: ["E4001"],
   },
 
+  E3019: {
+    description:
+      "The Content-Length header is not a valid non-negative integer.\n" +
+      "This is an HTTP protocol violation detected before any schema\n" +
+      "validation occurs.",
+    reasoning:
+      "This is an SDK issue. The SDK (or its HTTP client library) sets\n" +
+      "the Content-Length header. RFC 9110 requires it to be a\n" +
+      "non-negative integer. A malformed value means the HTTP framing\n" +
+      "is broken.",
+    example: "  # SDK sends: Content-Length: -1\n" +
+      '  # SDK sends: Content-Length: "abc"\n' +
+      "  # Should be: Content-Length: 42",
+    fix: "Check the SDK's HTTP client configuration. Most HTTP libraries\n" +
+      "set Content-Length automatically. If the SDK sets it manually,\n" +
+      "ensure it uses the actual byte length of the body.",
+    seeAlso: ["E3005", "E3006"],
+  },
+
+  E3021: {
+    description: "The request body could not be parsed. Either the JSON is\n" +
+      "malformed (syntax error) or the body stream could not be read.",
+    reasoning:
+      "This is an SDK issue. The SDK serializes the request body. If\n" +
+      "the Content-Type says application/json but the body is not valid\n" +
+      "JSON, the SDK's serialization is broken. Stream read failures\n" +
+      "point to connection or encoding problems in the HTTP client.",
+    example: "  # Content-Type: application/json\n" +
+      "  # Body: {name: sam}       (unquoted keys, not valid JSON)\n" +
+      '  # Should be: {"name": "sam"}',
+    fix: "Check the SDK's body serialization. If using JSON, ensure\n" +
+      "JSON.stringify (or equivalent) is called before sending. If the\n" +
+      "error is a stream failure, check the HTTP client's encoding.",
+    seeAlso: ["E3005", "E3006"],
+  },
+
   // ── E4xxx: Content Validation Notes ─────────────────────────────────
 
   E4001: {

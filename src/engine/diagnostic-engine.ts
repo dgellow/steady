@@ -18,10 +18,17 @@
 import type { Schema } from "@steady/json-schema";
 import type { PathsObject } from "@steady/openapi";
 import type { Diagnostic, DiagnosticLocation } from "../diagnostic.ts";
+import type { QueryArrayFormat, QueryObjectFormat } from "../types.ts";
+import { wrapURLSearchParams } from "../param-format.ts";
 import type { SpecResolver, ValidationNode } from "./types.ts";
 import { type ECode, getCode } from "../codes/registry.ts";
 import { matchRoute } from "./routing.ts";
 import { interpret } from "./interpreter.ts";
+import {
+  coerceScalar,
+  getExpectedQueryKeys,
+  parseQueryParam,
+} from "./parameter-parser.ts";
 
 // ── Interfaces ─────────────────────────────────────────────────────
 
@@ -70,6 +77,10 @@ export interface ResolvedParameter {
   schema: Schema | null;
   /** JSON pointer to this parameter's schema. null if no schema. */
   schemaPath: string | null;
+  /** OpenAPI style (form, spaceDelimited, pipeDelimited, deepObject). */
+  style?: string;
+  /** OpenAPI explode flag. */
+  explode?: boolean;
 }
 
 /** Body schema and its location in the spec. */
@@ -106,6 +117,12 @@ export interface AnalyzeRequest {
   headers?: Record<string, string>;
   pathParams?: Record<string, string>;
   body?: unknown;
+  /** Effective query array format (already merged by caller). Defaults to "auto". */
+  queryArrayFormat?: QueryArrayFormat;
+  /** Effective query object format (already merged by caller). Defaults to "auto". */
+  queryObjectFormat?: QueryObjectFormat;
+  /** Query keys consumed during route disambiguation (e.g., /files?download vs /files?upload). */
+  consumedQueryParams?: string[];
 }
 
 // ── Engine ──────────────────────────────────────────────────────────
@@ -148,28 +165,47 @@ export class DiagnosticEngine {
 
     // 3. Parameter presence + value validation
     const parameters = this.spec.getParameters(pathPattern, method);
+    const queryArrayFormat = request.queryArrayFormat ?? "auto";
+    const queryObjectFormat = request.queryObjectFormat ?? "auto";
+    const querySource = request.queryParams
+      ? wrapURLSearchParams(request.queryParams)
+      : undefined;
+
     for (const param of parameters) {
-      const present = isParameterPresent(param, request);
-
-      if (!present) {
-        if (param.required) {
-          diagnostics.push(
-            createMissingParamDiagnostic(param, pathPattern),
-          );
+      if (param.in === "query") {
+        // Format-aware query parameter parsing
+        if (!querySource) {
+          if (param.required) {
+            diagnostics.push(
+              createMissingParamDiagnostic(param, pathPattern),
+            );
+          }
+          continue;
         }
-        continue;
-      }
 
-      // Value validation: if param has a schema and is present, validate
-      if (param.schema && param.schemaPath) {
-        const rawValue = getParameterValue(param, request);
-        if (rawValue !== undefined) {
-          const coerced = coerceParameterValue(rawValue, param.schema);
-          const location: DiagnosticLocation = param.in;
-          const dataPath = `${param.in}.${param.name}`;
+        const parsed = parseQueryParam(
+          querySource,
+          param,
+          queryArrayFormat,
+          queryObjectFormat,
+        );
+
+        if (!parsed.present) {
+          if (param.required) {
+            diagnostics.push(
+              createMissingParamDiagnostic(param, pathPattern),
+            );
+          }
+          continue;
+        }
+
+        // Value validation
+        if (param.schema && param.schemaPath && parsed.value !== undefined) {
+          const location: DiagnosticLocation = "query";
+          const dataPath = `query.${param.name}`;
 
           const tree = this.validator.validate(
-            coerced,
+            parsed.value,
             param.schema,
             param.schemaPath,
             dataPath,
@@ -180,9 +216,47 @@ export class DiagnosticEngine {
               tree,
               this.specResolver,
               location,
-              coerced,
+              parsed.value,
             );
             diagnostics.push(...result.diagnostics);
+          }
+        }
+      } else {
+        // Header, path, cookie: scalar logic (no format serialization)
+        const present = isParameterPresent(param, request);
+
+        if (!present) {
+          if (param.required) {
+            diagnostics.push(
+              createMissingParamDiagnostic(param, pathPattern),
+            );
+          }
+          continue;
+        }
+
+        if (param.schema && param.schemaPath) {
+          const rawValue = getParameterValue(param, request);
+          if (rawValue !== undefined) {
+            const coerced = coerceScalar(rawValue, param.schema);
+            const location: DiagnosticLocation = param.in;
+            const dataPath = `${param.in}.${param.name}`;
+
+            const tree = this.validator.validate(
+              coerced,
+              param.schema,
+              param.schemaPath,
+              dataPath,
+            );
+
+            if (!tree.valid) {
+              const result = interpret(
+                tree,
+                this.specResolver,
+                location,
+                coerced,
+              );
+              diagnostics.push(...result.diagnostics);
+            }
           }
         }
       }
@@ -190,18 +264,38 @@ export class DiagnosticEngine {
 
     // 3.5 Unknown query parameter detection
     if (request.queryParams) {
-      const specParamNames = new Set(
-        parameters.filter((p) => p.in === "query").map((p) => p.name),
+      const { known, dynamicPrefixes } = getExpectedQueryKeys(
+        parameters,
+        queryArrayFormat,
+        queryObjectFormat,
       );
+
+      // Route-disambiguation keys (e.g., ?download) are not spec parameters
+      // but were consumed during routing. Exclude them from unknown-param checks.
+      if (request.consumedQueryParams) {
+        for (const key of request.consumedQueryParams) {
+          known.add(key);
+        }
+      }
       const seen = new Set<string>();
       for (const key of request.queryParams.keys()) {
         if (seen.has(key)) continue;
         seen.add(key);
-        if (specParamNames.has(key)) continue;
+        if (known.has(key)) continue;
+
+        // Check dynamic prefixes (brackets, dots)
+        let matchesPrefix = false;
+        for (const prefix of dynamicPrefixes) {
+          if (key.startsWith(prefix)) {
+            matchesPrefix = true;
+            break;
+          }
+        }
+        if (matchesPrefix) continue;
 
         const baseName = extractBaseName(key);
 
-        if (baseName !== key && specParamNames.has(baseName)) {
+        if (baseName !== key && known.has(baseName)) {
           diagnostics.push(
             createSerializationMismatchDiagnostic(
               key,
@@ -209,7 +303,7 @@ export class DiagnosticEngine {
               pathPattern,
             ),
           );
-        } else if (!specParamNames.has(baseName)) {
+        } else {
           diagnostics.push(
             createUndocumentedParamDiagnostic(key, pathPattern),
           );
@@ -279,9 +373,9 @@ export class DiagnosticEngine {
 // ── Parameter presence ─────────────────────────────────────────────
 
 /**
- * Check if a required parameter is present in the request.
+ * Check if a non-query parameter is present in the request.
+ * Query params are handled by parseQueryParam in parameter-parser.ts.
  *
- * - query: checks URLSearchParams.has()
  * - header: case-insensitive key lookup
  * - path: always present after successful routing
  * - cookie: parses Cookie header for the named cookie
@@ -292,6 +386,7 @@ function isParameterPresent(
 ): boolean {
   switch (param.in) {
     case "query":
+      // Should not be called for query params; handled by parseQueryParam
       return request.queryParams?.has(param.name) ?? false;
 
     case "header": {
@@ -528,14 +623,6 @@ function getParameterValue(
 }
 
 /**
- * Coerce a raw HTTP parameter string into the type expected by the schema.
- *
- * HTTP parameters are always strings. When the schema expects integer,
- * number, or boolean, the engine must parse the string before validation.
- * If parsing fails, the raw string is returned. The validator will
- * produce the type mismatch diagnostic.
- */
-/**
  * Extract the base name from a serialized query parameter key.
  * "items[]" → "items", "user.name" → "user", "user[name]" → "user"
  * If no serialization suffix is found, returns the key unchanged.
@@ -607,27 +694,4 @@ function createUndocumentedParamDiagnostic(
       ],
     },
   };
-}
-
-function coerceParameterValue(raw: string, schema: Schema): unknown {
-  if (typeof schema === "boolean") return raw;
-
-  const schemaType = schema.type;
-
-  if (schemaType === "integer" || schemaType === "number") {
-    const num = Number(raw);
-    if (!Number.isNaN(num)) {
-      if (schemaType === "integer" && Number.isInteger(num)) return num;
-      if (schemaType === "number") return num;
-    }
-    return raw;
-  }
-
-  if (schemaType === "boolean") {
-    if (raw === "true") return true;
-    if (raw === "false") return false;
-    return raw;
-  }
-
-  return raw;
 }

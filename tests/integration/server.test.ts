@@ -36,7 +36,6 @@ async function withServer(
     host: "localhost",
     verbose: false,
     logLevel: "summary",
-    interactive: false,
     ...opts,
   });
 

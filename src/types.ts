@@ -204,7 +204,6 @@ export interface ServerConfig {
   logFormat?: "text" | "json";
   logBodies?: boolean;
   showValidation?: boolean;
-  interactive?: boolean;
   color?: boolean;
   validator?: ValidatorConfig;
   generator?: GeneratorConfig;

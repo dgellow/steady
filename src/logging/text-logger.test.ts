@@ -5,6 +5,22 @@
 import { assertEquals } from "@std/assert";
 import { TextLogger } from "./text-logger.ts";
 import type { RequestEvent } from "./types.ts";
+import type { Diagnostic } from "../diagnostic.ts";
+
+function makeDiagnostic(overrides: Partial<Diagnostic> = {}): Diagnostic {
+  return {
+    code: "E3008",
+    severity: "error",
+    category: "sdk-issue",
+    requestPath: "body.email",
+    specPointer: "#/components/schemas/User/properties/email",
+    message: "expected string, got integer",
+    expected: "string",
+    actual: 42,
+    attribution: { confidence: 0.9, reasoning: ["test"] },
+    ...overrides,
+  };
+}
 
 function createMockRequestEvent(
   overrides: Partial<RequestEvent> = {},
@@ -28,11 +44,7 @@ function createMockRequestEvent(
       headers: new Headers(),
       body: { responseField: "data" },
     },
-    validation: {
-      valid: true,
-      errors: [],
-      warnings: [],
-    },
+    diagnostics: [],
     ...overrides,
   };
 }
@@ -54,7 +66,6 @@ Deno.test("TextLogger: logBodies option shows bodies in summary mode", () => {
     const event = createMockRequestEvent();
     logger.request(event);
 
-    // Should include response body in output
     const output = logs.join("\n");
     assertEquals(
       output.includes("responseField"),
@@ -77,13 +88,11 @@ Deno.test("TextLogger: bodies not shown in summary mode without logBodies", () =
     const logger = new TextLogger({
       level: "summary",
       color: false,
-      // logBodies not set
     });
 
     const event = createMockRequestEvent();
     logger.request(event);
 
-    // Should NOT include response body in output
     const output = logs.join("\n");
     assertEquals(
       output.includes("responseField"),
@@ -169,7 +178,41 @@ Deno.test("TextLogger: detailed mode shows response warning marker", () => {
   }
 });
 
-Deno.test("TextLogger: detailed mode skips blank Expected line", () => {
+Deno.test("TextLogger: summary mode shows E-code for diagnostics", () => {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "));
+  };
+
+  try {
+    const logger = new TextLogger({
+      level: "summary",
+      color: false,
+    });
+
+    const event = createMockRequestEvent({
+      diagnostics: [makeDiagnostic()],
+    });
+    logger.request(event);
+
+    const output = logs.join("\n");
+    assertEquals(
+      output.includes("E3008"),
+      true,
+      "Summary mode should show E-code",
+    );
+    assertEquals(
+      output.includes("body.email"),
+      true,
+      "Summary mode should show request path",
+    );
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+Deno.test("TextLogger: detailed mode uses compiler-style format", () => {
   const logs: string[] = [];
   const originalLog = console.log;
   console.log = (...args: unknown[]) => {
@@ -183,28 +226,50 @@ Deno.test("TextLogger: detailed mode skips blank Expected line", () => {
     });
 
     const event = createMockRequestEvent({
-      validation: {
-        valid: false,
-        errors: [{
-          path: "body",
-          specPointer: "#/test",
-          keyword: "format",
-          message: "Some error",
-          expected: "",
-          actual: "bad-value",
-          category: "sdk-issue",
-          attribution: { confidence: 0.9, reasoning: ["test"] },
-        }],
-        warnings: [],
-      },
+      diagnostics: [makeDiagnostic()],
+    });
+    logger.request(event);
+
+    const output = logs.join("\n");
+    // Compiler-style: "error[E3008]: ..."
+    assertEquals(
+      output.includes("error[E3008]"),
+      true,
+      "Detailed mode should show compiler-style diagnostic header",
+    );
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+Deno.test("TextLogger: full mode shows reasoning chain", () => {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "));
+  };
+
+  try {
+    const logger = new TextLogger({
+      level: "full",
+      color: false,
+    });
+
+    const event = createMockRequestEvent({
+      diagnostics: [makeDiagnostic({
+        attribution: {
+          confidence: 0.9,
+          reasoning: ["Schema requires string", "Request sent integer"],
+        },
+      })],
     });
     logger.request(event);
 
     const output = logs.join("\n");
     assertEquals(
-      output.includes("Expected: "),
-      false,
-      "Should not show blank Expected: line when expected is empty",
+      output.includes("Schema requires string"),
+      true,
+      "Full mode should show reasoning chain",
     );
   } finally {
     console.log = originalLog;
@@ -222,13 +287,11 @@ Deno.test("TextLogger: bodies shown in full mode regardless of logBodies", () =>
     const logger = new TextLogger({
       level: "full",
       color: false,
-      // logBodies not set, but level is full
     });
 
     const event = createMockRequestEvent();
     logger.request(event);
 
-    // Should include response body in output because level is "full"
     const output = logs.join("\n");
     assertEquals(
       output.includes("responseField"),

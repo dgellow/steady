@@ -10,40 +10,6 @@ import type { Diagnostic, IssueCategory } from "../diagnostic.ts";
 export type { IssueCategory } from "../diagnostic.ts";
 
 /**
- * A validation error with complete context for logging display.
- * All fields required for rich error reporting.
- */
-export interface ValidationError {
-  // Where
-  path: string; // body.email, query.limit
-  specPointer: string; // #/components/schemas/User/properties/email
-
-  // What
-  keyword: string; // format, type, required, pattern
-  message: string; // Human-readable
-
-  // Expected vs Actual
-  expected: string; // Human-readable: "email format"
-  actual: unknown; // The specific failing value
-
-  // Attribution
-  category: IssueCategory;
-  attribution: { confidence: number; reasoning: string[] };
-
-  // Fix
-  suggestion?: string;
-}
-
-/**
- * Result of validating a request
- */
-export interface ValidationResult {
-  valid: boolean;
-  errors: ValidationError[];
-  warnings: ValidationError[];
-}
-
-/**
  * Base log event
  */
 export interface LogEvent {
@@ -77,7 +43,7 @@ export interface RequestEvent extends LogEvent {
     responseWarning?: string;
   };
 
-  validation: ValidationResult;
+  diagnostics: Diagnostic[];
 }
 
 /**

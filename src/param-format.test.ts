@@ -34,49 +34,19 @@ Deno.test("resolveArrayFormat: auto defaults to repeat (form + explode)", () => 
 });
 
 Deno.test("resolveArrayFormat: auto with style=form explode=true returns repeat", () => {
-  assertEquals(
-    resolveArrayFormat("auto", {
-      name: "x",
-      in: "query",
-      style: "form",
-      explode: true,
-    }),
-    "repeat",
-  );
+  assertEquals(resolveArrayFormat("auto", "form", true), "repeat");
 });
 
 Deno.test("resolveArrayFormat: auto with style=form explode=false returns comma", () => {
-  assertEquals(
-    resolveArrayFormat("auto", {
-      name: "x",
-      in: "query",
-      style: "form",
-      explode: false,
-    }),
-    "comma",
-  );
+  assertEquals(resolveArrayFormat("auto", "form", false), "comma");
 });
 
 Deno.test("resolveArrayFormat: auto with style=spaceDelimited returns space", () => {
-  assertEquals(
-    resolveArrayFormat("auto", {
-      name: "x",
-      in: "query",
-      style: "spaceDelimited",
-    }),
-    "space",
-  );
+  assertEquals(resolveArrayFormat("auto", "spaceDelimited"), "space");
 });
 
 Deno.test("resolveArrayFormat: auto with style=pipeDelimited returns pipe", () => {
-  assertEquals(
-    resolveArrayFormat("auto", {
-      name: "x",
-      in: "query",
-      style: "pipeDelimited",
-    }),
-    "pipe",
-  );
+  assertEquals(resolveArrayFormat("auto", "pipeDelimited"), "pipe");
 });
 
 // =============================================================================
@@ -94,38 +64,15 @@ Deno.test("resolveObjectFormat: auto defaults to flat (form + explode)", () => {
 });
 
 Deno.test("resolveObjectFormat: auto with style=form explode=true returns flat", () => {
-  assertEquals(
-    resolveObjectFormat("auto", {
-      name: "x",
-      in: "query",
-      style: "form",
-      explode: true,
-    }),
-    "flat",
-  );
+  assertEquals(resolveObjectFormat("auto", "form", true), "flat");
 });
 
 Deno.test("resolveObjectFormat: auto with style=form explode=false returns flat-comma", () => {
-  assertEquals(
-    resolveObjectFormat("auto", {
-      name: "x",
-      in: "query",
-      style: "form",
-      explode: false,
-    }),
-    "flat-comma",
-  );
+  assertEquals(resolveObjectFormat("auto", "form", false), "flat-comma");
 });
 
 Deno.test("resolveObjectFormat: auto with style=deepObject returns brackets", () => {
-  assertEquals(
-    resolveObjectFormat("auto", {
-      name: "x",
-      in: "query",
-      style: "deepObject",
-    }),
-    "brackets",
-  );
+  assertEquals(resolveObjectFormat("auto", "deepObject"), "brackets");
 });
 
 // =============================================================================

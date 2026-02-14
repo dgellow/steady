@@ -6,11 +6,17 @@
  * - Pre-compiled path patterns for O(1) route matching
  * - Lazy schema processing with caching
  * - Graceful shutdown handling
- * - Interactive and standard logging modes
+ * - Text and JSON logging modes
  */
 
 import type { ResponseObject, ServerConfig } from "./types.ts";
-import { HEADERS, isReference, VERSION } from "./types.ts";
+import {
+  HEADERS,
+  isReference,
+  isValidArrayFormat,
+  isValidObjectFormat,
+  VERSION,
+} from "./types.ts";
 import type {
   OpenAPISpec,
   OperationObject,
@@ -27,12 +33,10 @@ import type {
   RequestEvent,
   ShutdownEvent,
   StartupEvent,
-  ValidationError,
 } from "./logging/types.ts";
 import { TextLogger } from "./logging/text-logger.ts";
 import { JsonLogger } from "./logging/json-logger.ts";
-import { TuiLogger } from "./logging/tui-logger.ts";
-import { RequestValidator } from "./validator.ts";
+import { isParseError, parseRequestBody } from "./body-parser.ts";
 import { OpenAPISpecDocument } from "../packages/openapi/document.ts";
 import { TreeValidator } from "../packages/json-schema/tree-validator.ts";
 import {
@@ -130,7 +134,6 @@ export class MockServer {
   private document: OpenAPIDocument;
   private abortController: AbortController;
   private logger: Logger;
-  private validator: RequestValidator;
   private diagnosticEngine: DiagnosticEngine;
   private collector: DiagnosticCollector;
   private sessionStore: SessionStore;
@@ -155,14 +158,8 @@ export class MockServer {
     this.abortController = new AbortController();
     this.sessionStore = new SessionStore();
 
-    // Create logger based on mode and format
-    if (config.interactive) {
-      this.logger = new TuiLogger({
-        level: config.logLevel,
-        color: true,
-        logBodies: config.logBodies,
-      });
-    } else if (config.logFormat === "json") {
+    // Create logger based on format
+    if (config.logFormat === "json") {
       this.logger = new JsonLogger({
         level: config.logLevel,
         logBodies: config.logBodies,
@@ -175,12 +172,7 @@ export class MockServer {
       });
     }
 
-    this.validator = new RequestValidator(
-      this.document.schemas,
-      config.validator,
-    );
-
-    // New diagnostics engine
+    // Diagnostics engine
     const specDoc = new OpenAPISpecDocument(spec);
     const treeValidator = new TreeValidator({
       resolveRef: (ref) => specDoc.resolveSchema(ref),
@@ -255,11 +247,6 @@ export class MockServer {
   start(): void {
     this.startTime = new Date();
 
-    // Start interactive logger if enabled
-    if (this.config.interactive && this.logger instanceof TuiLogger) {
-      this.logger.start();
-    }
-
     const server = Deno.serve({
       port: this.config.port,
       hostname: this.config.host,
@@ -274,10 +261,6 @@ export class MockServer {
 
     // Handle graceful shutdown
     const handleShutdown = () => {
-      // Stop TUI if running
-      if (this.config.interactive && this.logger instanceof TuiLogger) {
-        this.logger.stop();
-      }
       this.logShutdown();
       this.stop();
       Deno.exit(this.computeExitCode());
@@ -441,27 +424,33 @@ export class MockServer {
         consumedQueryParams,
       } = this.findOperation(path, method, url.searchParams);
 
-      // Validate request
-      const validation = await this.validator.validateRequest(
-        req,
-        operation,
-        pathParams,
-        consumedQueryParams,
-      );
+      // Parse request body
+      const parseResult = await parseRequestBody(req, null);
+      let parseDiags: Diagnostic[] = [];
+      let body: unknown;
+      if (isParseError(parseResult)) {
+        parseDiags = parseResult.diagnostics;
+        body = undefined;
+      } else {
+        body = parseResult.body;
+      }
 
       // Track request count and endpoint coverage
       this.requestCount++;
       this.collector.trackEndpoint(method, pathPattern);
 
-      // Run new diagnostics engine
-      const engineDiagnostics = this.runDiagnosticEngine(
+      // Run diagnostics engine
+      const engineDiags = this.runDiagnosticEngine(
         path,
         method,
         url.searchParams,
         req.headers,
-        validation.requestBody,
+        body,
         pathParams,
+        consumedQueryParams,
       );
+
+      const allDiagnostics = [...parseDiags, ...engineDiags];
 
       // Track session if X-Steady-Session header present
       const sessionId = req.headers.get("X-Steady-Session");
@@ -470,43 +459,42 @@ export class MockServer {
           sessionId,
           method,
           path,
-          engineDiagnostics,
+          allDiagnostics,
         );
       }
 
       // Collect runtime diagnostics
-      const hasSdkIssues = engineDiagnostics.some(
+      const hasSdkIssues = allDiagnostics.some(
         (d) => d.category === "sdk-issue",
       );
       this.collector.addRuntimeDiagnostics(
-        engineDiagnostics,
+        allDiagnostics,
         method,
         path,
         !hasSdkIssues,
       );
 
-      // If --reject-on-sdk-error is active and engine found SDK issues, return 400
+      // If --reject-on-sdk-error is active and diagnostics found SDK issues, return 400
       if (hasSdkIssues && rejectOnSdkError) {
         this.failedCount++;
         const timing = Math.round(performance.now() - startTime);
 
-        // Log the request event
-        this.logRequestEvent(
+        this.logRequestEvent({
           req,
           path,
           pathPattern,
           method,
-          400,
-          "Bad Request",
+          status: 400,
+          statusText: "Bad Request",
           timing,
-          validation,
-        );
+          diagnostics: allDiagnostics,
+          requestBody: body,
+        });
 
         const errorResponse = new Response(
           JSON.stringify({
             error: "Validation failed",
-            errors: validation.errors,
-            diagnostics: engineDiagnostics.map((d) => ({
+            diagnostics: allDiagnostics.map((d) => ({
               code: d.code,
               severity: d.severity,
               category: d.category,
@@ -520,12 +508,10 @@ export class MockServer {
           }),
           {
             status: 400,
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
           },
         );
-        return this.addDiagnosticHeaders(errorResponse, engineDiagnostics);
+        return this.addDiagnosticHeaders(errorResponse, allDiagnostics);
       }
 
       const generatorOptions = this.getEffectiveGeneratorOptions(req);
@@ -556,34 +542,30 @@ export class MockServer {
         this.failedCount++;
       }
 
-      // Log the request event
-      this.logRequestEvent(
+      this.logRequestEvent({
         req,
         path,
         pathPattern,
         method,
         status,
-        response.statusText || this.getStatusText(status),
+        statusText: response.statusText || this.getStatusText(status),
         timing,
-        validation,
-        response.headers,
+        diagnostics: allDiagnostics,
+        requestBody: body,
+        responseHeaders: response.headers,
         responseBody,
-        minimal ? "minimal" : undefined,
-      );
+        responseWarning: minimal ? "minimal" : undefined,
+      });
 
-      // Add diagnostic headers to response
-      return this.addDiagnosticHeaders(response, engineDiagnostics);
+      return this.addDiagnosticHeaders(response, allDiagnostics);
     } catch (error) {
       const timing = Math.round(performance.now() - startTime);
       this.requestCount++;
       this.failedCount++;
 
       if (error instanceof MatchError) {
-        // Log 404 error
-        this.logRequestEvent(req, path, path, method, 404, "Not Found", timing);
-
         // Run the diagnostics engine. Produces E2001/E2002 with enrichment
-        const engineDiagnostics = this.runDiagnosticEngine(
+        const engineDiags = this.runDiagnosticEngine(
           path,
           method,
           url.searchParams,
@@ -593,7 +575,7 @@ export class MockServer {
 
         // Collect runtime diagnostics
         this.collector.addRuntimeDiagnostics(
-          engineDiagnostics,
+          engineDiags,
           method,
           path,
           false,
@@ -606,9 +588,20 @@ export class MockServer {
             sessionId,
             method,
             path,
-            engineDiagnostics,
+            engineDiags,
           );
         }
+
+        this.logRequestEvent({
+          req,
+          path,
+          pathPattern: path,
+          method,
+          status: 404,
+          statusText: "Not Found",
+          timing,
+          diagnostics: engineDiags,
+        });
 
         const notFoundResponse = new Response(
           JSON.stringify({
@@ -620,19 +613,20 @@ export class MockServer {
             headers: { "Content-Type": "application/json" },
           },
         );
-        return this.addDiagnosticHeaders(notFoundResponse, engineDiagnostics);
+        return this.addDiagnosticHeaders(notFoundResponse, engineDiags);
       }
 
-      // Log 500 error
-      this.logRequestEvent(
+      // 500 - internal error
+      this.logRequestEvent({
         req,
         path,
-        path,
+        pathPattern: path,
         method,
-        500,
-        "Internal Server Error",
+        status: 500,
+        statusText: "Internal Server Error",
         timing,
-      );
+        diagnostics: [],
+      });
       console.error(error);
 
       const serverError = new Response(
@@ -647,80 +641,48 @@ export class MockServer {
   }
 
   /**
-   * Convert ValidationIssue to ValidationError with defaults for missing fields
-   */
-  private toValidationError(
-    issue: import("./types.ts").ValidationIssue,
-  ): ValidationError {
-    return {
-      path: issue.path,
-      specPointer: issue.specPointer || "",
-      keyword: issue.keyword || "unknown",
-      message: issue.message,
-      expected: issue.expected || "",
-      actual: issue.actual,
-      category: issue.category ?? "ambiguous",
-      attribution: issue.attribution ?? {
-        confidence: 0.5,
-        reasoning: ["Attribution not determined"],
-      },
-      suggestion: issue.suggestion,
-    };
-  }
-
-  /**
    * Build and log a RequestEvent
    */
-  private logRequestEvent(
-    req: Request,
-    path: string,
-    pathPattern: string,
-    method: string,
-    status: number,
-    statusText: string,
-    timing: number,
-    validation?: {
-      valid: boolean;
-      errors: import("./types.ts").ValidationIssue[];
-      warnings: import("./types.ts").ValidationIssue[];
-      requestBody?: unknown;
-    },
-    responseHeaders?: Headers,
-    responseBody?: unknown,
-    responseWarning?: string,
-  ): void {
-    const url = new URL(req.url);
+  private logRequestEvent(args: {
+    req: Request;
+    path: string;
+    pathPattern: string;
+    method: string;
+    status: number;
+    statusText: string;
+    timing: number;
+    diagnostics: Diagnostic[];
+    requestBody?: unknown;
+    responseHeaders?: Headers;
+    responseBody?: unknown;
+    responseWarning?: string;
+  }): void {
+    const url = new URL(args.req.url);
 
     const event: RequestEvent = {
       id: crypto.randomUUID(),
       timestamp: new Date(),
       type: "request",
       request: {
-        method: method.toUpperCase(),
-        path,
-        pathPattern,
+        method: args.method.toUpperCase(),
+        path: args.path,
+        pathPattern: args.pathPattern,
         query: url.search,
-        headers: req.headers,
-        body: validation?.requestBody,
+        headers: args.req.headers,
+        body: args.requestBody,
       },
       response: {
-        status,
-        statusText,
-        timing,
-        headers: responseHeaders || new Headers(),
-        body: responseBody,
-        bodySize: responseBody !== undefined
-          ? new TextEncoder().encode(JSON.stringify(responseBody)).length
+        status: args.status,
+        statusText: args.statusText,
+        timing: args.timing,
+        headers: args.responseHeaders ?? new Headers(),
+        body: args.responseBody,
+        bodySize: args.responseBody !== undefined
+          ? new TextEncoder().encode(JSON.stringify(args.responseBody)).length
           : undefined,
-        responseWarning,
+        responseWarning: args.responseWarning,
       },
-      validation: validation
-        ? {
-          valid: validation.valid,
-          errors: validation.errors.map((e) => this.toValidationError(e)),
-          warnings: validation.warnings.map((w) => this.toValidationError(w)),
-        }
-        : { valid: true, errors: [], warnings: [] },
+      diagnostics: args.diagnostics,
     };
 
     this.logger.request(event);
@@ -1406,11 +1368,23 @@ export class MockServer {
     reqHeaders: Headers,
     body: unknown,
     pathParams?: Record<string, string>,
+    consumedQueryParams?: string[],
   ): Diagnostic[] {
     const headers: Record<string, string> = {};
     reqHeaders.forEach((value, key) => {
       headers[key] = value;
     });
+
+    // Merge query format: per-request header > config > "auto"
+    const headerArrayFmt = reqHeaders.get(HEADERS.QUERY_ARRAY_FORMAT);
+    const headerObjectFmt = reqHeaders.get(HEADERS.QUERY_OBJECT_FORMAT);
+
+    const queryArrayFormat = isValidArrayFormat(headerArrayFmt)
+      ? headerArrayFmt
+      : this.config.validator?.queryArrayFormat;
+    const queryObjectFormat = isValidObjectFormat(headerObjectFmt)
+      ? headerObjectFmt
+      : this.config.validator?.queryObjectFormat;
 
     const request: AnalyzeRequest = {
       path,
@@ -1419,6 +1393,9 @@ export class MockServer {
       headers,
       pathParams,
       body,
+      queryArrayFormat,
+      queryObjectFormat,
+      consumedQueryParams,
     };
 
     return this.diagnosticEngine.analyze(request);

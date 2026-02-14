@@ -5,7 +5,6 @@
  * Handles array and object serialization formats per OpenAPI spec.
  */
 
-import type { ParameterObject } from "@steady/openapi";
 import type { QueryArrayFormat, QueryObjectFormat } from "./types.ts";
 
 // Re-export types for convenience
@@ -64,19 +63,19 @@ export function wrapStringMap(map: Map<string, string[]>): KeyValueSource {
  */
 export function resolveArrayFormat(
   format: QueryArrayFormat,
-  paramSpec?: ParameterObject,
+  style?: string,
+  explode?: boolean,
 ): ConcreteArrayFormat {
   if (format !== "auto") {
     return format;
   }
 
-  // Read from OpenAPI spec's style/explode
-  const style = paramSpec?.style ?? "form";
-  const explode = paramSpec?.explode ?? (style === "form");
+  const s = style ?? "form";
+  const e = explode ?? (s === "form");
 
-  switch (style) {
+  switch (s) {
     case "form":
-      return explode ? "repeat" : "comma";
+      return e ? "repeat" : "comma";
     case "spaceDelimited":
       return "space";
     case "pipeDelimited":
@@ -87,24 +86,24 @@ export function resolveArrayFormat(
 }
 
 /**
- * Resolve object format from 'auto' to concrete format based on parameter spec.
- * When format is 'auto', reads from OpenAPI style/explode properties.
+ * Resolve object format from 'auto' to concrete format based on OpenAPI
+ * style/explode. When format is not 'auto', returns it directly.
  */
 export function resolveObjectFormat(
   format: QueryObjectFormat,
-  paramSpec?: ParameterObject,
+  style?: string,
+  explode?: boolean,
 ): ConcreteObjectFormat {
   if (format !== "auto") {
     return format;
   }
 
-  // Read from OpenAPI spec's style/explode
-  const style = paramSpec?.style ?? "form";
-  const explode = paramSpec?.explode ?? (style === "form");
+  const s = style ?? "form";
+  const e = explode ?? (s === "form");
 
-  switch (style) {
+  switch (s) {
     case "form":
-      return explode ? "flat" : "flat-comma";
+      return e ? "flat" : "flat-comma";
     case "deepObject":
       return "brackets";
     default:

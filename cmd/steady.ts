@@ -75,7 +75,6 @@ export async function main() {
       "log-bodies",
       "log",
       "reject-on-sdk-error",
-      "interactive",
       "validator-strict-oneof",
       "no-color",
       "fail-on-ambiguous",
@@ -100,7 +99,6 @@ export async function main() {
     alias: {
       h: "help",
       r: "auto-reload",
-      i: "interactive",
       p: "port",
       v: "log-level",
       verbose: "log-level",
@@ -281,7 +279,6 @@ export async function main() {
     logBodies: args["log-bodies"],
     log: args.log,
     rejectOnSdkError,
-    interactive: args.interactive,
     portOverride,
     host: args.host,
     color: useColor,
@@ -354,7 +351,6 @@ async function startServer(
     logBodies: boolean;
     log: boolean;
     rejectOnSdkError: boolean;
-    interactive: boolean;
     portOverride?: number;
     host?: string;
     color: boolean;
@@ -413,7 +409,6 @@ async function startServer(
     logFormat: options.logFormat,
     logBodies: options.logBodies,
     showValidation: true,
-    interactive: options.interactive,
     color: options.color,
     validator: options.validator,
     generator: options.generator,
@@ -438,7 +433,6 @@ async function startWithWatch(
     logBodies: boolean;
     log: boolean;
     rejectOnSdkError: boolean;
-    interactive: boolean;
     portOverride?: number;
     host?: string;
     color: boolean;
@@ -626,7 +620,6 @@ Options:
   -p, --port <port>        Override server port (default: from spec or 3000)
   --host <host>            Bind to specific host (default: localhost)
   -r, --auto-reload        Auto-reload on spec file changes
-  -i, --interactive        Interactive mode with expandable logs
   --log-level <level>      Set logging detail: summary|details|full (default: summary)
   --log-format <format>    Output format: text|json (default: text)
   --log-bodies             Show request/response bodies in summary mode
@@ -723,7 +716,6 @@ Examples:
   steady --log-bodies api.yaml             # Show bodies in summary mode
   steady --reject-on-sdk-error api.yaml    # 400 for SDK issues
   steady -r api.yaml                       # Auto-reload on file changes
-  steady -i api.yaml                       # Interactive mode with expandable logs
 
 `);
 }

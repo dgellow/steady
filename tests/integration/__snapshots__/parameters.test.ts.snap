@@ -108,9 +108,9 @@ snapshot[`POST /nullable - missing required field → mock with diagnostics 1`] 
 
 snapshot[`GET /search - invalid enum value → mock with diagnostics 1`] = `
 {
-  "x-steady-error-1-code": "E3003",
-  "x-steady-error-1-message": "Expected type array, got string",
-  "x-steady-error-1-path": "query.status",
+  "x-steady-error-1-code": "E3016",
+  "x-steady-error-1-message": 'Value "invalid" is not in allowed values',
+  "x-steady-error-1-path": "query.status.0",
   "x-steady-error-count": "1",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/search",

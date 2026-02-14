@@ -237,6 +237,18 @@ const CODES = {
     severity: "error",
     category: "sdk-issue",
   },
+  E3019: {
+    title: "Invalid Content-Length",
+    severity: "error",
+    category: "sdk-issue",
+    context: "runtime",
+  },
+  E3021: {
+    title: "Malformed request body",
+    severity: "error",
+    category: "sdk-issue",
+    context: "runtime",
+  },
 
   // ── E4xxx: Content ──────────────────────────────────────────────────
   E4001: {

@@ -32,7 +32,6 @@ async function withServer(
     rejectOnSdkError: opts.rejectOnSdkError,
     verbose: false,
     logLevel: "summary",
-    interactive: false,
   });
 
   server.start();
@@ -625,7 +624,6 @@ async function withArrayServer(
     host: "localhost",
     verbose: false,
     logLevel: "summary",
-    interactive: false,
     generator: opts.generator,
   });
 
@@ -817,7 +815,6 @@ async function withQueryPathServer(
     host: "localhost",
     verbose: false,
     logLevel: "summary",
-    interactive: false,
   });
 
   server.start();
@@ -900,7 +897,6 @@ async function withSamePatternServer(
     host: "localhost",
     verbose: false,
     logLevel: "summary",
-    interactive: false,
   });
 
   server.start();
@@ -965,7 +961,6 @@ async function withCursedQmarkServer(
     host: "localhost",
     verbose: false,
     logLevel: "summary",
-    interactive: false,
   });
 
   server.start();
@@ -1073,7 +1068,6 @@ async function withCursedClientServer(
     host: "localhost",
     verbose: false,
     logLevel: "summary",
-    interactive: false,
   });
 
   server.start();

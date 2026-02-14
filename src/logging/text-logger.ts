@@ -1,5 +1,9 @@
 /**
- * TextLogger - Colored terminal output for requests and diagnostics
+ * TextLogger - Colored terminal output for requests and diagnostics.
+ *
+ * This logger is thin. It receives structured events and delegates
+ * formatting to focused helpers (format-diagnostic.ts, colors.ts).
+ * It does not contain diagnostic formatting logic itself.
  */
 
 import { BaseLogger } from "./logger.ts";
@@ -10,8 +14,8 @@ import {
   colors,
   formatStatus,
 } from "./colors.ts";
-import { formatActual } from "./format-expected.ts";
 import {
+  formatDiagnostic,
   formatDiagnostics,
   formatDiagnosticSummary,
   formatExplainHint,
@@ -22,8 +26,8 @@ import type {
   RequestEvent,
   ShutdownEvent,
   StartupEvent,
-  ValidationError,
 } from "./types.ts";
+import type { Diagnostic } from "../diagnostic.ts";
 
 export class TextLogger extends BaseLogger {
   constructor(options: Partial<LoggerOptions> = {}) {
@@ -31,7 +35,86 @@ export class TextLogger extends BaseLogger {
   }
 
   request(event: RequestEvent): void {
-    const timestamp = event.timestamp.toLocaleTimeString();
+    if (this.level === "summary") {
+      this.logSummary(event);
+    } else {
+      this.logDetailed(event);
+    }
+  }
+
+  private logSummary(event: RequestEvent): void {
+    const line = this.formatRequestLine(event);
+
+    // Append first diagnostic inline if any
+    const first = event.diagnostics[0];
+    if (first) {
+      const diag = this.formatDiagnosticOneLiner(first);
+      const rest = event.diagnostics.length - 1;
+      const more = rest > 0
+        ? ` ${colorize(`(+${rest} more)`, colors.dim, this.useColor)}`
+        : "";
+      console.log(`${line}\n           ${diag}${more}`);
+    } else {
+      console.log(line);
+    }
+
+    if (this.shouldShowBodies()) {
+      this.logRequestBodies(event);
+    }
+  }
+
+  private logDetailed(event: RequestEvent): void {
+    console.log(this.formatRequestLine(event));
+    console.log();
+
+    // Request details
+    console.log("  Request:");
+    this.logHeaders(event.request.headers, "    ");
+    if (event.request.body !== undefined && this.shouldShowBodies()) {
+      console.log(`    Body: ${this.formatBody(event.request.body)}`);
+    }
+
+    // Diagnostics - compiler-style
+    if (event.diagnostics.length > 0) {
+      console.log();
+      for (const d of event.diagnostics) {
+        // Use the shared compiler-style formatter
+        console.log(this.indentBlock(formatDiagnostic(d, this.useColor), "  "));
+
+        // In full mode, also show reasoning chain
+        if (this.showFull() && d.attribution.reasoning.length > 0) {
+          for (const reason of d.attribution.reasoning) {
+            console.log(
+              `    ${colorize("*", colors.dim, this.useColor)} ${reason}`,
+            );
+          }
+        }
+        console.log();
+      }
+    }
+
+    // Response details
+    if (this.showFull() || this.shouldShowBodies()) {
+      console.log("  Response:");
+      this.logHeaders(event.response.headers, "    ");
+      if (event.response.body !== undefined) {
+        console.log(`    Body: ${this.formatBody(event.response.body)}`);
+      }
+    }
+
+    console.log();
+  }
+
+  /**
+   * Format the one-line request summary:
+   * [10:20:01] POST /users → 201 Created (5ms) [423 bytes]
+   */
+  private formatRequestLine(event: RequestEvent): string {
+    const ts = colorize(
+      `[${event.timestamp.toLocaleTimeString()}]`,
+      colors.dim,
+      this.useColor,
+    );
     const method = event.request.method.toUpperCase();
     const path = event.request.path;
     const query = event.request.query
@@ -43,30 +126,14 @@ export class TextLogger extends BaseLogger {
       colors.dim,
       this.useColor,
     );
-
-    if (this.level === "summary") {
-      this.logSummary(timestamp, method, path, query, status, timing, event);
-    } else {
-      this.logDetailed(timestamp, method, path, query, status, timing, event);
-    }
-  }
-
-  private logSummary(
-    timestamp: string,
-    method: string,
-    path: string,
-    query: string,
-    status: string,
-    timing: string,
-    event: RequestEvent,
-  ): void {
-    const ts = colorize(`[${timestamp}]`, colors.dim, this.useColor);
     const bodySize = event.response.bodySize !== undefined
-      ? colorize(
-        `[${event.response.bodySize} bytes]`,
-        colors.dim,
-        this.useColor,
-      )
+      ? ` ${
+        colorize(
+          `[${event.response.bodySize} bytes]`,
+          colors.dim,
+          this.useColor,
+        )
+      }`
       : "";
     const warning = event.response.responseWarning
       ? ` ${
@@ -77,138 +144,35 @@ export class TextLogger extends BaseLogger {
         )
       }`
       : "";
-    let line = `${ts} ${method} ${path}${query} → ${status} ${timing}${
-      bodySize ? ` ${bodySize}` : ""
-    }${warning}`;
 
-    // Add first validation error if any
-    if (!event.validation.valid && event.validation.errors.length > 0) {
-      const firstError = event.validation.errors[0];
-      if (firstError) {
-        const errorLine = this.formatErrorSummary(firstError);
-        line += `\n           ${errorLine}`;
-        if (event.validation.errors.length > 1) {
-          const more = colorize(
-            `(+${event.validation.errors.length - 1} more)`,
-            colors.dim,
-            this.useColor,
-          );
-          line += ` ${more}`;
-        }
-      }
-    }
-
-    console.log(line);
-
-    // Show bodies in summary mode if logBodies is enabled
-    if (this.shouldShowBodies()) {
-      if (event.request.body !== undefined) {
-        console.log(`  Request Body: ${this.formatBody(event.request.body)}`);
-      }
-      if (event.response.body !== undefined) {
-        console.log(`  Response Body: ${this.formatBody(event.response.body)}`);
-      }
-    }
+    return `${ts} ${method} ${path}${query} \u2192 ${status} ${timing}${bodySize}${warning}`;
   }
 
-  private logDetailed(
-    timestamp: string,
-    method: string,
-    path: string,
-    query: string,
-    status: string,
-    timing: string,
-    event: RequestEvent,
-  ): void {
-    const ts = colorize(`[${timestamp}]`, colors.dim, this.useColor);
-    const warning = event.response.responseWarning
-      ? ` ${
-        colorize(
-          "!! " + event.response.responseWarning + " response",
-          colors.yellow,
-          this.useColor,
-        )
-      }`
-      : "";
-    console.log(
-      `${ts} ${method} ${path}${query} → ${status} ${timing}${warning}`,
-    );
-    console.log();
-
-    // Request details
-    console.log("  Request:");
-    this.logHeaders(event.request.headers, "    ");
-    if (event.request.body !== undefined && this.shouldShowBodies()) {
-      console.log(`    Body: ${this.formatBody(event.request.body)}`);
-    }
-
-    // Validation errors
-    if (!event.validation.valid && event.validation.errors.length > 0) {
-      console.log();
-      for (const error of event.validation.errors) {
-        this.logValidationError(error);
-      }
-    }
-
-    // Response details
-    if (this.showFull() || this.shouldShowBodies()) {
-      console.log();
-      console.log("  Response:");
-      this.logHeaders(event.response.headers, "    ");
-      if (event.response.body !== undefined) {
-        console.log(`    Body: ${this.formatBody(event.response.body)}`);
-      }
-    }
-
-    console.log();
-  }
-
-  private formatErrorSummary(error: ValidationError): string {
-    const x = colorize("\u2717", colors.red, this.useColor); // ✗
-    const path = error.path;
-    const actual = formatActual(error.actual, 30);
-    const attr = this.formatAttribution(error);
-
-    if (error.expected) {
-      return `${x} ${path}: expected ${error.expected}, got ${actual} ${attr}`;
-    }
-    return `${x} ${path}: got ${actual} ${attr}`;
-  }
-
-  private formatAttribution(error: ValidationError): string {
-    const color = attributionColor(error.category);
-    const label = attributionLabel(error.category);
-    const confidence = Math.round(error.attribution.confidence * 100);
-    return colorize(`[${label} ${confidence}%]`, color, this.useColor);
-  }
-
-  private logValidationError(error: ValidationError): void {
-    console.log("  Validation Error:");
-    console.log(`    Path: ${error.path}`);
-    if (error.expected) {
-      console.log(`    Expected: ${error.expected}`);
-    }
-    console.log(`    Received: ${formatActual(error.actual)}`);
-    console.log(`    Spec: ${error.specPointer}`);
-    console.log();
-
-    const attrColor = attributionColor(error.category);
-    const attrLabel = attributionLabel(error.category);
-    const confidence = Math.round(error.attribution.confidence * 100);
-    console.log(
-      colorize(
-        `  ${attrLabel} (${confidence}% confidence)`,
-        attrColor,
-        this.useColor,
-      ),
+  /**
+   * Format a diagnostic as a compact one-liner for summary mode:
+   * x E3008 body.email: expected string, got integer [SDK Issue 90%]
+   */
+  private formatDiagnosticOneLiner(d: Diagnostic): string {
+    const x = colorize("\u2717", colors.red, this.useColor);
+    const code = colorize(d.code, colors.bold, this.useColor);
+    const confidence = Math.round(d.attribution.confidence * 100);
+    const attrColor = attributionColor(d.category);
+    const label = attributionLabel(d.category);
+    const attr = colorize(
+      `[${label} ${confidence}%]`,
+      attrColor,
+      this.useColor,
     );
 
-    if (error.suggestion) {
-      console.log(
-        `  ${
-          colorize("\u2192", colors.cyan, this.useColor)
-        } ${error.suggestion}`,
-      );
+    return `${x} ${code} ${d.requestPath}: ${d.message} ${attr}`;
+  }
+
+  private logRequestBodies(event: RequestEvent): void {
+    if (event.request.body !== undefined) {
+      console.log(`  Request Body: ${this.formatBody(event.request.body)}`);
+    }
+    if (event.response.body !== undefined) {
+      console.log(`  Response Body: ${this.formatBody(event.response.body)}`);
     }
   }
 
@@ -247,11 +211,9 @@ export class TextLogger extends BaseLogger {
     if (body === undefined) {
       return colorize("(empty)", colors.dim, this.useColor);
     }
-
     try {
       const json = JSON.stringify(body, null, 2);
       const lines = json.split("\n");
-
       if (!this.showFull() && lines.length > 10) {
         const preview = lines.slice(0, 10).join("\n");
         const more = colorize(
@@ -261,36 +223,36 @@ export class TextLogger extends BaseLogger {
         );
         return `\n${preview}\n${more}`;
       }
-
       return `\n${json}`;
     } catch {
       return String(body);
     }
   }
 
+  /** Indent every line of a block by a prefix string. */
+  private indentBlock(text: string, indent: string): string {
+    return text.split("\n").map((line) => indent + line).join("\n");
+  }
+
   startup(event: StartupEvent): void {
     const { spec, server, diagnostics } = event;
 
-    // Title line
     console.log(
       colorize("Steady", colors.bold, this.useColor) +
         ` - ${spec.title} v${spec.version}`,
     );
     console.log();
 
-    // Diagnostics (if any)
     if (diagnostics.length > 0) {
       const nonErrors = diagnostics.filter((d) => d.severity !== "error");
       const collapsed = !this.showFull() && nonErrors.length > 5;
       if (this.showFull()) {
-        // --level full: show all diagnostics in detail
         console.log(formatDiagnostics(diagnostics, this.useColor));
         console.log(formatExplainHint(diagnostics, this.useColor));
       } else {
         console.log(
           formatStartupDiagnostics(diagnostics, event.specPath, this.useColor),
         );
-        // Only show explain hint when diagnostics are shown in full
         if (!collapsed) {
           console.log(formatExplainHint(diagnostics, this.useColor));
         }
@@ -298,7 +260,6 @@ export class TextLogger extends BaseLogger {
       console.log();
     }
 
-    // Loaded summary with inline diagnostic count
     let loaded =
       `Loaded: ${spec.endpointCount}/${spec.endpointCount} endpoints`;
     if (diagnostics.length > 0) {
@@ -306,7 +267,6 @@ export class TextLogger extends BaseLogger {
     }
     console.log(loaded);
 
-    // Listening line
     console.log(
       `Ready to accept requests on ${server.url}${
         server.rejectOnSdkError ? " (reject-on-sdk-error)" : ""
@@ -320,13 +280,11 @@ export class TextLogger extends BaseLogger {
 
     console.log();
 
-    // Session line with validity rate
     const validPct = Math.round(session.validityRate * 100);
     console.log(
       `Session: ${session.requestCount} requests (${validPct}% structurally valid)`,
     );
 
-    // Issues line, only if there are issues, only non-zero categories
     const categoryEntries = Object.entries(session.categoryBreakdown)
       .filter(([_, count]) => count > 0);
     if (categoryEntries.length > 0) {
@@ -341,11 +299,9 @@ export class TextLogger extends BaseLogger {
       );
 
       if (coverage.untestedEndpoints.length > 0) {
-        // Group untested endpoints by path prefix for compact display
         const grouped = new Map<string, string[]>();
         for (const ep of coverage.untestedEndpoints) {
           const [method, path] = ep.split(" ", 2);
-          // Use the first path segment as the group key
           const prefix = "/" + (path?.split("/")[1] ?? "");
           const existing = grouped.get(prefix);
           if (existing) {
@@ -366,7 +322,6 @@ export class TextLogger extends BaseLogger {
           console.log(
             `  Untested: ${coverage.untestedEndpoints.length} endpoints across ${grouped.size} path groups`,
           );
-          // Show top groups by count
           const sorted = [...grouped.entries()].sort(
             (a, b) => b[1].length - a[1].length,
           );
@@ -383,7 +338,6 @@ export class TextLogger extends BaseLogger {
     if (
       event.generationWarnings && event.generationWarnings.length > 0
     ) {
-      // Deduplicate (same endpoint may warn multiple times)
       const unique = [...new Set(event.generationWarnings)];
       console.log(
         `Response warnings: ${unique.length} endpoint${

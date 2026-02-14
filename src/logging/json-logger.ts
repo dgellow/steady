@@ -1,5 +1,8 @@
 /**
- * JsonLogger - NDJSON output for CI and machine parsing
+ * JsonLogger - NDJSON output for CI and machine parsing.
+ *
+ * Outputs Diagnostic objects directly. No transformation or
+ * reformatting; the Diagnostic type is already the right shape.
  */
 
 import { BaseLogger } from "./logger.ts";
@@ -40,29 +43,17 @@ export class JsonLogger extends BaseLogger {
           ? { responseWarning: event.response.responseWarning }
           : {}),
       },
-      validation: {
-        valid: event.validation.valid,
-        errors: event.validation.errors.map((e) => ({
-          path: e.path,
-          keyword: e.keyword,
-          expected: e.expected,
-          actual: e.actual,
-          specPointer: e.specPointer,
-          category: e.category,
-          confidence: e.attribution.confidence,
-          suggestion: e.suggestion,
-        })),
-        warnings: event.validation.warnings.map((w) => ({
-          path: w.path,
-          keyword: w.keyword,
-          expected: w.expected,
-          actual: w.actual,
-          specPointer: w.specPointer,
-          category: w.category,
-          confidence: w.attribution.confidence,
-          suggestion: w.suggestion,
-        })),
-      },
+      diagnostics: event.diagnostics.map((d) => ({
+        code: d.code,
+        severity: d.severity,
+        category: d.category,
+        path: d.requestPath,
+        message: d.message,
+        expected: d.expected,
+        actual: d.actual,
+        confidence: d.attribution.confidence,
+        suggestion: d.suggestion,
+      })),
     };
 
     console.log(JSON.stringify(output));
@@ -110,24 +101,20 @@ export class JsonLogger extends BaseLogger {
   }
 
   warning(message: string, context?: Record<string, unknown>): void {
-    const output = {
+    console.log(JSON.stringify({
       type: "warning",
       timestamp: new Date().toISOString(),
       message,
       context,
-    };
-
-    console.log(JSON.stringify(output));
+    }));
   }
 
   error(message: string, context?: Record<string, unknown>): void {
-    const output = {
+    console.log(JSON.stringify({
       type: "error",
       timestamp: new Date().toISOString(),
       message,
       context,
-    };
-
-    console.log(JSON.stringify(output));
+    }));
   }
 }

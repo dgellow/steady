@@ -33,6 +33,8 @@ interface ResolvedParameter {
   required: boolean;
   schema: Schema | null;
   schemaPath: string | null;
+  style?: string;
+  explode?: boolean;
 }
 
 interface BodySchemaInfo {
@@ -156,6 +158,8 @@ export class OpenAPISpecDocument {
         required: param.in === "path" ? true : param.required === true,
         schema: hasSchema ? rawSchema : null,
         schemaPath: hasSchema ? `${pointer}/schema` : null,
+        style: param.style,
+        explode: param.explode,
       };
     });
   }

@@ -9,13 +9,11 @@ export type { Logger, LoggerOptions, LogLevel } from "./logger.ts";
 // Logger implementations
 export { TextLogger } from "./text-logger.ts";
 export { JsonLogger } from "./json-logger.ts";
-export { TuiLogger } from "./tui-logger.ts";
 
 // Types
 export type { RequestEvent, ShutdownEvent, StartupEvent } from "./types.ts";
 
 // Formatting utilities
-export { formatActual, formatExpected } from "./format-expected.ts";
 export {
   formatDiagnostic,
   formatDiagnostics,
