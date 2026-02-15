@@ -385,7 +385,7 @@ async function startServer(
 
   // Run spec analysis
   const baseUri = specPathToBaseUri(specPath);
-  const analysis = await analyzeSpec(spec, { baseUri, defaultedFields });
+  const analysis = analyzeSpec(spec, { baseUri, defaultedFields });
   if (analysis.fatal) {
     throw new FatalSpecError(analysis.diagnostics);
   }
@@ -565,7 +565,7 @@ Examples:
 
     // Run spec analysis
     const baseUri = specPathToBaseUri(specPath);
-    const analysis = await analyzeSpec(spec, { baseUri, defaultedFields });
+    const analysis = analyzeSpec(spec, { baseUri, defaultedFields });
 
     if (analysis.diagnostics.length === 0) {
       console.log("All good");

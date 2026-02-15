@@ -32,10 +32,10 @@ export interface AnalyzeSpecOptions {
  * Analyze a parsed OpenAPI spec for structural issues.
  * Returns diagnostics and whether any are fatal (spec cannot be served).
  */
-export async function analyzeSpec(
+export function analyzeSpec(
   spec: OpenAPISpec,
   options?: AnalyzeSpecOptions,
-): Promise<SpecAnalysisResult> {
+): SpecAnalysisResult {
   const diagnostics: Diagnostic[] = [];
 
   // E1003: Missing metadata fields (parser applied defaults)
@@ -44,7 +44,7 @@ export async function analyzeSpec(
   }
 
   // Metaschema validation for OpenAPI 3.1.x
-  diagnostics.push(...await checkMetaschema(spec, options?.baseUri));
+  diagnostics.push(...checkMetaschema(spec, options?.baseUri));
 
   diagnostics.push(...checkMultipleQuestionMarks(spec));
   diagnostics.push(...checkQuestionMarkInParams(spec));
@@ -190,14 +190,14 @@ function metaschemaMessage(keyword: string): string {
  * Warnings → E1015 with user-centric messages pointing at the spec location.
  * Deduplicated by instancePath + keyword.
  */
-async function checkMetaschema(
+function checkMetaschema(
   spec: OpenAPISpec,
   baseUri?: string,
-): Promise<Diagnostic[]> {
+): Diagnostic[] {
   if (!spec.openapi.startsWith("3.1.")) return [];
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(spec, { metaschema, baseUri });
+  const result = processor.process(spec, { metaschema, baseUri });
 
   if (result.valid || result.errors.length === 0) return [];
 

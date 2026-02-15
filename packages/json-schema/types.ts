@@ -184,7 +184,6 @@ export interface ProcessedSchema {
   // Reference resolution results
   refs: {
     resolved: Map<string, Schema | boolean>; // All resolved references
-    graph: DependencyGraph; // Reference dependency graph
     cyclic: Set<string>; // Detected circular references
   };
 
@@ -236,12 +235,6 @@ export interface LineInfo {
   start: number;
   end: number;
   column?: number;
-}
-
-export interface DependencyGraph {
-  nodes: Set<string>;
-  edges: Map<string, Set<string>>;
-  cycles: string[][];
 }
 
 export interface SchemaProcessResult {

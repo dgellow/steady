@@ -6,20 +6,20 @@ import { assertEquals } from "@std/assert";
 import { JsonSchemaProcessor } from "./processor.ts";
 import type { Schema } from "./types.ts";
 
-Deno.test("Cycle Detection - direct self-reference", async () => {
+Deno.test("Cycle Detection - direct self-reference", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     $ref: "#",
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   assertEquals(result.schema?.refs.cyclic.size, 1);
   assertEquals(result.schema?.refs.cyclic.has("#"), true);
 });
 
-Deno.test("Cycle Detection - property references parent", async () => {
+Deno.test("Cycle Detection - property references parent", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     type: "object",
@@ -28,7 +28,7 @@ Deno.test("Cycle Detection - property references parent", async () => {
     },
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   assertEquals(result.schema?.refs.cyclic.size, 2);
@@ -36,7 +36,7 @@ Deno.test("Cycle Detection - property references parent", async () => {
   assertEquals(result.schema?.refs.cyclic.has("#/properties/self"), true);
 });
 
-Deno.test("Cycle Detection - two-step cycle", async () => {
+Deno.test("Cycle Detection - two-step cycle", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     $defs: {
@@ -46,7 +46,7 @@ Deno.test("Cycle Detection - two-step cycle", async () => {
     $ref: "#/$defs/A",
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   assertEquals(result.schema!.refs.cyclic.size >= 2, true);
@@ -54,7 +54,7 @@ Deno.test("Cycle Detection - two-step cycle", async () => {
   assertEquals(result.schema!.refs.cyclic.has("#/$defs/B"), true);
 });
 
-Deno.test("Cycle Detection - three-step cycle", async () => {
+Deno.test("Cycle Detection - three-step cycle", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     $defs: {
@@ -65,7 +65,7 @@ Deno.test("Cycle Detection - three-step cycle", async () => {
     $ref: "#/$defs/A",
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   assertEquals(result.schema!.refs.cyclic.size >= 3, true);
@@ -74,7 +74,7 @@ Deno.test("Cycle Detection - three-step cycle", async () => {
   assertEquals(result.schema!.refs.cyclic.has("#/$defs/C"), true);
 });
 
-Deno.test("Cycle Detection - nested property cycle", async () => {
+Deno.test("Cycle Detection - nested property cycle", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     type: "object",
@@ -89,14 +89,14 @@ Deno.test("Cycle Detection - nested property cycle", async () => {
     },
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   // Should detect cycles for references that point to parent paths
   assertEquals(result.schema!.refs.cyclic.size > 0, true);
 });
 
-Deno.test("Cycle Detection - no cycle with forward references", async () => {
+Deno.test("Cycle Detection - no cycle with forward references", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     type: "object",
@@ -110,13 +110,13 @@ Deno.test("Cycle Detection - no cycle with forward references", async () => {
     },
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   assertEquals(result.schema?.refs.cyclic.size, 0);
 });
 
-Deno.test("Cycle Detection - complex mixed references", async () => {
+Deno.test("Cycle Detection - complex mixed references", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     $defs: {
@@ -151,7 +151,7 @@ Deno.test("Cycle Detection - complex mixed references", async () => {
     },
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   // Should detect the A-B cycle

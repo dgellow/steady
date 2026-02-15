@@ -6,7 +6,7 @@ import { assertEquals } from "@std/assert";
 import { JsonSchemaProcessor } from "./processor.ts";
 import type { Schema } from "./types.ts";
 
-Deno.test("JsonSchemaProcessor - process valid schema", async () => {
+Deno.test("JsonSchemaProcessor - process valid schema", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     type: "object",
@@ -17,7 +17,7 @@ Deno.test("JsonSchemaProcessor - process valid schema", async () => {
     required: ["name"],
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
@@ -25,7 +25,7 @@ Deno.test("JsonSchemaProcessor - process valid schema", async () => {
   assertEquals(result.metadata?.totalSchemas, 3); // root + 2 properties
 });
 
-Deno.test("JsonSchemaProcessor - process schema with references", async () => {
+Deno.test("JsonSchemaProcessor - process schema with references", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     type: "object",
@@ -43,7 +43,7 @@ Deno.test("JsonSchemaProcessor - process schema with references", async () => {
     },
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
@@ -52,7 +52,7 @@ Deno.test("JsonSchemaProcessor - process schema with references", async () => {
   assertEquals(result.schema?.refs.resolved.has("#/$defs/User"), true);
 });
 
-Deno.test("JsonSchemaProcessor - handle invalid schema", async () => {
+Deno.test("JsonSchemaProcessor - handle invalid schema", () => {
   const processor = new JsonSchemaProcessor();
   const invalidSchema = {
     type: "invalid-type", // Invalid type
@@ -61,7 +61,7 @@ Deno.test("JsonSchemaProcessor - handle invalid schema", async () => {
 
   // Malformed schemas may throw (fail fast) or return errors - either is valid
   try {
-    const result = await processor.process(invalidSchema);
+    const result = processor.process(invalidSchema);
     // If we get here, it should indicate failure
     assertEquals(result.valid, false);
     assertEquals(result.errors.length > 0, true);
@@ -71,7 +71,7 @@ Deno.test("JsonSchemaProcessor - handle invalid schema", async () => {
   }
 });
 
-Deno.test("JsonSchemaProcessor - detect circular references", async () => {
+Deno.test("JsonSchemaProcessor - detect circular references", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     type: "object",
@@ -80,7 +80,7 @@ Deno.test("JsonSchemaProcessor - detect circular references", async () => {
     },
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   assertEquals(result.warnings.length >= 0, true); // May or may not have warnings
@@ -91,21 +91,21 @@ Deno.test("JsonSchemaProcessor - detect circular references", async () => {
   );
 });
 
-Deno.test("JsonSchemaProcessor - process boolean schema", async () => {
+Deno.test("JsonSchemaProcessor - process boolean schema", () => {
   const processor = new JsonSchemaProcessor();
 
   // true schema allows anything
-  const trueResult = await processor.process(true);
+  const trueResult = processor.process(true);
   assertEquals(trueResult.valid, true);
   assertEquals(trueResult.schema?.root, true);
 
   // false schema allows nothing
-  const falseResult = await processor.process(false);
+  const falseResult = processor.process(false);
   assertEquals(falseResult.valid, true);
   assertEquals(falseResult.schema?.root, false);
 });
 
-Deno.test("JsonSchemaProcessor - process complex schema", async () => {
+Deno.test("JsonSchemaProcessor - process complex schema", () => {
   const processor = new JsonSchemaProcessor();
   const schema: Schema = {
     type: "object",
@@ -135,7 +135,7 @@ Deno.test("JsonSchemaProcessor - process complex schema", async () => {
     additionalProperties: false,
   };
 
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);

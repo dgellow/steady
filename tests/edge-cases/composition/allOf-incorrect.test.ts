@@ -13,7 +13,7 @@ import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts"
 import { TreeValidator } from "../../../packages/json-schema/tree-validator.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
-Deno.test("EDGE: allOf with circular self-reference", async () => {
+Deno.test("EDGE: allOf with circular self-reference", () => {
   const schema: Schema = {
     allOf: [
       { $ref: "#/$defs/A" },
@@ -29,7 +29,7 @@ Deno.test("EDGE: allOf with circular self-reference", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should detect cycle and not crash
   assertEquals(result.valid, true, "Should process without crashing");
@@ -46,7 +46,7 @@ Deno.test("EDGE: allOf with circular self-reference", async () => {
   );
 });
 
-Deno.test("EDGE: allOf with conflicting type requirements", async () => {
+Deno.test("EDGE: allOf with conflicting type requirements", () => {
   const schema: Schema = {
     allOf: [
       { type: "string" },
@@ -55,7 +55,7 @@ Deno.test("EDGE: allOf with conflicting type requirements", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // This schema is technically valid but creates an impossible constraint
   // Validation of data should fail, but schema processing should succeed
@@ -77,7 +77,7 @@ Deno.test("EDGE: allOf with conflicting type requirements", async () => {
   );
 });
 
-Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
+Deno.test("EDGE: allOf with conflicting numeric constraints", () => {
   const schema: Schema = {
     type: "number",
     allOf: [
@@ -87,7 +87,7 @@ Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Schema is valid, but creates impossible constraint
   assertEquals(result.valid, true, "Schema itself should be valid");
@@ -115,7 +115,7 @@ Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
 Deno.test({
   name: "EDGE: Deeply nested allOf (100 levels)",
 
-  async fn() {
+  fn() {
     // Create deeply nested allOf schema
     let schema: Schema = { type: "object" };
     for (let i = 0; i < 100; i++) {
@@ -126,7 +126,7 @@ Deno.test({
 
     const processor = new JsonSchemaProcessor();
     const start = performance.now();
-    const result = await processor.process(schema);
+    const result = processor.process(schema);
     const duration = performance.now() - start;
 
     // Should handle without stack overflow
@@ -141,7 +141,7 @@ Deno.test({
   },
 });
 
-Deno.test("EDGE: allOf with circular refs through properties", async () => {
+Deno.test("EDGE: allOf with circular refs through properties", () => {
   const schema: Schema = {
     allOf: [
       { properties: { a: { $ref: "#/$defs/B" } } },
@@ -154,7 +154,7 @@ Deno.test("EDGE: allOf with circular refs through properties", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should detect cycles
   assertEquals(result.valid, true, "Should process without crashing");
@@ -166,7 +166,7 @@ Deno.test("EDGE: allOf with circular refs through properties", async () => {
   );
 });
 
-Deno.test("EDGE: allOf with indirect circular reference", async () => {
+Deno.test("EDGE: allOf with indirect circular reference", () => {
   const schema: Schema = {
     $defs: {
       A: {
@@ -192,7 +192,7 @@ Deno.test("EDGE: allOf with indirect circular reference", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should detect three-way cycle
   assertEquals(result.valid, true, "Should process without crashing");
@@ -219,7 +219,7 @@ Deno.test("EDGE: allOf with indirect circular reference", async () => {
   );
 });
 
-Deno.test("EDGE: allOf with mixed composition and recursion", async () => {
+Deno.test("EDGE: allOf with mixed composition and recursion", () => {
   const schema: Schema = {
     allOf: [
       { $ref: "#/$defs/Base" },
@@ -255,7 +255,7 @@ Deno.test("EDGE: allOf with mixed composition and recursion", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should handle complex composition with recursion
   assertEquals(result.valid, true, "Should process complex composition");
@@ -267,7 +267,7 @@ Deno.test("EDGE: allOf with mixed composition and recursion", async () => {
   );
 });
 
-Deno.test("EDGE: allOf with additionalProperties false across schemas", async () => {
+Deno.test("EDGE: allOf with additionalProperties false across schemas", () => {
   // This pattern is known to break many tools - they incorrectly reject
   // properties defined in allOf schemas.
   //
@@ -293,7 +293,7 @@ Deno.test("EDGE: allOf with additionalProperties false across schemas", async ()
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Schema itself should be valid
   assertEquals(result.valid, true, "Schema should be valid");
@@ -324,7 +324,7 @@ Deno.test("EDGE: allOf with additionalProperties false across schemas", async ()
   );
 });
 
-Deno.test("EDGE: allOf with empty schemas", async () => {
+Deno.test("EDGE: allOf with empty schemas", () => {
   const schema: Schema = {
     allOf: [
       {}, // Empty schema (allows anything)
@@ -334,13 +334,13 @@ Deno.test("EDGE: allOf with empty schemas", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Empty schemas in allOf should be handled correctly
   assertEquals(result.valid, true, "Should handle empty schemas in allOf");
 });
 
-Deno.test("EDGE: allOf with boolean schemas", async () => {
+Deno.test("EDGE: allOf with boolean schemas", () => {
   // Boolean schemas are valid in JSON Schema 2020-12 but our type doesn't include them
   const schema = {
     allOf: [
@@ -350,13 +350,13 @@ Deno.test("EDGE: allOf with boolean schemas", async () => {
   } as unknown as Schema;
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Boolean schemas in allOf should be handled
   assertEquals(result.valid, true, "Should handle boolean schemas in allOf");
 });
 
-Deno.test("EDGE: allOf with false schema (impossible)", async () => {
+Deno.test("EDGE: allOf with false schema (impossible)", () => {
   // Boolean schemas are valid in JSON Schema 2020-12 but our type doesn't include them
   const schema = {
     allOf: [
@@ -366,7 +366,7 @@ Deno.test("EDGE: allOf with false schema (impossible)", async () => {
   } as unknown as Schema;
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Schema is valid (but creates impossible constraint)
   assertEquals(
@@ -390,7 +390,7 @@ Deno.test("EDGE: allOf with false schema (impossible)", async () => {
   );
 });
 
-Deno.test("EDGE: allOf with nested allOf", async () => {
+Deno.test("EDGE: allOf with nested allOf", () => {
   const schema: Schema = {
     allOf: [
       {
@@ -409,13 +409,13 @@ Deno.test("EDGE: allOf with nested allOf", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Nested allOf should be handled
   assertEquals(result.valid, true, "Should handle nested allOf");
 });
 
-Deno.test("EDGE: allOf with $ref that points to another allOf", async () => {
+Deno.test("EDGE: allOf with $ref that points to another allOf", () => {
   const schema: Schema = {
     allOf: [
       { $ref: "#/$defs/AllOfDef" },
@@ -442,7 +442,7 @@ Deno.test("EDGE: allOf with $ref that points to another allOf", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should handle reference chains through allOf
   assertEquals(result.valid, true, "Should handle allOf reference chains");
@@ -466,7 +466,7 @@ Deno.test("EDGE: allOf with $ref that points to another allOf", async () => {
   );
 });
 
-Deno.test("EDGE: allOf with circular dependency in properties", async () => {
+Deno.test("EDGE: allOf with circular dependency in properties", () => {
   const schema: Schema = {
     allOf: [
       {
@@ -486,7 +486,7 @@ Deno.test("EDGE: allOf with circular dependency in properties", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should handle circular dependency in allOf properties
   assertEquals(result.valid, true, "Should handle circular allOf properties");
@@ -498,7 +498,7 @@ Deno.test("EDGE: allOf with circular dependency in properties", async () => {
   );
 });
 
-Deno.test("EDGE: allOf merging conflicting required arrays", async () => {
+Deno.test("EDGE: allOf merging conflicting required arrays", () => {
   const schema: Schema = {
     allOf: [
       {
@@ -519,7 +519,7 @@ Deno.test("EDGE: allOf merging conflicting required arrays", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should merge required arrays correctly (union)
   assertEquals(
@@ -549,7 +549,7 @@ Deno.test("EDGE: allOf merging conflicting required arrays", async () => {
   );
 });
 
-Deno.test("EDGE: allOf with unevaluatedProperties", async () => {
+Deno.test("EDGE: allOf with unevaluatedProperties", () => {
   const schema: Schema = {
     allOf: [
       {
@@ -562,7 +562,7 @@ Deno.test("EDGE: allOf with unevaluatedProperties", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // unevaluatedProperties is a complex keyword
   assertEquals(
@@ -575,7 +575,7 @@ Deno.test("EDGE: allOf with unevaluatedProperties", async () => {
 Deno.test({
   name: "EDGE: Performance - allOf with many schemas",
 
-  async fn() {
+  fn() {
     // Create allOf with 100 schemas
     const schemas: Schema[] = [];
     for (let i = 0; i < 100; i++) {
@@ -592,7 +592,7 @@ Deno.test({
 
     const processor = new JsonSchemaProcessor();
     const start = performance.now();
-    const result = await processor.process(schema);
+    const result = processor.process(schema);
     const duration = performance.now() - start;
 
     // Should handle many allOf schemas efficiently

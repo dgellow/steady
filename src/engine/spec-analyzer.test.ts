@@ -48,15 +48,15 @@ function unreachable(): never {
 
 // ── Skeleton ────────────────────────────────────────────────────────
 
-Deno.test("analyzeSpec - clean spec produces no diagnostics", async () => {
-  const result = await analyzeSpec(minimalSpec());
+Deno.test("analyzeSpec - clean spec produces no diagnostics", () => {
+  const result = analyzeSpec(minimalSpec());
   assertEquals(result.diagnostics.length, 0);
   assertEquals(result.fatal, false);
 });
 
 // ── E1013: Multiple question marks in path ──────────────────────────
 
-Deno.test("E1013 - detects multiple question marks in path", async () => {
+Deno.test("E1013 - detects multiple question marks in path", () => {
   const spec = minimalSpec({
     paths: {
       "/search?q=1?page=2": {
@@ -65,7 +65,7 @@ Deno.test("E1013 - detects multiple question marks in path", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1013");
   assertEquals(d.severity, "warning");
   assertEquals(d.category, "spec-issue");
@@ -73,7 +73,7 @@ Deno.test("E1013 - detects multiple question marks in path", async () => {
   assertEquals(d.specPointer, "#/paths/~1search?q=1?page=2");
 });
 
-Deno.test("E1013 - single question mark is fine", async () => {
+Deno.test("E1013 - single question mark is fine", () => {
   const spec = minimalSpec({
     paths: {
       "/search?q=1": {
@@ -82,13 +82,13 @@ Deno.test("E1013 - single question mark is fine", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1013", 0);
 });
 
 // ── E1014: Question mark in parameter name/enum ─────────────────────
 
-Deno.test("E1014 - detects question mark in parameter name", async () => {
+Deno.test("E1014 - detects question mark in parameter name", () => {
   const spec = minimalSpec({
     paths: {
       "/search": {
@@ -102,12 +102,12 @@ Deno.test("E1014 - detects question mark in parameter name", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1014");
   assertEquals(d.message.includes("q?"), true);
 });
 
-Deno.test("E1014 - detects question mark in enum value", async () => {
+Deno.test("E1014 - detects question mark in enum value", () => {
   const spec = minimalSpec({
     paths: {
       "/filter": {
@@ -125,12 +125,12 @@ Deno.test("E1014 - detects question mark in enum value", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1014");
   assertEquals(d.message.includes("inactive?"), true);
 });
 
-Deno.test("E1014 - resolves $ref parameters", async () => {
+Deno.test("E1014 - resolves $ref parameters", () => {
   const spec = minimalSpec({
     paths: {
       "/search": {
@@ -149,11 +149,11 @@ Deno.test("E1014 - resolves $ref parameters", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1014", 1);
 });
 
-Deno.test("E1014 - path-level parameters are checked", async () => {
+Deno.test("E1014 - path-level parameters are checked", () => {
   const spec = minimalSpec({
     paths: {
       "/search": {
@@ -167,13 +167,13 @@ Deno.test("E1014 - path-level parameters are checked", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1014", 1);
 });
 
 // ── E1008: Duplicate path patterns ──────────────────────────────────
 
-Deno.test("E1008 - detects duplicate path patterns", async () => {
+Deno.test("E1008 - detects duplicate path patterns", () => {
   const spec = minimalSpec({
     paths: {
       "/users/{userId}": {
@@ -185,13 +185,13 @@ Deno.test("E1008 - detects duplicate path patterns", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1008"); // One per conflict group
   assertEquals(d.message.includes("/users/{userId}"), true);
   assertEquals(d.message.includes("/users/{id}"), true);
 });
 
-Deno.test("E1008 - no false positive for different structures", async () => {
+Deno.test("E1008 - no false positive for different structures", () => {
   const spec = minimalSpec({
     paths: {
       "/users/{userId}": {
@@ -203,13 +203,13 @@ Deno.test("E1008 - no false positive for different structures", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1008", 0);
 });
 
 // ── E1009: Duplicate path parameter names ───────────────────────────
 
-Deno.test("E1009 - detects duplicate parameter names in path", async () => {
+Deno.test("E1009 - detects duplicate parameter names in path", () => {
   const spec = minimalSpec({
     paths: {
       "/users/{id}/posts/{id}": {
@@ -218,12 +218,12 @@ Deno.test("E1009 - detects duplicate parameter names in path", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1009");
   assertEquals(d.message.includes("{id}"), true);
 });
 
-Deno.test("E1009 - unique parameter names are fine", async () => {
+Deno.test("E1009 - unique parameter names are fine", () => {
   const spec = minimalSpec({
     paths: {
       "/users/{userId}/posts/{postId}": {
@@ -232,13 +232,13 @@ Deno.test("E1009 - unique parameter names are fine", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1009", 0);
 });
 
 // ── E1010: Missing responses ────────────────────────────────────────
 
-Deno.test("E1010 - detects operation with empty responses", async () => {
+Deno.test("E1010 - detects operation with empty responses", () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -247,19 +247,19 @@ Deno.test("E1010 - detects operation with empty responses", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1010");
   assertEquals(d.message.includes("GET /users"), true);
 });
 
-Deno.test("E1010 - operation with responses is fine", async () => {
-  const result = await analyzeSpec(minimalSpec());
+Deno.test("E1010 - operation with responses is fine", () => {
+  const result = analyzeSpec(minimalSpec());
   filterCode(result.diagnostics, "E1010", 0);
 });
 
 // ── E1011: Invalid component names ──────────────────────────────────
 
-Deno.test("E1011 - detects invalid component name", async () => {
+Deno.test("E1011 - detects invalid component name", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -270,11 +270,11 @@ Deno.test("E1011 - detects invalid component name", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1011", 2); // "Invalid Name" and "also/invalid"
 });
 
-Deno.test("E1011 - valid component names are fine", async () => {
+Deno.test("E1011 - valid component names are fine", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -285,13 +285,13 @@ Deno.test("E1011 - valid component names are fine", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1011", 0);
 });
 
 // ── E1007: Keywords alongside $ref (3.0.x) ─────────────────────────
 
-Deno.test("E1007 - detects keywords alongside $ref in 3.0.x", async () => {
+Deno.test("E1007 - detects keywords alongside $ref in 3.0.x", () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -319,12 +319,12 @@ Deno.test("E1007 - detects keywords alongside $ref in 3.0.x", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1007");
   assertEquals(d.message.includes("nullable"), true);
 });
 
-Deno.test("E1007 - summary/description alongside $ref are ignored", async () => {
+Deno.test("E1007 - summary/description alongside $ref are ignored", () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -352,11 +352,11 @@ Deno.test("E1007 - summary/description alongside $ref are ignored", async () => 
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1007", 0);
 });
 
-Deno.test("E1007 - no warning for webhook schemas", async () => {
+Deno.test("E1007 - no warning for webhook schemas", () => {
   const spec = minimalSpec({
     webhooks: {
       "card.created": {
@@ -383,11 +383,11 @@ Deno.test("E1007 - no warning for webhook schemas", async () => {
     },
   } as Partial<OpenAPISpec>);
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1007", 0);
 });
 
-Deno.test("E1007 - no warning for 3.1.x specs", async () => {
+Deno.test("E1007 - no warning for 3.1.x specs", () => {
   const spec: OpenAPISpec = {
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
@@ -417,13 +417,13 @@ Deno.test("E1007 - no warning for 3.1.x specs", async () => {
     },
   };
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1007", 0);
 });
 
 // ── E1004: Unresolved $ref ──────────────────────────────────────────
 
-Deno.test("E1004 - detects unresolved $ref", async () => {
+Deno.test("E1004 - detects unresolved $ref", () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -443,12 +443,12 @@ Deno.test("E1004 - detects unresolved $ref", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1004", 1);
   assertEquals(result.fatal, true);
 });
 
-Deno.test("E1004 - valid $ref produces no diagnostic", async () => {
+Deno.test("E1004 - valid $ref produces no diagnostic", () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -473,13 +473,13 @@ Deno.test("E1004 - valid $ref produces no diagnostic", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1004", 0);
 });
 
 // ── E1005: Circular $ref ────────────────────────────────────────────
 
-Deno.test("E1005 - suppresses cycle through optional property", async () => {
+Deno.test("E1005 - suppresses cycle through optional property", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -493,11 +493,11 @@ Deno.test("E1005 - suppresses cycle through optional property", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 - suppresses indirect cycle through optional properties", async () => {
+Deno.test("E1005 - suppresses indirect cycle through optional properties", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -517,11 +517,11 @@ Deno.test("E1005 - suppresses indirect cycle through optional properties", async
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 - non-circular refs are fine", async () => {
+Deno.test("E1005 - non-circular refs are fine", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -536,11 +536,11 @@ Deno.test("E1005 - non-circular refs are fine", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 - detects forced self-reference (required property)", async () => {
+Deno.test("E1005 - detects forced self-reference (required property)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -555,12 +555,12 @@ Deno.test("E1005 - detects forced self-reference (required property)", async () 
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const e1005 = result.diagnostics.filter((d) => d.code === "E1005");
   assertEquals(e1005.length >= 1, true);
 });
 
-Deno.test("E1005 - detects forced indirect cycle (all edges required)", async () => {
+Deno.test("E1005 - detects forced indirect cycle (all edges required)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -582,12 +582,12 @@ Deno.test("E1005 - detects forced indirect cycle (all edges required)", async ()
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const e1005 = result.diagnostics.filter((d) => d.code === "E1005");
   assertEquals(e1005.length >= 1, true);
 });
 
-Deno.test("E1005 - suppresses cycle through array items", async () => {
+Deno.test("E1005 - suppresses cycle through array items", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -605,11 +605,11 @@ Deno.test("E1005 - suppresses cycle through array items", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 - suppresses cycle through oneOf alternative", async () => {
+Deno.test("E1005 - suppresses cycle through oneOf alternative", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -630,11 +630,11 @@ Deno.test("E1005 - suppresses cycle through oneOf alternative", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 - mixed: forced + optional edge → suppressed", async () => {
+Deno.test("E1005 - mixed: forced + optional edge → suppressed", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -655,13 +655,13 @@ Deno.test("E1005 - mixed: forced + optional edge → suppressed", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1005", 0);
 });
 
 // ── E1012: Impossible schema constraints ────────────────────────────
 
-Deno.test("E1012 - detects minimum > maximum", async () => {
+Deno.test("E1012 - detects minimum > maximum", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -670,12 +670,12 @@ Deno.test("E1012 - detects minimum > maximum", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1012");
   assertEquals(d.message.includes("minimum"), true);
 });
 
-Deno.test("E1012 - detects minLength > maxLength", async () => {
+Deno.test("E1012 - detects minLength > maxLength", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -684,11 +684,11 @@ Deno.test("E1012 - detects minLength > maxLength", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 - detects minItems > maxItems", async () => {
+Deno.test("E1012 - detects minItems > maxItems", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -702,11 +702,11 @@ Deno.test("E1012 - detects minItems > maxItems", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 - detects minProperties > maxProperties", async () => {
+Deno.test("E1012 - detects minProperties > maxProperties", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -715,11 +715,11 @@ Deno.test("E1012 - detects minProperties > maxProperties", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 - detects required > maxProperties", async () => {
+Deno.test("E1012 - detects required > maxProperties", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -732,11 +732,11 @@ Deno.test("E1012 - detects required > maxProperties", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 - detects empty enum", async () => {
+Deno.test("E1012 - detects empty enum", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -745,11 +745,11 @@ Deno.test("E1012 - detects empty enum", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 - detects conflicting allOf types", async () => {
+Deno.test("E1012 - detects conflicting allOf types", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -763,12 +763,12 @@ Deno.test("E1012 - detects conflicting allOf types", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1012");
   assertEquals(d.message.includes("conflicting types"), true);
 });
 
-Deno.test("E1012 - valid constraints produce no diagnostic", async () => {
+Deno.test("E1012 - valid constraints produce no diagnostic", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -784,13 +784,13 @@ Deno.test("E1012 - valid constraints produce no diagnostic", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 0);
 });
 
 // ── E1012: inline schemas ───────────────────────────────────────────
 
-Deno.test("E1012 - detects impossible constraints in inline request body schema", async () => {
+Deno.test("E1012 - detects impossible constraints in inline request body schema", () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -808,11 +808,11 @@ Deno.test("E1012 - detects impossible constraints in inline request body schema"
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
-Deno.test("E1012 - detects impossible constraints in inline response schema", async () => {
+Deno.test("E1012 - detects impossible constraints in inline response schema", () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -837,13 +837,13 @@ Deno.test("E1012 - detects impossible constraints in inline response schema", as
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
 // ── Fatal flag ──────────────────────────────────────────────────────
 
-Deno.test("analyzeSpec - fatal flag is true when E1004 is present", async () => {
+Deno.test("analyzeSpec - fatal flag is true when E1004 is present", () => {
   const spec = minimalSpec({
     paths: {
       "/bad": {
@@ -863,11 +863,11 @@ Deno.test("analyzeSpec - fatal flag is true when E1004 is present", async () => 
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   assertEquals(result.fatal, true);
 });
 
-Deno.test("analyzeSpec - fatal flag is false for warnings only", async () => {
+Deno.test("analyzeSpec - fatal flag is false for warnings only", () => {
   const spec = minimalSpec({
     paths: {
       "/search?q=1?page=2": {
@@ -876,14 +876,14 @@ Deno.test("analyzeSpec - fatal flag is false for warnings only", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   assertEquals(result.fatal, false);
   assertEquals(result.diagnostics.length > 0, true);
 });
 
 // ── E1005: 3-node cycle ─────────────────────────────────────────────
 
-Deno.test("E1005 - suppresses 3-node cycle through optional properties", async () => {
+Deno.test("E1005 - suppresses 3-node cycle through optional properties", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -903,11 +903,11 @@ Deno.test("E1005 - suppresses 3-node cycle through optional properties", async (
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1005", 0);
 });
 
-Deno.test("E1005 - suppresses multiple independent optional cycles", async () => {
+Deno.test("E1005 - suppresses multiple independent optional cycles", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -933,13 +933,13 @@ Deno.test("E1005 - suppresses multiple independent optional cycles", async () =>
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1005", 0);
 });
 
 // ── E1004: external refs are ignored ────────────────────────────────
 
-Deno.test("E1004 - external refs (non-#) are not flagged as unresolved", async () => {
+Deno.test("E1004 - external refs (non-#) are not flagged as unresolved", () => {
   const spec = minimalSpec({
     paths: {
       "/users": {
@@ -959,14 +959,14 @@ Deno.test("E1004 - external refs (non-#) are not flagged as unresolved", async (
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const e1004 = result.diagnostics.filter((d) => d.code === "E1004");
   assertEquals(e1004.length, 0);
 });
 
 // ── E1012: exclusive bounds (numeric, 3.1.x style) ─────────────────
 
-Deno.test("E1012 - detects exclusiveMinimum >= maximum (numeric)", async () => {
+Deno.test("E1012 - detects exclusiveMinimum >= maximum (numeric)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -975,12 +975,12 @@ Deno.test("E1012 - detects exclusiveMinimum >= maximum (numeric)", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1012");
   assertEquals(d.message.includes("exclusiveMinimum"), true);
 });
 
-Deno.test("E1012 - detects minimum >= exclusiveMaximum (numeric)", async () => {
+Deno.test("E1012 - detects minimum >= exclusiveMaximum (numeric)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -989,12 +989,12 @@ Deno.test("E1012 - detects minimum >= exclusiveMaximum (numeric)", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1012");
   assertEquals(d.message.includes("exclusiveMaximum"), true);
 });
 
-Deno.test("E1012 - detects exclusiveMinimum >= exclusiveMaximum (numeric)", async () => {
+Deno.test("E1012 - detects exclusiveMinimum >= exclusiveMaximum (numeric)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1003,13 +1003,13 @@ Deno.test("E1012 - detects exclusiveMinimum >= exclusiveMaximum (numeric)", asyn
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1012");
   assertEquals(d.message.includes("exclusiveMinimum"), true);
   assertEquals(d.message.includes("exclusiveMaximum"), true);
 });
 
-Deno.test("E1012 - valid exclusive bounds produce no diagnostic (numeric)", async () => {
+Deno.test("E1012 - valid exclusive bounds produce no diagnostic (numeric)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1018,13 +1018,13 @@ Deno.test("E1012 - valid exclusive bounds produce no diagnostic (numeric)", asyn
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 0);
 });
 
 // ── E1012: exclusive bounds (boolean, 3.0.x style) ─────────────────
 
-Deno.test("E1012 - detects min == max with exclusiveMinimum: true (boolean)", async () => {
+Deno.test("E1012 - detects min == max with exclusiveMinimum: true (boolean)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1038,12 +1038,12 @@ Deno.test("E1012 - detects min == max with exclusiveMinimum: true (boolean)", as
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1012");
   assertEquals(d.message.includes("exclusiveMinimum"), true);
 });
 
-Deno.test("E1012 - detects min == max with exclusiveMaximum: true (boolean)", async () => {
+Deno.test("E1012 - detects min == max with exclusiveMaximum: true (boolean)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1057,12 +1057,12 @@ Deno.test("E1012 - detects min == max with exclusiveMaximum: true (boolean)", as
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1012");
   assertEquals(d.message.includes("exclusiveMaximum"), true);
 });
 
-Deno.test("E1012 - min < max with exclusiveMinimum: true is fine (boolean)", async () => {
+Deno.test("E1012 - min < max with exclusiveMinimum: true is fine (boolean)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1076,13 +1076,13 @@ Deno.test("E1012 - min < max with exclusiveMinimum: true is fine (boolean)", asy
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 0);
 });
 
 // ── E1012: inline parameter schemas ─────────────────────────────────
 
-Deno.test("E1012 - detects impossible constraint in inline parameter schema", async () => {
+Deno.test("E1012 - detects impossible constraint in inline parameter schema", () => {
   const spec = minimalSpec({
     paths: {
       "/search": {
@@ -1100,13 +1100,13 @@ Deno.test("E1012 - detects impossible constraint in inline parameter schema", as
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
 // ── E1012: path-level parameter schemas ─────────────────────────────
 
-Deno.test("E1012 - detects impossible constraint in path-level parameter schema", async () => {
+Deno.test("E1012 - detects impossible constraint in path-level parameter schema", () => {
   const spec = minimalSpec({
     paths: {
       "/items": {
@@ -1124,13 +1124,13 @@ Deno.test("E1012 - detects impossible constraint in path-level parameter schema"
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
 // ── E1012: nested property schemas ──────────────────────────────────
 
-Deno.test("E1012 - detects impossible constraint in deeply nested schema", async () => {
+Deno.test("E1012 - detects impossible constraint in deeply nested schema", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1149,13 +1149,13 @@ Deno.test("E1012 - detects impossible constraint in deeply nested schema", async
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1012", 1);
 });
 
 // ── E1015: Non-standard usage ────────────────────────────────────────
 
-Deno.test("E1015 - numeric exclusiveMinimum in 3.0.x spec", async () => {
+Deno.test("E1015 - numeric exclusiveMinimum in 3.0.x spec", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1164,14 +1164,14 @@ Deno.test("E1015 - numeric exclusiveMinimum in 3.0.x spec", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1015");
   assertEquals(d.severity, "info");
   assertEquals(d.message.includes("exclusiveMinimum"), true);
   assertEquals(d.message.includes("3.0.3"), true);
 });
 
-Deno.test("E1015 - numeric exclusiveMaximum in 3.0.x spec", async () => {
+Deno.test("E1015 - numeric exclusiveMaximum in 3.0.x spec", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1180,12 +1180,12 @@ Deno.test("E1015 - numeric exclusiveMaximum in 3.0.x spec", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1015");
   assertEquals(d.message.includes("exclusiveMaximum"), true);
 });
 
-Deno.test("E1015 - boolean exclusiveMinimum in 3.1.x spec", async () => {
+Deno.test("E1015 - boolean exclusiveMinimum in 3.1.x spec", () => {
   const spec: OpenAPISpec = {
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
@@ -1204,13 +1204,13 @@ Deno.test("E1015 - boolean exclusiveMinimum in 3.1.x spec", async () => {
     },
   };
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1015");
   assertEquals(d.message.includes("exclusiveMinimum"), true);
   assertEquals(d.message.includes("3.1.0"), true);
 });
 
-Deno.test("E1015 - boolean exclusiveMinimum in 3.0.x is fine (standard)", async () => {
+Deno.test("E1015 - boolean exclusiveMinimum in 3.0.x is fine (standard)", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1224,11 +1224,11 @@ Deno.test("E1015 - boolean exclusiveMinimum in 3.0.x is fine (standard)", async 
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1015", 0);
 });
 
-Deno.test("E1015 - numeric exclusiveMinimum in 3.1.x is fine (standard)", async () => {
+Deno.test("E1015 - numeric exclusiveMinimum in 3.1.x is fine (standard)", () => {
   const spec: OpenAPISpec = {
     openapi: "3.1.0",
     info: { title: "Test", version: "1.0.0" },
@@ -1242,13 +1242,13 @@ Deno.test("E1015 - numeric exclusiveMinimum in 3.1.x is fine (standard)", async 
     },
   };
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1015", 0);
 });
 
 // ── E1016: Required property not in properties ──────────────────────
 
-Deno.test("E1016 - detects required field missing from properties", async () => {
+Deno.test("E1016 - detects required field missing from properties", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1264,14 +1264,14 @@ Deno.test("E1016 - detects required field missing from properties", async () => 
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = singleDiag(result.diagnostics, "E1016");
   assertEquals(d.message.includes("meta"), true);
   assertEquals(d.severity, "warning");
   assertEquals(d.category, "spec-issue");
 });
 
-Deno.test("E1016 - no false positive when all required are in properties", async () => {
+Deno.test("E1016 - no false positive when all required are in properties", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1286,11 +1286,11 @@ Deno.test("E1016 - no false positive when all required are in properties", async
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1016", 0);
 });
 
-Deno.test("E1016 - skips schemas with required but no properties", async () => {
+Deno.test("E1016 - skips schemas with required but no properties", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1302,15 +1302,15 @@ Deno.test("E1016 - skips schemas with required but no properties", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1016", 0);
 });
 
 // ── E1003: Missing metadata (defaulted fields) ──────────────────────
 
-Deno.test("E1003 - reports diagnostics for defaulted fields", async () => {
+Deno.test("E1003 - reports diagnostics for defaulted fields", () => {
   const spec = minimalSpec();
-  const result = await analyzeSpec(spec, {
+  const result = analyzeSpec(spec, {
     defaultedFields: ["info.title", "paths"],
   });
 
@@ -1330,21 +1330,21 @@ Deno.test("E1003 - reports diagnostics for defaulted fields", async () => {
   assertEquals(e1003[1]?.suggestion, 'Add the "paths" field to your spec');
 });
 
-Deno.test("E1003 - no diagnostics when defaultedFields is empty", async () => {
+Deno.test("E1003 - no diagnostics when defaultedFields is empty", () => {
   const spec = minimalSpec();
-  const result = await analyzeSpec(spec, { defaultedFields: [] });
+  const result = analyzeSpec(spec, { defaultedFields: [] });
   filterCode(result.diagnostics, "E1003", 0);
 });
 
-Deno.test("E1003 - no diagnostics when defaultedFields is not provided", async () => {
+Deno.test("E1003 - no diagnostics when defaultedFields is not provided", () => {
   const spec = minimalSpec();
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1003", 0);
 });
 
 // ── E1012: allOf bound merging ───────────────────────────────────────
 
-Deno.test("E1012 - detects impossible merged range across allOf members", async () => {
+Deno.test("E1012 - detects impossible merged range across allOf members", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1358,13 +1358,13 @@ Deno.test("E1012 - detects impossible merged range across allOf members", async 
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const diags = result.diagnostics.filter((d) => d.code === "E1012");
   const merged = diags.find((d) => d.message.includes("allOf"));
   assertEquals(merged !== undefined, true, "should detect allOf bound merging");
 });
 
-Deno.test("E1012 - valid allOf bounds produce no diagnostic", async () => {
+Deno.test("E1012 - valid allOf bounds produce no diagnostic", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1378,7 +1378,7 @@ Deno.test("E1012 - valid allOf bounds produce no diagnostic", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const merged = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("allOf"),
   );
@@ -1387,7 +1387,7 @@ Deno.test("E1012 - valid allOf bounds produce no diagnostic", async () => {
 
 // ── E1012: type+format conflicts ─────────────────────────────────────
 
-Deno.test("E1012 - detects type integer with format email", async () => {
+Deno.test("E1012 - detects type integer with format email", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1396,14 +1396,14 @@ Deno.test("E1012 - detects type integer with format email", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("format"),
   );
   assertEquals(d.length, 1);
 });
 
-Deno.test("E1012 - no false positive for string with int64 format", async () => {
+Deno.test("E1012 - no false positive for string with int64 format", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1412,7 +1412,7 @@ Deno.test("E1012 - no false positive for string with int64 format", async () => 
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("format"),
   );
@@ -1421,7 +1421,7 @@ Deno.test("E1012 - no false positive for string with int64 format", async () => 
 
 // ── E1012: pattern on non-string type ────────────────────────────────
 
-Deno.test("E1012 - detects pattern on non-string type", async () => {
+Deno.test("E1012 - detects pattern on non-string type", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1430,14 +1430,14 @@ Deno.test("E1012 - detects pattern on non-string type", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("pattern"),
   );
   assertEquals(d.length, 1);
 });
 
-Deno.test("E1012 - no false positive for pattern on string type", async () => {
+Deno.test("E1012 - no false positive for pattern on string type", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1446,7 +1446,7 @@ Deno.test("E1012 - no false positive for pattern on string type", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("pattern"),
   );
@@ -1455,7 +1455,7 @@ Deno.test("E1012 - no false positive for pattern on string type", async () => {
 
 // ── E1012: allOf enum intersection ──────────────────────────────────
 
-Deno.test("E1012 - detects empty enum intersection in allOf", async () => {
+Deno.test("E1012 - detects empty enum intersection in allOf", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1469,14 +1469,14 @@ Deno.test("E1012 - detects empty enum intersection in allOf", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("enum intersection"),
   );
   assertEquals(d.length, 1);
 });
 
-Deno.test("E1012 - no false positive for overlapping enum in allOf", async () => {
+Deno.test("E1012 - no false positive for overlapping enum in allOf", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1490,14 +1490,14 @@ Deno.test("E1012 - no false positive for overlapping enum in allOf", async () =>
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("enum intersection"),
   );
   assertEquals(d.length, 0);
 });
 
-Deno.test("E1012 - detects empty enum intersection across 3 allOf members", async () => {
+Deno.test("E1012 - detects empty enum intersection across 3 allOf members", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1512,14 +1512,14 @@ Deno.test("E1012 - detects empty enum intersection across 3 allOf members", asyn
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("enum intersection"),
   );
   assertEquals(d.length, 1);
 });
 
-Deno.test("E1012 - single allOf member with enum is fine", async () => {
+Deno.test("E1012 - single allOf member with enum is fine", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1533,7 +1533,7 @@ Deno.test("E1012 - single allOf member with enum is fine", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("enum intersection"),
   );
@@ -1542,7 +1542,7 @@ Deno.test("E1012 - single allOf member with enum is fine", async () => {
 
 // ── E1012: const + enum conflict ─────────────────────────────────────
 
-Deno.test("E1012 - detects const not in enum", async () => {
+Deno.test("E1012 - detects const not in enum", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1551,14 +1551,14 @@ Deno.test("E1012 - detects const not in enum", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("const"),
   );
   assertEquals(d.length, 1);
 });
 
-Deno.test("E1012 - no false positive when const is in enum", async () => {
+Deno.test("E1012 - no false positive when const is in enum", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1567,7 +1567,7 @@ Deno.test("E1012 - no false positive when const is in enum", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("const"),
   );
@@ -1576,7 +1576,7 @@ Deno.test("E1012 - no false positive when const is in enum", async () => {
 
 // ── E1012: allOf type array disjointness ─────────────────────────────
 
-Deno.test("E1012 - detects disjoint type arrays in allOf", async () => {
+Deno.test("E1012 - detects disjoint type arrays in allOf", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1590,14 +1590,14 @@ Deno.test("E1012 - detects disjoint type arrays in allOf", async () => {
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("conflicting types"),
   );
   assertEquals(d.length, 1);
 });
 
-Deno.test("E1012 - no false positive for overlapping type arrays in allOf", async () => {
+Deno.test("E1012 - no false positive for overlapping type arrays in allOf", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1611,14 +1611,14 @@ Deno.test("E1012 - no false positive for overlapping type arrays in allOf", asyn
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("conflicting types"),
   );
   assertEquals(d.length, 0);
 });
 
-Deno.test("E1012 - detects string vs type array disjointness in allOf", async () => {
+Deno.test("E1012 - detects string vs type array disjointness in allOf", () => {
   const spec = minimalSpec({
     components: {
       schemas: {
@@ -1632,7 +1632,7 @@ Deno.test("E1012 - detects string vs type array disjointness in allOf", async ()
     },
   });
 
-  const result = await analyzeSpec(spec);
+  const result = analyzeSpec(spec);
   const d = result.diagnostics.filter(
     (d) => d.code === "E1012" && d.message.includes("conflicting types"),
   );

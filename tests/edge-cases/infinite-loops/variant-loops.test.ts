@@ -18,7 +18,7 @@ import type { Schema } from "../../../packages/json-schema/types.ts";
 Deno.test({
   name: "EDGE: oneOf with recursive array items",
 
-  async fn() {
+  fn() {
     // This pattern causes infinite expansion in many tools
     const schema: Schema = {
       oneOf: [
@@ -28,7 +28,7 @@ Deno.test({
     };
 
     const processor = new JsonSchemaProcessor();
-    const result = await processor.process(schema);
+    const result = processor.process(schema);
 
     // Should detect cycle
     assertEquals(result.valid, true, "Should process without crashing");
@@ -54,7 +54,7 @@ Deno.test({
   },
 });
 
-Deno.test("EDGE: anyOf with mutual recursion", async () => {
+Deno.test("EDGE: anyOf with mutual recursion", () => {
   // A and B recursively reference each other through anyOf
   const schema: Schema = {
     $defs: {
@@ -75,7 +75,7 @@ Deno.test("EDGE: anyOf with mutual recursion", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should detect cycle between A and B
   assertEquals(result.valid, true, "Should process mutual recursion");
@@ -97,7 +97,7 @@ Deno.test("EDGE: anyOf with mutual recursion", async () => {
   );
 });
 
-Deno.test("EDGE: Complex variant nesting with recursion", async () => {
+Deno.test("EDGE: Complex variant nesting with recursion", () => {
   // Deeply nested variants with recursion - breaks many tools
   const schema: Schema = {
     oneOf: [
@@ -107,7 +107,7 @@ Deno.test("EDGE: Complex variant nesting with recursion", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should handle complex nesting
   assertEquals(result.valid, true, "Should process complex variant nesting");
@@ -122,7 +122,7 @@ Deno.test("EDGE: Complex variant nesting with recursion", async () => {
 Deno.test({
   name: "EDGE: anyOf with multiple recursive branches",
 
-  async fn() {
+  fn() {
     const schema: Schema = {
       type: "object",
       properties: {
@@ -137,7 +137,7 @@ Deno.test({
     };
 
     const processor = new JsonSchemaProcessor();
-    const result = await processor.process(schema);
+    const result = processor.process(schema);
 
     // Should handle multiple recursive branches
     assertEquals(
@@ -166,7 +166,7 @@ Deno.test({
   },
 });
 
-Deno.test("EDGE: oneOf with discriminator and recursion", async () => {
+Deno.test("EDGE: oneOf with discriminator and recursion", () => {
   // This pattern breaks Stoplight Prism
   const schema: Schema = {
     discriminator: { propertyName: "type" },
@@ -192,7 +192,7 @@ Deno.test("EDGE: oneOf with discriminator and recursion", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Should handle discriminator with recursion
   assertEquals(
@@ -208,7 +208,7 @@ Deno.test("EDGE: oneOf with discriminator and recursion", async () => {
   );
 });
 
-Deno.test("EDGE: anyOf with circular chain through properties", async () => {
+Deno.test("EDGE: anyOf with circular chain through properties", () => {
   const schema: Schema = {
     anyOf: [
       {
@@ -221,7 +221,7 @@ Deno.test("EDGE: anyOf with circular chain through properties", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Linked list pattern - common and should work
   assertEquals(result.valid, true, "Should process linked list pattern");
@@ -233,7 +233,7 @@ Deno.test("EDGE: anyOf with circular chain through properties", async () => {
   );
 });
 
-Deno.test("EDGE: oneOf with all branches recursive", async () => {
+Deno.test("EDGE: oneOf with all branches recursive", () => {
   const schema: Schema = {
     oneOf: [
       { type: "array", items: { $ref: "#" } },
@@ -243,7 +243,7 @@ Deno.test("EDGE: oneOf with all branches recursive", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // All branches recursive - should still work
   assertEquals(result.valid, true, "Should process all-recursive oneOf");
@@ -258,7 +258,7 @@ Deno.test("EDGE: oneOf with all branches recursive", async () => {
 Deno.test({
   name: "EDGE: Performance - oneOf with many recursive variants",
 
-  async fn() {
+  fn() {
     // Create oneOf with 50 recursive variants
     const variants: Schema[] = [];
     for (let i = 0; i < 50; i++) {
@@ -275,7 +275,7 @@ Deno.test({
 
     const processor = new JsonSchemaProcessor();
     const start = performance.now();
-    const result = await processor.process(schema);
+    const result = processor.process(schema);
     const duration = performance.now() - start;
 
     // Should handle many variants efficiently
@@ -288,7 +288,7 @@ Deno.test({
   },
 });
 
-Deno.test("EDGE: anyOf with nested oneOf recursion", async () => {
+Deno.test("EDGE: anyOf with nested oneOf recursion", () => {
   const schema: Schema = {
     anyOf: [
       {
@@ -302,7 +302,7 @@ Deno.test("EDGE: anyOf with nested oneOf recursion", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Nested variants with recursion
   assertEquals(result.valid, true, "Should process nested variant recursion");
@@ -314,7 +314,7 @@ Deno.test("EDGE: anyOf with nested oneOf recursion", async () => {
   );
 });
 
-Deno.test("EDGE: Triple nested variants with recursion", async () => {
+Deno.test("EDGE: Triple nested variants with recursion", () => {
   // anyOf > oneOf > allOf > recursion
   // This pattern is known to break many tools
   const schema: Schema = {
@@ -335,7 +335,7 @@ Deno.test("EDGE: Triple nested variants with recursion", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Triple nesting with recursion
   assertEquals(result.valid, true, "Should process triple nested variants");
@@ -347,7 +347,7 @@ Deno.test("EDGE: Triple nested variants with recursion", async () => {
   );
 });
 
-Deno.test("EDGE: anyOf with if/then/else and recursion", async () => {
+Deno.test("EDGE: anyOf with if/then/else and recursion", () => {
   const schema: Schema = {
     anyOf: [
       {
@@ -366,7 +366,7 @@ Deno.test("EDGE: anyOf with if/then/else and recursion", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // Conditionals with variants and recursion
   assertEquals(
@@ -385,7 +385,7 @@ Deno.test("EDGE: anyOf with if/then/else and recursion", async () => {
 Deno.test({
   name: "EDGE: Response generation does not loop infinitely",
 
-  async fn() {
+  fn() {
     const schema: Schema = {
       oneOf: [
         { type: "string" },
@@ -399,7 +399,7 @@ Deno.test({
     };
 
     const processor = new JsonSchemaProcessor();
-    const result = await processor.process(schema);
+    const result = processor.process(schema);
     assertEquals(result.valid, true);
     assertExists(result.schema, "Should return processed schema");
 
@@ -432,7 +432,7 @@ Deno.test({
   },
 });
 
-Deno.test("EDGE: Variant with unevaluatedProperties recursion", async () => {
+Deno.test("EDGE: Variant with unevaluatedProperties recursion", () => {
   // This pattern is particularly tricky
   const schema: Schema = {
     oneOf: [
@@ -443,7 +443,7 @@ Deno.test("EDGE: Variant with unevaluatedProperties recursion", async () => {
   };
 
   const processor = new JsonSchemaProcessor();
-  const result = await processor.process(schema);
+  const result = processor.process(schema);
 
   // unevaluatedProperties with variants is complex
   assertEquals(
@@ -462,7 +462,7 @@ Deno.test("EDGE: Variant with unevaluatedProperties recursion", async () => {
 Deno.test({
   name: "EDGE: Deep variant stack without recursion",
 
-  async fn() {
+  fn() {
     // Not all deep nesting is recursive - this should be fast
     let schema: Schema = { type: "string" };
     for (let i = 0; i < 50; i++) {
@@ -476,7 +476,7 @@ Deno.test({
 
     const processor = new JsonSchemaProcessor();
     const start = performance.now();
-    const result = await processor.process(schema);
+    const result = processor.process(schema);
     const duration = performance.now() - start;
 
     // Deep non-recursive nesting should still be fast

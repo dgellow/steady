@@ -18,8 +18,10 @@ import type {
 } from "./types.ts";
 import { MetaschemaValidator } from "./metaschema-validator.ts";
 import { SchemaIndexer } from "./schema-indexer.ts";
-import { ScaleAwareRefResolver } from "./ref-resolver-enhanced.ts";
+import { SchemaRegistry } from "./schema-registry.ts";
+import { computeCyclicRefs } from "./cycle-detection.ts";
 import { checkRefSiblings } from "./ref-sibling-checker.ts";
+import { validateRef } from "@steady/json-pointer";
 
 export class JsonSchemaProcessor {
   private metaschemaValidator: MetaschemaValidator;
@@ -34,15 +36,15 @@ export class JsonSchemaProcessor {
    * Process a raw schema object into an analyzed, indexed structure
    * This is THE key innovation - we validate and analyze schemas ONCE
    */
-  async process(
+  process(
     schemaObject: unknown,
     source?: SchemaSource,
-  ): Promise<SchemaProcessResult> {
+  ): SchemaProcessResult {
     const warnings: SchemaWarning[] = [];
 
     // 1. Validate against metaschema
     if (source?.metaschema) {
-      const metaschemaResult = await this.metaschemaValidator.validate(
+      const metaschemaResult = this.metaschemaValidator.validate(
         schemaObject,
         source.metaschema,
       );
@@ -51,53 +53,81 @@ export class JsonSchemaProcessor {
           valid: false,
           errors: this.convertToSchemaErrors(metaschemaResult.errors),
           warnings,
-          // No metadata for invalid schemas
         };
       }
     }
 
     const schema = schemaObject as Schema | boolean;
 
-    // 2. Resolve all references efficiently
-    const resolver = new ScaleAwareRefResolver(schema, source?.baseUri);
-    const resolveResult = await resolver.resolveAll(schema);
+    // 2. Resolve all references via SchemaRegistry
+    const registry = new SchemaRegistry(schema, {
+      baseUri: source?.baseUri,
+    });
+    const refGraph = registry.refGraph;
 
-    if (!resolveResult.success) {
-      return {
-        valid: false,
-        errors: resolveResult.errors.map((err) => ({
-          type: "ref-not-found" as const,
+    const resolved = new Map<string, Schema | boolean>();
+    const syntaxErrors: SchemaError[] = [];
+
+    for (const ref of refGraph.refs) {
+      // Validate ref syntax per RFC 6901. Syntax violations are fatal
+      // (the schema itself is malformed). Resolution failures (valid
+      // syntax but missing target) are non-fatal; the diagnostics
+      // engine handles those via E1004 with full spec context.
+      const validation = validateRef(ref);
+      if (!validation.valid) {
+        syntaxErrors.push({
+          type: "schema-invalid",
           instancePath: "",
           schemaPath: "#",
           keyword: "$ref",
-          message: err,
-          suggestion: "Ensure all referenced schemas exist and are accessible",
-        })),
-        warnings: resolveResult.warnings.map((warn) => ({
-          type: "performance-concern" as const,
-          message: warn,
-          location: "#",
-        })),
-        // No metadata for invalid schemas
-      };
-    }
+          message: `Invalid $ref syntax: ${validation.error}`,
+          suggestion: validation.suggestion,
+        });
+        continue;
+      }
 
-    // 3. Build indexes for O(1) runtime operations
-    // Detect circular references in the dependency graph
-    const cyclicRefs = new Set<string>();
-    for (const cycle of resolveResult.cycles) {
-      for (const ref of cycle) {
-        cyclicRefs.add(ref);
+      if (!ref.startsWith("#")) {
+        syntaxErrors.push({
+          type: "schema-invalid",
+          instancePath: "",
+          schemaPath: "#",
+          keyword: "$ref",
+          message: `External reference not supported: ${ref}. ` +
+            `Include referenced schemas in $defs.`,
+          suggestion:
+            "Include the schema directly in your document using $defs",
+        });
+        continue;
+      }
+
+      const result = registry.resolveRef(ref);
+      if (result) {
+        resolved.set(ref, result.raw);
       }
     }
 
+    if (syntaxErrors.length > 0) {
+      return {
+        valid: false,
+        errors: syntaxErrors,
+        warnings,
+      };
+    }
+
+    // 3. Compute cycles using containment-aware algorithm
+    const cyclicRefs = computeCyclicRefs(refGraph.edges);
+
+    // Generate warnings for detected cycles
+    for (const cycle of refGraph.cycles) {
+      warnings.push({
+        type: "performance-concern" as const,
+        message: `Circular reference detected: ${cycle.join(" -> ")}`,
+        location: "#",
+      });
+    }
+
     const refs: ProcessedSchema["refs"] = {
-      resolved: resolveResult.resolved,
-      graph: {
-        nodes: resolveResult.dependencyGraph.nodes,
-        edges: resolveResult.dependencyGraph.edges,
-        cycles: resolveResult.cycles,
-      },
+      resolved,
       cyclic: cyclicRefs,
     };
 
@@ -114,11 +144,6 @@ export class JsonSchemaProcessor {
     // 4. Analyze complexity and add warnings
     const complexityWarnings = this.analyzeComplexity(indexed);
     warnings.push(...complexityWarnings);
-    warnings.push(...resolveResult.warnings.map((warn) => ({
-      type: "performance-concern" as const,
-      message: warn,
-      location: "#",
-    })));
 
     return {
       valid: true,
