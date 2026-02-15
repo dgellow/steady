@@ -165,11 +165,7 @@ export interface SchemaValidationError {
 export interface SchemaValidationResult {
   valid: boolean;
   errors: SchemaValidationError[];
-  attribution?: ErrorAttribution;
 }
-
-// Backwards compatibility alias
-export type ValidationResult = SchemaValidationResult;
 
 export interface ValidatorOptions {
   dialect?: JsonSchemaDialect;
@@ -269,15 +265,6 @@ export interface SchemaWarning {
   message: string;
   location: string;
   suggestion?: string;
-}
-
-export interface ErrorAttribution {
-  type: "sdk-error" | "spec-error" | "ambiguous";
-  confidence: number;
-  reasoning: string;
-  primaryError: SchemaValidationError;
-  suggestion: string;
-  relatedIssues?: string[];
 }
 
 export interface GenerateOptions {

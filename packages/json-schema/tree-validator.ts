@@ -120,9 +120,17 @@ export class TreeValidator {
     rootSchema: Schema,
     context?: { arrayItem?: boolean },
   ): void {
-    // Boolean schema
+    // Boolean schema (JSON Schema 2020-12: false rejects all, true accepts all)
     if (typeof schema === "boolean") {
-      // Not supported in our Schema type but handle gracefully
+      if (!schema) {
+        errors.push({
+          valid: false,
+          keyword: "false",
+          path: dataPath,
+          schemaPath,
+          message: "Schema is false; no value is valid",
+        });
+      }
       return;
     }
 
@@ -837,7 +845,7 @@ export class TreeValidator {
 
     for (let i = 0; i < subschemas.length; i++) {
       const sub = subschemas[i];
-      if (!sub) continue;
+      if (sub === undefined || sub === null) continue;
 
       const subErrors: ValidationNode[] = [];
       this.validateSchema(

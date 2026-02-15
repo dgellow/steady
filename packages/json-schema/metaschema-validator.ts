@@ -9,7 +9,7 @@ import type {
   ProcessedSchema,
   Schema,
   SchemaValidationError,
-  ValidationResult,
+  SchemaValidationResult,
 } from "./types.ts";
 import { RuntimeValidator } from "./runtime-validator.ts";
 import { ScaleAwareRefResolver } from "./ref-resolver-enhanced.ts";
@@ -29,7 +29,7 @@ export class MetaschemaValidator {
   async validate(
     schemaObject: unknown,
     metaschema: Schema,
-  ): Promise<ValidationResult> {
+  ): Promise<SchemaValidationResult> {
     // First, check if it's a valid JSON value
     if (schemaObject === undefined) {
       return {

@@ -1,9 +1,8 @@
 /**
- * Runner for the official JSON Schema test suite using the new processor
+ * Runner for the official JSON Schema test suite using TreeValidator
  */
 
-import { JsonSchemaProcessor } from "./processor.ts";
-import { SchemaValidator } from "./schema-validator.ts";
+import { TreeValidator } from "./tree-validator.ts";
 import type { Schema } from "./types.ts";
 
 interface TestCase {
@@ -34,7 +33,7 @@ interface TestResults {
 }
 
 export class TestSuiteRunner {
-  private processor = new JsonSchemaProcessor();
+  private validator = new TreeValidator();
 
   async runTestFile(filePath: string): Promise<TestResults> {
     const content = await Deno.readTextFile(filePath);
@@ -48,25 +47,21 @@ export class TestSuiteRunner {
     };
 
     for (const group of testGroups) {
-      // Process the schema once
-      const processResult = await this.processor.process(group.schema);
-
-      if (!processResult.valid) {
-        console.error(
-          `Failed to process schema for group: ${group.description}`,
-        );
-        console.error(processResult.errors);
-        continue;
-      }
-
-      const validator = new SchemaValidator(processResult.schema!);
+      const schema = typeof group.schema === "boolean"
+        ? group.schema ? ({} as Schema) : ({ not: {} } as Schema)
+        : group.schema;
 
       for (const test of group.tests) {
         results.total++;
 
         try {
-          const validationResult = validator.validate(test.data);
-          const actual = validationResult.valid;
+          const node = this.validator.validate(
+            test.data,
+            schema,
+            "#",
+            "root",
+          );
+          const actual = node.valid;
 
           if (actual === test.valid) {
             results.passed++;
@@ -79,7 +74,7 @@ export class TestSuiteRunner {
               actual,
               schema: group.schema,
               data: test.data,
-              error: validationResult.errors[0]?.message,
+              error: node.message,
             });
           }
         } catch (error) {

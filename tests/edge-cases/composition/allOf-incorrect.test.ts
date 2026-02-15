@@ -10,7 +10,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { JsonSchemaProcessor } from "../../../packages/json-schema/processor.ts";
-import { SchemaValidator } from "../../../packages/json-schema/schema-validator.ts";
+import { TreeValidator } from "../../../packages/json-schema/tree-validator.ts";
 import type { Schema } from "../../../packages/json-schema/types.ts";
 
 Deno.test("EDGE: allOf with circular self-reference", async () => {
@@ -63,15 +63,15 @@ Deno.test("EDGE: allOf with conflicting type requirements", async () => {
   assertExists(result.schema, "Should return processed schema");
 
   // Data validation test to verify impossibility is detected
-  const validator = new SchemaValidator(result.schema);
+  const tv = new TreeValidator();
   // Neither a string nor a number can satisfy both type requirements
   assertEquals(
-    validator.validate("test").valid,
+    tv.validate("test", result.schema.root as Schema, "#", "root").valid,
     false,
     "String should fail - cannot be both string and number",
   );
   assertEquals(
-    validator.validate(42).valid,
+    tv.validate(42, result.schema.root as Schema, "#", "root").valid,
     false,
     "Number should fail - cannot be both string and number",
   );
@@ -94,19 +94,19 @@ Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
   assertExists(result.schema, "Should return processed schema");
 
   // Data validation test - no number can satisfy min >= 10 AND max <= 5
-  const validator = new SchemaValidator(result.schema);
+  const tv = new TreeValidator();
   assertEquals(
-    validator.validate(7).valid,
+    tv.validate(7, result.schema.root as Schema, "#", "root").valid,
     false,
     "7 should fail - cannot be >= 10 AND <= 5",
   );
   assertEquals(
-    validator.validate(10).valid,
+    tv.validate(10, result.schema.root as Schema, "#", "root").valid,
     false,
     "10 should fail - violates maximum: 5",
   );
   assertEquals(
-    validator.validate(3).valid,
+    tv.validate(3, result.schema.root as Schema, "#", "root").valid,
     false,
     "3 should fail - violates minimum: 10",
   );
@@ -300,7 +300,7 @@ Deno.test("EDGE: allOf with additionalProperties false across schemas", async ()
   assertExists(result.schema, "Should return processed schema");
 
   // Data validation test - this is the CORE of the edge case
-  const validator = new SchemaValidator(result.schema);
+  const tv = new TreeValidator();
 
   // Per JSON Schema spec, additionalProperties: false at root only knows about
   // properties defined at root level. Properties in allOf are NOT visible to it.
@@ -309,7 +309,12 @@ Deno.test("EDGE: allOf with additionalProperties false across schemas", async ()
   // This is why unevaluatedProperties was introduced - it tracks which properties
   // were "evaluated" by any subschema.
   const dataWithAllOfProps = { a: "x", b: "y", c: "z" };
-  const validation = validator.validate(dataWithAllOfProps);
+  const validation = tv.validate(
+    dataWithAllOfProps,
+    result.schema.root as Schema,
+    "#",
+    "root",
+  );
   // Note: This REJECTS because additionalProperties doesn't see allOf properties
   // This is expected per spec, though many find it surprising
   assertEquals(
@@ -372,14 +377,14 @@ Deno.test("EDGE: allOf with false schema (impossible)", async () => {
   assertExists(result.schema, "Should return processed schema");
 
   // Data validation test - false in allOf rejects everything
-  const validator = new SchemaValidator(result.schema);
+  const tv = new TreeValidator();
   assertEquals(
-    validator.validate({}).valid,
+    tv.validate({}, result.schema.root as Schema, "#", "root").valid,
     false,
     "Empty object should fail - false rejects everything",
   );
   assertEquals(
-    validator.validate("anything").valid,
+    tv.validate("anything", result.schema.root as Schema, "#", "root").valid,
     false,
     "Any value should fail - false rejects everything",
   );
@@ -525,19 +530,20 @@ Deno.test("EDGE: allOf merging conflicting required arrays", async () => {
   assertExists(result.schema, "Should return processed schema");
 
   // Data validation test - should require both a and c (union of required arrays)
-  const validator = new SchemaValidator(result.schema);
+  const tv = new TreeValidator();
   assertEquals(
-    validator.validate({ a: "x" }).valid,
+    tv.validate({ a: "x" }, result.schema.root as Schema, "#", "root").valid,
     false,
     "Missing 'c' should fail",
   );
   assertEquals(
-    validator.validate({ c: "z" }).valid,
+    tv.validate({ c: "z" }, result.schema.root as Schema, "#", "root").valid,
     false,
     "Missing 'a' should fail",
   );
   assertEquals(
-    validator.validate({ a: "x", c: "z" }).valid,
+    tv.validate({ a: "x", c: "z" }, result.schema.root as Schema, "#", "root")
+      .valid,
     true,
     "Both 'a' and 'c' present should pass",
   );

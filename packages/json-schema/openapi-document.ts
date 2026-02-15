@@ -14,11 +14,10 @@
 import {
   RegistryResponseGenerator,
   type RegistrySchema,
-  RegistryValidator,
   SchemaRegistry,
 } from "./schema-registry.ts";
 import { RefGraph } from "./ref-graph.ts";
-import type { GenerateOptions, ValidationResult } from "./types.ts";
+import type { GenerateOptions } from "./types.ts";
 
 export interface OpenAPIDocumentOptions {
   /** Base URI for the document */
@@ -52,21 +51,6 @@ export class OpenAPIDocument {
   generateResponse(pointer: string, options?: GenerateOptions): unknown {
     const generator = new RegistryResponseGenerator(this.schemas, options);
     return generator.generate(pointer);
-  }
-
-  /**
-   * Get a validator for validating data against schemas
-   */
-  getValidator(): RegistryValidator {
-    return new RegistryValidator(this.schemas);
-  }
-
-  /**
-   * Validate data against a schema at the given pointer
-   */
-  validate(pointer: string, data: unknown): ValidationResult {
-    const validator = new RegistryValidator(this.schemas);
-    return validator.validate(pointer, data);
   }
 
   /**

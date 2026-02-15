@@ -531,4 +531,60 @@ Deno.test("TreeValidator", async (t) => {
     );
     assertEquals(tree.valid, true);
   });
+
+  // ── Boolean schemas (JSON Schema 2020-12 / OpenAPI 3.1) ─────────
+
+  await t.step("boolean false schema rejects all values", () => {
+    // Per JSON Schema 2020-12 spec: `false` is equivalent to { "not": {} }
+    const tree = validate(false as unknown as Schema, "anything");
+    assertEquals(tree.valid, false);
+  });
+
+  await t.step("boolean true schema accepts all values", () => {
+    // Per JSON Schema 2020-12 spec: `true` is equivalent to {}
+    const tree = validate(true as unknown as Schema, "anything");
+    assertEquals(tree.valid, true);
+  });
+
+  await t.step("allOf containing boolean false rejects", () => {
+    const schema = {
+      allOf: [false, { type: "object" }],
+    } as unknown as Schema;
+    const tree = validate(schema, {});
+    assertEquals(tree.valid, false);
+  });
+
+  await t.step("oneOf containing only boolean false rejects", () => {
+    const schema = {
+      oneOf: [false],
+    } as unknown as Schema;
+    const tree = validate(schema, "anything");
+    assertEquals(tree.valid, false);
+  });
+
+  await t.step("anyOf containing only boolean false rejects", () => {
+    const schema = {
+      anyOf: [false],
+    } as unknown as Schema;
+    const tree = validate(schema, "anything");
+    assertEquals(tree.valid, false);
+  });
+
+  await t.step("anyOf with boolean false and matching variant passes", () => {
+    // anyOf: at least one must match. false never matches, but string does.
+    const schema = {
+      anyOf: [false, { type: "string" }],
+    } as unknown as Schema;
+    const tree = validate(schema, "hello");
+    assertEquals(tree.valid, true);
+  });
+
+  await t.step("oneOf with boolean false counts false as non-match", () => {
+    // oneOf: exactly one must match. false never matches, string does = 1 match = pass.
+    const schema = {
+      oneOf: [false, { type: "string" }],
+    } as unknown as Schema;
+    const tree = validate(schema, "hello");
+    assertEquals(tree.valid, true);
+  });
 });
