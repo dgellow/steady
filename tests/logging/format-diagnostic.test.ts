@@ -388,3 +388,68 @@ Deno.test("formatStartupDiagnostics: errors always shown even when warnings coll
 Deno.test("formatStartupDiagnostics: empty list returns empty", () => {
   assertEquals(formatStartupDiagnostics([], undefined, false), "");
 });
+
+// ── Runtime diagnostics with display context ─────────────────────────
+
+Deno.test("formatDiagnostic: runtime type mismatch with display", () => {
+  const d = diag({
+    code: "E3008",
+    severity: "error",
+    category: "sdk-issue",
+    message: "Expected type string, got integer",
+    specPointer:
+      "#/paths/~1users/post/requestBody/content/application~1json/schema/properties/email",
+    expected: "string",
+    actual: "integer",
+    display: {
+      context: [{
+        text: 'type: "string"',
+        highlight: {
+          start: 7,
+          end: 13,
+          label: "Expected type",
+        },
+      }],
+    },
+  });
+
+  const result = formatDiagnostic(d, false);
+  const lines = result.split("\n");
+
+  assertEquals(lines[0], "error[E3008]: Expected type string, got integer");
+  assertEquals(lines[2], "  |");
+  assertEquals(lines[3], '  |  type: "string"');
+  assertEquals(lines[4], "  |  " + " ".repeat(7) + "^^^^^^");
+  assertEquals(lines[5], "  |  " + " ".repeat(7) + "Expected type");
+  assertEquals(lines[6], "  |");
+});
+
+Deno.test("formatDiagnostic: runtime enum mismatch with display", () => {
+  const d = diag({
+    code: "E3016",
+    severity: "error",
+    category: "sdk-issue",
+    message: 'Value "invalid" is not in allowed values',
+    specPointer:
+      "#/paths/~1users/post/requestBody/content/application~1json/schema/properties/status",
+    display: {
+      context: [{
+        text: 'enum: ["active","inactive","pending"]',
+        highlight: {
+          start: 0,
+          end: 37,
+          label: 'Value "invalid" not in allowed list',
+        },
+      }],
+    },
+  });
+
+  const result = formatDiagnostic(d, false);
+  const lines = result.split("\n");
+
+  assertEquals(lines[2], "  |");
+  assertEquals(lines[3], '  |  enum: ["active","inactive","pending"]');
+  assertEquals(lines[4], "  |  " + "^".repeat(37));
+  assertEquals(lines[5], '  |  Value "invalid" not in allowed list');
+  assertEquals(lines[6], "  |");
+});

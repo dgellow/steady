@@ -201,7 +201,7 @@ export interface ServerConfig {
   rejectOnSdkError?: boolean;
   verbose: boolean;
   logLevel: LogLevel;
-  logFormat?: "text" | "json";
+  logFormat?: "text" | "json" | "ci";
   logBodies?: boolean;
   showValidation?: boolean;
   color?: boolean;

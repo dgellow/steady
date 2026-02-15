@@ -220,13 +220,14 @@ Deno.test(
 );
 
 Deno.test({
-  name: "Server: returns 404 for wrong HTTP method",
+  name: "Server: returns 405 for wrong HTTP method",
   ...serverTestOpts,
 }, async () => {
   await withServer({}, async (_server, baseUrl) => {
     const response = await fetch(`${baseUrl}/users/123`, { method: "DELETE" });
-    assertEquals(response.status, 404);
-    await response.body?.cancel();
+    assertEquals(response.status, 405);
+    const data = await response.json();
+    assertEquals(data.error, "Method not allowed");
   });
 });
 
@@ -354,8 +355,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "Server: reject-on-sdk-error returns 400 for missing required body field",
+  name: "Server: reject-on-sdk-error returns 400 with steady.errors format",
   ...serverTestOpts,
 }, async () => {
   await withServer(
@@ -370,7 +370,12 @@ Deno.test({
 
       const data = await response.json();
       assertEquals(data.error, "Validation failed");
-      assertExists(data.diagnostics);
+      assertExists(data.steady);
+      assertEquals(data.steady.valid, false);
+      assertExists(data.steady.errors);
+      assertEquals(Array.isArray(data.steady.errors), true);
+      assertEquals(data.steady.errors.length > 0, true);
+      assertExists(data.steady.errors[0].code);
     },
   );
 });

@@ -1451,10 +1451,160 @@ function checkImpossibleConstraints(
           ),
         );
       }
+
+      // allOf bound merging: collect min/max across members
+      diagnostics.push(...checkAllOfBounds(allOf, pointer));
+    }
+
+    // Type+format conflicts
+    const schemaType = schema.type;
+    const format = schema.format;
+    if (typeof schemaType === "string" && typeof format === "string") {
+      if (isTypeFormatConflict(schemaType, format)) {
+        diagnostics.push(
+          specDiagnostic(
+            "E1012",
+            pointer,
+            `Impossible constraint: type "${schemaType}" with format "${format}"`,
+            {
+              suggestion:
+                `Format "${format}" does not apply to type "${schemaType}"`,
+              actual: { type: schemaType, format },
+            },
+          ),
+        );
+      }
+    }
+
+    // Pattern on non-string type
+    if (
+      typeof schemaType === "string" && schemaType !== "string" &&
+      typeof schema.pattern === "string"
+    ) {
+      diagnostics.push(
+        specDiagnostic(
+          "E1012",
+          pointer,
+          `Impossible constraint: pattern on type "${schemaType}" (pattern only applies to strings)`,
+          {
+            suggestion:
+              `Change the type to "string" or remove the pattern constraint`,
+            actual: { type: schemaType, pattern: schema.pattern },
+          },
+        ),
+      );
     }
   }
 
   return diagnostics;
+}
+
+/**
+ * Check for impossible merged numeric bounds across allOf members.
+ * e.g., allOf: [{minimum: 10}, {maximum: 5}] is impossible.
+ */
+function checkAllOfBounds(
+  allOf: unknown[],
+  pointer: string,
+): Diagnostic[] {
+  let mergedMin: number | undefined;
+  let mergedMax: number | undefined;
+  let mergedMinExclusive = false;
+  let mergedMaxExclusive = false;
+
+  for (const sub of allOf) {
+    if (!isObject(sub)) continue;
+    const bounds = getEffectiveBounds(sub);
+    if (bounds.lower !== undefined) {
+      if (mergedMin === undefined || bounds.lower > mergedMin) {
+        mergedMin = bounds.lower;
+        mergedMinExclusive = bounds.lowerExclusive;
+      } else if (bounds.lower === mergedMin && bounds.lowerExclusive) {
+        mergedMinExclusive = true;
+      }
+    }
+    if (bounds.upper !== undefined) {
+      if (mergedMax === undefined || bounds.upper < mergedMax) {
+        mergedMax = bounds.upper;
+        mergedMaxExclusive = bounds.upperExclusive;
+      } else if (bounds.upper === mergedMax && bounds.upperExclusive) {
+        mergedMaxExclusive = true;
+      }
+    }
+  }
+
+  if (mergedMin === undefined || mergedMax === undefined) return [];
+
+  const impossible = mergedMinExclusive || mergedMaxExclusive
+    ? mergedMin >= mergedMax
+    : mergedMin > mergedMax;
+
+  if (!impossible) return [];
+
+  return [
+    specDiagnostic(
+      "E1012",
+      pointer,
+      `Impossible constraint: allOf members merge to minimum (${mergedMin}) > maximum (${mergedMax})`,
+      {
+        suggestion:
+          "The combined min/max bounds across allOf members form an empty range",
+        actual: { mergedMin, mergedMax },
+      },
+    ),
+  ];
+}
+
+/** Map of string formats that conflict with non-string types. */
+const STRING_ONLY_FORMATS = new Set([
+  "email",
+  "uri",
+  "uri-reference",
+  "hostname",
+  "ipv4",
+  "ipv6",
+  "date",
+  "date-time",
+  "time",
+  "duration",
+  "uuid",
+  "regex",
+  "idn-email",
+  "idn-hostname",
+  "iri",
+  "iri-reference",
+  "json-pointer",
+  "relative-json-pointer",
+  "uri-template",
+  "binary",
+  "byte",
+  "password",
+]);
+
+/** Map of numeric formats that conflict with non-numeric types. */
+const NUMERIC_ONLY_FORMATS = new Set([
+  "int32",
+  "float",
+  "double",
+]);
+
+/**
+ * Check if a type+format combination is unambiguously wrong.
+ * Conservative: only flags clear conflicts, not edge cases.
+ */
+function isTypeFormatConflict(type: string, format: string): boolean {
+  // String formats on non-string types
+  if (type !== "string" && STRING_ONLY_FORMATS.has(format)) {
+    return true;
+  }
+  // Numeric formats on non-numeric types
+  if (
+    type !== "number" && type !== "integer" &&
+    NUMERIC_ONLY_FORMATS.has(format)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 // ── E1016: Required property not in properties ──────────────────────

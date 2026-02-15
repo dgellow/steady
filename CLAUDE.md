@@ -160,6 +160,56 @@ This applies to:
 
 Tests must pass before committing. Use `./scripts/test` to verify.
 
+### Snapshot Testing
+
+Use Deno's built-in snapshot testing for asserting complex structured output.
+
+**File snapshots** (`assertSnapshot`): Store reference values in
+`__snapshots__/{test_file}.snap` next to the test file. Requires
+`Deno.TestContext` as the first argument.
+
+```ts
+import { assertSnapshot } from "@std/testing/snapshot";
+
+Deno.test("example", async (t) => {
+  await assertSnapshot(t, { hello: "world", n: 123 });
+});
+```
+
+**Inline snapshots** (`assertInlineSnapshot`): Store the expected value directly
+in the test source as a template literal string. No `TestContext` needed.
+
+```ts
+import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
+
+Deno.test("example", () => {
+  assertInlineSnapshot(
+    { hello: "world", n: 123 },
+    `
+{
+  hello: "world",
+  n: 123,
+}
+  `,
+  );
+});
+```
+
+**Updating snapshots**: Run tests with `-- --update` to regenerate snapshots
+that have changed. For inline snapshots, the test source file itself is
+rewritten in place (requires `--allow-read`, `--allow-write`, `--allow-run`).
+Pass `-- --update --no-format` to skip `deno fmt` after updating inline
+snapshots.
+
+```bash
+./scripts/test -- --update
+```
+
+**When to use which**: Prefer `assertSnapshot` (file-based) for large or
+frequently changing output. Prefer `assertInlineSnapshot` for small values where
+seeing the expected value next to the assertion is clearer. Both are already
+used in this codebase (see `tests/integration/`).
+
 ## Error Messages
 
 Errors must include:

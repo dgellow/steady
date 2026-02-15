@@ -1341,3 +1341,114 @@ Deno.test("E1003 - no diagnostics when defaultedFields is not provided", async (
   const result = await analyzeSpec(spec);
   filterCode(result.diagnostics, "E1003", 0);
 });
+
+// ── E1012: allOf bound merging ───────────────────────────────────────
+
+Deno.test("E1012 - detects impossible merged range across allOf members", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Bad: {
+          allOf: [
+            { type: "integer", minimum: 10 },
+            { type: "integer", maximum: 5 },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const diags = result.diagnostics.filter((d) => d.code === "E1012");
+  const merged = diags.find((d) => d.message.includes("allOf"));
+  assertEquals(merged !== undefined, true, "should detect allOf bound merging");
+});
+
+Deno.test("E1012 - valid allOf bounds produce no diagnostic", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Good: {
+          allOf: [
+            { type: "integer", minimum: 1 },
+            { type: "integer", maximum: 100 },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const merged = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("allOf"),
+  );
+  assertEquals(merged.length, 0);
+});
+
+// ── E1012: type+format conflicts ─────────────────────────────────────
+
+Deno.test("E1012 - detects type integer with format email", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Bad: { type: "integer", format: "email" },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("format"),
+  );
+  assertEquals(d.length, 1);
+});
+
+Deno.test("E1012 - no false positive for string with int64 format", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Good: { type: "string", format: "int64" },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("format"),
+  );
+  assertEquals(d.length, 0);
+});
+
+// ── E1012: pattern on non-string type ────────────────────────────────
+
+Deno.test("E1012 - detects pattern on non-string type", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Bad: { type: "integer", pattern: "^[0-9]+$" },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("pattern"),
+  );
+  assertEquals(d.length, 1);
+});
+
+Deno.test("E1012 - no false positive for pattern on string type", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Good: { type: "string", pattern: "^[a-z]+$" },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("pattern"),
+  );
+  assertEquals(d.length, 0);
+});

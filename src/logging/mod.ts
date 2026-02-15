@@ -9,6 +9,7 @@ export type { Logger, LoggerOptions, LogLevel } from "./logger.ts";
 // Logger implementations
 export { TextLogger } from "./text-logger.ts";
 export { JsonLogger } from "./json-logger.ts";
+export { CILogger } from "./ci-logger.ts";
 
 // Types
 export type { RequestEvent, ShutdownEvent, StartupEvent } from "./types.ts";
