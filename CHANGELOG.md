@@ -1,5 +1,68 @@
 # Changelog
 
+## 0.16.0
+
+### Features
+
+- E1012 allOf enum/type intersection, discriminator valid values, E3009 confidence
+- E1012 spec patterns, CI logger module, and test improvements
+- format-aware query parameter parsing and dead code cleanup
+- per-request minimal response warning and populated expected fields
+- complete diagnostics system - parser leniency, new E-codes, coverage tracking
+- improve startup diagnostics UX from real-world SDK testing
+- close diagnostics spec gaps, add explain command
+- align diagnostics output with spec, remove legacy Attribution type
+- compiler-style diagnostic output
+- add startup spec analyzer with E1xxx diagnostics
+- add E3010 array item type detection and E3006 Content-Type validation
+- add path parameter value validation to engine
+- replace strict/relaxed mode with --reject-on-sdk-error
+- wire diagnostic engine into server
+- diagnostic engine with full pipeline integration
+
+### Bug Fixes
+
+- diagnostics quality audit (12 fixes)
+- recursively flatten nested allOf chains in response generator
+- quality pass on diagnostics system
+- startup summary severity labels, blank expected, absolute paths
+
+### Code Refactoring
+
+- merge RefGraph into DocIndex, add FragmentPointer type, single-walk startup
+- replace ScaleAwareRefResolver with SchemaRegistry in processor
+- unify validation and resolution architecture
+- remove legacy validation classes, complete diagnostics migration
+- remove decorative emojis and delete legacy scripts
+- remove legacy diagnostics pipeline and dead code
+- clean up collector and types
+- reorganize integration tests into tests/integration/
+- remove redundant detectDoubleQuestionMark from server
+
+### Documentation
+
+- add diagnostics implementation plan (first principles design)
+- add E1011 invalid component name and impossible schema open question
+- add design-review skill
+- expand diagnostics spec with design review findings
+
+### Chores
+
+- add more work to do
+- format test files
+- formatting
+- formatting
+- More spec work
+- More spec work
+- Diagnostic spec
+
+### wip
+
+- diagnostics engine core interpretation pipeline
+- implementation plan
+- implementation plan and design
+- implementation plan
+
 ## 0.15.3
 
 ### Features

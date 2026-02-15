@@ -1,6 +1,6 @@
 {
   ".": {
-    "version": "0.15.3",
+    "version": "0.16.0",
     "versionFile": "src/version.ts"
   },
   "packages/json-pointer": {
