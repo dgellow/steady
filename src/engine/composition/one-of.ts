@@ -188,7 +188,7 @@ function missingDiscriminatorProperty(
     code: "E3007",
     severity: e3007.severity,
     category: e3007.category,
-    requestPath: `${context.path}.${propName}`,
+    requestPath: [...context.path, propName].join("."),
     specPointer: context.schemaPath,
     message: `Missing required discriminator property "${propName}"`,
     attribution: {
@@ -222,7 +222,7 @@ function invalidDiscriminatorValue(
     code: "E3011",
     severity: e3011.severity,
     category: e3011.category,
-    requestPath: `${context.path}.${propName}`,
+    requestPath: [...context.path, propName].join("."),
     specPointer: context.schemaPath,
     message:
       `Invalid discriminator value "${value}" for property "${propName}"`,
@@ -254,7 +254,7 @@ function reportMultipleMatches(
     code: "E3012",
     severity: e3012.severity,
     category: e3012.category,
-    requestPath: context.path,
+    requestPath: context.path.join("."),
     specPointer: context.schemaPath,
     message:
       `${structuralMatches.length} variants structurally match, ambiguous`,

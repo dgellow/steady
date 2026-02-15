@@ -1,6 +1,5 @@
 import { assertEquals } from "@std/assert";
 import type { Schema } from "./types.ts";
-import type { ValidationNode } from "../../src/engine/types.ts";
 import type { SchemaValidator } from "../../src/engine/diagnostic-engine.ts";
 import { TreeValidator } from "./tree-validator.ts";
 
@@ -12,7 +11,7 @@ function validate(
   schema: Schema,
   data: unknown,
   schemaPath = "#/schema",
-  dataPath = "body",
+  dataPath = ["body"],
 ) {
   const validator = new TreeValidator();
   return validator.validate(data, schema, schemaPath, dataPath);
@@ -25,7 +24,7 @@ Deno.test("TreeValidator", async (t) => {
     const tree = validate({ type: "string" }, "hello");
 
     assertEquals(tree.valid, true);
-    assertEquals(tree.path, "body");
+    assertEquals(tree.path, ["body"]);
     assertEquals(tree.schemaPath, "#/schema");
   });
 
@@ -47,7 +46,7 @@ Deno.test("TreeValidator", async (t) => {
     assertEquals(leaf.valid, false);
     assertEquals(leaf.expected, "string");
     assertEquals(leaf.actual, "number");
-    assertEquals(leaf.path, "body");
+    assertEquals(leaf.path, ["body"]);
   });
 
   await t.step("type array: matches any listed type", () => {
@@ -81,7 +80,7 @@ Deno.test("TreeValidator", async (t) => {
     const leaves = tree.children?.filter((c) => c.keyword === "required") ?? [];
     assertEquals(leaves.length, 1);
     assertEquals(leaves[0]!.field, "email");
-    assertEquals(leaves[0]!.path, "body");
+    assertEquals(leaves[0]!.path, ["body"]);
   });
 
   await t.step("missing required property → leaf has expected field", () => {
@@ -119,7 +118,7 @@ Deno.test("TreeValidator", async (t) => {
     assertEquals(tree.valid, false);
     const leaf = tree.children![0]!;
     assertEquals(leaf.keyword, "type");
-    assertEquals(leaf.path, "body.name");
+    assertEquals(leaf.path, ["body", "name"]);
     assertEquals(leaf.schemaPath, "#/schema/properties/name");
   });
 
@@ -141,7 +140,7 @@ Deno.test("TreeValidator", async (t) => {
 
     assertEquals(tree.valid, false);
     const leaf = tree.children![0]!;
-    assertEquals(leaf.path, "body.address.city");
+    assertEquals(leaf.path, ["body", "address", "city"]);
     assertEquals(
       leaf.schemaPath,
       "#/schema/properties/address/properties/city",
@@ -252,7 +251,36 @@ Deno.test("TreeValidator", async (t) => {
     assertEquals(leaf?.valid, false);
   });
 
+  await t.step("multipleOf with floats uses epsilon comparison", () => {
+    // 0.1 + 0.2 = 0.30000000000000004 in IEEE 754
+    // Naive `data % multipleOf !== 0` would incorrectly fail here
+    const tree = validate({ type: "number", multipleOf: 0.01 }, 0.3);
+    assertEquals(tree.valid, true);
+  });
+
+  await t.step("multipleOf still catches real violations", () => {
+    const tree = validate({ type: "number", multipleOf: 3 }, 7);
+    assertEquals(tree.valid, false);
+    const leaf = tree.children?.find((c) => c.keyword === "multipleOf");
+    assertEquals(leaf?.valid, false);
+  });
+
   // ── Array validation ─────────────────────────────────────────────
+
+  await t.step(
+    "uniqueItems with different key order → detects duplicates",
+    () => {
+      // JSON.stringify({a:1,b:2}) !== JSON.stringify({b:2,a:1})
+      // But they ARE semantically equal, so uniqueItems should detect this
+      const tree = validate(
+        { type: "array", uniqueItems: true },
+        [{ a: 1, b: 2 }, { b: 2, a: 1 }],
+      );
+      assertEquals(tree.valid, false);
+      const leaf = tree.children?.find((c) => c.keyword === "uniqueItems");
+      assertEquals(leaf !== undefined, true);
+    },
+  );
 
   await t.step(
     "array item type error has indexed path and arrayItem flag",
@@ -265,7 +293,7 @@ Deno.test("TreeValidator", async (t) => {
       assertEquals(tree.valid, false);
       const leaf = tree.children![0]!;
       assertEquals(leaf.keyword, "type");
-      assertEquals(leaf.path, "body.1");
+      assertEquals(leaf.path, ["body", "1"]);
       assertEquals(leaf.schemaPath, "#/schema/items");
       assertEquals(leaf.arrayItem, true);
     },
@@ -310,7 +338,7 @@ Deno.test("TreeValidator", async (t) => {
       assertEquals(tree.valid, false);
       const leaf = tree.children![0]!;
       assertEquals(leaf.keyword, "type");
-      assertEquals(leaf.path, "body.0.name");
+      assertEquals(leaf.path, ["body", "0", "name"]);
       assertEquals(leaf.arrayItem, undefined);
     },
   );
@@ -472,7 +500,7 @@ Deno.test("TreeValidator", async (t) => {
     // The required error should have the nested path
     const leaf = tree.children![0]!;
     assertEquals(leaf.keyword, "required");
-    assertEquals(leaf.path, "body.user");
+    assertEquals(leaf.path, ["body", "user"]);
     assertEquals(leaf.field, "name");
   });
 
@@ -497,25 +525,6 @@ Deno.test("TreeValidator", async (t) => {
 
   // ── Contract compatibility ──────────────────────────────────────
 
-  await t.step("satisfies engine ValidationNode interface", () => {
-    const validator = new TreeValidator();
-    const tree = validator.validate(
-      "hello",
-      { type: "string" },
-      "#/schema",
-      "body",
-    );
-
-    // Compile-time check: TreeValidator output must be assignable to
-    // the engine's ValidationNode. If the engine's interface changes
-    // and this type drifts, this line fails at type-check time.
-    const node: ValidationNode = tree;
-
-    // Sanity: the assigned value works through the interface
-    assertEquals(node.valid, true);
-    assertEquals(node.path, "body");
-  });
-
   await t.step("satisfies engine SchemaValidator interface", () => {
     // Compile-time check: TreeValidator must be assignable to the
     // engine's SchemaValidator interface. If the method signature
@@ -527,9 +536,52 @@ Deno.test("TreeValidator", async (t) => {
       "hello",
       { type: "string" },
       "#/schema",
-      "body",
+      ["body"],
     );
     assertEquals(tree.valid, true);
+  });
+
+  // ── not keyword ──────────────────────────────────────────────────
+
+  await t.step("not: rejects data matching inner schema", () => {
+    const tree = validate({ not: { type: "string" } }, "hello");
+
+    assertEquals(tree.valid, false);
+    assertEquals(tree.children?.length, 1);
+
+    const leaf = tree.children![0]!;
+    assertEquals(leaf.keyword, "not");
+    assertEquals(leaf.valid, false);
+    assertEquals(leaf.path, ["body"]);
+    assertEquals(leaf.schemaPath, "#/schema/not");
+  });
+
+  await t.step("not: accepts data NOT matching inner schema", () => {
+    const tree = validate({ not: { type: "string" } }, 42);
+    assertEquals(tree.valid, true);
+  });
+
+  await t.step("not: empty schema in not rejects everything", () => {
+    // not: {} means "not anything" = nothing passes
+    const tree = validate({ not: {} }, "anything");
+    assertEquals(tree.valid, false);
+  });
+
+  await t.step("not: complex inner schema", () => {
+    const schema: Schema = {
+      type: "object",
+      not: {
+        required: ["forbidden_field"],
+      },
+    };
+
+    // Object without the forbidden field should pass
+    const pass = validate(schema, { name: "ok" });
+    assertEquals(pass.valid, true);
+
+    // Object with the forbidden field should fail
+    const fail = validate(schema, { forbidden_field: "oops" });
+    assertEquals(fail.valid, false);
   });
 
   // ── Boolean schemas (JSON Schema 2020-12 / OpenAPI 3.1) ─────────

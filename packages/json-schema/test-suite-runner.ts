@@ -47,19 +47,15 @@ export class TestSuiteRunner {
     };
 
     for (const group of testGroups) {
-      const schema = typeof group.schema === "boolean"
-        ? group.schema ? ({} as Schema) : ({ not: {} } as Schema)
-        : group.schema;
-
       for (const test of group.tests) {
         results.total++;
 
         try {
           const node = this.validator.validate(
             test.data,
-            schema,
+            group.schema,
             "#",
-            "root",
+            ["root"],
           );
           const actual = node.valid;
 
@@ -122,10 +118,17 @@ export class TestSuiteRunner {
 // Run tests if this file is executed directly
 if (import.meta.main) {
   const runner = new TestSuiteRunner();
-  const testDir = Deno.args[0] || "./test-suite/tests/draft2020-12";
+  const target = Deno.args[0] || "./test-suite/tests/draft2020-12";
 
-  console.log(`Running JSON Schema test suite from: ${testDir}`);
-  const results = await runner.runAllTests(testDir);
+  const stat = await Deno.stat(target);
+  let results: TestResults;
+  if (stat.isFile) {
+    console.log(`Running JSON Schema test file: ${target}`);
+    results = await runner.runTestFile(target);
+  } else {
+    console.log(`Running JSON Schema test suite from: ${target}`);
+    results = await runner.runAllTests(target);
+  }
 
   console.log("\n=== Test Results ===");
   console.log(`Total: ${results.total}`);
@@ -137,8 +140,20 @@ if (import.meta.main) {
   console.log(`Failed: ${results.failed}`);
 
   if (results.failed > 0) {
-    console.log("\n=== Failed Tests (first 10) ===");
-    for (const failed of results.failedTests.slice(0, 10)) {
+    // Group failures by test group for readability
+    const byGroup = new Map<string, number>();
+    for (const f of results.failedTests) {
+      byGroup.set(f.group, (byGroup.get(f.group) ?? 0) + 1);
+    }
+    const sorted = [...byGroup.entries()].sort((a, b) => b[1] - a[1]);
+
+    console.log(`\n=== Failed Groups (${sorted.length} groups) ===`);
+    for (const [group, count] of sorted) {
+      console.log(`  ${count}x  ${group}`);
+    }
+
+    console.log("\n=== All Failed Tests ===");
+    for (const failed of results.failedTests) {
       console.log(`\n${failed.group} - ${failed.test}`);
       console.log(`Expected: ${failed.expected}, Actual: ${failed.actual}`);
       if (failed.error) {

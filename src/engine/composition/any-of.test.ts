@@ -19,7 +19,7 @@ function makeDiag(
 
 function makeContext(): CompositionContext {
   return {
-    path: "body",
+    path: ["body"],
     schemaPath: "#/anyOf",
     schema: {},
     data: {},

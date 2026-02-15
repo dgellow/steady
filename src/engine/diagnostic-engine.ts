@@ -99,13 +99,13 @@ export interface SchemaValidator {
    * @param data - The value to validate
    * @param schema - The resolved JSON Schema
    * @param schemaPath - JSON pointer to the schema (for tree node schemaPath fields)
-   * @param dataPath - Location prefix for tree node path fields (e.g., "body")
+   * @param dataPath - Location prefix for tree node path fields (e.g., ["body"])
    */
   validate(
     data: unknown,
-    schema: Schema,
+    schema: Schema | boolean,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
   ): ValidationNode;
 }
 
@@ -202,7 +202,7 @@ export class DiagnosticEngine {
         // Value validation
         if (param.schema && param.schemaPath && parsed.value !== undefined) {
           const location: DiagnosticLocation = "query";
-          const dataPath = `query.${param.name}`;
+          const dataPath = ["query", param.name];
 
           const tree = this.validator.validate(
             parsed.value,
@@ -239,7 +239,7 @@ export class DiagnosticEngine {
           if (rawValue !== undefined) {
             const coerced = coerceScalar(rawValue, param.schema);
             const location: DiagnosticLocation = param.in;
-            const dataPath = `${param.in}.${param.name}`;
+            const dataPath = [param.in, param.name];
 
             const tree = this.validator.validate(
               coerced,
@@ -350,7 +350,7 @@ export class DiagnosticEngine {
           request.body,
           bodyInfo.schema,
           bodyInfo.schemaPath,
-          "body",
+          ["body"],
         );
 
         if (!tree.valid) {

@@ -21,7 +21,7 @@ function makeContext(
   overrides?: Partial<CompositionContext>,
 ): CompositionContext {
   return {
-    path: "body",
+    path: ["body"],
     schemaPath: "#/oneOf",
     schema: {},
     data: {},
@@ -141,7 +141,7 @@ Deno.test("analyzeAllFailed", async (t) => {
         },
       ],
       makeContext({
-        path: "body.payment",
+        path: ["body", "payment"],
         schemaPath: "#/components/schemas/Payment/oneOf",
       }),
     );

@@ -23,7 +23,7 @@ function makeContext(
   data: unknown = {},
 ): CompositionContext {
   return {
-    path: "body",
+    path: ["body"],
     schemaPath: "#/oneOf",
     schema,
     data,

@@ -20,7 +20,7 @@ function makeDiag(
 
 function makeContext(schema: Schema): CompositionContext {
   return {
-    path: "body",
+    path: ["body"],
     schemaPath: "#/allOf",
     schema,
     data: {},

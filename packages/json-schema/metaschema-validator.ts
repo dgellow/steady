@@ -3,33 +3,79 @@
  *
  * This ensures that schemas themselves are valid before we use them to validate data.
  * Critical for providing clear error messages when schemas are malformed.
+ *
+ * Uses TreeValidator directly. Metaschema refs are all local (#/$defs/...),
+ * so TreeValidator's built-in local ref resolution handles them without
+ * any external resolver or preprocessing.
  */
 
 import type {
-  ProcessedSchema,
   Schema,
   SchemaValidationError,
   SchemaValidationResult,
 } from "./types.ts";
-import { RuntimeValidator } from "./runtime-validator.ts";
-import { ScaleAwareRefResolver } from "./ref-resolver-enhanced.ts";
-import { SchemaIndexer } from "./schema-indexer.ts";
+import { TreeValidator } from "./tree-validator.ts";
+
+/** Validation tree node shape (matches TreeValidator output). */
+interface ValidationNode {
+  keyword?: string;
+  path: string[];
+  schemaPath: string;
+  valid: boolean;
+  message?: string;
+  expected?: unknown;
+  actual?: unknown;
+  children?: ValidationNode[];
+}
+
+/**
+ * Walk a validation tree and collect all invalid leaf nodes as flat errors.
+ */
+function flattenTree(node: ValidationNode): SchemaValidationError[] {
+  if (node.valid) return [];
+
+  // Leaf node: no children, has a keyword
+  if (!node.children || node.children.length === 0) {
+    if (!node.keyword) return [];
+    return [{
+      instancePath: "/" + node.path.join("/"),
+      schemaPath: node.schemaPath,
+      keyword: node.keyword,
+      message: node.message ?? `Validation failed: ${node.keyword}`,
+      params: buildParams(node),
+    }];
+  }
+
+  // Composition/container node: recurse into children
+  const errors: SchemaValidationError[] = [];
+  for (const child of node.children) {
+    errors.push(...flattenTree(child));
+  }
+  return errors;
+}
+
+function buildParams(
+  node: ValidationNode,
+): Record<string, unknown> | undefined {
+  if (node.expected === undefined && node.actual === undefined) {
+    return undefined;
+  }
+  const params: Record<string, unknown> = {};
+  if (node.expected !== undefined) params.expected = node.expected;
+  if (node.actual !== undefined) params.actual = node.actual;
+  return params;
+}
 
 export class MetaschemaValidator {
-  private validators: Map<string, RuntimeValidator> = new Map();
-  private indexer: SchemaIndexer;
-
-  constructor() {
-    this.indexer = new SchemaIndexer();
-  }
+  private validators: Map<string, TreeValidator> = new Map();
 
   /**
    * Validate a schema against the JSON Schema metaschema
    */
-  async validate(
+  validate(
     schemaObject: unknown,
     metaschema: Schema,
-  ): Promise<SchemaValidationResult> {
+  ): SchemaValidationResult {
     // First, check if it's a valid JSON value
     if (schemaObject === undefined) {
       return {
@@ -49,14 +95,19 @@ export class MetaschemaValidator {
     let validator = this.validators.get(metaschemaKey);
 
     if (!validator) {
-      // Process the metaschema once
-      const processedMetaschema = await this.processMetaschema(metaschema);
-      validator = new RuntimeValidator(processedMetaschema);
+      validator = new TreeValidator();
       this.validators.set(metaschemaKey, validator);
     }
 
     // Validate against metaschema
-    const errors = validator.validate(schemaObject);
+    const tree = validator.validate(
+      schemaObject,
+      metaschema,
+      "#",
+      [""],
+    );
+
+    const errors = flattenTree(tree);
 
     // Enhance errors with better messages for common issues
     const enhancedErrors = errors.length > 0 ? this.enhanceErrors(errors) : [];
@@ -68,46 +119,6 @@ export class MetaschemaValidator {
       valid: enhancedErrors.length === 0 && semanticErrors.length === 0,
       errors: [...enhancedErrors, ...semanticErrors],
     };
-  }
-
-  /**
-   * Process metaschema into a ProcessedSchema
-   * This is a simplified version that doesn't use the full JsonSchemaProcessor
-   * to avoid circular dependencies
-   */
-  private async processMetaschema(
-    metaschema: Schema,
-  ): Promise<ProcessedSchema> {
-    // Resolve references in the metaschema
-    const resolver = new ScaleAwareRefResolver(metaschema);
-    const resolveResult = await resolver.resolveAll(metaschema);
-
-    if (!resolveResult.success) {
-      throw new Error(
-        `Failed to process metaschema: ${resolveResult.errors.join(", ")}`,
-      );
-    }
-
-    // Build dependency graph for refs
-    const cyclicRefs = new Set<string>();
-    for (const cycle of resolveResult.cycles) {
-      for (const ref of cycle) {
-        cyclicRefs.add(ref);
-      }
-    }
-
-    const refs: ProcessedSchema["refs"] = {
-      resolved: resolveResult.resolved,
-      graph: resolveResult.dependencyGraph,
-      cyclic: cyclicRefs,
-    };
-
-    // Index the metaschema
-    const indexed = this.indexer.index(metaschema, refs, {
-      baseUri: "https://json-schema.org/draft/2020-12/schema",
-    });
-
-    return indexed;
   }
 
   /**

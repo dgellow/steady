@@ -18,12 +18,10 @@
 import type { Schema } from "./types.ts";
 
 // ── Output types ───────────────────────────────────────────────────
-// These are structurally compatible with src/engine/types.ts ValidationNode.
-// A compile-time test verifies compatibility.
 
-interface ValidationNode {
+export interface ValidationNode {
   keyword?: string;
-  path: string;
+  path: string[];
   schemaPath: string;
   valid: boolean;
 
@@ -81,15 +79,16 @@ export class TreeValidator {
    * Validate data against a schema, returning a validation tree.
    *
    * @param data - The value to validate
-   * @param schema - The resolved JSON Schema
+   * @param schema - JSON Schema object, or a boolean. JSON Schema 2020-12
+   *   treats `true` as "accept everything" and `false` as "reject everything".
    * @param schemaPath - JSON pointer to the schema (e.g., "#/paths/.../schema")
    * @param dataPath - Location prefix for paths (e.g., "body")
    */
   validate(
     data: unknown,
-    schema: Schema,
+    schema: Schema | boolean,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
   ): ValidationNode {
     const errors: ValidationNode[] = [];
 
@@ -113,11 +112,11 @@ export class TreeValidator {
    */
   private validateSchema(
     data: unknown,
-    schema: Schema,
+    schema: Schema | boolean,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
-    rootSchema: Schema,
+    rootSchema: Schema | boolean,
     context?: { arrayItem?: boolean },
   ): void {
     // Boolean schema (JSON Schema 2020-12: false rejects all, true accepts all)
@@ -187,6 +186,30 @@ export class TreeValidator {
         rootSchema,
         context,
       );
+    }
+
+    // not: data must NOT validate against the inner schema.
+    // No inner errors means the data matched, so `not` rejects.
+    if (schema.not !== undefined) {
+      const innerErrors: ValidationNode[] = [];
+      this.validateSchema(
+        data,
+        schema.not,
+        `${schemaPath}/not`,
+        dataPath,
+        innerErrors,
+        rootSchema,
+        context,
+      );
+      if (innerErrors.length === 0) {
+        errors.push({
+          keyword: "not",
+          path: dataPath,
+          schemaPath: `${schemaPath}/not`,
+          valid: false,
+          message: "Value must not match the schema in 'not'",
+        });
+      }
     }
 
     // type
@@ -316,7 +339,7 @@ export class TreeValidator {
     data: unknown,
     schema: Schema,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
     context?: { arrayItem?: boolean },
   ): void {
@@ -354,7 +377,7 @@ export class TreeValidator {
     obj: Record<string, unknown>,
     required: string[],
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
   ): void {
     for (const field of required) {
@@ -377,9 +400,9 @@ export class TreeValidator {
     obj: Record<string, unknown>,
     properties: Record<string, Schema>,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
-    rootSchema: Schema,
+    rootSchema: Schema | boolean,
     evaluatedProps: Set<string>,
   ): void {
     for (const [propName, propSchema] of Object.entries(properties)) {
@@ -389,7 +412,7 @@ export class TreeValidator {
           obj[propName],
           propSchema,
           `${schemaPath}/properties/${escapeJsonPointer(propName)}`,
-          `${dataPath}.${propName}`,
+          [...dataPath, propName],
           errors,
           rootSchema,
         );
@@ -403,9 +426,9 @@ export class TreeValidator {
     obj: Record<string, unknown>,
     patternProperties: Record<string, Schema>,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
-    rootSchema: Schema,
+    rootSchema: Schema | boolean,
     evaluatedProps: Set<string>,
   ): void {
     for (const [pattern, propSchema] of Object.entries(patternProperties)) {
@@ -423,7 +446,7 @@ export class TreeValidator {
             obj[propName],
             propSchema,
             `${schemaPath}/patternProperties/${escapeJsonPointer(pattern)}`,
-            `${dataPath}.${propName}`,
+            [...dataPath, propName],
             errors,
             rootSchema,
           );
@@ -438,9 +461,9 @@ export class TreeValidator {
     obj: Record<string, unknown>,
     schema: Schema,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
-    rootSchema: Schema,
+    rootSchema: Schema | boolean,
     evaluatedProps: Set<string>,
   ): void {
     for (const propName of Object.keys(obj)) {
@@ -463,7 +486,7 @@ export class TreeValidator {
           obj[propName],
           schema.additionalProperties,
           `${schemaPath}/additionalProperties`,
-          `${dataPath}.${propName}`,
+          [...dataPath, propName],
           errors,
           rootSchema,
         );
@@ -477,7 +500,7 @@ export class TreeValidator {
     data: unknown,
     enumValues: unknown[],
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
   ): void {
     if (!enumValues.some((v) => deepEqual(v, data))) {
@@ -496,7 +519,7 @@ export class TreeValidator {
     data: unknown,
     constValue: unknown,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
   ): void {
     if (!deepEqual(data, constValue)) {
@@ -517,7 +540,7 @@ export class TreeValidator {
     data: string,
     schema: Schema,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
   ): void {
     if (schema.minLength !== undefined && data.length < schema.minLength) {
@@ -580,7 +603,7 @@ export class TreeValidator {
     data: number,
     schema: Schema,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
   ): void {
     if (schema.minimum !== undefined && data < schema.minimum) {
@@ -627,15 +650,22 @@ export class TreeValidator {
         actual: data,
       });
     }
-    if (schema.multipleOf !== undefined && data % schema.multipleOf !== 0) {
-      errors.push({
-        valid: false,
-        keyword: "multipleOf",
-        path: dataPath,
-        schemaPath,
-        expected: schema.multipleOf,
-        actual: data,
-      });
+    if (schema.multipleOf !== undefined && schema.multipleOf > 0) {
+      const division = data / schema.multipleOf;
+      const rounded = Math.round(division);
+      const isMultiple = Math.abs(division - rounded) <
+        Number.EPSILON * Math.max(Math.abs(division), Math.abs(rounded));
+
+      if (!isMultiple && data !== 0) {
+        errors.push({
+          valid: false,
+          keyword: "multipleOf",
+          path: dataPath,
+          schemaPath,
+          expected: schema.multipleOf,
+          actual: data,
+        });
+      }
     }
   }
 
@@ -645,9 +675,9 @@ export class TreeValidator {
     data: unknown[],
     schema: Schema,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
-    rootSchema: Schema,
+    rootSchema: Schema | boolean,
   ): void {
     if (schema.minItems !== undefined && data.length < schema.minItems) {
       errors.push({
@@ -681,7 +711,7 @@ export class TreeValidator {
           data[i],
           schema.items,
           `${schemaPath}/items`,
-          `${dataPath}.${i}`,
+          [...dataPath, String(i)],
           errors,
           rootSchema,
           { arrayItem: true },
@@ -698,7 +728,7 @@ export class TreeValidator {
             data[i],
             itemSchema,
             `${schemaPath}/prefixItems/${i}`,
-            `${dataPath}.${i}`,
+            [...dataPath, String(i)],
             errors,
             rootSchema,
             { arrayItem: true },
@@ -710,7 +740,7 @@ export class TreeValidator {
     if (schema.uniqueItems === true) {
       const seen = new Set<string>();
       for (let i = 0; i < data.length; i++) {
-        const key = JSON.stringify(data[i]);
+        const key = canonicalJson(data[i]);
         if (seen.has(key)) {
           errors.push({
             valid: false,
@@ -734,9 +764,9 @@ export class TreeValidator {
     data: unknown,
     variants: Schema[],
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
-    rootSchema: Schema,
+    rootSchema: Schema | boolean,
     context?: { arrayItem?: boolean },
   ): void {
     const variantResults: ValidationNode[] = [];
@@ -786,9 +816,9 @@ export class TreeValidator {
     data: unknown,
     variants: Schema[],
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
-    rootSchema: Schema,
+    rootSchema: Schema | boolean,
     context?: { arrayItem?: boolean },
   ): void {
     const variantResults: ValidationNode[] = [];
@@ -835,9 +865,9 @@ export class TreeValidator {
     data: unknown,
     subschemas: Schema[],
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
     errors: ValidationNode[],
-    rootSchema: Schema,
+    rootSchema: Schema | boolean,
     context?: { arrayItem?: boolean },
   ): void {
     const childResults: ValidationNode[] = [];
@@ -882,7 +912,10 @@ export class TreeValidator {
 
   // ── $ref resolution ──────────────────────────────────────────────
 
-  private resolveRef(ref: string, rootSchema: Schema): Schema | undefined {
+  private resolveRef(
+    ref: string,
+    rootSchema: Schema | boolean,
+  ): Schema | undefined {
     // Try local resolution first (for in-schema refs like #/$defs/X)
     const local = this.resolveRefLocally(ref, rootSchema);
     if (local !== undefined) return local;
@@ -901,7 +934,7 @@ export class TreeValidator {
    */
   private resolveRefLocally(
     ref: string,
-    rootSchema: Schema,
+    rootSchema: Schema | boolean,
   ): Schema | undefined {
     if (!ref.startsWith("#/")) return undefined;
 
@@ -948,6 +981,28 @@ function deepEqual(a: unknown, b: unknown): boolean {
   }
 
   return false;
+}
+
+/**
+ * Create a canonical JSON string with sorted object keys.
+ * Ensures objects with the same content but different key order
+ * produce identical strings for comparison.
+ */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  const pairs = keys.map((k) =>
+    JSON.stringify(k) + ":" + canonicalJson(obj[k])
+  );
+  return "{" + pairs.join(",") + "}";
 }
 
 function escapeJsonPointer(segment: string): string {

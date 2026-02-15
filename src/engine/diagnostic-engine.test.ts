@@ -83,7 +83,7 @@ class StubValidator implements SchemaValidator {
     _data: unknown,
     _schema: Schema,
     schemaPath: string,
-    dataPath: string,
+    dataPath: string[],
   ): ValidationNode {
     return (
       this.trees.get(schemaPath) ?? {
@@ -301,13 +301,13 @@ Deno.test("DiagnosticEngine", async (t) => {
     const validator = new StubValidator();
     validator.register(bodySchemaPath, {
       valid: false,
-      path: "body",
+      path: ["body"],
       schemaPath: bodySchemaPath,
       children: [
         {
           valid: false,
           keyword: "required",
-          path: "body.name",
+          path: ["body", "name"],
           schemaPath: leafSchemaPath,
           field: "name",
         },
@@ -403,13 +403,13 @@ Deno.test("DiagnosticEngine", async (t) => {
     const validator = new StubValidator();
     validator.register(bodySchemaPath, {
       valid: false,
-      path: "body",
+      path: ["body"],
       schemaPath: bodySchemaPath,
       children: [
         {
           valid: false,
           keyword: "pattern",
-          path: "body.email",
+          path: ["body", "email"],
           schemaPath: leafSchemaPath,
         },
       ],
@@ -455,7 +455,7 @@ Deno.test("DiagnosticEngine", async (t) => {
       const validator = new StubValidator();
       validator.register(paramSchemaPath, {
         valid: false,
-        path: "query.limit",
+        path: ["query", "limit"],
         schemaPath: paramSchemaPath,
         keyword: "type",
         expected: "integer",
@@ -525,7 +525,7 @@ Deno.test("DiagnosticEngine", async (t) => {
       const validator = new StubValidator();
       validator.register(paramSchemaPath, {
         valid: false,
-        path: "header.X-Count",
+        path: ["header", "X-Count"],
         schemaPath: paramSchemaPath,
         keyword: "enum",
         actual: "bad",
@@ -592,7 +592,7 @@ Deno.test("DiagnosticEngine", async (t) => {
       const validator = new StubValidator();
       validator.register(paramSchemaPath, {
         valid: false,
-        path: "path.id",
+        path: ["path", "id"],
         schemaPath: paramSchemaPath,
         keyword: "type",
         expected: "integer",
@@ -778,7 +778,7 @@ Deno.test("DiagnosticEngine", async (t) => {
     const validator = new StubValidator();
     validator.register(paramSchemaPath, {
       valid: false,
-      path: "cookie.max_age",
+      path: ["cookie", "max_age"],
       schemaPath: paramSchemaPath,
       keyword: "type",
       expected: "integer",

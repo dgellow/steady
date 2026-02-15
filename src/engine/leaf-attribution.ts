@@ -117,7 +117,7 @@ export function attributeLeaf(
     code,
     severity: definition.severity,
     category: definition.category,
-    requestPath: node.path,
+    requestPath: node.path.join("."),
     specPointer: node.schemaPath,
     message: node.message ?? buildMessage(node, definition.title),
     expected: node.expected,
@@ -335,47 +335,48 @@ function buildReasoning(
  * Classification reason: explains the decision that led to this code.
  */
 function classifyReason(node: LeafNode, code: ECode): string {
-  const location = node.path.split(".")[0] ?? "body";
+  const pathStr = node.path.join(".");
+  const location = node.path[0] ?? "body";
 
   switch (code) {
     case "E5001":
-      return `Field ${node.path} received null but schema does not allow nullable`;
+      return `Field ${pathStr} received null but schema does not allow nullable`;
     case "E3010":
-      return `Array item type mismatch at ${node.path}`;
+      return `Array item type mismatch at ${pathStr}`;
     case "E3001":
     case "E3003":
     case "E3008":
-      return `Type mismatch in ${location} at ${node.path}`;
+      return `Type mismatch in ${location} at ${pathStr}`;
     case "E3002":
-      return `Missing required query parameter at ${node.path}`;
+      return `Missing required query parameter at ${pathStr}`;
     case "E3004":
-      return `Missing required header at ${node.path}`;
+      return `Missing required header at ${pathStr}`;
     case "E3007":
-      return `Missing required field in ${location} at ${node.path}`;
+      return `Missing required field in ${location} at ${pathStr}`;
     case "E3009":
-      return `Unknown property not allowed at ${node.path}`;
+      return `Unknown property not allowed at ${pathStr}`;
     case "E5003":
-      return `Unknown property at ${node.path}, spec does not declare additionalProperties`;
+      return `Unknown property at ${pathStr}, spec does not declare additionalProperties`;
     case "E3016":
-      return `Enum value mismatch at ${node.path}`;
+      return `Enum value mismatch at ${pathStr}`;
     case "E3017":
-      return `Constant value mismatch at ${node.path}`;
+      return `Constant value mismatch at ${pathStr}`;
     case "E3018":
-      return `Structural format mismatch at ${node.path}`;
+      return `Structural format mismatch at ${pathStr}`;
     case "E4001":
-      return `Content format mismatch at ${node.path}`;
+      return `Content format mismatch at ${pathStr}`;
     case "E4002":
       return classifyE4002(node);
     case "E4003":
-      return `String length violation at ${node.path}`;
+      return `String length violation at ${pathStr}`;
     case "E4004":
-      return `Numeric range violation at ${node.path}`;
+      return `Numeric range violation at ${pathStr}`;
     case "E4005":
-      return `Array size violation at ${node.path}`;
+      return `Array size violation at ${pathStr}`;
     case "E4007":
-      return `Multiple-of constraint violation at ${node.path}`;
+      return `Multiple-of constraint violation at ${pathStr}`;
     default:
-      return `${getCode(code).title} at ${node.path}`;
+      return `${getCode(code).title} at ${pathStr}`;
   }
 }
 
@@ -383,14 +384,15 @@ function classifyReason(node: LeafNode, code: ECode): string {
  * E4002 is a catch-all content-note. Use keyword for accurate classification.
  */
 function classifyE4002(node: LeafNode): string {
+  const pathStr = node.path.join(".");
   switch (node.keyword) {
     case "minProperties":
     case "maxProperties":
-      return `Object property count violation at ${node.path}`;
+      return `Object property count violation at ${pathStr}`;
     case "uniqueItems":
-      return `Unique items constraint violation at ${node.path}`;
+      return `Unique items constraint violation at ${pathStr}`;
     default:
-      return `Pattern mismatch at ${node.path}`;
+      return `Pattern mismatch at ${pathStr}`;
   }
 }
 
@@ -514,7 +516,7 @@ function describeViolation(
     }
     case "required": {
       if (node.field) {
-        const location = node.path.split(".")[0] ?? "body";
+        const location = node.path[0] ?? "body";
         return `Request ${location} did not include '${node.field}'`;
       }
       return undefined;

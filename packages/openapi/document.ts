@@ -10,6 +10,7 @@
  */
 
 import type { Schema } from "@steady/json-schema";
+import type { SchemaRegistry } from "@steady/json-schema";
 import { resolve as resolvePointer } from "@steady/json-pointer";
 import type {
   OpenAPISpec,
@@ -95,9 +96,11 @@ type HttpMethod = (typeof HTTP_METHODS)[number];
 
 export class OpenAPISpecDocument {
   private readonly spec: OpenAPISpec;
+  private readonly registry?: SchemaRegistry;
 
-  constructor(spec: OpenAPISpec) {
+  constructor(spec: OpenAPISpec, registry?: SchemaRegistry) {
     this.spec = spec;
+    this.registry = registry;
   }
 
   get paths(): PathsObject {
@@ -251,9 +254,18 @@ export class OpenAPISpecDocument {
 
   /**
    * Resolve a schema by its JSON pointer in the spec.
+   * Uses SchemaRegistry when available, falls back to raw pointer resolution.
    * Returns empty schema {} if the pointer can't be resolved.
    */
   resolveSchema(schemaPath: string): Schema {
+    if (this.registry) {
+      const result = this.registry.get(schemaPath);
+      if (result && typeof result.raw === "object" && result.raw !== null) {
+        return result.raw;
+      }
+      return {};
+    }
+
     const pointer = stripFragment(schemaPath);
     try {
       const resolved = resolvePointer(this.spec, pointer);
@@ -311,8 +323,15 @@ export class OpenAPISpecDocument {
 
   /**
    * Resolve a $ref string against the spec document.
+   * Uses SchemaRegistry when available, falls back to raw pointer resolution.
    */
   private resolveRef(ref: string): unknown {
+    if (this.registry) {
+      const result = this.registry.resolveRef(ref);
+      if (result) return result.raw;
+      // Fall through to raw resolution for non-schema refs (parameters, etc.)
+    }
+
     const pointer = stripFragment(ref);
     try {
       return resolvePointer(this.spec, pointer);

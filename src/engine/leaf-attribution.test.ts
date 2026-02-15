@@ -10,7 +10,7 @@ function makeNode(
   overrides: Partial<LeafNode> & { keyword: string },
 ): LeafNode {
   return {
-    path: "body",
+    path: ["body"],
     schemaPath: "#/test",
     valid: false,
     ...overrides,
@@ -90,7 +90,11 @@ Deno.test("attributeLeafCode", async (t) => {
   await t.step("type for array item in body → E3010", () => {
     assertEquals(
       attributeLeafCode(
-        makeNode({ keyword: "type", path: "body.tags.0", arrayItem: true }),
+        makeNode({
+          keyword: "type",
+          path: ["body", "tags", "0"],
+          arrayItem: true,
+        }),
         { type: "string" },
         "body",
       ),
@@ -103,7 +107,7 @@ Deno.test("attributeLeafCode", async (t) => {
     () => {
       assertEquals(
         attributeLeafCode(
-          makeNode({ keyword: "type", path: "body.users.0.name" }),
+          makeNode({ keyword: "type", path: ["body", "users", "0", "name"] }),
           { type: "string" },
           "body",
         ),
@@ -371,7 +375,7 @@ Deno.test("attributeLeaf", async (t) => {
   await t.step("produces a complete Diagnostic", async (t) => {
     const node = makeNode({
       keyword: "type",
-      path: "body.email",
+      path: ["body", "email"],
       schemaPath: "#/components/schemas/User/properties/email/type",
       message: "Expected string, got integer",
       expected: "string",
@@ -398,7 +402,7 @@ Deno.test("attributeLeaf", async (t) => {
   await t.step("uses E-code title when node has no message", () => {
     const node = makeNode({
       keyword: "required",
-      path: "body",
+      path: ["body"],
       schemaPath: "#/test",
     });
 
@@ -412,7 +416,7 @@ Deno.test("attributeLeaf", async (t) => {
     () => {
       const node = makeNode({
         keyword: "additionalProperties",
-        path: "body.foo",
+        path: ["body", "foo"],
         field: "foo",
       });
 
@@ -448,7 +452,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E3008 type mismatch", async (t) => {
     const node = makeNode({
       keyword: "type",
-      path: "body.email",
+      path: ["body", "email"],
       expected: "string",
       actual: "integer",
     });
@@ -459,7 +463,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E3007 missing required body field", async (t) => {
     const node = makeNode({
       keyword: "required",
-      path: "body.file",
+      path: ["body", "file"],
       field: "file",
     });
     const diag = attributeLeaf(
@@ -473,7 +477,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E5001 null non-nullable", async (t) => {
     const node = makeNode({
       keyword: "type",
-      path: "body.name",
+      path: ["body", "name"],
       actual: null,
     });
     const diag = attributeLeaf(node, { type: "string" }, "body");
@@ -484,7 +488,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E3002 missing required query param", async (t) => {
     const node = makeNode({
       keyword: "required",
-      path: "query.limit",
+      path: ["query", "limit"],
       field: "limit",
     });
     const diag = attributeLeaf(node, {}, "query");
@@ -495,7 +499,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E3004 missing required header", async (t) => {
     const node = makeNode({
       keyword: "required",
-      path: "header.authorization",
+      path: ["header", "authorization"],
       field: "authorization",
     });
     const diag = attributeLeaf(node, {}, "header");
@@ -506,7 +510,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E3009 additional property (false)", async (t) => {
     const node = makeNode({
       keyword: "additionalProperties",
-      path: "body.foo",
+      path: ["body", "foo"],
       field: "foo",
     });
     const diag = attributeLeaf(
@@ -521,7 +525,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E5003 additional property (spec silent)", async (t) => {
     const node = makeNode({
       keyword: "additionalProperties",
-      path: "body.foo",
+      path: ["body", "foo"],
       field: "foo",
     });
     const diag = attributeLeaf(node, {}, "body");
@@ -532,7 +536,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E3016 enum mismatch", async (t) => {
     const node = makeNode({
       keyword: "enum",
-      path: "body.status",
+      path: ["body", "status"],
       actual: "invalid",
     });
     const diag = attributeLeaf(
@@ -547,7 +551,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E3017 const mismatch", async (t) => {
     const node = makeNode({
       keyword: "const",
-      path: "body.version",
+      path: ["body", "version"],
       expected: "v2",
       actual: "v1",
     });
@@ -559,7 +563,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E4002 pattern mismatch", async (t) => {
     const node = makeNode({
       keyword: "pattern",
-      path: "body.email",
+      path: ["body", "email"],
       expected: "^.+@.+$",
       actual: "notanemail",
     });
@@ -575,7 +579,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E4003 string length (minLength)", async (t) => {
     const node = makeNode({
       keyword: "minLength",
-      path: "body.name",
+      path: ["body", "name"],
       expected: 1,
       actual: 0,
     });
@@ -587,7 +591,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E4004 numeric range (minimum)", async (t) => {
     const node = makeNode({
       keyword: "minimum",
-      path: "body.age",
+      path: ["body", "age"],
       expected: 0,
       actual: -5,
     });
@@ -599,7 +603,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E4005 array size (minItems)", async (t) => {
     const node = makeNode({
       keyword: "minItems",
-      path: "body.tags",
+      path: ["body", "tags"],
       expected: 1,
       actual: 0,
     });
@@ -611,7 +615,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E4007 multipleOf", async (t) => {
     const node = makeNode({
       keyword: "multipleOf",
-      path: "body.quantity",
+      path: ["body", "quantity"],
       expected: 5,
       actual: 7,
     });
@@ -623,7 +627,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E3018 structural format mismatch", async (t) => {
     const node = makeNode({
       keyword: "format",
-      path: "body.file",
+      path: ["body", "file"],
       expected: "binary",
       actual: "not-binary",
     });
@@ -635,7 +639,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E4001 content format mismatch", async (t) => {
     const node = makeNode({
       keyword: "format",
-      path: "body.email",
+      path: ["body", "email"],
       expected: "email",
       actual: "notanemail",
     });
@@ -647,7 +651,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E3010 array item type mismatch", async (t) => {
     const node = makeNode({
       keyword: "type",
-      path: "body.tags.0",
+      path: ["body", "tags", "0"],
       expected: "string",
       actual: "integer",
       arrayItem: true,
@@ -660,7 +664,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("E4005 array size (maxItems)", async (t) => {
     const node = makeNode({
       keyword: "maxItems",
-      path: "body.tags",
+      path: ["body", "tags"],
       expected: 3,
       actual: 10,
     });
@@ -672,7 +676,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("minProperties reasoning", async (t) => {
     const node = makeNode({
       keyword: "minProperties",
-      path: "body.metadata",
+      path: ["body", "metadata"],
       actual: 0,
     });
     const diag = attributeLeaf(
@@ -686,7 +690,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("maxProperties reasoning", async (t) => {
     const node = makeNode({
       keyword: "maxProperties",
-      path: "body.metadata",
+      path: ["body", "metadata"],
       actual: 10,
     });
     const diag = attributeLeaf(
@@ -700,7 +704,7 @@ Deno.test("reasoning chains", async (t) => {
   await t.step("uniqueItems reasoning", async (t) => {
     const node = makeNode({
       keyword: "uniqueItems",
-      path: "body.tags",
+      path: ["body", "tags"],
       actual: ["a", "a"],
     });
     const diag = attributeLeaf(
@@ -718,7 +722,7 @@ Deno.test("display context", async (t) => {
   await t.step("type keyword shows schema type", async (t) => {
     const node = makeNode({
       keyword: "type",
-      path: "body.email",
+      path: ["body", "email"],
       expected: "string",
       actual: "integer",
     });
@@ -729,7 +733,7 @@ Deno.test("display context", async (t) => {
   await t.step("required keyword shows required array", async (t) => {
     const node = makeNode({
       keyword: "required",
-      path: "body.file",
+      path: ["body", "file"],
       field: "file",
     });
     const diag = attributeLeaf(
@@ -745,7 +749,7 @@ Deno.test("display context", async (t) => {
     async (t) => {
       const node = makeNode({
         keyword: "additionalProperties",
-        path: "body.foo",
+        path: ["body", "foo"],
         field: "foo",
       });
       const diag = attributeLeaf(
@@ -760,7 +764,7 @@ Deno.test("display context", async (t) => {
   await t.step("enum shows allowed values", async (t) => {
     const node = makeNode({
       keyword: "enum",
-      path: "body.status",
+      path: ["body", "status"],
       actual: "invalid",
     });
     const diag = attributeLeaf(
@@ -774,7 +778,7 @@ Deno.test("display context", async (t) => {
   await t.step("const shows expected value", async (t) => {
     const node = makeNode({
       keyword: "const",
-      path: "body.version",
+      path: ["body", "version"],
       expected: "v2",
       actual: "v1",
     });
@@ -786,7 +790,7 @@ Deno.test("display context", async (t) => {
     const longEnum = Array.from({ length: 50 }, (_, i) => `value_${i}`);
     const node = makeNode({
       keyword: "enum",
-      path: "body.status",
+      path: ["body", "status"],
       actual: "invalid",
     });
     const diag = attributeLeaf(node, { enum: longEnum }, "body");
@@ -801,7 +805,7 @@ Deno.test("display context", async (t) => {
   await t.step("array type uses bracket syntax in display", () => {
     const node = makeNode({
       keyword: "type",
-      path: "body.name",
+      path: ["body", "name"],
       expected: "string",
       actual: 42,
     });
@@ -821,7 +825,7 @@ Deno.test("display context", async (t) => {
   await t.step("scalar type uses quote syntax in display", () => {
     const node = makeNode({
       keyword: "type",
-      path: "body.name",
+      path: ["body", "name"],
       expected: "string",
       actual: 42,
     });
@@ -833,7 +837,7 @@ Deno.test("display context", async (t) => {
   await t.step("pattern keyword has no display context", () => {
     const node = makeNode({
       keyword: "pattern",
-      path: "body.email",
+      path: ["body", "email"],
       actual: "bad",
     });
     const diag = attributeLeaf(

@@ -133,7 +133,7 @@ function detectContradictoryTypes(
     code: "E1012",
     severity: e1012.severity,
     category: e1012.category,
-    requestPath: context.path,
+    requestPath: context.path.join("."),
     specPointer: context.schemaPath,
     message: `Impossible schema: allOf requires both ${typeList}`,
     attribution: {

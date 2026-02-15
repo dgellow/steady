@@ -66,12 +66,12 @@ Deno.test("EDGE: allOf with conflicting type requirements", async () => {
   const tv = new TreeValidator();
   // Neither a string nor a number can satisfy both type requirements
   assertEquals(
-    tv.validate("test", result.schema.root as Schema, "#", "root").valid,
+    tv.validate("test", result.schema.root as Schema, "#", ["root"]).valid,
     false,
     "String should fail - cannot be both string and number",
   );
   assertEquals(
-    tv.validate(42, result.schema.root as Schema, "#", "root").valid,
+    tv.validate(42, result.schema.root as Schema, "#", ["root"]).valid,
     false,
     "Number should fail - cannot be both string and number",
   );
@@ -96,17 +96,17 @@ Deno.test("EDGE: allOf with conflicting numeric constraints", async () => {
   // Data validation test - no number can satisfy min >= 10 AND max <= 5
   const tv = new TreeValidator();
   assertEquals(
-    tv.validate(7, result.schema.root as Schema, "#", "root").valid,
+    tv.validate(7, result.schema.root as Schema, "#", ["root"]).valid,
     false,
     "7 should fail - cannot be >= 10 AND <= 5",
   );
   assertEquals(
-    tv.validate(10, result.schema.root as Schema, "#", "root").valid,
+    tv.validate(10, result.schema.root as Schema, "#", ["root"]).valid,
     false,
     "10 should fail - violates maximum: 5",
   );
   assertEquals(
-    tv.validate(3, result.schema.root as Schema, "#", "root").valid,
+    tv.validate(3, result.schema.root as Schema, "#", ["root"]).valid,
     false,
     "3 should fail - violates minimum: 10",
   );
@@ -313,7 +313,7 @@ Deno.test("EDGE: allOf with additionalProperties false across schemas", async ()
     dataWithAllOfProps,
     result.schema.root as Schema,
     "#",
-    "root",
+    ["root"],
   );
   // Note: This REJECTS because additionalProperties doesn't see allOf properties
   // This is expected per spec, though many find it surprising
@@ -379,12 +379,12 @@ Deno.test("EDGE: allOf with false schema (impossible)", async () => {
   // Data validation test - false in allOf rejects everything
   const tv = new TreeValidator();
   assertEquals(
-    tv.validate({}, result.schema.root as Schema, "#", "root").valid,
+    tv.validate({}, result.schema.root as Schema, "#", ["root"]).valid,
     false,
     "Empty object should fail - false rejects everything",
   );
   assertEquals(
-    tv.validate("anything", result.schema.root as Schema, "#", "root").valid,
+    tv.validate("anything", result.schema.root as Schema, "#", ["root"]).valid,
     false,
     "Any value should fail - false rejects everything",
   );
@@ -532,17 +532,17 @@ Deno.test("EDGE: allOf merging conflicting required arrays", async () => {
   // Data validation test - should require both a and c (union of required arrays)
   const tv = new TreeValidator();
   assertEquals(
-    tv.validate({ a: "x" }, result.schema.root as Schema, "#", "root").valid,
+    tv.validate({ a: "x" }, result.schema.root as Schema, "#", ["root"]).valid,
     false,
     "Missing 'c' should fail",
   );
   assertEquals(
-    tv.validate({ c: "z" }, result.schema.root as Schema, "#", "root").valid,
+    tv.validate({ c: "z" }, result.schema.root as Schema, "#", ["root"]).valid,
     false,
     "Missing 'a' should fail",
   );
   assertEquals(
-    tv.validate({ a: "x", c: "z" }, result.schema.root as Schema, "#", "root")
+    tv.validate({ a: "x", c: "z" }, result.schema.root as Schema, "#", ["root"])
       .valid,
     true,
     "Both 'a' and 'c' present should pass",

@@ -201,7 +201,7 @@ function reportAmbiguous(
     code: "E3012",
     severity: e3012.severity,
     category: e3012.category,
-    requestPath: context.path,
+    requestPath: context.path.join("."),
     specPointer: context.schemaPath,
     message:
       `No variant matched: ${variantDetails.length} variants all failed structurally`,

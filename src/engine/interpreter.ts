@@ -60,7 +60,7 @@ export function interpret(
     // Composition keyword → delegate to handler
     if (node.keyword && COMPOSITION_KEYWORDS.has(node.keyword)) {
       const schema = spec.resolve(node.schemaPath);
-      const nodeData = resolveDataAtPath(data, node.path, location);
+      const nodeData = resolveDataAtPath(data, node.path);
       const context: CompositionContext = {
         path: node.path,
         schemaPath: node.schemaPath,
@@ -197,35 +197,23 @@ function checkOptionalParent(
 /**
  * Navigate request data to the value at a given path.
  *
- * Paths are dot-separated (e.g., "body.payment.type"). The first segment
- * is the location prefix (e.g., "body") and is skipped when navigating
- * into the data object.
+ * Paths are string arrays (e.g., ["body", "payment", "type"]). The first
+ * segment is the location prefix (e.g., "body") and is skipped when
+ * navigating into the data object.
  *
  * Returns the data at that path, or undefined if navigation fails.
  */
 export function resolveDataAtPath(
   data: unknown,
-  path: string,
-  location: DiagnosticLocation,
+  path: string[],
 ): unknown {
-  // Strip the location prefix (e.g., "body.payment" → "payment")
-  // Path always starts with location in practice (e.g., "body.payment" for location "body")
-  const prefix = location + ".";
-  let relativePath: string;
-  if (path === location) {
-    relativePath = "";
-  } else if (path.startsWith(prefix)) {
-    relativePath = path.slice(prefix.length);
-  } else {
-    // Path doesn't match location, return full data as fallback
+  // Skip the first segment (location prefix like "body", "query", etc.)
+  const segments = path.slice(1);
+
+  if (segments.length === 0) {
     return data;
   }
 
-  if (relativePath === "") {
-    return data;
-  }
-
-  const segments = relativePath.split(".");
   let current: unknown = data;
 
   for (const segment of segments) {

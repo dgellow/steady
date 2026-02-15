@@ -25,7 +25,7 @@ Deno.test("interpret", async (t) => {
   await t.step("valid node → no diagnostics, structurally valid", () => {
     const node: ValidationNode = {
       valid: true,
-      path: "body",
+      path: ["body"],
       schemaPath: "#/schema",
     };
 
@@ -42,7 +42,7 @@ Deno.test("interpret", async (t) => {
     const node: ValidationNode = {
       valid: false,
       keyword: "required",
-      path: "body.name",
+      path: ["body", "name"],
       schemaPath: "#/properties/name",
       field: "name",
     };
@@ -63,7 +63,7 @@ Deno.test("interpret", async (t) => {
     const node: ValidationNode = {
       valid: false,
       keyword: "pattern",
-      path: "body.email",
+      path: ["body", "email"],
       schemaPath: "#/properties/email",
     };
 
@@ -84,20 +84,20 @@ Deno.test("interpret", async (t) => {
   await t.step("container with mixed children → merges results", () => {
     const node: ValidationNode = {
       valid: false,
-      path: "body",
+      path: ["body"],
       schemaPath: "#/schema",
       children: [
         {
           valid: false,
           keyword: "required",
-          path: "body.name",
+          path: ["body", "name"],
           schemaPath: "#/properties/name",
           field: "name",
         },
         {
           valid: false,
           keyword: "pattern",
-          path: "body.email",
+          path: ["body", "email"],
           schemaPath: "#/properties/email",
         },
       ],
@@ -123,19 +123,19 @@ Deno.test("interpret", async (t) => {
     () => {
       const node: ValidationNode = {
         valid: false,
-        path: "body",
+        path: ["body"],
         schemaPath: "#/schema",
         children: [
           {
             valid: false,
             keyword: "pattern",
-            path: "body.name",
+            path: ["body", "name"],
             schemaPath: "#/properties/name",
           },
           {
             valid: false,
             keyword: "minLength",
-            path: "body.email",
+            path: ["body", "email"],
             schemaPath: "#/properties/email",
           },
         ],
@@ -162,33 +162,33 @@ Deno.test("interpret", async (t) => {
     const node: ValidationNode = {
       valid: false,
       keyword: "oneOf",
-      path: "body",
+      path: ["body"],
       schemaPath: "#/schema/oneOf",
       children: [
         {
           valid: false,
-          path: "body",
+          path: ["body"],
           schemaPath: "#/schema/oneOf/0",
           variantIndex: 0,
           children: [
             {
               valid: false,
               keyword: "pattern",
-              path: "body.card_number",
+              path: ["body", "card_number"],
               schemaPath: "#/schema/oneOf/0/properties/card_number",
             },
           ],
         },
         {
           valid: false,
-          path: "body",
+          path: ["body"],
           schemaPath: "#/schema/oneOf/1",
           variantIndex: 1,
           children: [
             {
               valid: false,
               keyword: "required",
-              path: "body.account",
+              path: ["body", "account"],
               schemaPath: "#/schema/oneOf/1/properties/account",
               field: "account",
             },
@@ -216,18 +216,18 @@ Deno.test("interpret", async (t) => {
     const node: ValidationNode = {
       valid: false,
       keyword: "allOf",
-      path: "body",
+      path: ["body"],
       schemaPath: "#/schema/allOf",
       children: [
         {
           valid: false,
-          path: "body",
+          path: ["body"],
           schemaPath: "#/schema/allOf/0",
           children: [
             {
               valid: false,
               keyword: "required",
-              path: "body.name",
+              path: ["body", "name"],
               schemaPath: "#/schema/allOf/0/properties/name",
               field: "name",
             },
@@ -235,13 +235,13 @@ Deno.test("interpret", async (t) => {
         },
         {
           valid: false,
-          path: "body",
+          path: ["body"],
           schemaPath: "#/schema/allOf/1",
           children: [
             {
               valid: false,
               keyword: "pattern",
-              path: "body.role",
+              path: ["body", "role"],
               schemaPath: "#/schema/allOf/1/properties/role",
             },
           ],
@@ -266,33 +266,33 @@ Deno.test("interpret", async (t) => {
     const node: ValidationNode = {
       valid: false,
       keyword: "anyOf",
-      path: "body",
+      path: ["body"],
       schemaPath: "#/schema/anyOf",
       children: [
         {
           valid: false,
-          path: "body",
+          path: ["body"],
           schemaPath: "#/schema/anyOf/0",
           variantIndex: 0,
           children: [
             {
               valid: false,
               keyword: "pattern",
-              path: "body.value",
+              path: ["body", "value"],
               schemaPath: "#/schema/anyOf/0/properties/value",
             },
           ],
         },
         {
           valid: false,
-          path: "body",
+          path: ["body"],
           schemaPath: "#/schema/anyOf/1",
           variantIndex: 1,
           children: [
             {
               valid: false,
               keyword: "required",
-              path: "body.other",
+              path: ["body", "other"],
               schemaPath: "#/schema/anyOf/1/properties/other",
               field: "other",
             },
@@ -323,33 +323,33 @@ Deno.test("interpret", async (t) => {
       const node: ValidationNode = {
         valid: false,
         keyword: "oneOf",
-        path: "body",
+        path: ["body"],
         schemaPath: "#/schema/oneOf",
         children: [
           {
             valid: false,
-            path: "body",
+            path: ["body"],
             schemaPath: "#/schema/oneOf/0",
             variantIndex: 0,
             children: [
               {
                 valid: false,
                 keyword: "pattern",
-                path: "body.card_number",
+                path: ["body", "card_number"],
                 schemaPath: "#/schema/oneOf/0/properties/card_number",
               },
             ],
           },
           {
             valid: false,
-            path: "body",
+            path: ["body"],
             schemaPath: "#/schema/oneOf/1",
             variantIndex: 1,
             children: [
               {
                 valid: false,
                 keyword: "required",
-                path: "body.account",
+                path: ["body", "account"],
                 schemaPath: "#/schema/oneOf/1/properties/account",
                 field: "account",
               },
@@ -387,18 +387,18 @@ Deno.test("interpret", async (t) => {
   await t.step("deeply nested: container wrapping leaf", () => {
     const node: ValidationNode = {
       valid: false,
-      path: "body",
+      path: ["body"],
       schemaPath: "#/schema",
       children: [
         {
           valid: false,
-          path: "body.address",
+          path: ["body", "address"],
           schemaPath: "#/schema/properties/address",
           children: [
             {
               valid: false,
               keyword: "required",
-              path: "body.address.street",
+              path: ["body", "address", "street"],
               schemaPath: "#/schema/properties/address/properties/street",
               field: "street",
             },
@@ -429,7 +429,7 @@ Deno.test("interpret", async (t) => {
       const node: ValidationNode = {
         valid: false,
         keyword: "required",
-        path: "body.address.city",
+        path: ["body", "address", "city"],
         schemaPath: "#/schema/properties/address/properties/city",
         field: "city",
       };
@@ -471,7 +471,7 @@ Deno.test("interpret", async (t) => {
       const node: ValidationNode = {
         valid: false,
         keyword: "required",
-        path: "body.address.city",
+        path: ["body", "address", "city"],
         schemaPath: "#/schema/properties/address/properties/city",
         field: "city",
       };
@@ -495,11 +495,11 @@ Deno.test("interpret", async (t) => {
   await t.step(
     "E3007: top-level required field not re-attributed",
     () => {
-      // path = "body.name" → only one level, no parent to check
+      // path = ["body", "name"] → only one level, no parent to check
       const node: ValidationNode = {
         valid: false,
         keyword: "required",
-        path: "body.name",
+        path: ["body", "name"],
         schemaPath: "#/schema/properties/name",
         field: "name",
       };
@@ -519,44 +519,37 @@ Deno.test("interpret", async (t) => {
 Deno.test("resolveDataAtPath", async (t) => {
   await t.step("path equals location → returns full data", () => {
     const data = { name: "Alice", type: "card" };
-    assertEquals(resolveDataAtPath(data, "body", "body"), data);
+    assertEquals(resolveDataAtPath(data, ["body"]), data);
   });
 
   await t.step("strips location prefix and navigates into data", () => {
     const data = { payment: { type: "card", amount: 100 } };
-    assertEquals(resolveDataAtPath(data, "body.payment", "body"), data.payment);
+    assertEquals(resolveDataAtPath(data, ["body", "payment"]), data.payment);
   });
 
   await t.step("deep path navigation", () => {
     const data = { a: { b: { c: "deep" } } };
-    assertEquals(resolveDataAtPath(data, "body.a.b.c", "body"), "deep");
+    assertEquals(resolveDataAtPath(data, ["body", "a", "b", "c"]), "deep");
   });
 
   await t.step("missing intermediate key → returns undefined", () => {
     const data = { name: "Alice" };
     assertEquals(
-      resolveDataAtPath(data, "body.payment.type", "body"),
+      resolveDataAtPath(data, ["body", "payment", "type"]),
       undefined,
     );
   });
 
   await t.step("non-object data → returns undefined for nested path", () => {
-    assertEquals(resolveDataAtPath("string", "body.name", "body"), undefined);
+    assertEquals(resolveDataAtPath("string", ["body", "name"]), undefined);
   });
 
   await t.step("null data → returns undefined for nested path", () => {
-    assertEquals(resolveDataAtPath(null, "body.name", "body"), undefined);
+    assertEquals(resolveDataAtPath(null, ["body", "name"]), undefined);
   });
 
   await t.step("non-body location", () => {
     const data = { limit: "10" };
-    assertEquals(resolveDataAtPath(data, "query.limit", "query"), "10");
-  });
-
-  await t.step("path without location prefix → returns full data", () => {
-    // This shouldn't happen in practice (path always starts with location),
-    // but if it does, returning the full data is the safest fallback
-    const data = { x: 1 };
-    assertEquals(resolveDataAtPath(data, "other.x", "body"), data);
+    assertEquals(resolveDataAtPath(data, ["query", "limit"]), "10");
   });
 });

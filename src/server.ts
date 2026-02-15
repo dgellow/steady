@@ -178,10 +178,17 @@ export class MockServer {
       });
     }
 
-    // Diagnostics engine
-    const specDoc = new OpenAPISpecDocument(spec);
+    // Diagnostics engine: all ref resolution flows through SchemaRegistry
+    const registry = this.document.schemas;
+    const specDoc = new OpenAPISpecDocument(spec, registry);
     const treeValidator = new TreeValidator({
-      resolveRef: (ref) => specDoc.resolveSchema(ref),
+      resolveRef: (ref) => {
+        const result = registry.resolveRef(ref);
+        if (result && typeof result.raw === "object" && result.raw !== null) {
+          return result.raw;
+        }
+        return undefined;
+      },
     });
     this.diagnosticEngine = new DiagnosticEngine(specDoc, treeValidator);
 

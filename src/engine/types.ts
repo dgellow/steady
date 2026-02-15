@@ -8,42 +8,11 @@
 import type { Schema } from "@steady/json-schema";
 import type { Diagnostic } from "../diagnostic.ts";
 
-/**
- * A node in the validation tree produced by the schema validator.
- *
- * Three kinds of nodes:
- * 1. Composition: oneOf, anyOf, allOf. Have children, trigger composition logic
- * 2. Container: root, variant wrapper. Have children, merge results
- * 3. Leaf: keyword failure. No children
- *
- * Applicator keywords (properties, items, patternProperties) are flattened
- * by the validator. They don't appear as nodes. The `path` field carries
- * nesting context (e.g., "body.address.street").
- */
-export interface ValidationNode {
-  /** The JSON Schema keyword that failed. Absent on container nodes. */
-  keyword?: string;
-  /** Where in the request this error occurred (e.g., "body.email"). */
-  path: string;
-  /** JSON pointer into the spec, used to resolve schema context. */
-  schemaPath: string;
-  valid: boolean;
-
-  // Leaf details
-  message?: string;
-  /** Keyword-specific detail (e.g., field name for "required"). */
-  field?: string;
-  expected?: unknown;
-  actual?: unknown;
-
-  /** True when this leaf represents a direct array item error (not a nested property). */
-  arrayItem?: boolean;
-
-  // Tree structure
-  children?: ValidationNode[];
-  /** Present on oneOf/anyOf variant wrapper nodes. */
-  variantIndex?: number;
-}
+// ValidationNode is the canonical type from TreeValidator.
+// Re-exported here so engine consumers import from one place.
+export type {
+  ValidationNode,
+} from "../../packages/json-schema/tree-validator.ts";
 
 /** Result of interpreting a node. Contains diagnostics plus structural validity. */
 export interface InterpretResult {
@@ -70,8 +39,8 @@ export interface InterpretResult {
  * diagnostic locations.
  */
 export interface CompositionContext {
-  /** Node's request path (e.g., "body" or "body.payment"). */
-  path: string;
+  /** Node's request path segments (e.g., ["body"] or ["body", "payment"]). */
+  path: string[];
   /** Node's spec pointer (e.g., "#/.../oneOf"). */
   schemaPath: string;
   /** Resolved schema for the composition node. */
