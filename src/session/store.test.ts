@@ -11,7 +11,7 @@ function makeDiag(
     requestPath: "body",
     specPointer: "#/test",
     message: "test",
-    attribution: { confidence: 0.9, reasoning: ["test"] },
+    attribution: { confidence: 1.0, reasoning: ["test"] },
     ...overrides,
   };
 }
@@ -63,7 +63,7 @@ Deno.test("SessionStore", async (t) => {
     assertEquals(report?.specIssues.length, 1);
   });
 
-  await t.step("each diagnostic includes method and path", () => {
+  await t.step("each diagnostic includes method, path, and severity", () => {
     const store = new SessionStore();
     store.addRequest("s1", "POST", "/users", [
       makeDiag({ code: "E3007", requestPath: "body.email" }),
@@ -75,6 +75,7 @@ Deno.test("SessionStore", async (t) => {
     assertEquals(issue?.path, "/users");
     assertEquals(issue?.requestPath, "body.email");
     assertEquals(issue?.code, "E3007");
+    assertEquals(issue?.severity, "error");
   });
 
   await t.step("multiple sessions are independent", () => {
@@ -122,4 +123,83 @@ Deno.test("SessionStore", async (t) => {
     assertEquals(report?.ambiguous.length, 0);
     assertEquals(report?.specIssues.length, 0);
   });
+
+  await t.step("result is 'passed' when no SDK issues", () => {
+    const store = new SessionStore();
+    store.addRequest("s1", "GET", "/users", []);
+    store.addRequest("s1", "POST", "/users", [
+      makeDiag({ code: "E4002", category: "content-note", severity: "info" }),
+    ]);
+
+    const report = store.getSession("s1");
+    assertEquals(report?.result, "passed");
+  });
+
+  await t.step("result is 'failed' when SDK issues present", () => {
+    const store = new SessionStore();
+    store.addRequest("s1", "POST", "/users", [
+      makeDiag({ code: "E3007", category: "sdk-issue" }),
+    ]);
+
+    const report = store.getSession("s1");
+    assertEquals(report?.result, "failed");
+  });
+
+  await t.step("summary has correct total/valid/invalid counts", () => {
+    const store = new SessionStore();
+    // Valid request (no sdk-issue)
+    store.addRequest("s1", "GET", "/users", []);
+    // Valid request (content-note only)
+    store.addRequest("s1", "POST", "/users", [
+      makeDiag({ code: "E4002", category: "content-note", severity: "info" }),
+    ]);
+    // Invalid request (sdk-issue)
+    store.addRequest("s1", "POST", "/users", [
+      makeDiag({ code: "E3007", category: "sdk-issue" }),
+    ]);
+
+    const report = store.getSession("s1");
+    assertEquals(report?.summary, { total: 3, valid: 2, invalid: 1 });
+  });
+
+  await t.step("coverage tracks tested endpoints via pathPattern", () => {
+    const store = new SessionStore();
+    store.setAllEndpoints([
+      "GET /users",
+      "POST /users",
+      "GET /users/{id}",
+    ]);
+    store.addRequest("s1", "GET", "/users", [], "/users");
+    store.addRequest("s1", "GET", "/users/42", [], "/users/{id}");
+
+    const report = store.getSession("s1");
+    assertEquals(report?.coverage?.total, 3);
+    assertEquals(report?.coverage?.tested, 2);
+    assertEquals(report?.coverage?.endpoints.sort(), [
+      "GET /users",
+      "GET /users/{id}",
+    ]);
+  });
+
+  await t.step("coverage is omitted when allEndpoints not set", () => {
+    const store = new SessionStore();
+    store.addRequest("s1", "GET", "/users", [], "/users");
+
+    const report = store.getSession("s1");
+    assertEquals(report?.coverage, undefined);
+  });
+
+  await t.step(
+    "duplicate requests to same endpoint count once in coverage",
+    () => {
+      const store = new SessionStore();
+      store.setAllEndpoints(["GET /users", "POST /users"]);
+      store.addRequest("s1", "GET", "/users", [], "/users");
+      store.addRequest("s1", "GET", "/users", [], "/users");
+      store.addRequest("s1", "GET", "/users", [], "/users");
+
+      const report = store.getSession("s1");
+      assertEquals(report?.coverage?.tested, 1);
+    },
+  );
 });

@@ -1,0 +1,252 @@
+export const snapshot = {};
+
+snapshot[`attributeLeaf > produces a complete Diagnostic 1`] = `
+[
+  "Type mismatch in body at body.email",
+  'Schema requires type "string"',
+  "Request sent 42",
+]
+`;
+
+snapshot[`reasoning chains > E3008 type mismatch 1`] = `
+[
+  "Type mismatch in body at body.email",
+  'Schema requires type "string"',
+  "Request sent integer",
+]
+`;
+
+snapshot[`reasoning chains > E3007 missing required body field 1`] = `
+[
+  "Missing required field in body at body.file",
+  "Field 'file' is in the schema's required array",
+  "Request body did not include 'file'",
+]
+`;
+
+snapshot[`reasoning chains > E5001 null non-nullable 1`] = `
+[
+  "Field body.name received null but schema does not allow nullable",
+  'Schema type is "string" with no nullable declaration',
+  "Could be: SDK sends null when field should be omitted, or spec is missing nullable: true",
+]
+`;
+
+snapshot[`reasoning chains > E3002 missing required query param 1`] = `
+[
+  "Missing required query parameter at query.limit",
+  "Field 'limit' is in the schema's required array",
+  "Request query did not include 'limit'",
+]
+`;
+
+snapshot[`reasoning chains > E3004 missing required header 1`] = `
+[
+  "Missing required header at header.authorization",
+  "Field 'authorization' is in the schema's required array",
+  "Request header did not include 'authorization'",
+]
+`;
+
+snapshot[`reasoning chains > E3009 additional property (false) 1`] = `
+[
+  "Unknown property not allowed at body.foo",
+  "Schema sets additionalProperties: false",
+  "Request included unknown property 'foo'",
+]
+`;
+
+snapshot[`reasoning chains > E5003 additional property (spec silent) 1`] = `
+[
+  "Unknown property at body.foo, spec does not declare additionalProperties",
+  "Schema does not declare additionalProperties",
+  "Request included unknown property 'foo'",
+]
+`;
+
+snapshot[`reasoning chains > E3016 enum mismatch 1`] = `
+[
+  "Enum value mismatch at body.status",
+  'Allowed values: ["active","inactive"]',
+  'Request sent "invalid"',
+]
+`;
+
+snapshot[`reasoning chains > E3017 const mismatch 1`] = `
+[
+  "Constant value mismatch at body.version",
+  'Schema requires constant value "v2"',
+  'Request sent "v1"',
+]
+`;
+
+snapshot[`reasoning chains > E4002 pattern mismatch 1`] = `
+[
+  "Pattern mismatch at body.email",
+  "Schema requires pattern /^.+@.+\$/",
+  'Request sent "notanemail"',
+]
+`;
+
+snapshot[`reasoning chains > E4003 string length (minLength) 1`] = `
+[
+  "String length violation at body.name",
+  "Schema requires minLength: 1",
+  "Actual length: 0",
+]
+`;
+
+snapshot[`reasoning chains > E4004 numeric range (minimum) 1`] = `
+[
+  "Numeric range violation at body.age",
+  "Schema requires minimum: 0",
+  "Request sent -5",
+]
+`;
+
+snapshot[`reasoning chains > E4005 array size (minItems) 1`] = `
+[
+  "Array size violation at body.tags",
+  "Schema requires minItems: 1",
+  "Request array has 0 items",
+]
+`;
+
+snapshot[`reasoning chains > E4007 multipleOf 1`] = `
+[
+  "Multiple-of constraint violation at body.quantity",
+  "Schema requires multipleOf: 5",
+  "Request sent 7",
+]
+`;
+
+snapshot[`reasoning chains > E3018 structural format mismatch 1`] = `
+[
+  "Structural format mismatch at body.file",
+  'Schema requires format "binary"',
+  'Request sent "not-binary"',
+]
+`;
+
+snapshot[`reasoning chains > E4001 content format mismatch 1`] = `
+[
+  "Content format mismatch at body.email",
+  'Schema requires format "email"',
+  'Request sent "notanemail"',
+]
+`;
+
+snapshot[`reasoning chains > E3010 array item type mismatch 1`] = `
+[
+  "Array item type mismatch at body.tags.0",
+  'Schema requires type "string"',
+  "Request sent integer",
+]
+`;
+
+snapshot[`reasoning chains > E4005 array size (maxItems) 1`] = `
+[
+  "Array size violation at body.tags",
+  "Schema requires maxItems: 3",
+  "Request array has 10 items",
+]
+`;
+
+snapshot[`reasoning chains > minProperties reasoning 1`] = `
+[
+  "Object property count violation at body.metadata",
+  "Schema requires minProperties: 1",
+  "Request object has 0 properties",
+]
+`;
+
+snapshot[`reasoning chains > maxProperties reasoning 1`] = `
+[
+  "Object property count violation at body.metadata",
+  "Schema requires maxProperties: 5",
+  "Request object has 10 properties",
+]
+`;
+
+snapshot[`reasoning chains > uniqueItems reasoning 1`] = `
+[
+  "Unique items constraint violation at body.tags",
+  "Schema requires uniqueItems: true",
+  "Request array contains duplicate items",
+]
+`;
+
+snapshot[`display context > type keyword shows schema type 1`] = `
+{
+  context: [
+    {
+      highlight: {
+        end: 13,
+        label: "Expected type",
+        start: 7,
+      },
+      text: 'type: "string"',
+    },
+  ],
+}
+`;
+
+snapshot[`display context > required keyword shows required array 1`] = `
+{
+  context: [
+    {
+      highlight: {
+        end: 32,
+        label: "Missing from request",
+        start: 26,
+      },
+      text: 'required: ["name","email","file"]',
+    },
+  ],
+}
+`;
+
+snapshot[`display context > additionalProperties false shows constraint 1`] = `
+{
+  context: [
+    {
+      highlight: {
+        end: 27,
+        label: "Unknown property 'foo' not allowed",
+        start: 22,
+      },
+      text: "additionalProperties: false",
+    },
+  ],
+}
+`;
+
+snapshot[`display context > enum shows allowed values 1`] = `
+{
+  context: [
+    {
+      highlight: {
+        end: 37,
+        label: 'Value "invalid" not in allowed list',
+        start: 0,
+      },
+      text: 'enum: ["active","inactive","pending"]',
+    },
+  ],
+}
+`;
+
+snapshot[`display context > const shows expected value 1`] = `
+{
+  context: [
+    {
+      highlight: {
+        end: 11,
+        label: "Expected constant value",
+        start: 7,
+      },
+      text: 'const: "v2"',
+    },
+  ],
+}
+`;

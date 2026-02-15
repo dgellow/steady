@@ -8,7 +8,11 @@
  */
 
 import type { Schema } from "@steady/json-schema";
-import type { Diagnostic, DiagnosticLocation } from "../diagnostic.ts";
+import type {
+  Diagnostic,
+  DiagnosticDisplay,
+  DiagnosticLocation,
+} from "../diagnostic.ts";
 import type { ValidationNode } from "./types.ts";
 import { type ECode, getCode } from "../codes/registry.ts";
 import { STRUCTURAL_FORMATS } from "./structural.ts";
@@ -85,6 +89,10 @@ export function attributeLeafCode(
       return "E4005";
     case "multipleOf":
       return "E4007";
+    case "minProperties":
+    case "maxProperties":
+    case "uniqueItems":
+      return "E4002";
 
     default:
       // Unknown keyword, content-note is the conservative default
@@ -103,7 +111,9 @@ export function attributeLeaf(
   const code = attributeLeafCode(node, schema, location);
   const definition = getCode(code);
 
-  return {
+  const display = buildDisplay(node, schema);
+
+  const diag: Diagnostic = {
     code,
     severity: definition.severity,
     category: definition.category,
@@ -113,10 +123,16 @@ export function attributeLeaf(
     expected: node.expected,
     actual: node.actual,
     attribution: {
-      confidence: defaultConfidence(code),
-      reasoning: [`${definition.title} at ${node.path}`],
+      confidence: leafConfidence(code),
+      reasoning: buildReasoning(node, schema, code),
     },
   };
+
+  if (display) {
+    diag.display = display;
+  }
+
+  return diag;
 }
 
 /**
@@ -143,6 +159,113 @@ function buildMessage(node: LeafNode, fallback: string): string {
       return node.field ? `Unknown property: ${node.field}` : fallback;
     default:
       return fallback;
+  }
+}
+
+// ── Display context ────────────────────────────────────────────────────
+
+/**
+ * Build compiler-style display context for high-value keywords.
+ * Returns undefined for keywords where display context adds no value.
+ */
+function buildDisplay(
+  node: LeafNode,
+  schema: Schema,
+): DiagnosticDisplay | undefined {
+  switch (node.keyword) {
+    case "type": {
+      const typeStr = formatSchemaType(schema);
+      const isArray = Array.isArray(schema.type);
+      // type: "string" or type: [string, null]
+      const text = isArray ? `type: [${typeStr}]` : `type: "${typeStr}"`;
+      const start = 7; // after 'type: "' or 'type: ['
+      return {
+        context: [{
+          text,
+          highlight: {
+            start,
+            end: start + typeStr.length,
+            label: "Expected type",
+          },
+        }],
+      };
+    }
+    case "required": {
+      if (!node.field || !Array.isArray(schema.required)) return undefined;
+      const reqStr = JSON.stringify(schema.required);
+      const text = `required: ${reqStr}`;
+      // Find the field name in the array string to highlight it
+      const fieldStr = JSON.stringify(node.field);
+      const fieldIndex = reqStr.indexOf(fieldStr);
+      if (fieldIndex === -1) return undefined;
+      const start = "required: ".length + fieldIndex;
+      return {
+        context: [{
+          text,
+          highlight: {
+            start,
+            end: start + fieldStr.length,
+            label: "Missing from request",
+          },
+        }],
+      };
+    }
+    case "additionalProperties": {
+      if (schema.additionalProperties === false) {
+        const text = "additionalProperties: false";
+        return {
+          context: [{
+            text,
+            highlight: {
+              start: "additionalProperties: ".length,
+              end: "additionalProperties: false".length,
+              label: node.field
+                ? `Unknown property '${node.field}' not allowed`
+                : "No additional properties allowed",
+            },
+          }],
+        };
+      }
+      return undefined;
+    }
+    case "enum": {
+      if (!Array.isArray(schema.enum)) return undefined;
+      const MAX_ENUM_DISPLAY_LEN = 80;
+      const enumStr = JSON.stringify(schema.enum);
+      const truncated = enumStr.length > MAX_ENUM_DISPLAY_LEN
+        ? enumStr.slice(0, MAX_ENUM_DISPLAY_LEN - 3) + "..."
+        : enumStr;
+      const text = `enum: ${truncated}`;
+      return {
+        context: [{
+          text,
+          highlight: {
+            start: 0,
+            end: text.length,
+            label: node.actual !== undefined
+              ? `Value ${JSON.stringify(node.actual)} not in allowed list`
+              : "Value not in allowed list",
+          },
+        }],
+      };
+    }
+    case "const": {
+      if (schema.const === undefined) return undefined;
+      const constStr = JSON.stringify(schema.const);
+      const text = `const: ${constStr}`;
+      return {
+        context: [{
+          text,
+          highlight: {
+            start: "const: ".length,
+            end: text.length,
+            label: "Expected constant value",
+          },
+        }],
+      };
+    }
+    default:
+      return undefined;
   }
 }
 
@@ -180,24 +303,283 @@ function isNullable(schema: Schema): boolean {
   return schema.type === "null";
 }
 
+// ── Reasoning chain builders ──────────────────────────────────────
+
 /**
- * Default confidence based on E-code category.
- * The engine may adjust this based on composition context.
+ * Build a multi-entry reasoning chain for a leaf diagnostic.
+ *
+ * Three layers:
+ * 1. Classification: what decision was made and why (from the code)
+ * 2. Constraint: what the spec requires (from schema context)
+ * 3. Violation: what the request sent (from node data)
  */
-function defaultConfidence(code: ECode): number {
-  const prefix = code.charAt(1);
-  switch (prefix) {
-    case "1": // Spec issues, high confidence in attribution
-      return 0.9;
-    case "2": // Routing, high confidence
-      return 0.9;
-    case "3": // Transport, high confidence (SDK's job)
-      return 0.9;
-    case "4": // Content, high confidence (not SDK's job)
-      return 0.9;
-    case "5": // Ambiguous, lower confidence
-      return 0.5;
+function buildReasoning(
+  node: LeafNode,
+  schema: Schema,
+  code: ECode,
+): string[] {
+  const reasoning: string[] = [];
+
+  reasoning.push(classifyReason(node, code));
+
+  const constraint = describeConstraint(node, schema, code);
+  if (constraint) reasoning.push(constraint);
+
+  const violation = describeViolation(node, schema, code);
+  if (violation) reasoning.push(violation);
+
+  return reasoning;
+}
+
+/**
+ * Classification reason: explains the decision that led to this code.
+ */
+function classifyReason(node: LeafNode, code: ECode): string {
+  const location = node.path.split(".")[0] ?? "body";
+
+  switch (code) {
+    case "E5001":
+      return `Field ${node.path} received null but schema does not allow nullable`;
+    case "E3010":
+      return `Array item type mismatch at ${node.path}`;
+    case "E3001":
+    case "E3003":
+    case "E3008":
+      return `Type mismatch in ${location} at ${node.path}`;
+    case "E3002":
+      return `Missing required query parameter at ${node.path}`;
+    case "E3004":
+      return `Missing required header at ${node.path}`;
+    case "E3007":
+      return `Missing required field in ${location} at ${node.path}`;
+    case "E3009":
+      return `Unknown property not allowed at ${node.path}`;
+    case "E5003":
+      return `Unknown property at ${node.path}, spec does not declare additionalProperties`;
+    case "E3016":
+      return `Enum value mismatch at ${node.path}`;
+    case "E3017":
+      return `Constant value mismatch at ${node.path}`;
+    case "E3018":
+      return `Structural format mismatch at ${node.path}`;
+    case "E4001":
+      return `Content format mismatch at ${node.path}`;
+    case "E4002":
+      return classifyE4002(node);
+    case "E4003":
+      return `String length violation at ${node.path}`;
+    case "E4004":
+      return `Numeric range violation at ${node.path}`;
+    case "E4005":
+      return `Array size violation at ${node.path}`;
+    case "E4007":
+      return `Multiple-of constraint violation at ${node.path}`;
     default:
-      return 0.5;
+      return `${getCode(code).title} at ${node.path}`;
   }
+}
+
+/**
+ * E4002 is a catch-all content-note. Use keyword for accurate classification.
+ */
+function classifyE4002(node: LeafNode): string {
+  switch (node.keyword) {
+    case "minProperties":
+    case "maxProperties":
+      return `Object property count violation at ${node.path}`;
+    case "uniqueItems":
+      return `Unique items constraint violation at ${node.path}`;
+    default:
+      return `Pattern mismatch at ${node.path}`;
+  }
+}
+
+/**
+ * Constraint context: what the spec requires.
+ */
+function describeConstraint(
+  node: LeafNode,
+  schema: Schema,
+  code: ECode,
+): string | undefined {
+  switch (node.keyword) {
+    case "type": {
+      if (code === "E5001") {
+        const typeStr = formatSchemaType(schema);
+        return `Schema type is "${typeStr}" with no nullable declaration`;
+      }
+      if (schema.type !== undefined) {
+        return `Schema requires type "${formatSchemaType(schema)}"`;
+      }
+      return undefined;
+    }
+    case "required": {
+      if (node.field) {
+        return `Field '${node.field}' is in the schema's required array`;
+      }
+      return undefined;
+    }
+    case "additionalProperties": {
+      if (schema.additionalProperties === false) {
+        return "Schema sets additionalProperties: false";
+      }
+      return "Schema does not declare additionalProperties";
+    }
+    case "enum":
+      return schema.enum
+        ? `Allowed values: ${JSON.stringify(schema.enum)}`
+        : undefined;
+    case "const":
+      return schema.const !== undefined
+        ? `Schema requires constant value ${JSON.stringify(schema.const)}`
+        : undefined;
+    case "format":
+      return schema.format
+        ? `Schema requires format "${schema.format}"`
+        : undefined;
+    case "pattern":
+      return schema.pattern
+        ? `Schema requires pattern /${schema.pattern}/`
+        : undefined;
+    case "minLength":
+      return schema.minLength !== undefined
+        ? `Schema requires minLength: ${schema.minLength}`
+        : undefined;
+    case "maxLength":
+      return schema.maxLength !== undefined
+        ? `Schema requires maxLength: ${schema.maxLength}`
+        : undefined;
+    case "minimum":
+      return schema.minimum !== undefined
+        ? `Schema requires minimum: ${schema.minimum}`
+        : undefined;
+    case "maximum":
+      return schema.maximum !== undefined
+        ? `Schema requires maximum: ${schema.maximum}`
+        : undefined;
+    case "exclusiveMinimum":
+      return schema.exclusiveMinimum !== undefined
+        ? `Schema requires exclusiveMinimum: ${schema.exclusiveMinimum}`
+        : undefined;
+    case "exclusiveMaximum":
+      return schema.exclusiveMaximum !== undefined
+        ? `Schema requires exclusiveMaximum: ${schema.exclusiveMaximum}`
+        : undefined;
+    case "minItems":
+      return schema.minItems !== undefined
+        ? `Schema requires minItems: ${schema.minItems}`
+        : undefined;
+    case "maxItems":
+      return schema.maxItems !== undefined
+        ? `Schema requires maxItems: ${schema.maxItems}`
+        : undefined;
+    case "multipleOf":
+      return schema.multipleOf !== undefined
+        ? `Schema requires multipleOf: ${schema.multipleOf}`
+        : undefined;
+    case "minProperties":
+      return schema.minProperties !== undefined
+        ? `Schema requires minProperties: ${schema.minProperties}`
+        : undefined;
+    case "maxProperties":
+      return schema.maxProperties !== undefined
+        ? `Schema requires maxProperties: ${schema.maxProperties}`
+        : undefined;
+    case "uniqueItems":
+      return schema.uniqueItems === true
+        ? "Schema requires uniqueItems: true"
+        : undefined;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Violation context: what the request sent.
+ */
+function describeViolation(
+  node: LeafNode,
+  _schema: Schema,
+  code: ECode,
+): string | undefined {
+  switch (node.keyword) {
+    case "type": {
+      if (code === "E5001") {
+        return "Could be: SDK sends null when field should be omitted, or spec is missing nullable: true";
+      }
+      if (node.actual !== undefined) {
+        return `Request sent ${String(node.actual)}`;
+      }
+      return undefined;
+    }
+    case "required": {
+      if (node.field) {
+        const location = node.path.split(".")[0] ?? "body";
+        return `Request ${location} did not include '${node.field}'`;
+      }
+      return undefined;
+    }
+    case "additionalProperties": {
+      if (node.field) {
+        return `Request included unknown property '${node.field}'`;
+      }
+      return undefined;
+    }
+    case "enum":
+    case "const":
+    case "format":
+    case "pattern":
+      return node.actual !== undefined
+        ? `Request sent ${JSON.stringify(node.actual)}`
+        : undefined;
+    case "minLength":
+    case "maxLength":
+      return node.actual !== undefined
+        ? `Actual length: ${node.actual}`
+        : undefined;
+    case "minimum":
+    case "maximum":
+    case "exclusiveMinimum":
+    case "exclusiveMaximum":
+    case "multipleOf":
+      return node.actual !== undefined
+        ? `Request sent ${node.actual}`
+        : undefined;
+    case "minItems":
+    case "maxItems":
+      return node.actual !== undefined
+        ? `Request array has ${node.actual} items`
+        : undefined;
+    case "minProperties":
+    case "maxProperties":
+      return node.actual !== undefined
+        ? `Request object has ${node.actual} properties`
+        : undefined;
+    case "uniqueItems":
+      return "Request array contains duplicate items";
+    default:
+      return undefined;
+  }
+}
+
+function formatSchemaType(schema: Schema): string {
+  if (Array.isArray(schema.type)) {
+    return schema.type.join(", ");
+  }
+  return String(schema.type ?? "unspecified");
+}
+
+/**
+ * Leaf confidence based on E-code category.
+ *
+ * Non-ambiguous codes are factual observations (wrong type, missing field,
+ * etc.) so confidence is 1.0. Ambiguous codes (E5xxx) represent genuine
+ * uncertainty about responsibility, so confidence is 0.5.
+ *
+ * Composition handlers and re-attribution logic may assign different
+ * confidence values based on context (e.g., discriminator match = 0.95,
+ * optional parent re-attribution = 0.6).
+ */
+function leafConfidence(code: ECode): number {
+  return getCode(code).category === "ambiguous" ? 0.5 : 1.0;
 }

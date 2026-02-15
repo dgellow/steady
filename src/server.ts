@@ -36,6 +36,7 @@ import type {
 } from "./logging/types.ts";
 import { TextLogger } from "./logging/text-logger.ts";
 import { JsonLogger } from "./logging/json-logger.ts";
+import { CILogger } from "./logging/ci-logger.ts";
 import { isParseError, parseRequestBody } from "./body-parser.ts";
 import { OpenAPISpecDocument } from "../packages/openapi/document.ts";
 import { TreeValidator } from "../packages/json-schema/tree-validator.ts";
@@ -159,7 +160,12 @@ export class MockServer {
     this.sessionStore = new SessionStore();
 
     // Create logger based on format
-    if (config.logFormat === "json") {
+    if (config.logFormat === "ci") {
+      this.logger = new CILogger({
+        level: config.logLevel,
+        logBodies: config.logBodies,
+      });
+    } else if (config.logFormat === "json") {
       this.logger = new JsonLogger({
         level: config.logLevel,
         logBodies: config.logBodies,
@@ -301,6 +307,7 @@ export class MockServer {
       }
     }
     this.collector.setAllEndpoints(allEndpoints);
+    this.sessionStore.setAllEndpoints(allEndpoints);
     this.endpointCount = allEndpoints.length;
 
     const event: StartupEvent = {
@@ -330,6 +337,7 @@ export class MockServer {
     const duration = Date.now() - this.startTime.getTime();
 
     const topIssues = this.collector.getTopIssues().map((issue) => ({
+      code: issue.code,
       path: issue.path,
       method: issue.method.toUpperCase(),
       message: issue.example.message,
@@ -460,6 +468,7 @@ export class MockServer {
           method,
           path,
           allDiagnostics,
+          pathPattern,
         );
       }
 
@@ -494,17 +503,20 @@ export class MockServer {
         const errorResponse = new Response(
           JSON.stringify({
             error: "Validation failed",
-            diagnostics: allDiagnostics.map((d) => ({
-              code: d.code,
-              severity: d.severity,
-              category: d.category,
-              path: d.requestPath,
-              message: d.message,
-              expected: d.expected,
-              actual: d.actual,
-              attribution: d.attribution,
-              suggestion: d.suggestion,
-            })),
+            steady: {
+              valid: false,
+              errors: allDiagnostics.map((d) => ({
+                code: d.code,
+                severity: d.severity,
+                category: d.category,
+                path: d.requestPath,
+                message: d.message,
+                expected: d.expected,
+                actual: d.actual,
+                attribution: d.attribution,
+                suggestion: d.suggestion,
+              })),
+            },
           }),
           {
             status: 400,
@@ -592,28 +604,37 @@ export class MockServer {
           );
         }
 
+        // E2002 (method not allowed) -> 405, E2001 (path not found) -> 404
+        const isMethodNotAllowed = engineDiags.some(
+          (d) => d.code === "E2002",
+        );
+        const status = isMethodNotAllowed ? 405 : 404;
+        const statusText = isMethodNotAllowed
+          ? "Method Not Allowed"
+          : "Not Found";
+
         this.logRequestEvent({
           req,
           path,
           pathPattern: path,
           method,
-          status: 404,
-          statusText: "Not Found",
+          status,
+          statusText,
           timing,
           diagnostics: engineDiags,
         });
 
-        const notFoundResponse = new Response(
+        const errorResponse = new Response(
           JSON.stringify({
             error: error.message,
             suggestion: error.context.suggestion,
           }),
           {
-            status: 404,
+            status,
             headers: { "Content-Type": "application/json" },
           },
         );
-        return this.addDiagnosticHeaders(notFoundResponse, engineDiags);
+        return this.addDiagnosticHeaders(errorResponse, engineDiags);
       }
 
       // 500 - internal error

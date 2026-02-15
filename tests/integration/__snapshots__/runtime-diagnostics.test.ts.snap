@@ -45,13 +45,27 @@ snapshot[`POST /accounts with empty body → missing required field 1`] = `
   {
     actual: undefined,
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Missing required field at body",
+        "Missing required field in body at body",
+        "Field 'name' is in the schema's required array",
+        "Request body did not include 'name'",
       ],
     },
     category: "sdk-issue",
     code: "E3007",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 17,
+            label: "Missing from request",
+            start: 11,
+          },
+          text: 'required: ["name"]',
+        },
+      ],
+    },
     expected: "name",
     message: "Missing required property: name",
     requestPath: "body",
@@ -66,13 +80,27 @@ snapshot[`POST /accounts with wrong type → E3008 1`] = `
   {
     actual: "number",
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Field type mismatch at body.name",
+        "Type mismatch in body at body.name",
+        'Schema requires type "string"',
+        "Request sent number",
       ],
     },
     category: "sdk-issue",
     code: "E3008",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 13,
+            label: "Expected type",
+            start: 7,
+          },
+          text: 'type: "string"',
+        },
+      ],
+    },
     expected: "string",
     message: "Expected type string, got number",
     requestPath: "body.name",
@@ -87,13 +115,27 @@ snapshot[`POST /accounts with invalid enum → E3016 1`] = `
   {
     actual: "INVALID",
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Invalid enum value at body.plan",
+        "Enum value mismatch at body.plan",
+        'Allowed values: ["FREE","PREMIUM"]',
+        'Request sent "INVALID"',
       ],
     },
     category: "sdk-issue",
     code: "E3016",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 24,
+            label: 'Value "INVALID" not in allowed list',
+            start: 0,
+          },
+          text: 'enum: ["FREE","PREMIUM"]',
+        },
+      ],
+    },
     expected: [
       "FREE",
       "PREMIUM",
@@ -111,13 +153,27 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
   {
     actual: undefined,
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Missing required field at body.address",
+        "Missing required field in body at body.address",
+        "Field 'address1' is in the schema's required array",
+        "Request body did not include 'address1'",
       ],
     },
     category: "sdk-issue",
     code: "E3007",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 21,
+            label: "Missing from request",
+            start: 11,
+          },
+          text: 'required: ["address1","city","country","postal_code","state"]',
+        },
+      ],
+    },
     expected: "address1",
     message: "Missing required property: address1",
     requestPath: "body.address",
@@ -127,13 +183,27 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
   {
     actual: undefined,
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Missing required field at body.address",
+        "Missing required field in body at body.address",
+        "Field 'country' is in the schema's required array",
+        "Request body did not include 'country'",
       ],
     },
     category: "sdk-issue",
     code: "E3007",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 38,
+            label: "Missing from request",
+            start: 29,
+          },
+          text: 'required: ["address1","city","country","postal_code","state"]',
+        },
+      ],
+    },
     expected: "country",
     message: "Missing required property: country",
     requestPath: "body.address",
@@ -143,13 +213,27 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
   {
     actual: undefined,
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Missing required field at body.address",
+        "Missing required field in body at body.address",
+        "Field 'postal_code' is in the schema's required array",
+        "Request body did not include 'postal_code'",
       ],
     },
     category: "sdk-issue",
     code: "E3007",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 52,
+            label: "Missing from request",
+            start: 39,
+          },
+          text: 'required: ["address1","city","country","postal_code","state"]',
+        },
+      ],
+    },
     expected: "postal_code",
     message: "Missing required property: postal_code",
     requestPath: "body.address",
@@ -159,13 +243,27 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
   {
     actual: undefined,
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Missing required field at body.address",
+        "Missing required field in body at body.address",
+        "Field 'state' is in the schema's required array",
+        "Request body did not include 'state'",
       ],
     },
     category: "sdk-issue",
     code: "E3007",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 60,
+            label: "Missing from request",
+            start: 53,
+          },
+          text: 'required: ["address1","city","country","postal_code","state"]',
+        },
+      ],
+    },
     expected: "state",
     message: "Missing required property: state",
     requestPath: "body.address",
@@ -175,13 +273,27 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
   {
     actual: "number",
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Field type mismatch at body.address.city",
+        "Type mismatch in body at body.address.city",
+        'Schema requires type "string"',
+        "Request sent number",
       ],
     },
     category: "sdk-issue",
     code: "E3008",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 13,
+            label: "Expected type",
+            start: 7,
+          },
+          text: 'type: "string"',
+        },
+      ],
+    },
     expected: "string",
     message: "Expected type string, got number",
     requestPath: "body.address.city",
@@ -216,13 +328,27 @@ snapshot[`multiple errors: wrong type + invalid enum 1`] = `
   {
     actual: "number",
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Field type mismatch at body.name",
+        "Type mismatch in body at body.name",
+        'Schema requires type "string"',
+        "Request sent number",
       ],
     },
     category: "sdk-issue",
     code: "E3008",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 13,
+            label: "Expected type",
+            start: 7,
+          },
+          text: 'type: "string"',
+        },
+      ],
+    },
     expected: "string",
     message: "Expected type string, got number",
     requestPath: "body.name",
@@ -232,13 +358,27 @@ snapshot[`multiple errors: wrong type + invalid enum 1`] = `
   {
     actual: "INVALID",
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Invalid enum value at body.plan",
+        "Enum value mismatch at body.plan",
+        'Allowed values: ["FREE","PREMIUM"]',
+        'Request sent "INVALID"',
       ],
     },
     category: "sdk-issue",
     code: "E3016",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 24,
+            label: 'Value "INVALID" not in allowed list',
+            start: 0,
+          },
+          text: 'enum: ["FREE","PREMIUM"]',
+        },
+      ],
+    },
     expected: [
       "FREE",
       "PREMIUM",
@@ -251,13 +391,27 @@ snapshot[`multiple errors: wrong type + invalid enum 1`] = `
   {
     actual: "UNKNOWN",
     attribution: {
-      confidence: 0.9,
+      confidence: 1,
       reasoning: [
-        "Invalid enum value at body.state",
+        "Enum value mismatch at body.state",
+        'Allowed values: ["ACTIVE","PAUSED"]',
+        'Request sent "UNKNOWN"',
       ],
     },
     category: "sdk-issue",
     code: "E3016",
+    display: {
+      context: [
+        {
+          highlight: {
+            end: 25,
+            label: 'Value "UNKNOWN" not in allowed list',
+            start: 0,
+          },
+          text: 'enum: ["ACTIVE","PAUSED"]',
+        },
+      ],
+    },
     expected: [
       "ACTIVE",
       "PAUSED",

@@ -440,9 +440,12 @@ function createMissingParamDiagnostic(
     specPointer: `#/paths/${escapeJsonPointer(pathPattern)}`,
     message: `Missing required ${param.in} parameter: ${param.name}`,
     attribution: {
-      confidence: 0.9,
+      confidence: 1.0,
       reasoning: [
-        `${param.in} parameter "${param.name}" is required but not present in the request`,
+        `${
+          capitalize(param.in)
+        } parameter '${param.name}' is marked required in the spec`,
+        `Request did not include ${param.in} parameter '${param.name}'`,
       ],
     },
   };
@@ -468,9 +471,10 @@ function createMissingBodyDiagnostic(
     message:
       `Operation ${method.toUpperCase()} ${pathPattern} requires a request body`,
     attribution: {
-      confidence: 0.95,
+      confidence: 1.0,
       reasoning: [
-        "requestBody.required is true in the spec, but no body was sent",
+        `Operation ${method.toUpperCase()} ${pathPattern} has requestBody.required: true`,
+        "Request did not include a body",
       ],
     },
   };
@@ -501,7 +505,8 @@ function createMissingResponsesDiagnostic(
     attribution: {
       confidence: 1.0,
       reasoning: [
-        "Operation has no responses object defined in the spec",
+        `Operation ${method.toUpperCase()} ${pathPattern} has no responses object in the spec`,
+        "Cannot generate a mock response without response definitions",
       ],
     },
   };
@@ -532,9 +537,10 @@ function createWrongContentTypeDiagnostic(
     expected: acceptedTypes,
     actual: actualType,
     attribution: {
-      confidence: 0.95,
+      confidence: 1.0,
       reasoning: [
-        `Request Content-Type "${actualType}" does not match any accepted type in the spec`,
+        `Spec accepts: ${acceptedTypes.join(", ")}`,
+        `Request sent Content-Type "${actualType}"`,
       ],
     },
   };
@@ -587,6 +593,10 @@ function parseCookieHeader(
 
 function escapeJsonPointer(path: string): string {
   return path.replace(/~/g, "~0").replace(/\//g, "~1");
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // ── Parameter value extraction ──────────────────────────────────────
@@ -664,7 +674,8 @@ function createSerializationMismatchDiagnostic(
     attribution: {
       confidence: 0.7,
       reasoning: [
-        `"${actualKey}" appears to be a serialized form of the known parameter "${baseName}"`,
+        `Spec defines parameter '${baseName}'`,
+        `Request sent '${actualKey}', which looks like a serialized form of '${baseName}'`,
       ],
     },
   };
@@ -690,7 +701,8 @@ function createUndocumentedParamDiagnostic(
     attribution: {
       confidence: 0.5,
       reasoning: [
-        `"${key}" does not match any declared query parameter for this operation`,
+        `Query parameter '${key}' is not declared in the spec for this operation`,
+        "Could be: undocumented parameter, or SDK sending extra fields",
       ],
     },
   };

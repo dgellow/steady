@@ -31,14 +31,20 @@ export function handleSessionRequest(
     );
   }
 
-  const body = {
+  const body: Record<string, unknown> = {
     session_id: report.sessionId,
     requests: report.requests,
+    result: report.result,
+    summary: report.summary,
     sdk_issues: report.sdkIssues.map(toJson),
     content_notes: report.contentNotes.map(toJson),
     ambiguous: report.ambiguous.map(toJson),
     spec_issues: report.specIssues.map(toJson),
   };
+
+  if (report.coverage) {
+    body.coverage = report.coverage;
+  }
 
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -49,6 +55,7 @@ export function handleSessionRequest(
 function toJson(d: SessionDiagnostic): Record<string, unknown> {
   const result: Record<string, unknown> = {
     code: d.code,
+    severity: d.severity,
     message: d.message,
     method: d.method,
     path: d.path,

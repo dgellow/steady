@@ -73,6 +73,7 @@ export interface StartupEvent extends LogEvent {
  * Top issue from a session
  */
 export interface TopIssue {
+  code: string;
   path: string;
   method: string;
   message: string;
@@ -108,7 +109,7 @@ export type LogLevel = "summary" | "details" | "full";
 /**
  * Output format
  */
-export type LogFormat = "text" | "json";
+export type LogFormat = "text" | "json" | "ci";
 
 /**
  * Logger configuration options

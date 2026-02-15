@@ -48,10 +48,14 @@ export class JsonLogger extends BaseLogger {
         severity: d.severity,
         category: d.category,
         path: d.requestPath,
+        specPointer: d.specPointer,
         message: d.message,
         expected: d.expected,
         actual: d.actual,
-        confidence: d.attribution.confidence,
+        attribution: {
+          confidence: d.attribution.confidence,
+          reasoning: d.attribution.reasoning,
+        },
         suggestion: d.suggestion,
       })),
     };
@@ -69,8 +73,13 @@ export class JsonLogger extends BaseLogger {
       diagnostics: event.diagnostics.map((d) => ({
         severity: d.severity,
         code: d.code,
+        category: d.category,
         pointer: d.specPointer,
         message: d.message,
+        attribution: {
+          confidence: d.attribution.confidence,
+          reasoning: d.attribution.reasoning,
+        },
         suggestion: d.suggestion,
       })),
     };
@@ -85,11 +94,16 @@ export class JsonLogger extends BaseLogger {
       timestamp: event.timestamp.toISOString(),
       session: event.session,
       topIssues: event.topIssues.map((i) => ({
+        code: i.code,
         method: i.method,
         path: i.path,
         message: i.message,
         count: i.count,
         category: i.category,
+        attribution: {
+          confidence: i.attribution.confidence,
+          reasoning: i.attribution.reasoning,
+        },
       })),
     };
 

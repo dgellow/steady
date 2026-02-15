@@ -418,6 +418,102 @@ Deno.test("interpret", async (t) => {
     assertEquals(result.diagnostics[0]!.requestPath, "body.address.street");
     assertEquals(result.structurallyValid, false);
   });
+
+  // ── E3013: Required field in optional parent ────────────────────
+
+  await t.step(
+    "E3013: required field in optional parent → ambiguous",
+    () => {
+      // Schema: { properties: { address: { properties: { city: ... }, required: ["city"] } } }
+      // "address" is NOT in the parent's required array → optional parent
+      const node: ValidationNode = {
+        valid: false,
+        keyword: "required",
+        path: "body.address.city",
+        schemaPath: "#/schema/properties/address/properties/city",
+        field: "city",
+      };
+
+      const resolver = makeResolver({
+        "#/schema/properties/address/properties/city": {},
+        "#/schema": {
+          properties: { address: {} },
+          // address NOT in required → optional
+        },
+      });
+
+      const result = interpret(node, resolver, "body", {});
+
+      assertEquals(result.diagnostics.length, 1);
+      assertEquals(result.diagnostics[0]?.code, "E3013");
+      assertEquals(result.diagnostics[0]?.category, "ambiguous");
+      assertEquals(result.diagnostics[0]?.attribution.confidence, 0.6);
+      const reasoning = result.diagnostics[0]?.attribution.reasoning;
+      assertEquals(
+        reasoning?.[0],
+        "Parent object 'address' is optional in the schema",
+      );
+      assertEquals(
+        reasoning?.[1],
+        "Required field 'city' is inside optional parent 'address'",
+      );
+      // Original E3007 "Missing required field" classification should NOT be present
+      assertEquals(
+        reasoning?.some((r) => r.includes("Missing required field")),
+        false,
+      );
+    },
+  );
+
+  await t.step(
+    "E3007: required field in required parent stays sdk-issue",
+    () => {
+      const node: ValidationNode = {
+        valid: false,
+        keyword: "required",
+        path: "body.address.city",
+        schemaPath: "#/schema/properties/address/properties/city",
+        field: "city",
+      };
+
+      const resolver = makeResolver({
+        "#/schema/properties/address/properties/city": {},
+        "#/schema": {
+          properties: { address: {} },
+          required: ["address"], // address IS required
+        },
+      });
+
+      const result = interpret(node, resolver, "body", {});
+
+      assertEquals(result.diagnostics.length, 1);
+      assertEquals(result.diagnostics[0]?.code, "E3007");
+      assertEquals(result.diagnostics[0]?.category, "sdk-issue");
+    },
+  );
+
+  await t.step(
+    "E3007: top-level required field not re-attributed",
+    () => {
+      // path = "body.name" → only one level, no parent to check
+      const node: ValidationNode = {
+        valid: false,
+        keyword: "required",
+        path: "body.name",
+        schemaPath: "#/schema/properties/name",
+        field: "name",
+      };
+
+      const resolver = makeResolver({
+        "#/schema/properties/name": {},
+      });
+
+      const result = interpret(node, resolver, "body", {});
+
+      assertEquals(result.diagnostics.length, 1);
+      assertEquals(result.diagnostics[0]?.code, "E3007");
+    },
+  );
 });
 
 Deno.test("resolveDataAtPath", async (t) => {

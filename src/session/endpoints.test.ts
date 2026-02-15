@@ -12,7 +12,7 @@ function makeDiag(
     requestPath: "body",
     specPointer: "#/test",
     message: "test",
-    attribution: { confidence: 0.9, reasoning: ["test"] },
+    attribution: { confidence: 1.0, reasoning: ["test"] },
     ...overrides,
   };
 }
@@ -49,6 +49,7 @@ Deno.test("handleSessionRequest", async (t) => {
     assertEquals(body.requests, 2);
     assertEquals(body.sdk_issues.length, 1);
     assertEquals(body.sdk_issues[0].code, "E3007");
+    assertEquals(body.sdk_issues[0].severity, "error");
     assertEquals(body.sdk_issues[0].method, "POST");
     assertEquals(body.sdk_issues[0].path, "/users");
     assertEquals(body.content_notes.length, 0);
@@ -62,7 +63,7 @@ Deno.test("handleSessionRequest", async (t) => {
       makeDiag({
         code: "E3007",
         attribution: {
-          confidence: 0.9,
+          confidence: 1.0,
           reasoning: ["Field 'email' is required", "Not present in body"],
         },
         suggestion: "Include 'email' field in request body",
@@ -74,7 +75,7 @@ Deno.test("handleSessionRequest", async (t) => {
     const issue = body.sdk_issues[0];
 
     assertEquals(issue.attribution.category, "sdk-issue");
-    assertEquals(issue.attribution.confidence, 0.9);
+    assertEquals(issue.attribution.confidence, 1.0);
     assertEquals(issue.attribution.reasoning.length, 2);
     assertEquals(issue.suggestion, "Include 'email' field in request body");
   });

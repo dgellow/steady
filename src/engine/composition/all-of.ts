@@ -86,7 +86,7 @@ function detectAdditionalPropertiesPitfall(
       ...diag,
       category: "spec-issue" as const,
       attribution: {
-        confidence: 0.9,
+        confidence: 1.0,
         reasoning: [
           "allOf + additionalProperties pitfall",
           `Property "${propertyName}" exists in a sibling allOf member`,

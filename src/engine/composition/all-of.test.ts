@@ -13,7 +13,7 @@ function makeDiag(
     requestPath: "body",
     specPointer: "#/test",
     message: "test",
-    attribution: { confidence: 0.9, reasoning: ["test"] },
+    attribution: { confidence: 1.0, reasoning: ["test"] },
     ...overrides,
   };
 }

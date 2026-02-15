@@ -19,6 +19,8 @@ import type {
   ValidationNode,
 } from "./types.ts";
 import { isStructural } from "./structural.ts";
+import type { Diagnostic } from "../diagnostic.ts";
+import { getCode } from "../codes/registry.ts";
 import { attributeLeaf, type LeafNode } from "./leaf-attribution.ts";
 import { attributeOneOf } from "./composition/one-of.ts";
 import { attributeAnyOf } from "./composition/any-of.ts";
@@ -111,13 +113,84 @@ function interpretLeaf(
 
   const schema = spec.resolve(node.schemaPath);
   const leafNode: LeafNode = { ...node, keyword: node.keyword };
-  const diagnostic = attributeLeaf(leafNode, schema, location);
+  let diagnostic = attributeLeaf(leafNode, schema, location);
   const structural = isStructural(node.keyword, schema);
+
+  // E3013: Required field in optional parent
+  if (diagnostic.code === "E3007" && location === "body") {
+    const reattributed = checkOptionalParent(
+      diagnostic,
+      node.schemaPath,
+      spec,
+    );
+    if (reattributed) {
+      diagnostic = reattributed;
+    }
+  }
 
   return {
     diagnostics: [diagnostic],
     structurallyValid: !structural,
     structuralFailureCount: structural ? 1 : 0,
+  };
+}
+
+const PROP_SUFFIX = /\/properties\/([^/]+)$/;
+
+/**
+ * Check if a missing required field (E3007) occurs inside an optional parent.
+ * If so, return a re-attributed E3013 diagnostic.
+ */
+function checkOptionalParent(
+  diagnostic: Diagnostic,
+  schemaPath: string,
+  spec: SpecResolver,
+): Diagnostic | undefined {
+  // Step 1: Strip the missing field's /properties/<field> to get the object schema path
+  const objectPath = schemaPath.replace(PROP_SUFFIX, "");
+  if (objectPath === schemaPath) return undefined; // no match, can't navigate
+
+  // Step 2: Extract parent property name and grandparent path
+  const match = objectPath.match(PROP_SUFFIX);
+  if (!match) return undefined; // top-level object, no parent to check
+
+  const parentPropName = match[1] ?? "";
+  if (!parentPropName) return undefined;
+  const grandparentPath = objectPath.replace(PROP_SUFFIX, "");
+
+  // Step 3: Resolve grandparent schema and check if parent is required
+  let grandparent;
+  try {
+    grandparent = spec.resolve(grandparentPath);
+  } catch {
+    return undefined; // can't resolve, don't re-attribute
+  }
+
+  const requiredArray = grandparent.required;
+  if (
+    Array.isArray(requiredArray) && requiredArray.includes(parentPropName)
+  ) {
+    return undefined; // parent IS required, keep E3007
+  }
+
+  // Parent is optional: re-attribute to E3013
+  const e3013 = getCode("E3013");
+  return {
+    ...diagnostic,
+    code: "E3013",
+    severity: e3013.severity,
+    category: e3013.category,
+    attribution: {
+      confidence: 0.6,
+      reasoning: [
+        `Parent object '${parentPropName}' is optional in the schema`,
+        `Required field '${
+          diagnostic.requestPath.split(".").pop()
+        }' is inside optional parent '${parentPropName}'`,
+        // Keep constraint and violation entries (skip stale classification at index 0)
+        ...diagnostic.attribution.reasoning.slice(1),
+      ],
+    },
   };
 }
 

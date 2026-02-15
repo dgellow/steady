@@ -26,7 +26,7 @@ import {
   formatExplainHint,
 } from "../src/logging/format-diagnostic.ts";
 
-type LogFormat = "text" | "json";
+type LogFormat = "text" | "json" | "ci";
 
 /** Signals that spec analysis found fatal issues (unresolvable). */
 class FatalSpecError extends Error {
@@ -151,15 +151,22 @@ export async function main() {
   // Map "debug" to "full" for undocumented -v debug alias
   const logLevel =
     (args["log-level"] === "debug" ? "full" : args["log-level"]) as LogLevel;
-  const logFormat = args["log-format"] as LogFormat;
+  // Auto-detect CI: when CI=true env is set and user did NOT explicitly pass --log-format,
+  // default to "ci". Check raw args to distinguish explicit --log-format text from the default.
+  const rawHasLogFormat = Deno.args.some((a) =>
+    a === "--log-format" || a.startsWith("--log-format=")
+  );
+  const logFormat: LogFormat = !rawHasLogFormat && Deno.env.get("CI") === "true"
+    ? "ci"
+    : (args["log-format"] as LogFormat);
   const portOverride = args.port ? parseInt(args.port, 10) : undefined;
 
   // Validate log format
-  if (logFormat !== "text" && logFormat !== "json") {
+  if (logFormat !== "text" && logFormat !== "json" && logFormat !== "ci") {
     console.error(
       cliError(`Invalid --log-format: ${logFormat}`),
     );
-    console.error(`Valid values: text, json`);
+    console.error(`Valid values: text, json, ci`);
     Deno.exit(1);
   }
 
@@ -621,7 +628,7 @@ Options:
   --host <host>            Bind to specific host (default: localhost)
   -r, --auto-reload        Auto-reload on spec file changes
   --log-level <level>      Set logging detail: summary|details|full (default: summary)
-  --log-format <format>    Output format: text|json (default: text)
+  --log-format <format>    Output format: text|json|ci (default: text, auto-detects CI)
   --log-bodies             Show request/response bodies in summary mode
   --no-log                 Disable request logging
   --reject-on-sdk-error    Return 400 for SDK issues (E3xxx) instead of mock response

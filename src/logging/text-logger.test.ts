@@ -17,7 +17,7 @@ function makeDiagnostic(overrides: Partial<Diagnostic> = {}): Diagnostic {
     message: "expected string, got integer",
     expected: "string",
     actual: 42,
-    attribution: { confidence: 0.9, reasoning: ["test"] },
+    attribution: { confidence: 1.0, reasoning: ["test"] },
     ...overrides,
   };
 }
@@ -258,7 +258,7 @@ Deno.test("TextLogger: full mode shows reasoning chain", () => {
     const event = createMockRequestEvent({
       diagnostics: [makeDiagnostic({
         attribution: {
-          confidence: 0.9,
+          confidence: 1.0,
           reasoning: ["Schema requires string", "Request sent integer"],
         },
       })],
