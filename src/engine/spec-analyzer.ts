@@ -1425,35 +1425,87 @@ function checkImpossibleConstraints(
       );
     }
 
-    // Conflicting type in allOf
-    const allOf = schema.allOf;
-    if (Array.isArray(allOf)) {
-      const singleTypes: string[] = [];
-      for (const sub of allOf) {
-        if (isObject(sub) && typeof sub.type === "string") {
-          singleTypes.push(sub.type);
-        }
-      }
-      const uniqueSingle = new Set(singleTypes);
-      if (uniqueSingle.size > 1) {
+    // Const + enum conflict: const value must be in the enum
+    const constVal = schema.const;
+    if (
+      constVal !== undefined && Array.isArray(enumVal) && enumVal.length > 0
+    ) {
+      if (!enumVal.includes(constVal)) {
         diagnostics.push(
           specDiagnostic(
             "E1012",
             pointer,
-            `Impossible constraint: allOf members require conflicting types: ${
-              [...uniqueSingle].join(", ")
-            }`,
+            `Impossible constraint: const value ${
+              JSON.stringify(constVal)
+            } is not in enum ${JSON.stringify(enumVal)}`,
             {
               suggestion:
-                "An allOf with conflicting type requirements can never validate",
-              actual: [...uniqueSingle],
+                "The const value must be one of the enum values, or remove one of the constraints",
+              actual: { const: constVal, enum: enumVal },
             },
           ),
         );
       }
+    }
+
+    // Conflicting type in allOf
+    const allOf = schema.allOf;
+    if (Array.isArray(allOf)) {
+      // Collect types as Sets (handling both string and array forms)
+      const typeSets: Set<string>[] = [];
+      for (const sub of allOf) {
+        if (!isObject(sub)) continue;
+        if (typeof sub.type === "string") {
+          typeSets.push(new Set([sub.type]));
+        } else if (Array.isArray(sub.type)) {
+          const types = sub.type.filter(
+            (t: unknown): t is string => typeof t === "string",
+          );
+          if (types.length > 0) {
+            typeSets.push(new Set(types));
+          }
+        }
+      }
+
+      if (typeSets.length > 1) {
+        // Compute intersection across all type sets
+        let intersection = typeSets[0];
+        if (intersection) {
+          for (let i = 1; i < typeSets.length; i++) {
+            const next = typeSets[i];
+            if (!next) continue;
+            intersection = new Set(
+              [...intersection].filter((t) => next.has(t)),
+            );
+          }
+
+          if (intersection.size === 0) {
+            const allTypes = typeSets.map((s) => [...s]);
+            diagnostics.push(
+              specDiagnostic(
+                "E1012",
+                pointer,
+                `Impossible constraint: allOf members require conflicting types: ${
+                  allTypes.map((t) =>
+                    t.length === 1 ? t[0] : `[${t.join(", ")}]`
+                  ).join(", ")
+                }`,
+                {
+                  suggestion:
+                    "An allOf with conflicting type requirements can never validate",
+                  actual: allTypes.flat(),
+                },
+              ),
+            );
+          }
+        }
+      }
 
       // allOf bound merging: collect min/max across members
       diagnostics.push(...checkAllOfBounds(allOf, pointer));
+
+      // allOf enum intersection: empty intersection is impossible
+      diagnostics.push(...checkAllOfEnums(allOf, pointer));
     }
 
     // Type+format conflicts
@@ -1550,6 +1602,50 @@ function checkAllOfBounds(
         suggestion:
           "The combined min/max bounds across allOf members form an empty range",
         actual: { mergedMin, mergedMax },
+      },
+    ),
+  ];
+}
+
+/**
+ * Check for empty enum intersection across allOf members.
+ * e.g., allOf: [{enum: ["a","b"]}, {enum: ["c","d"]}] is impossible.
+ * Only checks when 2+ members have enum constraints.
+ */
+function checkAllOfEnums(
+  allOf: unknown[],
+  pointer: string,
+): Diagnostic[] {
+  const enums: unknown[][] = [];
+  for (const sub of allOf) {
+    if (!isObject(sub)) continue;
+    if (Array.isArray(sub.enum)) {
+      enums.push(sub.enum);
+    }
+  }
+
+  if (enums.length < 2) return [];
+
+  // Progressive intersection
+  let intersection = new Set(enums[0]);
+  for (let i = 1; i < enums.length; i++) {
+    const next = new Set(enums[i]);
+    intersection = new Set(
+      [...intersection].filter((v) => next.has(v)),
+    );
+  }
+
+  if (intersection.size > 0) return [];
+
+  return [
+    specDiagnostic(
+      "E1012",
+      pointer,
+      "Impossible constraint: allOf enum intersection is empty (no value satisfies all members)",
+      {
+        suggestion:
+          "The enum arrays across allOf members share no common values",
+        actual: enums,
       },
     ),
   ];

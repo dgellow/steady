@@ -407,6 +407,27 @@ Deno.test("attributeLeaf", async (t) => {
     assertEquals(diag.message, "Missing required field");
   });
 
+  await t.step(
+    "E3009 gets 0.8 confidence (known false-positive source)",
+    () => {
+      const node = makeNode({
+        keyword: "additionalProperties",
+        path: "body.foo",
+        field: "foo",
+      });
+
+      const diag = attributeLeaf(
+        node,
+        { additionalProperties: false },
+        "body",
+      );
+
+      assertEquals(diag.code, "E3009");
+      assertEquals(diag.category, "sdk-issue");
+      assertEquals(diag.attribution.confidence, 0.8);
+    },
+  );
+
   await t.step("ambiguous codes get lower confidence", () => {
     const node = makeNode({
       keyword: "type",

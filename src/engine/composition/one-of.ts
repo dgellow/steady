@@ -76,16 +76,26 @@ function handleDiscriminator(
 
   // Resolve which variant index this value selects
   const mapping = context.schema.discriminator?.mapping;
-  const variantIndex = resolveVariantIndex(value, propName, mapping, context);
+  const result = resolveVariantIndex(value, propName, mapping, context);
 
-  if (variantIndex === null) {
-    return invalidDiscriminatorValue(propName, value, context);
+  if (result.variantIndex === null) {
+    return invalidDiscriminatorValue(
+      propName,
+      value,
+      result.validValues,
+      context,
+    );
   }
 
   // Return the selected variant's result with high confidence
-  const selected = childResults[variantIndex];
+  const selected = childResults[result.variantIndex];
   if (!selected) {
-    return invalidDiscriminatorValue(propName, value, context);
+    return invalidDiscriminatorValue(
+      propName,
+      value,
+      result.validValues,
+      context,
+    );
   }
   return {
     diagnostics: selected.diagnostics.map((d) => ({
@@ -93,7 +103,7 @@ function handleDiscriminator(
       attribution: {
         confidence: 0.95,
         reasoning: [
-          `Discriminator "${propName}" selected variant ${variantIndex}`,
+          `Discriminator "${propName}" selected variant ${result.variantIndex}`,
           ...d.attribution.reasoning,
         ],
       },
@@ -103,6 +113,11 @@ function handleDiscriminator(
   };
 }
 
+interface DiscriminatorResult {
+  variantIndex: number | null;
+  validValues: unknown[];
+}
+
 /**
  * Resolve discriminator value to a variant index.
  *
@@ -110,47 +125,57 @@ function handleDiscriminator(
  * - Explicit mapping: disc.mapping maps values to $ref strings, matched against
  *   the oneOf array's $ref entries
  * - Implicit: each oneOf variant's properties[propName].const or enum is compared
+ *
+ * Also collects valid discriminator values for error reporting.
  */
 function resolveVariantIndex(
   value: unknown,
   propName: string,
   mapping: Record<string, string> | undefined,
   context: CompositionContext,
-): number | null {
+): DiscriminatorResult {
   const oneOfSchemas = context.schema.oneOf;
-  if (!oneOfSchemas) return null;
+  if (!oneOfSchemas) return { variantIndex: null, validValues: [] };
 
   const strValue = typeof value === "string" ? value : String(value);
 
   // Explicit mapping: value → $ref, then find that $ref in oneOf
   if (mapping) {
+    const validValues = Object.keys(mapping);
     const targetRef = mapping[strValue];
-    if (!targetRef) return null;
+    if (!targetRef) return { variantIndex: null, validValues };
 
     for (let i = 0; i < oneOfSchemas.length; i++) {
       const variant = oneOfSchemas[i];
       if (variant === undefined || typeof variant === "boolean") continue;
-      if (variant.$ref === targetRef) return i;
+      if (variant.$ref === targetRef) return { variantIndex: i, validValues };
     }
-    return null;
+    return { variantIndex: null, validValues };
   }
 
   // Implicit: match against properties[propName].const or enum values
+  const validValues: unknown[] = [];
   for (let i = 0; i < oneOfSchemas.length; i++) {
     const variant = oneOfSchemas[i];
     if (variant === undefined || typeof variant === "boolean") continue;
     const propSchema = variant.properties?.[propName];
     if (!propSchema || typeof propSchema === "boolean") continue;
 
-    if (propSchema.const === value) {
-      return i;
+    if (propSchema.const !== undefined) {
+      validValues.push(propSchema.const);
+      if (propSchema.const === value) {
+        return { variantIndex: i, validValues };
+      }
     }
-    if (Array.isArray(propSchema.enum) && propSchema.enum.includes(value)) {
-      return i;
+    if (Array.isArray(propSchema.enum)) {
+      validValues.push(...propSchema.enum);
+      if (propSchema.enum.includes(value)) {
+        return { variantIndex: i, validValues };
+      }
     }
   }
 
-  return null;
+  return { variantIndex: null, validValues };
 }
 
 function missingDiscriminatorProperty(
@@ -182,9 +207,16 @@ function missingDiscriminatorProperty(
 function invalidDiscriminatorValue(
   propName: string,
   value: unknown,
+  validValues: unknown[],
   context: CompositionContext,
 ): InterpretResult {
   const e3011 = getCode("E3011");
+
+  const reasoning = [
+    `Discriminator property "${propName}" has value "${value}"`,
+    `Valid values: ${JSON.stringify(validValues)}`,
+    "SDK should set the discriminator to one of the valid values",
+  ];
 
   const diagnostic: Diagnostic = {
     code: "E3011",
@@ -195,11 +227,10 @@ function invalidDiscriminatorValue(
     message:
       `Invalid discriminator value "${value}" for property "${propName}"`,
     actual: value,
+    expected: validValues,
     attribution: {
       confidence: 0.95,
-      reasoning: [
-        `Value "${value}" does not match any variant's discriminator`,
-      ],
+      reasoning,
     },
   };
 

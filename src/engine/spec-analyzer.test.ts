@@ -1452,3 +1452,189 @@ Deno.test("E1012 - no false positive for pattern on string type", async () => {
   );
   assertEquals(d.length, 0);
 });
+
+// ── E1012: allOf enum intersection ──────────────────────────────────
+
+Deno.test("E1012 - detects empty enum intersection in allOf", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Bad: {
+          allOf: [
+            { enum: ["a", "b"] },
+            { enum: ["c", "d"] },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("enum intersection"),
+  );
+  assertEquals(d.length, 1);
+});
+
+Deno.test("E1012 - no false positive for overlapping enum in allOf", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Good: {
+          allOf: [
+            { enum: ["a", "b", "c"] },
+            { enum: ["b", "c", "d"] },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("enum intersection"),
+  );
+  assertEquals(d.length, 0);
+});
+
+Deno.test("E1012 - detects empty enum intersection across 3 allOf members", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Bad: {
+          allOf: [
+            { enum: ["a", "b", "c"] },
+            { enum: ["b", "c", "d"] },
+            { enum: ["d", "e"] },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("enum intersection"),
+  );
+  assertEquals(d.length, 1);
+});
+
+Deno.test("E1012 - single allOf member with enum is fine", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Good: {
+          allOf: [
+            { enum: ["a", "b"] },
+            { type: "string" },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("enum intersection"),
+  );
+  assertEquals(d.length, 0);
+});
+
+// ── E1012: const + enum conflict ─────────────────────────────────────
+
+Deno.test("E1012 - detects const not in enum", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Bad: { const: "x", enum: ["a", "b"] },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("const"),
+  );
+  assertEquals(d.length, 1);
+});
+
+Deno.test("E1012 - no false positive when const is in enum", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Good: { const: "a", enum: ["a", "b"] },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("const"),
+  );
+  assertEquals(d.length, 0);
+});
+
+// ── E1012: allOf type array disjointness ─────────────────────────────
+
+Deno.test("E1012 - detects disjoint type arrays in allOf", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Bad: {
+          allOf: [
+            { type: ["string", "boolean"] },
+            { type: ["number", "integer"] },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("conflicting types"),
+  );
+  assertEquals(d.length, 1);
+});
+
+Deno.test("E1012 - no false positive for overlapping type arrays in allOf", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Good: {
+          allOf: [
+            { type: ["string", "number"] },
+            { type: ["number", "integer"] },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("conflicting types"),
+  );
+  assertEquals(d.length, 0);
+});
+
+Deno.test("E1012 - detects string vs type array disjointness in allOf", async () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Bad: {
+          allOf: [
+            { type: "string" },
+            { type: ["number", "integer"] },
+          ],
+        },
+      },
+    },
+  });
+
+  const result = await analyzeSpec(spec);
+  const d = result.diagnostics.filter(
+    (d) => d.code === "E1012" && d.message.includes("conflicting types"),
+  );
+  assertEquals(d.length, 1);
+});

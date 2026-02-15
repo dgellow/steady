@@ -288,6 +288,88 @@ Deno.test("attributeOneOf", async (t) => {
     assertEquals(result.diagnostics[0]!.attribution.confidence, 0.95);
   });
 
+  await t.step(
+    "discriminator with invalid value includes valid values in reasoning",
+    () => {
+      const schema: Schema = {
+        discriminator: { propertyName: "type" },
+        oneOf: [
+          { properties: { type: { const: "card" } } },
+          { properties: { type: { const: "bank" } } },
+        ],
+      };
+
+      const result = attributeOneOf(
+        [
+          {
+            diagnostics: [],
+            structurallyValid: false,
+            structuralFailureCount: 1,
+          },
+          {
+            diagnostics: [],
+            structurallyValid: false,
+            structuralFailureCount: 1,
+          },
+        ],
+        makeContext(schema, { type: "crypto" }),
+      );
+
+      const diag = result.diagnostics[0]!;
+      assertEquals(diag.code, "E3011");
+      // Reasoning should include valid values
+      const reasoningText = diag.attribution.reasoning.join("\n");
+      assertEquals(reasoningText.includes("card"), true);
+      assertEquals(reasoningText.includes("bank"), true);
+      // Expected should contain valid values
+      assertEquals(Array.isArray(diag.expected), true);
+      assertEquals((diag.expected as unknown[]).includes("card"), true);
+      assertEquals((diag.expected as unknown[]).includes("bank"), true);
+    },
+  );
+
+  await t.step(
+    "discriminator with explicit mapping includes valid values in reasoning",
+    () => {
+      const schema: Schema = {
+        discriminator: {
+          propertyName: "type",
+          mapping: {
+            "cc": "#/components/schemas/CardPayment",
+            "ba": "#/components/schemas/BankPayment",
+          },
+        },
+        oneOf: [
+          { $ref: "#/components/schemas/CardPayment" },
+          { $ref: "#/components/schemas/BankPayment" },
+        ],
+      };
+
+      const result = attributeOneOf(
+        [
+          {
+            diagnostics: [],
+            structurallyValid: false,
+            structuralFailureCount: 1,
+          },
+          {
+            diagnostics: [],
+            structurallyValid: false,
+            structuralFailureCount: 1,
+          },
+        ],
+        makeContext(schema, { type: "wire" }),
+      );
+
+      const diag = result.diagnostics[0]!;
+      assertEquals(diag.code, "E3011");
+      const reasoningText = diag.attribution.reasoning.join("\n");
+      assertEquals(reasoningText.includes("cc"), true);
+      assertEquals(reasoningText.includes("ba"), true);
+      assertEquals(Array.isArray(diag.expected), true);
+    },
+  );
+
   await t.step("discriminator with explicit mapping", () => {
     const childResults: InterpretResult[] = [
       {

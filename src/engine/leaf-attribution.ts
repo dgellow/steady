@@ -572,14 +572,18 @@ function formatSchemaType(schema: Schema): string {
 /**
  * Leaf confidence based on E-code category.
  *
- * Non-ambiguous codes are factual observations (wrong type, missing field,
- * etc.) so confidence is 1.0. Ambiguous codes (E5xxx) represent genuine
- * uncertainty about responsibility, so confidence is 0.5.
+ * Three tiers:
+ * - 1.0: Factual observations (type mismatch, missing field, etc.)
+ * - 0.8: High confidence but known false-positive source (E3009).
+ *   additionalProperties violations are often caused by serialization
+ *   format differences or test data, not actual SDK bugs.
+ * - 0.5: Genuinely ambiguous (E5xxx category)
  *
  * Composition handlers and re-attribution logic may assign different
  * confidence values based on context (e.g., discriminator match = 0.95,
  * optional parent re-attribution = 0.6).
  */
 function leafConfidence(code: ECode): number {
+  if (code === "E3009") return 0.8;
   return getCode(code).category === "ambiguous" ? 0.5 : 1.0;
 }
