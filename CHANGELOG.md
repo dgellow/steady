@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.16.1
+
+### Bug Fixes
+
+- include headers in JsonLogger at details+ level
+
+### Code Refactoring
+
+- eliminate as casts and ! assertions, consolidate isSchema
+- unify SchemaObject and Schema into single canonical type
+- add pointer types, consolidate utilities, begin eliminating as casts
+- clean up logging architecture
+
 ## 0.16.0
 
 ### Features
