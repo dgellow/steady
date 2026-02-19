@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.16.2
+
+### Code Refactoring
+
+- move engine contract tests out of packages
+
+### Tests
+
+- rewrite OpenAPI directory tests to run full validation pipeline
+
+### Chores
+
+- **ci:** merge test jobs, init submodules in test job
+- **ci:** always init submodules for OpenAPI directory tests
+- **ci:** skip cloudflare-python in CI (~20min too slow)
+- **ci:** move SDK tests to separate workflow file
+- **ci:** add GH_PAT for cloning private SDK repos, add boundary check to lint
+- remove pls workflows, will use pls-hosted instead
+- cleanup
+- **ci:** run SDK tests in parallel via dynamic matrix
+- **ci:** fix SDK test CI workflow and improve PR reporting
+
 ## 0.16.1
 
 ### Bug Fixes
