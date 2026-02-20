@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.0
+
+### Features
+
+- add HTTP QUERY method support
+
+### Bug Fixes
+
+- inject Location header for 3xx redirects, warn on missing spec header
+- recognize all NDJSON content type variants for streaming
+
 ## 0.16.2
 
 ### Code Refactoring
