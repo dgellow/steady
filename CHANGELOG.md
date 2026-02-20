@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.17.1
+
+### Bug Fixes
+
+- respect Location example/default in 3xx responses
+
+### Tests
+
+- verify every diagnostic code has a complete explanation
+
 ## 0.17.0
 
 ### Features
