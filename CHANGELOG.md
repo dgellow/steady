@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.18.0
+
+### Features
+
+- add @steady/fuzz package and fix $ref example resolution
+
+### Bug Fixes
+
+- use node:http for GET/HEAD body mutations in fuzz tests
+- suppress per-request logging in fuzz tests
+- validate request body on all methods and fix fuzz false positives
+- extend null-body handling to 101/205 and add E1019 no-success-response
+- handle 204/304 null-body responses and rename X-Steady-Valid
+- handle wildcard response codes (2XX, 3XX) in getResponseObject
+- resolve $ref in Location header for 3xx responses
+- resolve JSR publish errors for cross-package imports and slow types
+
+### Code Refactoring
+
+- simplify fuzz tests to only run openapi-directory in CI
+- unify spec ownership and clean up naming
+- split server.ts into src/server/ modules
+- clean up @steady/fuzz package and $ref resolution quality
+
+### Tests
+
+- fuzz all 11 SDK specs for false positives
+
+### Chores
+
+- **ci:** add fuzz job, gate openapi-directory test behind STEADY_FUZZ
+
 ## 0.17.1
 
 ### Bug Fixes
