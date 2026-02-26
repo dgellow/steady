@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.19.0
+
+### ⚠️ Breaking Changes
+
+- default --reject-on-sdk-error to true
+
+### Bug Fixes
+
+- fuzz test expects readOnly fields to be accepted in requests
+- move E3005 empty-body check from body parser to diagnostic engine
+
 ## 0.18.0
 
 ### Features
