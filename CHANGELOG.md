@@ -1,8 +1,22 @@
 # Changelog
 
+## 0.19.1
+
+### Bug Fixes
+
+- skip body mutations on GET/HEAD in fuzz tests
+- resolve $ref in parameter and body schemas
+- E1020 warns that GET/HEAD bodies are stripped and suggests QUERY method
+- downgrade E1003 missing spec field from error to warning
+- skip paths with URI fragments in fuzz spec walker
+
+### Chores
+
+- E1021 startup diagnostic for URI fragments in paths
+
 ## 0.19.0
 
-### ⚠️ Breaking Changes
+### â ï¸ Breaking Changes
 
 - default --reject-on-sdk-error to true
 
