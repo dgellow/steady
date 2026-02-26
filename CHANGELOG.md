@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.2
+
+### Code Refactoring
+
+- remove MatchError, use GenerationError for missing response
+- unify routing into single Router class
+
 ## 0.19.1
 
 ### Bug Fixes
@@ -16,7 +23,7 @@
 
 ## 0.19.0
 
-### â ï¸ Breaking Changes
+### Ã¢ÂÂ Ã¯Â¸Â Breaking Changes
 
 - default --reject-on-sdk-error to true
 
