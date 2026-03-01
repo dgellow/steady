@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.19.3
+
+### Bug Fixes
+
+- never crash on invalid media types, emit diagnostics instead
+- handle query-disambiguated paths in fuzz baseline and mutators
+- filter ambiguous path templates from fuzz operations
+- improve router specificity sorting for mixed segments
+- use unix sockets and port 0 to prevent ephemeral port exhaustion in fuzz tests
+
+### Code Refactoring
+
+- add @steady/media-type package with branded types
+
 ## 0.19.2
 
 ### Code Refactoring
@@ -23,7 +37,7 @@
 
 ## 0.19.0
 
-### Ã¢ÂÂ Ã¯Â¸Â Breaking Changes
+### ÃÂ¢ÃÂÃÂ ÃÂ¯ÃÂ¸ÃÂ Breaking Changes
 
 - default --reject-on-sdk-error to true
 
