@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.19.4
+
+### Bug Fixes
+
+- use application/json schema in fuzz walker
+- wire form format options and schema coercion for multipart requests
+- respect explicit array fields for file placeholders in form parser
+
+### Code Refactoring
+
+- make getBodySchema content-type-aware
+
+### Chores
+
+- Steady is now prod ready
+
 ## 0.19.3
 
 ### Bug Fixes
@@ -37,7 +53,7 @@
 
 ## 0.19.0
 
-### ÃÂ¢ÃÂÃÂ ÃÂ¯ÃÂ¸ÃÂ Breaking Changes
+### ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ÃÂÃÂ¯ÃÂÃÂ¸ÃÂÃÂ Breaking Changes
 
 - default --reject-on-sdk-error to true
 
