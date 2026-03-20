@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.5
+
+### Bug Fixes
+
+- compare SDK test results against latest release instead of latest main run
+- skip type-mismatched examples in response generation
+
 ## 0.19.4
 
 ### Bug Fixes
@@ -53,7 +60,7 @@
 
 ## 0.19.0
 
-### ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ÃÂÃÂ¯ÃÂÃÂ¸ÃÂÃÂ Breaking Changes
+### ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ÃÂÃÂÃÂÃÂ¯ÃÂÃÂÃÂÃÂ¸ÃÂÃÂÃÂÃÂ Breaking Changes
 
 - default --reject-on-sdk-error to true
 
