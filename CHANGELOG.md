@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.20.2
+
+### Bug Fixes
+
+- schema-driven bracket-notation parser for query and form data
+
+### Chores
+
+- fix changelog
+
 ## 0.20.1
 
 ### Bug Fixes
