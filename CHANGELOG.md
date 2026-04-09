@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.20.3
+
+### Bug Fixes
+
+- composition diagnostics now correctly attribute failures to SDK
+- enforce bracket notation for arrays when format flag is brackets
+
+### Chores
+
+- Update logo alt text in README.md
+
 ## 0.20.2
 
 ### Bug Fixes
