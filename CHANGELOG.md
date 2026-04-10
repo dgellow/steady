@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.0
+
+### Features
+
+- E3023 form array format mismatch diagnostic
+
 ## 0.20.3
 
 ### Bug Fixes
