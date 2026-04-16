@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.22.0
+
+### Features
+
+- decode JSON-encoded multipart parts per OAS 3.1 encoding
+- **json-pointer:** add PointerPath and fragment pointer helpers
+
+### Bug Fixes
+
+- **ci:** pin Deno to 2.7.11 to avoid node:http crash
+- **generator:** thread PointerPath through SchemaRegistry and eliminate response fabrication
+
+### Code Refactoring
+
+- unify form parsing into single schema-driven kernel
+- migrate openapi, server, and streaming pointer builders to formatFragmentPointer
+- **engine:** migrate spec-analyzer and diagnostic-engine to PointerPath
+- **json-schema:** thread PointerPath through schema-indexer and tree-validator
+
+### Documentation
+
+- raw-at-edges pointer principle and snapshot-testing skill
+
+### Chores
+
+- **test-sdks:** add bracket query-array flag for finch and orb
+
 ## 0.21.0
 
 ### Features
