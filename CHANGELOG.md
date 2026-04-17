@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.22.1
+
+### Bug Fixes
+
+- **server:** return valid JSON {} for application/json responses with permissive schema
+- **openapi:** keep multipart string parts as strings when encoding says JSON
+
+### Tests
+
+- **multipart:** cover nested-object serialization as dots, brackets, and JSON part
+
+### Chores
+
+- fix formatting
+- **test-sdks:** show full SDK test output instead of last-N-lines
+
 ## 0.22.0
 
 ### Features
