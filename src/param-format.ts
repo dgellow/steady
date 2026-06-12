@@ -812,8 +812,11 @@ function assembleIndexedArray(
 
 /**
  * Group append entries into array elements by detecting property boundaries.
- * A new element starts when a property name that was already set on the
- * current element appears again.
+ * A new element starts when a sub-path that was already set on the current
+ * element appears again (Rack semantics): `a[][meta][x]` and `a[][meta][y]`
+ * belong to the same element, while a second `a[][meta][x]` starts a new one.
+ * Sub-paths containing a nested append (`a[][tags][]`) accumulate into the
+ * current element and never start a new one.
  */
 function groupAppendEntries(
   entries: KeyEntry[],
@@ -827,13 +830,21 @@ function groupAppendEntries(
   for (const entry of entries) {
     const seg = entry.segments[0];
     if (!seg || seg.type !== "key") continue;
-    const key = seg.name;
 
-    if (seen.has(key)) {
-      elements.push([]);
-      seen.clear();
+    const hasNestedAppend = entry.segments.some((s) => s.type === "append");
+    const path = entry.segments
+      .map((s) =>
+        s.type === "key" ? s.name : s.type === "index" ? String(s.index) : "[]"
+      )
+      .join(".");
+
+    if (!hasNestedAppend) {
+      if (seen.has(path)) {
+        elements.push([]);
+        seen.clear();
+      }
+      seen.add(path);
     }
-    seen.add(key);
     const current = elements[elements.length - 1];
     if (current) current.push(entry);
   }
@@ -862,9 +873,15 @@ function assembleObject(
     groups.set(seg.name, group);
   }
 
+  // Keys not declared in `properties` fall back to the `additionalProperties`
+  // schema (when it's a schema object) so map values still get type coercion.
+  const additional = resolved && isPlainObject(resolved.additionalProperties)
+    ? resolved.additionalProperties as Schema
+    : null;
+
   const result: Record<string, unknown> = Object.create(null);
   for (const [key, subEntries] of groups) {
-    const propSchema = resolve(props?.[key] ?? null, resolver) ?? null;
+    const propSchema = resolve(props?.[key] ?? additional, resolver) ?? null;
     result[key] = assembleValue(subEntries, propSchema, format, resolver);
   }
   return result;

@@ -951,3 +951,172 @@ Deno.test("parseFormEntries: $ref in property schema resolves via resolver callb
 });
 
 console.log("param-format tests loaded");
+
+// =============================================================================
+// Append grouping boundaries (Rack semantics)
+// =============================================================================
+
+// A single element whose nested object carries several keys must stay one
+// element: the element boundary is a repeat of the full sub-path, not of the
+// first segment name. (SDKs serialize `entries[][metadata][k]` once per map
+// key; Rack-style parsers merge these into the same element.)
+Deno.test("parseFormEntries: append element with multi-key nested object stays one element", () => {
+  const entries: [string, string][] = [
+    ["entries[][direction]", "credit"],
+    ["entries[][amount]", "0"],
+    ["entries[][metadata][key]", "value"],
+    ["entries[][metadata][foo]", "bar"],
+    ["entries[][metadata][extra]", "data"],
+    ["entries[][balances][cash]", "1"],
+  ];
+  const wrapperSchema: Schema = {
+    type: "object",
+    properties: {
+      entries: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            direction: { type: "string" },
+            amount: { type: "integer" },
+            metadata: {
+              type: "object",
+              additionalProperties: { type: "string" },
+            },
+            balances: {
+              type: "object",
+              additionalProperties: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const result = parseFormEntries(entries, wrapperSchema, BRACKETS);
+  assertEquals(result, {
+    entries: [
+      {
+        direction: "credit",
+        amount: 0,
+        metadata: { key: "value", foo: "bar", extra: "data" },
+        balances: { cash: 1 },
+      },
+    ],
+  });
+});
+
+Deno.test("parseFormEntries: append starts a new element on full sub-path repeat", () => {
+  const entries: [string, string][] = [
+    ["entries[][meta][a]", "1"],
+    ["entries[][meta][b]", "2"],
+    ["entries[][meta][a]", "3"],
+  ];
+  const wrapperSchema: Schema = {
+    type: "object",
+    properties: {
+      entries: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            meta: { type: "object", additionalProperties: { type: "string" } },
+          },
+        },
+      },
+    },
+  };
+
+  const result = parseFormEntries(entries, wrapperSchema, BRACKETS);
+  assertEquals(result, {
+    entries: [
+      { meta: { a: "1", b: "2" } },
+      { meta: { a: "3" } },
+    ],
+  });
+});
+
+Deno.test("parseFormEntries: nested append inside an element never starts a new element", () => {
+  const entries: [string, string][] = [
+    ["entries[][tags][]", "x"],
+    ["entries[][tags][]", "y"],
+    ["entries[][name]", "a"],
+  ];
+  const wrapperSchema: Schema = {
+    type: "object",
+    properties: {
+      entries: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            tags: { type: "array", items: { type: "string" } },
+            name: { type: "string" },
+          },
+        },
+      },
+    },
+  };
+
+  const result = parseFormEntries(entries, wrapperSchema, BRACKETS);
+  assertEquals(result, {
+    entries: [{ tags: ["x", "y"], name: "a" }],
+  });
+});
+
+// =============================================================================
+// additionalProperties coercion
+// =============================================================================
+
+Deno.test("parseFormEntries: coerces values under additionalProperties schema", () => {
+  const entries: [string, string][] = [
+    ["balances[cash]", "0"],
+    ["balances[credit]", "25"],
+  ];
+  const wrapperSchema: Schema = {
+    type: "object",
+    properties: {
+      balances: { type: "object", additionalProperties: { type: "integer" } },
+    },
+  };
+
+  const result = parseFormEntries(entries, wrapperSchema, BRACKETS);
+  assertEquals(result, { balances: { cash: 0, credit: 25 } });
+});
+
+Deno.test("parseFormEntries: multiple append elements each with multi-key nested objects", () => {
+  const entries: [string, string][] = [
+    ["entries[][name]", "a"],
+    ["entries[][meta][x]", "1"],
+    ["entries[][meta][y]", "2"],
+    ["entries[][name]", "b"],
+    ["entries[][meta][x]", "3"],
+    ["entries[][meta][y]", "4"],
+  ];
+  const wrapperSchema: Schema = {
+    type: "object",
+    properties: {
+      entries: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            meta: {
+              type: "object",
+              additionalProperties: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const result = parseFormEntries(entries, wrapperSchema, BRACKETS);
+  assertEquals(result, {
+    entries: [
+      { name: "a", meta: { x: "1", y: "2" } },
+      { name: "b", meta: { x: "3", y: "4" } },
+    ],
+  });
+});
