@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.2
+
+### Chores
+
+- change license to MIT
+
 ## 0.22.1
 
 ### Bug Fixes
