@@ -471,4 +471,4 @@ deno task check-boundaries  # Verify package dependencies
 
 ## Acknowledgements
 
-Thanks to Stephen Downward for contributing the logo design.
+Thanks to Sophie D for contributing the logo design.
