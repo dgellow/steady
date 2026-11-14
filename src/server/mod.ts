@@ -13,7 +13,6 @@ import type { ServerConfig } from "../types.ts";
 import type { PipelineTimer } from "../timing.ts";
 import {
   HEADERS,
-  isHttpMethod,
   isValidArrayFormat,
   isValidFormArrayFormat,
   isValidFormObjectFormat,
@@ -241,15 +240,9 @@ export class MockServer {
       return handleSessionRequest(sessionId, this.sessionStore);
     }
 
-    // Validate HTTP method before any processing. A method OpenAPI cannot
-    // describe is "not recognized" (501, RFC 9110 section 9.1), not "known
-    // but not allowed for this path" (405, which needs an Allow header).
-    if (!isHttpMethod(rawMethod)) {
-      return new Response(`Method ${req.method} is not supported`, {
-        status: 501,
-        headers: { "Content-Type": "text/plain" },
-      });
-    }
+    // The method is not checked here. A method OpenAPI cannot describe (e.g.
+    // PROPFIND) is one the spec does not define for the path, so the router
+    // reports it as E2002 like any other undefined method.
     const method = rawMethod;
 
     // Check if request should reject on SDK errors

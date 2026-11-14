@@ -229,18 +229,40 @@ Deno.test({
 });
 
 Deno.test({
-  name: "Server: returns 501 for a method OpenAPI cannot describe",
+  name: "Server: a method OpenAPI cannot describe is diagnosed like any other",
   ...serverTestOpts,
 }, async () => {
   await withServer({}, async (_server, baseUrl) => {
-    // RFC 9110 section 9.1: an unrecognized method gets 501, not 405.
-    // 405 would require an Allow header and means "known, not for this path".
-    const response = await fetch(`${baseUrl}/users`, { method: "PROPFIND" });
-    assertEquals(response.status, 501);
-    assertEquals(
-      await response.text(),
-      "Method PROPFIND is not supported",
-    );
+    // The SDK sent a method the spec does not define for this path. That is
+    // E2002 with the usual diagnostic headers and a 4xx, never a 5xx: SDKs
+    // retry on 5xx and read it as a server fault.
+    const sessionId = crypto.randomUUID();
+    const response = await fetch(`${baseUrl}/users`, {
+      method: "PROPFIND",
+      headers: { "X-Steady-Session": sessionId },
+    });
+    assertEquals(response.status, 405);
+    assertEquals(response.headers.get("Allow"), "GET, POST");
+    assertEquals(response.headers.get("X-Steady-Request-Valid"), "false");
+    assertEquals(response.headers.get("X-Steady-Error-1-Code"), "E2002");
+    const data = await response.json();
+    assertEquals(data.error, "Method PROPFIND not allowed for /users");
+
+    const report = await fetch(
+      `${baseUrl}/_x-steady/sessions/${sessionId}`,
+    ).then((r) => r.json());
+    assertEquals(report.sdk_issues[0].code, "E2002");
+
+    // On a path the spec does not have, the path is the problem.
+    const unknownPath = await fetch(`${baseUrl}/nope`, { method: "PROPFIND" });
+    assertEquals(unknownPath.status, 404);
+    assertEquals(unknownPath.headers.get("X-Steady-Error-1-Code"), "E2001");
+    await unknownPath.body?.cancel();
+
+    // A method named like another Path Item field is still not an operation.
+    const fieldName = await fetch(`${baseUrl}/users`, { method: "PARAMETERS" });
+    assertEquals(fieldName.status, 405);
+    await fieldName.body?.cancel();
   });
 });
 

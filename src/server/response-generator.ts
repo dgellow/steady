@@ -73,7 +73,9 @@ export function generateResponseFromObject(
   let minimal = false;
   let nullBodyStripped = false;
 
-  const accept = requestAcceptHeader ? parseAccept(requestAcceptHeader) : [];
+  const accept = requestAcceptHeader
+    ? parseAccept(requestAcceptHeader).entries
+    : [];
 
   if (responseObj.content) {
     // Build parallel arrays of raw keys and parsed essences, skipping
