@@ -1275,3 +1275,52 @@ Deno.test("parseUrlEncoded: brackets+brackets deep nested array-of-objects", () 
 });
 
 console.log("Form parser tests loaded");
+
+Deno.test("parseFormData: brackets array element with multi-key nested maps stays one element", async () => {
+  const formData = new FormData();
+  formData.append("entries[][direction]", "credit");
+  formData.append("entries[][amount]", "0");
+  formData.append("entries[][metadata][key]", "value");
+  formData.append("entries[][metadata][foo]", "bar");
+  formData.append("entries[][balances][cash]", "25");
+
+  const result = await parseFormData(formData, {
+    formArrayFormat: "brackets",
+    formObjectFormat: "brackets",
+    schema: {
+      type: "object",
+      properties: {
+        entries: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["direction", "amount"],
+            properties: {
+              direction: { type: "string" },
+              amount: { type: "integer" },
+              metadata: {
+                type: "object",
+                additionalProperties: { type: "string" },
+              },
+              balances: {
+                type: "object",
+                additionalProperties: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  assertEquals(result.data, {
+    entries: [
+      {
+        direction: "credit",
+        amount: 0,
+        metadata: { key: "value", foo: "bar" },
+        balances: { cash: 25 },
+      },
+    ],
+  });
+});
