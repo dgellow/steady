@@ -31,7 +31,7 @@ import type {
 import { wrapURLSearchParams } from "../param-format.ts";
 import type { SpecResolver, ValidationNode } from "./types.ts";
 import { type ECode, getCode } from "../codes/registry.ts";
-import { essenceMatches, getMediaType } from "../media-type.ts";
+import { essenceMatches, getMediaType, parseAccept } from "../media-type.ts";
 import type { Router } from "../router.ts";
 import { interpret } from "./interpreter.ts";
 import {
@@ -463,11 +463,7 @@ export class DiagnosticEngine {
     // 4b. Accept header validation
     const acceptHeader = getHeaderValue(request.headers, "accept");
     if (acceptHeader) {
-      const hasValidEntry = acceptHeader.split(",").some((part) => {
-        const trimmed = part.trim();
-        return trimmed !== "" && getMediaType(trimmed) !== null;
-      });
-      if (!hasValidEntry) {
+      if (parseAccept(acceptHeader).length === 0) {
         diagnostics.push(
           createMalformedAcceptDiagnostic(acceptHeader),
         );

@@ -13,6 +13,9 @@ export type MediaTypeEssence = string & {
   readonly __brand: "MediaTypeEssence";
 };
 
+/** The essence of plain JSON. */
+export const APPLICATION_JSON = "application/json" as MediaTypeEssence;
+
 /** Wildcard media type from Accept headers. */
 export type WildcardMediaType = MediaTypeEssence & "*/*";
 
@@ -76,12 +79,175 @@ export function isWildcard(
   return essence === "*/*";
 }
 
-/** Check if a candidate essence matches a pattern. Wildcards match any candidate. */
+/**
+ * Check if a candidate essence matches a pattern.
+ *
+ * The pattern may be a media range (RFC 9110 section 12.5.1): the full
+ * wildcard matches any candidate, and a subtype wildcard such as "image/*"
+ * matches any candidate of that type. OpenAPI allows media ranges as content
+ * keys, so spec-side patterns use the same rule as Accept ranges.
+ */
 export function essenceMatches(
   candidate: MediaTypeEssence,
   pattern: MediaTypeEssence,
 ): boolean {
-  return candidate === pattern || isWildcard(pattern);
+  if (candidate === pattern || isWildcard(pattern)) return true;
+  if (!pattern.endsWith("/*")) return false;
+  // Keep the slash so "image/*" does not match "imagex/png".
+  return candidate.startsWith(pattern.slice(0, -1));
+}
+
+// ── Accept header (RFC 9110 section 12.5.1) ───────────────────────
+
+/** One member of an Accept header: a media range and its weight. */
+export interface AcceptEntry {
+  /** A media type, a subtype wildcard ("text/*") or the full wildcard. */
+  range: MediaTypeEssence;
+  /** Weight from 0 to 1. A weight of 0 means "not acceptable". */
+  q: number;
+}
+
+/** RFC 9110 section 12.4.2: 0 with up to three decimals, or 1 with up to three zeros. */
+const QVALUE = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/;
+
+/** A media range has exactly one slash with a non-empty type and subtype. */
+const MEDIA_RANGE = /^[^/]+\/[^/]+$/;
+
+/**
+ * Split a list header on commas, leaving commas inside quoted strings alone.
+ */
+function splitListHeader(header: string): string[] {
+  const members: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let i = 0; i < header.length; i++) {
+    const char = header.charAt(i);
+    if (quoted && char === "\\") {
+      // quoted-pair: the next character is literal
+      current += char + header.charAt(i + 1);
+      i++;
+      continue;
+    }
+    if (char === '"') quoted = !quoted;
+    if (char === "," && !quoted) {
+      members.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  members.push(current);
+  return members;
+}
+
+/**
+ * Parse an Accept header value into its members, in header order.
+ *
+ * A member that cannot be interpreted is dropped: one that is not a media
+ * range, or one whose weight does not follow the qvalue grammar. An empty
+ * result for a non-empty header therefore means the header is malformed.
+ */
+export function parseAccept(header: string): AcceptEntry[] {
+  const entries: AcceptEntry[] = [];
+  for (const member of splitListHeader(header)) {
+    let parsed: ReturnType<typeof parseMediaType>;
+    try {
+      parsed = parseMediaType(member.trim());
+    } catch {
+      continue;
+    }
+    const [range, params] = parsed;
+    if (!MEDIA_RANGE.test(range)) continue;
+
+    const weight = params?.q;
+    if (weight !== undefined && !QVALUE.test(weight)) continue;
+
+    entries.push({
+      range: range as MediaTypeEssence,
+      q: weight === undefined ? 1 : Number(weight),
+    });
+  }
+  return entries;
+}
+
+/** 2 for a concrete type, 1 for a subtype wildcard, 0 for the full wildcard. */
+function rangeSpecificity(range: MediaTypeEssence): number {
+  if (isWildcard(range)) return 0;
+  return range.endsWith("/*") ? 1 : 2;
+}
+
+/** True for the full wildcard and for subtype wildcards such as "image/*". */
+export function isMediaRange(essence: MediaTypeEssence): boolean {
+  return rangeSpecificity(essence) < 2;
+}
+
+/** Result of content negotiation. */
+export interface NegotiatedMediaType {
+  /** Index into the `available` list. */
+  index: number;
+  /**
+   * The Accept range that selected it. When the available entry is itself a
+   * range (an OpenAPI content key such as the full wildcard), this is the
+   * client's more concrete wish.
+   */
+  range: MediaTypeEssence;
+}
+
+/**
+ * Choose the available media type the client prefers.
+ *
+ * For each available entry the most specific overlapping Accept range decides
+ * its weight (RFC 9110 section 12.5.1), so "text/plain;q=0" excludes
+ * text/plain even next to a full wildcard. The highest weight wins. Equal
+ * weights are ordered by position in the Accept header, then by position in
+ * `available`. Returns null when nothing is acceptable.
+ */
+export function negotiateMediaType(
+  accept: readonly AcceptEntry[],
+  available: readonly MediaTypeEssence[],
+): NegotiatedMediaType | null {
+  let best: { index: number; entry: AcceptEntry; position: number } | null =
+    null;
+
+  for (const [index, candidate] of available.entries()) {
+    const governing = governingEntry(accept, candidate);
+    if (governing === null || governing.entry.q === 0) continue;
+
+    if (
+      best === null || governing.entry.q > best.entry.q ||
+      (governing.entry.q === best.entry.q && governing.position < best.position)
+    ) {
+      best = { index, ...governing };
+    }
+  }
+
+  return best === null ? null : { index: best.index, range: best.entry.range };
+}
+
+/**
+ * The Accept member that decides a candidate's weight: the most specific
+ * overlapping range, then the higher weight, then the earlier position.
+ */
+function governingEntry(
+  accept: readonly AcceptEntry[],
+  candidate: MediaTypeEssence,
+): { entry: AcceptEntry; position: number } | null {
+  let governing: { entry: AcceptEntry; position: number } | null = null;
+  for (const [position, entry] of accept.entries()) {
+    const overlaps = essenceMatches(candidate, entry.range) ||
+      essenceMatches(entry.range, candidate);
+    if (!overlaps) continue;
+    if (governing === null) {
+      governing = { entry, position };
+      continue;
+    }
+    const delta = rangeSpecificity(entry.range) -
+      rangeSpecificity(governing.entry.range);
+    if (delta > 0 || (delta === 0 && entry.q > governing.entry.q)) {
+      governing = { entry, position };
+    }
+  }
+  return governing;
 }
 
 /** Type guard for multipart/form-data. */

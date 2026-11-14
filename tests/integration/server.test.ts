@@ -678,3 +678,70 @@ Deno.test({
     );
   },
 });
+
+// ── Content negotiation (RFC 9110 section 12.5.1) ───────────────────
+
+const NEGOTIATION_SPEC = "./tests/specs/content-negotiation.yaml";
+
+Deno.test({
+  name: "Accept weights select the response content type",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async (t) => {
+    await withServer(NEGOTIATION_SPEC, async (ctx) => {
+      const cases: Array<[accept: string, expected: string]> = [
+        // q=0 means "not acceptable", so JSON must not be chosen.
+        ["application/json;q=0, text/plain", "text/plain"],
+        ["application/json;q=0.0, */*", "text/plain"],
+        // Highest weight wins regardless of position in the header.
+        ["text/plain;q=0.5, application/json", "application/json"],
+        // Equal weights: header order.
+        ["application/json, text/plain", "application/json"],
+        // A member with an invalid weight is ignored.
+        ["application/json;q=abc, text/plain;q=0.1", "text/plain"],
+        // Subtype wildcard.
+        ["application/*", "application/json"],
+        // Wildcard: first content type declared by the spec.
+        ["*/*", "text/plain"],
+        // Nothing acceptable: the mock still answers with the first type.
+        ["image/png", "text/plain"],
+      ];
+      for (const [accept, expected] of cases) {
+        await t.step(`Accept: ${accept} -> ${expected}`, async () => {
+          const response = await ctx.fetch("/multi", {
+            headers: { "Accept": accept },
+          });
+          assertEquals(response.status, 200);
+          assertEquals(response.headers.get("content-type"), expected);
+          await response.body?.cancel();
+        });
+      }
+    });
+  },
+});
+
+Deno.test({
+  name: "request Content-Type matches a subtype wildcard content key",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    await withServer(NEGOTIATION_SPEC, async (ctx) => {
+      const ok = await ctx.fetch("/upload", {
+        method: "POST",
+        headers: { "Content-Type": "image/png" },
+        body: new Uint8Array([1, 2, 3]),
+      });
+      assertEquals(diagnosticHeaders(ok)["x-steady-error-count"], "0");
+      assertEquals(ok.status, 204);
+      await ok.body?.cancel();
+
+      const wrong = await ctx.fetch("/upload", {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: "not an image",
+      });
+      assertEquals(diagnosticHeaders(wrong)["x-steady-error-1-code"], "E3006");
+      await wrong.body?.cancel();
+    });
+  },
+});
