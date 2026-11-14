@@ -13,7 +13,7 @@ import {
   isSchema,
 } from "@steady/json-schema";
 import type { Schema } from "@steady/json-schema";
-import { isPlainObject } from "@steady/json-pointer";
+import { getOwn, isPlainObject } from "@steady/json-pointer";
 import { essenceMatches, getMediaType } from "@steady/media-type";
 import type { FuzzRequest, MutatedCase, Mutator } from "./types.ts";
 
@@ -298,7 +298,7 @@ function isReadOnlyField(
 ): boolean {
   const props = effectiveProperties(schema);
   if (!props) return false;
-  const propSchema = props[field];
+  const propSchema = getOwn(props, field);
   if (!propSchema || typeof propSchema === "boolean") return false;
   return propSchema.readOnly === true;
 }

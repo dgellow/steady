@@ -6,7 +6,7 @@
  */
 
 import type { QueryArrayFormat, QueryObjectFormat } from "./types.ts";
-import { isPlainObject } from "@steady/json-pointer";
+import { getOwn, hasOwn, isPlainObject } from "@steady/json-pointer";
 import {
   coerceFormValue,
   effectiveItems,
@@ -397,7 +397,7 @@ export function setNestedValue(
 
     if (isPlainObject(current)) {
       // Ensure container exists at this segment
-      if (!(segment in current)) {
+      if (!hasOwn(current, segment)) {
         current[segment] = isNumericString(nextSegment)
           ? []
           : Object.create(null);
@@ -864,7 +864,8 @@ function assembleObject(
 
   const result: Record<string, unknown> = Object.create(null);
   for (const [key, subEntries] of groups) {
-    const propSchema = resolve(props?.[key] ?? null, resolver) ?? null;
+    const declared = props ? getOwn(props, key) : undefined;
+    const propSchema = resolve(declared ?? null, resolver) ?? null;
     result[key] = assembleValue(subEntries, propSchema, format, resolver);
   }
   return result;

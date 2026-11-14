@@ -4,6 +4,7 @@
  */
 
 import type { FragmentPointer } from "./mod.ts";
+import { hasOwn } from "./object.ts";
 
 /**
  * A JSON Pointer expressed as an array of decoded path segments.
@@ -224,7 +225,7 @@ export function resolve(document: unknown, pointer: string): unknown {
       current = current[index];
     } else if (isRecord(current)) {
       // Object property
-      if (!(segment in current)) {
+      if (!hasOwn(current, segment)) {
         throw new JsonPointerError(
           `Property '${segment}' not found in object`,
           formatPointer(segments.slice(0, i + 1)),
@@ -327,7 +328,7 @@ export function set(
       }
       current = current[index];
     } else if (isRecord(current)) {
-      if (!(segment in current)) {
+      if (!hasOwn(current, segment)) {
         throw new JsonPointerError(
           `Property '${segment}' not found in object`,
           formatPointer(segments.slice(0, i + 1)),

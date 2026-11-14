@@ -233,6 +233,67 @@ Deno.test("TreeValidator", async (t) => {
     assertEquals(leaf?.valid, false);
   });
 
+  await t.step("string length counts code points, not UTF-16 units", () => {
+    // JSON Schema Validation section 6.3: length is the number of characters
+    // as defined by RFC 8259. U+1F600 is one character and two UTF-16 units.
+    const face = "\u{1F600}";
+    assertEquals(validate({ type: "string", maxLength: 1 }, face).valid, true);
+    assertEquals(validate({ type: "string", minLength: 2 }, face).valid, false);
+
+    const tree = validate({ type: "string", maxLength: 1 }, face + face);
+    const leaf = tree.children?.find((c) => c.keyword === "maxLength");
+    assertEquals(leaf?.actual, 2);
+  });
+
+  // ── Names that exist on Object.prototype ─────────────────────────
+
+  await t.step("required: an inherited member does not satisfy it", () => {
+    for (const name of ["toString", "constructor", "hasOwnProperty"]) {
+      const tree = validate({ type: "object", required: [name] }, {});
+      assertEquals(tree.valid, false, name);
+      assertEquals(tree.children?.[0]?.keyword, "required", name);
+      assertEquals(tree.children?.[0]?.field, name, name);
+
+      const present = validate({ type: "object", required: [name] }, {
+        [name]: 1,
+      });
+      assertEquals(present.valid, true, name);
+    }
+  });
+
+  await t.step("properties: an inherited member is not validated", () => {
+    // {} has no member "toString", so the property schema does not apply.
+    const stringSchema: Schema = { type: "string" };
+    const properties: Record<string, Schema> = {};
+    properties["toString"] = stringSchema;
+    properties["valueOf"] = stringSchema;
+
+    const tree = validate({ type: "object", properties }, {});
+    assertEquals(tree.valid, true);
+  });
+
+  await t.step(
+    "required with direction: a property schema is only read from the schema",
+    () => {
+      // "constructor" is required but not declared in properties. The
+      // readOnly filter must not mistake Object.prototype.constructor for
+      // its property schema.
+      const validator = new TreeValidator({ direction: "request" });
+      const tree = validator.validate(
+        {},
+        {
+          type: "object",
+          required: ["constructor"],
+          properties: { id: { type: "string" } },
+        },
+        "#/schema",
+        ["body"],
+      );
+      assertEquals(tree.valid, false);
+      assertEquals(tree.children?.[0]?.field, "constructor");
+    },
+  );
+
   // ── Numeric validation ───────────────────────────────────────────
 
   await t.step("minimum violation → leaf", () => {

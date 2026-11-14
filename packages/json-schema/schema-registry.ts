@@ -14,6 +14,7 @@
 import {
   formatFragmentPointer,
   type FragmentPointer,
+  getOwn,
   isFragmentPointer,
   isPlainObject,
   parseFragmentPointer,
@@ -760,7 +761,7 @@ export class RegistryResponseGenerator {
     const props = effectiveProperties(schema) ?? {};
 
     for (const name of effectiveRequired(schema)) {
-      const propSchema = props[name];
+      const propSchema = getOwn(props, name);
       if (!propSchema) continue;
       obj[name] = this.generateFromPath(
         propSchema,

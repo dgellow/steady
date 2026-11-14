@@ -1,0 +1,88 @@
+openapi: 3.1.0
+info:
+  title: Property names that exist on Object.prototype
+  version: 1.0.0
+paths:
+  /json:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [toString, constructor]
+              properties:
+                toString:
+                  type: string
+                constructor:
+                  type: string
+      responses:
+        "204":
+          description: OK
+  /closed:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+      responses:
+        "204":
+          description: OK
+  /form:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+      responses:
+        "204":
+          description: OK
+  /multipart:
+    post:
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                metadata:
+                  type: object
+            encoding:
+              metadata:
+                contentType: application/json
+      responses:
+        "204":
+          description: OK
+  /search:
+    get:
+      parameters:
+        - name: filter
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              name:
+                type: string
+      responses:
+        "204":
+          description: OK
