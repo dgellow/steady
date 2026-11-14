@@ -478,8 +478,16 @@ async function runGoTests(sdkPath: string): Promise<boolean> {
 }
 
 /**
- * Inject a conftest.py into tests/api_resources that removes skip markers.
- * This ensures we run all tests, even ones marked with @pytest.mark.skip.
+ * Inject a conftest.py into tests/api_resources that removes
+ * `@pytest.mark.skip` markers. SDK generators skip tests that their mock
+ * server cannot handle ("Prism returns invalid data"), and those are the
+ * tests worth running against Steady.
+ *
+ * `@pytest.mark.skipif` markers stay. Their condition is about the Python
+ * environment, not the mock server. In the 17 SDK repositories surveyed on
+ * 2026-11-14 the only `skipif` markers under tests/api_resources guard tests
+ * that cannot run on Pydantic v1, and running them anyway fails inside the
+ * SDK before a request is sent.
  *
  * Based on: https://github.com/pytest-dev/pytest/discussions/13311
  */
@@ -501,19 +509,19 @@ async function injectSkipRemovalConftest(sdkPath: string): Promise<void> {
     }
   }
 
-  // Conftest hook that removes skip/skipif markers at collection time
+  // Conftest hook that removes unconditional skip markers at collection time
   const skipRemovalHook = `
 # steady_skip_removal: Injected by test-sdks.ts to run skipped tests
 import pytest
 
 def pytest_collection_modifyitems(config, items):
-    """Remove skip/skipif markers so all tests run against the mock server."""
+    """Remove unconditional skip markers so those tests run against the mock server."""
     for item in items:
         # Only affect tests in api_resources directory
         if "api_resources" not in str(item.fspath):
             continue
         original_markers = list(getattr(item, "own_markers", []))
-        filtered_markers = [m for m in original_markers if m.name not in ("skip", "skipif")]
+        filtered_markers = [m for m in original_markers if m.name != "skip"]
         if len(filtered_markers) != len(original_markers):
             item.own_markers[:] = filtered_markers
 `;
