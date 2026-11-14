@@ -12,12 +12,11 @@
 import { parseArgs } from "@std/cli/parse-args";
 import * as path from "@std/path";
 import { ensureDir, exists } from "@std/fs";
-import { blue, dim, green, red, yellow } from "@std/fmt/colors";
+import { blue, dim, green, red } from "@std/fmt/colors";
 
 const log = (msg: string) => console.log(`${blue("==>")} ${msg}`);
 const success = (msg: string) => console.log(`${green("✓")}   ${msg}`);
 const fail = (msg: string) => console.log(`${red("✗")}   ${msg}`);
-const warn = (msg: string) => console.log(`${yellow("!!")}  ${msg}`);
 
 const STEADY_DIR = path.dirname(
   path.dirname(path.fromFileUrl(import.meta.url)),
@@ -29,29 +28,23 @@ interface SDK {
   repo: string;
   name: string;
   language: "go" | "python" | "typescript";
-  /** Additional CLI flags for the validator */
+  /**
+   * Validator flags for the mock script this runner writes. Not used when
+   * the SDK's own `scripts/mock` starts Steady: that script has its flags.
+   */
   validatorFlags?: string[];
   /** Skip in CI (too slow, etc.) */
   ciSkip?: boolean;
 }
 
-// List of SDKs to test
+// List of SDKs to test.
+//
+// An SDK belongs here when its repository carries what a run needs: a
+// `scripts/mock` that starts Steady with the SDK's own spec, or an
+// `openapi-spec.yml`. An SDK whose spec cannot be obtained, or whose
+// repository cannot be cloned, is a red "not run" job on every pull request
+// and says nothing about Steady.
 const SDKS: SDK[] = [
-  {
-    repo: "DefinitelyATestOrg/test-api-go",
-    name: "test-api-go",
-    language: "go",
-  },
-  {
-    repo: "DefinitelyATestOrg/test-api-python",
-    name: "test-api-python",
-    language: "python",
-  },
-  {
-    repo: "DefinitelyATestOrg/test-api-typescript",
-    name: "test-api-typescript",
-    language: "typescript",
-  },
   {
     repo: "openai/openai-python",
     name: "openai-python",
@@ -88,26 +81,6 @@ const SDKS: SDK[] = [
     ],
   },
   {
-    repo: "Cerebras/cerebras-cloud-sdk-python",
-    name: "cerebras-cloud-sdk-python",
-    language: "python",
-  },
-  {
-    repo: "meta-llama/llama-stack-client-python",
-    name: "llama-stack-client-python",
-    language: "python",
-  },
-  {
-    repo: "perplexityai/perplexity-py",
-    name: "perplexity-py",
-    language: "python",
-  },
-  {
-    repo: "ArcadeAI/arcade-py",
-    name: "arcade-py",
-    language: "python",
-  },
-  {
     repo: "cloudflare/cloudflare-python",
     name: "cloudflare-python",
     language: "python",
@@ -119,16 +92,6 @@ const SDKS: SDK[] = [
   {
     repo: "browserbase/sdk-python",
     name: "browserbase-python",
-    language: "python",
-  },
-  {
-    repo: "lithic-com/lithic-python",
-    name: "lithic-python",
-    language: "python",
-  },
-  {
-    repo: "Modern-Treasury/modern-treasury-python",
-    name: "modern-treasury-python",
     language: "python",
   },
   {
@@ -148,70 +111,47 @@ const SDKS: SDK[] = [
     ],
   },
   {
-    repo: "writer/writer-python",
-    name: "writer-python",
-    language: "python",
-  },
-  {
     repo: "knocklabs/knock-python",
     name: "knock-python",
     language: "python",
   },
-  {
-    repo: "stainless-commons/stripe-python",
-    name: "stripe-python",
-    language: "python",
-    validatorFlags: [
-      "--validator-query-array-format=brackets",
-      "--validator-query-object-format=brackets",
-      "--validator-form-array-format=brackets",
-      "--validator-form-object-format=brackets",
-    ],
-  },
-  {
-    repo: "stainless-commons/stripe-node",
-    name: "stripe-typescript",
-    language: "typescript",
-    validatorFlags: [
-      "--validator-query-array-format=brackets",
-      "--validator-query-object-format=brackets",
-      "--validator-form-array-format=brackets",
-      "--validator-form-object-format=brackets",
-    ],
-  },
-  {
-    repo: "stainless-sdks/sink-python-public",
-    name: "sink-python",
-    language: "python",
-    validatorFlags: [
-      "--validator-query-array-format=brackets",
-      "--validator-query-object-format=brackets",
-      "--validator-form-array-format=brackets",
-      "--validator-form-object-format=brackets",
-    ],
-  },
-  {
-    repo: "stainless-sdks/sink-typescript-public",
-    name: "sink-typescript",
-    language: "typescript",
-    validatorFlags: [
-      "--validator-query-array-format=brackets",
-      "--validator-query-object-format=brackets",
-      "--validator-form-array-format=brackets",
-      "--validator-form-object-format=brackets",
-    ],
-  },
 ];
 
-interface TestResult {
+/**
+ * The SDK's test suite could not be started against Steady: no clone, no
+ * spec, no mock server, no test script. This says nothing about Steady or the
+ * SDK, so it is never reported as a test failure.
+ */
+class HarnessError extends Error {
+  override name = "HarnessError";
+}
+
+interface TestResultBase {
   name: string;
-  passed: boolean;
-  error?: string;
   /** Number of tests passed (if available) */
   testsPassed?: number;
   /** Number of tests failed (if available) */
   testsFailed?: number;
 }
+
+/** The suite ran against Steady. `passed` is its outcome. */
+interface SuiteResult extends TestResultBase {
+  ran: true;
+  passed: boolean;
+}
+
+/** The suite did not run. `error` says why. */
+interface NotRunResult extends TestResultBase {
+  ran: false;
+  passed: false;
+  error: string;
+}
+
+type TestResult = SuiteResult | NotRunResult;
+
+/** Exit codes of this script. The CI workflow tells them apart. */
+const EXIT_SUITE_FAILED = 1;
+const EXIT_NOT_RUN = 2;
 
 interface TestReport {
   /** ISO timestamp of when tests were run */
@@ -225,6 +165,8 @@ interface TestReport {
     total: number;
     passed: number;
     failed: number;
+    /** SDKs whose suite could not be run. Not included in `failed`. */
+    notRun: number;
   };
   /** Individual SDK results */
   results: TestResult[];
@@ -276,8 +218,10 @@ async function cloneRepo(sdk: SDK): Promise<string> {
 
   const result = await cmd.output();
   if (!result.success) {
-    throw new Error(
-      `Failed to clone ${sdk.repo}: ${new TextDecoder().decode(result.stderr)}`,
+    throw new HarnessError(
+      `Failed to clone ${sdk.repo}: ${
+        new TextDecoder().decode(result.stderr).trim()
+      }`,
     );
   }
 
@@ -303,7 +247,9 @@ async function findSpec(sdkPath: string): Promise<string | null> {
       log(`  Downloading spec from ${url}...`);
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Failed to download spec: ${response.status}`);
+        throw new HarnessError(
+          `Failed to download spec from ${url}: HTTP ${response.status}`,
+        );
       }
       const specPath = path.join(sdkPath, "openapi-spec.yml");
       await Deno.writeTextFile(specPath, await response.text());
@@ -312,6 +258,46 @@ async function findSpec(sdkPath: string): Promise<string | null> {
   }
 
   return null;
+}
+
+/** Command that runs the Steady in this checkout. */
+const LOCAL_STEADY =
+  `deno run --config "${STEADY_DIR}/deno.json" --allow-read --allow-net --allow-env --allow-write "${STEADY_DIR}/cmd/steady.ts"`;
+
+/**
+ * The ways an SDK's own `scripts/mock` starts Steady. An SDK that uses Steady
+ * as its mock server ships everything the run needs in that script: the spec
+ * (embedded, or a file in the repository) and the validator flags its
+ * generator chose. Only the Steady it starts has to change.
+ */
+const SDK_STEADY_LAUNCHERS = [
+  // Released CLI from npm, pinned to a version.
+  /npm exec --package=@stdy\/cli@\S+ -- steady/g,
+  // Vendored launcher script.
+  /\.\/scripts\/run-steady/g,
+];
+
+/**
+ * Point the SDK's own `scripts/mock` at the Steady in this checkout.
+ *
+ * Returns false when the SDK has no `scripts/mock` or the script does not
+ * start Steady (older SDKs start a different mock server). The caller then
+ * has to provide a spec and a mock script itself.
+ */
+async function adoptSdkMockScript(sdkPath: string): Promise<boolean> {
+  const mockPath = path.join(sdkPath, "scripts", "mock");
+  if (!(await exists(mockPath))) return false;
+
+  const original = await Deno.readTextFile(mockPath);
+  let adopted = original;
+  for (const launcher of SDK_STEADY_LAUNCHERS) {
+    adopted = adopted.replace(launcher, LOCAL_STEADY);
+  }
+  // Already adopted on an earlier run of this checkout.
+  if (adopted === original) return original.includes(LOCAL_STEADY);
+
+  await Deno.writeTextFile(mockPath, adopted);
+  return true;
 }
 
 async function createMockScript(
@@ -373,8 +359,7 @@ async function runGoTests(sdkPath: string): Promise<boolean> {
 
   const mockResult = await mockCmd.output();
   if (!mockResult.success) {
-    fail("Failed to start mock server");
-    return false;
+    throw new HarnessError("Mock server did not start");
   }
 
   // Brief delay after mock script reports ready
@@ -407,8 +392,16 @@ async function runGoTests(sdkPath: string): Promise<boolean> {
 }
 
 /**
- * Inject a conftest.py into tests/api_resources that removes skip markers.
- * This ensures we run all tests, even ones marked with @pytest.mark.skip.
+ * Inject a conftest.py into tests/api_resources that removes
+ * `@pytest.mark.skip` markers. SDK generators skip tests that their mock
+ * server cannot handle ("Prism returns invalid data"), and those are the
+ * tests worth running against Steady.
+ *
+ * `@pytest.mark.skipif` markers stay. Their condition is about the Python
+ * environment, not the mock server. In the 17 SDK repositories surveyed on
+ * 2026-11-14 the only `skipif` markers under tests/api_resources guard tests
+ * that cannot run on Pydantic v1, and running them anyway fails inside the
+ * SDK before a request is sent.
  *
  * Based on: https://github.com/pytest-dev/pytest/discussions/13311
  */
@@ -430,19 +423,19 @@ async function injectSkipRemovalConftest(sdkPath: string): Promise<void> {
     }
   }
 
-  // Conftest hook that removes skip/skipif markers at collection time
+  // Conftest hook that removes unconditional skip markers at collection time
   const skipRemovalHook = `
 # steady_skip_removal: Injected by test-sdks.ts to run skipped tests
 import pytest
 
 def pytest_collection_modifyitems(config, items):
-    """Remove skip/skipif markers so all tests run against the mock server."""
+    """Remove unconditional skip markers so those tests run against the mock server."""
     for item in items:
         # Only affect tests in api_resources directory
         if "api_resources" not in str(item.fspath):
             continue
         original_markers = list(getattr(item, "own_markers", []))
-        filtered_markers = [m for m in original_markers if m.name not in ("skip", "skipif")]
+        filtered_markers = [m for m in original_markers if m.name != "skip"]
         if len(filtered_markers) != len(original_markers):
             item.own_markers[:] = filtered_markers
 `;
@@ -471,7 +464,11 @@ async function runTypescriptTests(sdkPath: string): Promise<boolean> {
     console.log(output.trimEnd());
 
     if (!bootstrapResult.success) {
-      warn("Bootstrap had issues, continuing anyway...");
+      // Without its dependencies the suite fails before it sends a request,
+      // which would be reported as an SDK test failure.
+      throw new HarnessError(
+        `The SDK's scripts/bootstrap failed with exit code ${bootstrapResult.code}`,
+      );
     }
   }
 
@@ -486,16 +483,14 @@ async function runTypescriptTests(sdkPath: string): Promise<boolean> {
 
   const mockResult = await mockCmd.output();
   if (!mockResult.success) {
-    fail("Failed to start mock server");
-    return false;
+    throw new HarnessError("Mock server did not start");
   }
 
   // Check if test script exists
   const testScriptPath = path.join(sdkPath, "scripts", "test");
   if (!(await exists(testScriptPath))) {
-    warn("No ./scripts/test found");
     await killPort(PORT);
-    return false;
+    throw new HarnessError("The SDK has no ./scripts/test");
   }
 
   // Run tests
@@ -548,7 +543,11 @@ async function runPythonTests(sdkPath: string): Promise<boolean> {
     console.log(output.trimEnd());
 
     if (!bootstrapResult.success) {
-      warn("Bootstrap had issues, continuing anyway...");
+      // Without its dependencies the suite fails before it sends a request,
+      // which would be reported as an SDK test failure.
+      throw new HarnessError(
+        `The SDK's scripts/bootstrap failed with exit code ${bootstrapResult.code}`,
+      );
     }
   }
 
@@ -563,24 +562,21 @@ async function runPythonTests(sdkPath: string): Promise<boolean> {
 
   const mockResult = await mockCmd.output();
   if (!mockResult.success) {
-    fail("Failed to start mock server");
-    return false;
+    throw new HarnessError("Mock server did not start");
   }
 
   // Check if test script exists
   const testScriptPath = path.join(sdkPath, "scripts", "test");
   if (!(await exists(testScriptPath))) {
-    warn("No ./scripts/test found");
     await killPort(PORT);
-    return false;
+    throw new HarnessError("The SDK has no ./scripts/test");
   }
 
   // Check if tests directory exists
   const testsDir = path.join(sdkPath, "tests", "api_resources");
   if (!(await exists(testsDir))) {
-    warn("No tests/api_resources directory found");
     await killPort(PORT);
-    return false;
+    throw new HarnessError("The SDK has no tests/api_resources directory");
   }
 
   // Inject conftest.py to remove skip markers so all tests run
@@ -623,19 +619,26 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
 
   try {
     const sdkPath = await cloneRepo(sdk);
-    const specPath = await findSpec(sdkPath);
-
-    if (!specPath) {
-      fail("No OpenAPI spec found");
-      return { name: sdk.name, passed: false, error: "No spec found" };
-    }
-    success("Spec ready");
 
     // Kill any existing server
     await killPort(PORT);
 
-    // Create mock script
-    await createMockScript(sdkPath, specPath, sdk);
+    if (await adoptSdkMockScript(sdkPath)) {
+      success("Using the SDK's scripts/mock (its spec and validator flags)");
+    } else {
+      // The SDK does not start Steady itself. Find a spec and write a mock
+      // script with the flags from the SDK list above.
+      const specPath = await findSpec(sdkPath);
+      if (!specPath) {
+        throw new HarnessError(
+          "No OpenAPI spec found. The SDK's scripts/mock does not start " +
+            "Steady, the repository has no openapi-spec.yml, and its " +
+            ".stats.yml has no openapi_spec_url",
+        );
+      }
+      success("Spec ready");
+      await createMockScript(sdkPath, specPath, sdk);
+    }
 
     // Run tests based on language
     let passed = false;
@@ -646,8 +649,7 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
     } else if (sdk.language === "typescript") {
       passed = await runTypescriptTests(sdkPath);
     } else {
-      warn(`Language ${sdk.language} not yet supported`);
-      return { name: sdk.name, passed: false, error: "Language not supported" };
+      throw new HarnessError(`Language ${sdk.language} is not supported`);
     }
 
     // Cleanup
@@ -655,14 +657,16 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
 
     if (passed) {
       success(`${sdk.name} passed`);
-      return { name: sdk.name, passed: true };
     } else {
       fail(`${sdk.name} failed`);
-      return { name: sdk.name, passed: false };
     }
+    return { name: sdk.name, ran: true, passed };
   } catch (error) {
-    fail(`${sdk.name} ERROR: ${error}`);
-    return { name: sdk.name, passed: false, error: String(error) };
+    await killPort(PORT);
+    // Anything thrown here happened outside the SDK's test suite.
+    const reason = error instanceof Error ? error.message : String(error);
+    fail(`${sdk.name} NOT RUN: ${reason}`);
+    return { name: sdk.name, ran: false, passed: false, error: reason };
   }
 }
 
@@ -783,7 +787,8 @@ Examples:
 
   // Calculate summary
   const passCount = results.filter((r) => r.passed).length;
-  const failCount = results.filter((r) => !r.passed).length;
+  const notRunCount = results.filter((r) => !r.ran).length;
+  const failCount = results.length - passCount - notRunCount;
 
   // Build report
   const gitInfo = await getGitInfo();
@@ -795,6 +800,7 @@ Examples:
       total: results.length,
       passed: passCount,
       failed: failCount,
+      notRun: notRunCount,
     },
     results,
   };
@@ -815,30 +821,40 @@ Examples:
     console.log("========");
 
     for (const result of results) {
-      if (result.passed) {
+      if (!result.ran) {
+        fail(`${result.name}: NOT RUN (${result.error})`);
+      } else if (result.passed) {
         success(`${result.name}: PASS`);
       } else {
-        fail(`${result.name}: FAIL${result.error ? ` (${result.error})` : ""}`);
+        fail(`${result.name}: FAIL`);
       }
     }
 
     console.log();
-    log(`Total: ${passCount} passed, ${failCount} failed`);
+    log(
+      `Total: ${passCount} passed, ${failCount} failed, ${notRunCount} not run`,
+    );
   }
 
-  Deno.exit(failCount > 0 ? 1 : 0);
+  // A suite that did not run outranks a suite that failed: it is the harness
+  // that needs attention, and CI fails the job on it.
+  if (notRunCount > 0) Deno.exit(EXIT_NOT_RUN);
+  Deno.exit(failCount > 0 ? EXIT_SUITE_FAILED : 0);
 }
 
 main();
 
 async function printLogs(sdkPath: string, testResult: Deno.CommandOutput) {
-  const logPath = path.join(sdkPath, ".steady.log");
-  if (await exists(logPath)) {
+  // ".steady.log" is written by the mock script this runner creates,
+  // ".stdy.log" by an SDK's own scripts/mock.
+  for (const name of [".steady.log", ".stdy.log"]) {
+    const logPath = path.join(sdkPath, name);
+    if (!(await exists(logPath))) continue;
     log(`  Steady server log file at ${logPath}`);
-  }
-  if (!testResult.success) {
-    log("  Log content:");
-    const logContent = await Deno.readTextFile(logPath);
-    console.log(dim(logContent.trimEnd()));
+    if (!testResult.success) {
+      log("  Log content:");
+      const logContent = await Deno.readTextFile(logPath);
+      console.log(dim(logContent.trimEnd()));
+    }
   }
 }

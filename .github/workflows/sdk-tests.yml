@@ -34,6 +34,9 @@ jobs:
     name: "SDK: ${{ matrix.sdk.name }}"
     needs: matrix
     runs-on: ubuntu-latest
+    # The largest suite takes about 4 minutes. A suite that hangs must not
+    # hold the report back for the 6 hours a job may run by default.
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
@@ -82,7 +85,8 @@ jobs:
         if: matrix.sdk.language == 'typescript'
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # The pnpm that openai-node's bootstrap installs needs Node 22.13+.
+          node-version: "22"
 
       - name: Setup pnpm
         if: matrix.sdk.language == 'typescript'
@@ -91,8 +95,18 @@ jobs:
           version: 10
 
       - name: Run SDK test
-        continue-on-error: true
-        run: ./scripts/test-sdks --output sdk-result.json "${{ matrix.sdk.name }}"
+        # Exit 1: the suite ran against Steady and has failures. The report job
+        # compares that with the baseline, so it does not fail this job.
+        # Any other non-zero exit: the suite did not run (no clone, no spec,
+        # no mock server). That is a broken harness and fails this job.
+        run: |
+          set +e
+          ./scripts/test-sdks --output sdk-result.json "${{ matrix.sdk.name }}"
+          code=$?
+          if [ "$code" -eq 1 ]; then
+            exit 0
+          fi
+          exit "$code"
 
       - name: Upload result
         if: always()
@@ -184,19 +198,23 @@ jobs:
 
             allResults.sort((a, b) => a.name.localeCompare(b.name));
 
+            // "ran: false" means the suite could not be started. It is not a
+            // test failure and is counted on its own.
             const passed = allResults.filter(r => r.passed).length;
+            const notRun = allResults.filter(r => r.ran === false).length;
             const report = {
               timestamp: new Date().toISOString(),
               summary: {
                 total: allResults.length,
                 passed,
-                failed: allResults.length - passed,
+                failed: allResults.length - passed - notRun,
+                notRun,
               },
               results: allResults,
             };
 
             fs.writeFileSync('sdk-results.json', JSON.stringify(report, null, 2));
-            console.log(`Merged ${allResults.length} results: ${passed} passed, ${allResults.length - passed} failed`);
+            console.log(`Merged ${allResults.length} results: ${passed} passed, ${allResults.length - passed - notRun} failed, ${notRun} not run`);
 
       - name: Upload merged results
         uses: actions/upload-artifact@v4
@@ -266,13 +284,21 @@ jobs:
             const regressions = [];
             const improvements = [];
             const newSdks = [];
+            const notRun = [];
             const rows = [];
+
+            // Results from before the "ran" field have no "not run" state.
+            const label = r => r.ran === false ? 'NOT RUN' : r.passed ? 'PASS' : 'FAIL';
 
             for (const result of current.results) {
               const base = baselineMap.get(result.name);
               let delta = '';
 
-              if (!base) {
+              if (result.ran === false) {
+                // No result to compare. Never a regression or a new SDK.
+                notRun.push(result);
+                delta = 'NOT RUN';
+              } else if (!base) {
                 newSdks.push(result);
                 delta = 'NEW';
               } else if (base.passed && !result.passed) {
@@ -285,8 +311,8 @@ jobs:
 
               rows.push({
                 name: result.name,
-                main: base ? (base.passed ? 'PASS' : 'FAIL') : '-',
-                pr: result.passed ? 'PASS' : 'FAIL',
+                main: base ? label(base) : '-',
+                pr: label(result),
                 delta,
               });
             }
@@ -305,6 +331,9 @@ jobs:
             // Build comment
             let body = `## SDK Integration Test Results\n\n`;
             body += `**${current.summary.passed}/${current.summary.total} passing**`;
+            if (notRun.length > 0) {
+              body += `, **${notRun.length} not run**`;
+            }
             if (baseline) {
               const diff = current.summary.passed - baseline.summary.passed;
               if (diff !== 0) {
@@ -313,7 +342,16 @@ jobs:
             }
             body += `\n\n`;
 
-            const hasChanges = regressions.length > 0 || improvements.length > 0 || newSdks.length > 0 || removedSdks.length > 0;
+            const hasChanges = regressions.length > 0 || improvements.length > 0 || newSdks.length > 0 || removedSdks.length > 0 || notRun.length > 0;
+
+            if (notRun.length > 0) {
+              body += `### Not run\n\n`;
+              body += `The test harness could not run these suites. They say nothing about this change.\n\n`;
+              for (const r of notRun) {
+                body += `- **${r.name}**: ${r.error}\n`;
+              }
+              body += `\n`;
+            }
 
             if (!hasChanges && baseline) {
               body += `No changes vs ${releaseTag}.\n\n`;
@@ -359,6 +397,7 @@ jobs:
               const icon = r.delta === 'REGRESSION' ? '🔴'
                 : r.delta === 'FIXED' ? '🟢'
                 : r.delta === 'NEW' ? '🆕'
+                : r.delta === 'NOT RUN' ? '⚠️'
                 : '';
               body += `| ${r.name} | ${r.main} | ${r.pr} | ${icon} |\n`;
             }
