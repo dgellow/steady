@@ -69,11 +69,35 @@ interface TreeValidatorOptions {
   direction?: "request" | "response";
 }
 
+/**
+ * Levels of nesting in a value that are validated. Validation recurses
+ * along the value, so the limit has to stay well below the depth at which
+ * the call stack runs out, also for schemas that add several calls per
+ * level (a $ref into an allOf into properties). Content nested deeper is
+ * not validated; one `depth` node says so. Real payloads nest a few dozen
+ * levels.
+ */
+export const MAX_VALIDATION_DEPTH = 500;
+
 // ── Validator ──────────────────────────────────────────────────────
 
 export class TreeValidator {
   private readonly registry?: SchemaRegistry;
   private readonly direction?: "request" | "response";
+
+  /**
+   * Referenced schemas that are being validated right now, each with the
+   * values it is being applied to. See `enterRef`.
+   */
+  private readonly activeRefs = new Map<
+    Schema,
+    { data: unknown; depth: number }[]
+  >();
+
+  /** Length of the data path at the root of the current `validate` call. */
+  private rootDepth = 0;
+  /** Whether the current `validate` call has reported the depth limit. */
+  private depthReported = false;
 
   constructor(options?: TreeValidatorOptions) {
     this.registry = options?.registry;
@@ -98,7 +122,14 @@ export class TreeValidator {
     const errors: ValidationNode[] = [];
     const path = parseFragmentPointer(schemaPath);
 
-    this.validateSchema(data, schema, path, dataPath, errors, schema);
+    this.rootDepth = dataPath.length;
+    this.depthReported = false;
+    try {
+      this.validateSchema(data, schema, path, dataPath, errors, schema);
+    } finally {
+      // Empty after a normal return. An exception can leave entries behind.
+      this.activeRefs.clear();
+    }
 
     if (errors.length === 0) {
       return { valid: true, path: dataPath, schemaPath };
@@ -131,6 +162,22 @@ export class TreeValidator {
     rootSchema: Schema | boolean,
     context?: { arrayItem?: boolean },
   ): void {
+    if (dataPath.length - this.rootDepth > MAX_VALIDATION_DEPTH) {
+      if (!this.depthReported) {
+        this.depthReported = true;
+        errors.push({
+          valid: false,
+          keyword: "depth",
+          path: dataPath,
+          schemaPath: formatFragmentPointer(schemaPath),
+          message:
+            `Value is nested deeper than ${MAX_VALIDATION_DEPTH} levels. Content below this point was not validated`,
+          expected: MAX_VALIDATION_DEPTH,
+        });
+      }
+      return;
+    }
+
     // Boolean schema (JSON Schema 2020-12: false rejects all, true accepts all)
     if (typeof schema === "boolean") {
       if (!schema) {
@@ -148,20 +195,36 @@ export class TreeValidator {
     // $ref: resolve and validate. In JSON Schema 2020-12, sibling keywords
     // alongside $ref are valid and must be applied.
     if (schema.$ref) {
-      const resolved = this.resolveRef(schema.$ref, rootSchema);
-      if (resolved !== undefined) {
-        const refPath: PointerPath = isFragmentPointer(schema.$ref)
-          ? parseFragmentPointer(schema.$ref)
+      const target = this.followRef(schema.$ref, rootSchema);
+      if (target !== undefined) {
+        const refPath: PointerPath = isFragmentPointer(target.ref)
+          ? parseFragmentPointer(target.ref)
           : schemaPath;
-        this.validateSchema(
-          data,
-          resolved,
-          refPath,
-          dataPath,
-          errors,
-          rootSchema,
-          context,
-        );
+        if (typeof target.schema === "boolean") {
+          this.validateSchema(
+            data,
+            target.schema,
+            refPath,
+            dataPath,
+            errors,
+            rootSchema,
+            context,
+          );
+        } else if (this.enterRef(target.schema, data, dataPath.length)) {
+          try {
+            this.validateSchema(
+              data,
+              target.schema,
+              refPath,
+              dataPath,
+              errors,
+              rootSchema,
+              context,
+            );
+          } finally {
+            this.leaveRef(target.schema);
+          }
+        }
       }
 
       // Apply sibling keywords from the $ref-bearing schema.
@@ -1010,6 +1073,72 @@ export class TreeValidator {
   }
 
   // ── $ref resolution ──────────────────────────────────────────────
+
+  /**
+   * Resolve a $ref, and keep resolving while the result is nothing but
+   * another $ref. Returns the first schema that says something, with the
+   * reference that names it.
+   *
+   * A loop instead of recursion: the length of such a chain is up to the
+   * spec. `undefined` when a reference does not resolve, or when the chain
+   * leads back to itself. A chain that only refers to itself states no
+   * constraint, so the caller treats it like an unresolved reference: it
+   * accepts.
+   */
+  private followRef(
+    ref: string,
+    rootSchema: Schema | boolean,
+  ): { schema: Schema | boolean; ref: string } | undefined {
+    let current = ref;
+    let seen: Set<string> | undefined;
+    for (;;) {
+      const resolved = this.resolveRef(current, rootSchema);
+      if (resolved === undefined) return undefined;
+      if (
+        typeof resolved === "boolean" || typeof resolved.$ref !== "string" ||
+        Object.keys(resolved).length !== 1
+      ) {
+        return { schema: resolved, ref: current };
+      }
+      seen ??= new Set([ref]);
+      if (seen.has(resolved.$ref)) return undefined;
+      seen.add(resolved.$ref);
+      current = resolved.$ref;
+    }
+  }
+
+  /**
+   * Note that `schema` is about to be applied to `data` through a $ref.
+   * Returns false when that same application is already in progress, which
+   * means references lead back to the schema without having moved to a
+   * child of the value: `A: {allOf: [{$ref: A}]}`. Validating again would
+   * never end, and repeating a check that is already running adds nothing,
+   * so the caller skips it. Everything else the schema says is checked by
+   * the application that is in progress.
+   *
+   * `depth` is the length of the data path. A recursive schema that moves
+   * into the value (a tree of nodes) reaches the schema again at a greater
+   * depth and is validated normally.
+   */
+  private enterRef(schema: Schema, data: unknown, depth: number): boolean {
+    const active = this.activeRefs.get(schema);
+    if (active === undefined) {
+      this.activeRefs.set(schema, [{ data, depth }]);
+      return true;
+    }
+    for (const entry of active) {
+      if (entry.depth === depth && entry.data === data) return false;
+    }
+    active.push({ data, depth });
+    return true;
+  }
+
+  private leaveRef(schema: Schema): void {
+    const active = this.activeRefs.get(schema);
+    if (active === undefined) return;
+    active.pop();
+    if (active.length === 0) this.activeRefs.delete(schema);
+  }
 
   private resolveRef(
     ref: string,
