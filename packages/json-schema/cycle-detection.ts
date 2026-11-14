@@ -99,6 +99,9 @@ export function computeCyclicRefs(
  * Tarjan's strongly connected components algorithm.
  * Returns the set of all nodes that are part of an SCC with size > 1,
  * or that have a self-loop.
+ *
+ * Iterative: the depth of the search is the length of the longest $ref
+ * chain, which a spec controls, so it must not use the call stack.
  */
 function tarjanSCC(
   nodes: Set<string>,
@@ -111,62 +114,81 @@ function tarjanSCC(
   let currentIndex = 0;
   const cyclicNodes = new Set<string>();
 
-  const strongConnect = (node: string) => {
+  /** A node being explored and its remaining outgoing edges. */
+  interface Visit {
+    node: string;
+    targets: Iterator<string>;
+  }
+
+  const noEdges: string[] = [];
+  const open = (node: string): Visit => {
     index.set(node, currentIndex);
     lowlink.set(node, currentIndex);
     currentIndex++;
     stack.push(node);
     onStack.add(node);
+    return {
+      node,
+      targets: (edges.get(node) ?? noEdges)[Symbol.iterator](),
+    };
+  };
 
-    const nodeEdges = edges.get(node);
-    if (nodeEdges) {
-      for (const target of nodeEdges) {
-        if (!index.has(target)) {
-          strongConnect(target);
-          const targetLow = lowlink.get(target);
-          const nodeLow = lowlink.get(node);
-          if (targetLow !== undefined && nodeLow !== undefined) {
-            lowlink.set(node, Math.min(nodeLow, targetLow));
-          }
-        } else if (onStack.has(target)) {
-          const targetIdx = index.get(target);
-          const nodeLow = lowlink.get(node);
-          if (targetIdx !== undefined && nodeLow !== undefined) {
-            lowlink.set(node, Math.min(nodeLow, targetIdx));
-          }
-        }
-      }
-    }
-
-    // Root of SCC
-    if (lowlink.get(node) === index.get(node)) {
-      const scc: string[] = [];
-      let w: string | undefined;
-      do {
-        w = stack.pop();
-        if (w !== undefined) {
-          onStack.delete(w);
-          scc.push(w);
-        }
-      } while (w !== node);
-
-      if (scc.length > 1) {
-        for (const n of scc) {
-          cyclicNodes.add(n);
-        }
-      } else if (scc.length === 1) {
-        // Check for self-loop
-        const single = scc[0];
-        if (single !== undefined && edges.get(single)?.has(single)) {
-          cyclicNodes.add(single);
-        }
-      }
+  const lower = (node: string, candidate: number | undefined) => {
+    const current = lowlink.get(node);
+    if (current !== undefined && candidate !== undefined) {
+      lowlink.set(node, Math.min(current, candidate));
     }
   };
 
-  for (const node of nodes) {
-    if (!index.has(node)) {
-      strongConnect(node);
+  for (const start of nodes) {
+    if (index.has(start)) continue;
+
+    const visits: Visit[] = [open(start)];
+    while (visits.length > 0) {
+      const visit = visits[visits.length - 1];
+      if (visit === undefined) break;
+      const { node } = visit;
+
+      const next = visit.targets.next();
+      if (!next.done) {
+        const target = next.value;
+        if (!index.has(target)) {
+          visits.push(open(target));
+        } else if (onStack.has(target)) {
+          lower(node, index.get(target));
+        }
+        continue;
+      }
+
+      // All edges of `node` explored.
+      visits.pop();
+      const parent = visits[visits.length - 1];
+      if (parent !== undefined) lower(parent.node, lowlink.get(node));
+
+      // Root of SCC
+      if (lowlink.get(node) === index.get(node)) {
+        const scc: string[] = [];
+        let w: string | undefined;
+        do {
+          w = stack.pop();
+          if (w !== undefined) {
+            onStack.delete(w);
+            scc.push(w);
+          }
+        } while (w !== undefined && w !== node);
+
+        if (scc.length > 1) {
+          for (const n of scc) {
+            cyclicNodes.add(n);
+          }
+        } else if (scc.length === 1) {
+          // Check for self-loop
+          const single = scc[0];
+          if (single !== undefined && edges.get(single)?.has(single)) {
+            cyclicNodes.add(single);
+          }
+        }
+      }
     }
   }
 

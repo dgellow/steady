@@ -135,6 +135,9 @@ export class MockServer {
   }
   private _port = 0;
 
+  /** Signal listeners added by start(), removed again by stop(). */
+  private signalListeners: { signal: Deno.Signal; handler: () => void }[] = [];
+
   start(): Promise<number> {
     this.startTime = new Date();
 
@@ -194,7 +197,9 @@ export class MockServer {
         Deno.addSignalListener(signal, handleShutdownSignal);
       } catch {
         // Signal not supported on this platform
+        continue;
       }
+      this.signalListeners.push({ signal, handler: handleShutdownSignal });
     }
 
     return listening;
@@ -205,6 +210,14 @@ export class MockServer {
    * Returns a Promise that resolves when the server has stopped.
    */
   async stop(): Promise<void> {
+    // A stopped server must not react to signals any more. With
+    // --auto-reload the process outlives many servers; a listener left
+    // behind keeps its server alive and reports its shutdown again.
+    for (const { signal, handler } of this.signalListeners) {
+      Deno.removeSignalListener(signal, handler);
+    }
+    this.signalListeners = [];
+
     this.abortController.abort();
     // Wait for the server to fully stop
     if (this.serverFinished) {
