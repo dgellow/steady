@@ -107,8 +107,22 @@ export interface AcceptEntry {
   q: number;
 }
 
-/** RFC 9110 section 12.4.2: 0 with up to three decimals, or 1 with up to three zeros. */
-const QVALUE = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/;
+/**
+ * A non-negative decimal. Wider than the qvalue grammar of RFC 9110 section
+ * 12.4.2 on purpose: real clients send weights such as ".2" (Java's
+ * HttpURLConnection) or "0.5000", and servers accept them.
+ */
+const DECIMAL = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
+
+/**
+ * Read a weight parameter. Values above 1 count as 1. A value that is not a
+ * non-negative decimal is ignored, which leaves the default weight of 1: a
+ * client that names a media range wants it, whatever it wrote after "q=".
+ */
+function parseWeight(raw: string | undefined): number {
+  if (raw === undefined || !DECIMAL.test(raw)) return 1;
+  return Math.min(Number(raw), 1);
+}
 
 /** A media range has exactly one slash with a non-empty type and subtype. */
 const MEDIA_RANGE = /^[^/]+\/[^/]+$/;
@@ -140,15 +154,28 @@ function splitListHeader(header: string): string[] {
   return members;
 }
 
+/** An Accept header value, parsed. */
+export interface ParsedAccept {
+  /** The media ranges the header names, in header order. */
+  entries: AcceptEntry[];
+  /**
+   * True when no member of the header could be read as a media type at all
+   * (e.g. ";;;"). A member such as "*" or "json" can be read, so it does not
+   * make the header malformed, but it is not a type/subtype range and takes
+   * no part in negotiation.
+   */
+  malformed: boolean;
+}
+
 /**
- * Parse an Accept header value into its members, in header order.
+ * Parse an Accept header value.
  *
- * A member that cannot be interpreted is dropped: one that is not a media
- * range, or one whose weight does not follow the qvalue grammar. An empty
- * result for a non-empty header therefore means the header is malformed.
+ * Parsing is lenient, like the servers an SDK talks to: a member that is not
+ * a media range is skipped, and a weight that cannot be read is ignored.
  */
-export function parseAccept(header: string): AcceptEntry[] {
+export function parseAccept(header: string): ParsedAccept {
   const entries: AcceptEntry[] = [];
+  let readable = 0;
   for (const member of splitListHeader(header)) {
     let parsed: ReturnType<typeof parseMediaType>;
     try {
@@ -157,17 +184,16 @@ export function parseAccept(header: string): AcceptEntry[] {
       continue;
     }
     const [range, params] = parsed;
+    if (!range) continue;
+    readable++;
     if (!MEDIA_RANGE.test(range)) continue;
-
-    const weight = params?.q;
-    if (weight !== undefined && !QVALUE.test(weight)) continue;
 
     entries.push({
       range: range as MediaTypeEssence,
-      q: weight === undefined ? 1 : Number(weight),
+      q: parseWeight(params?.q),
     });
   }
-  return entries;
+  return { entries, malformed: readable === 0 };
 }
 
 /** 2 for a concrete type, 1 for a subtype wildcard, 0 for the full wildcard. */

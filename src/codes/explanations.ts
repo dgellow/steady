@@ -915,9 +915,8 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
   E3022: {
     description:
       "The Accept header could not be parsed. None of the entries are\n" +
-      "usable: each one is either not a type/subtype media range or\n" +
-      "carries a weight outside the q=0 to q=1 grammar. The server\n" +
-      "cannot determine what response format the client expects.",
+      "valid media types. The server cannot determine what response\n" +
+      "format the client expects.",
     reasoning:
       "This is an SDK issue. The SDK (or its HTTP client library) sets\n" +
       "the Accept header to indicate which response formats it can\n" +
@@ -926,7 +925,6 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "default response format.",
     example: "  # SDK sends: Accept: ;;;\n" +
       "  # SDK sends: Accept: (empty)\n" +
-      "  # SDK sends: Accept: application/json;q=5\n" +
       "  # Should be: Accept: application/json",
     fix: "Check the SDK's Accept header construction. Most HTTP client\n" +
       "libraries set a sensible default. If the SDK overrides Accept,\n" +

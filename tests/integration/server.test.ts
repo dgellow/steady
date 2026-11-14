@@ -697,8 +697,10 @@ Deno.test({
         ["text/plain;q=0.5, application/json", "application/json"],
         // Equal weights: header order.
         ["application/json, text/plain", "application/json"],
-        // A member with an invalid weight is ignored.
-        ["application/json;q=abc, text/plain;q=0.1", "text/plain"],
+        // A weight that cannot be read is ignored, leaving weight 1.
+        ["application/json;q=abc, text/plain;q=0.1", "application/json"],
+        // A weight without the leading zero is read (Java sends "q=.2").
+        ["text/plain;q=.2, application/json;q=.9", "application/json"],
         // Subtype wildcard.
         ["application/*", "application/json"],
         // Wildcard: first content type declared by the spec.
@@ -715,6 +717,38 @@ Deno.test({
           assertEquals(response.headers.get("content-type"), expected);
           await response.body?.cancel();
         });
+      }
+    });
+  },
+});
+
+Deno.test({
+  name: "Accept weights outside the qvalue grammar do not reject the request",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    await withServer("./tests/specs/test-api.yaml", async (ctx) => {
+      // Java's HttpURLConnection default. The wildcard still means "anything",
+      // so an operation without response content answers with a JSON object.
+      const java = await ctx.fetch("/void-response", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2",
+        },
+        body: "{}",
+      });
+      assertEquals(java.status, 200);
+      assertEquals(java.headers.get("content-type"), "application/json");
+      assertEquals(await java.json(), {});
+
+      for (const accept of ["*/*;q=.8", "application/json;q=5", "*"]) {
+        const response = await ctx.fetch("/users", {
+          headers: { "Accept": accept },
+        });
+        assertEquals(response.status, 200, `Accept: ${accept}`);
+        assertEquals(diagnosticHeaders(response)["x-steady-error-count"], "0");
+        await response.body?.cancel();
       }
     });
   },
