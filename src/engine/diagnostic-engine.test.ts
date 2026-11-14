@@ -1071,12 +1071,25 @@ Deno.test("DiagnosticEngine", async (t) => {
     assertEquals(e3022?.severity, "warning");
   });
 
-  await t.step("Accept without any usable media range → E3022", () => {
+  await t.step("Accept that servers tolerate → no E3022", () => {
     const spec = new StubSpec({ "/users": { get: OP } });
     const engine = createEngine(spec);
 
-    // Not a type/subtype pair, and a weight outside the qvalue grammar.
-    for (const accept of ["json", "application/json;q=5"]) {
+    // E3022 is sdk-issue, so it rejects the request by default. It is kept
+    // for headers nothing can be read from. These are sloppy but accepted
+    // by real servers: a weight outside the qvalue grammar (Java sends
+    // "q=.2"), and a member that is not a type/subtype pair.
+    for (
+      const accept of [
+        "*/*;q=.8",
+        "application/json;q=.9",
+        "application/json;q=5",
+        "application/json; q=0.5000",
+        "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2",
+        "*",
+        "json",
+      ]
+    ) {
       const result = engine.analyze({
         path: "/users",
         method: "get",
@@ -1084,7 +1097,7 @@ Deno.test("DiagnosticEngine", async (t) => {
       });
       assertEquals(
         result.filter((d) => d.code === "E3022").length,
-        1,
+        0,
         `Accept: ${accept}`,
       );
     }
