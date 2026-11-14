@@ -2,7 +2,9 @@
  * Unified router for Steady.
  *
  * Matches HTTP requests against OpenAPI path patterns with:
- * - Pre-compiled routes for O(1) exact matches and efficient pattern matching
+ * - Pre-compiled routes: a map for paths without parameters, a segment
+ *   trie for templated paths. Matching costs the length of the request
+ *   path, not the number of paths in the spec.
  * - Query disambiguation (e.g., /templates?desc=cached_upload)
  * - E2001/E2002 diagnostic creation on failure with double-? enrichment
  *
@@ -19,8 +21,10 @@ import type { Diagnostic, DiagnosticDisplay } from "./diagnostic.ts";
 import { getCode } from "./codes/registry.ts";
 import {
   compilePathPattern,
-  matchCompiledPath,
+  fitsMixedSegment,
+  matchPathSegments,
   type PathSegment,
+  splitPath,
 } from "./path-matcher.ts";
 import { HTTP_METHODS, type HttpMethod, isHttpMethod } from "./types.ts";
 
@@ -79,13 +83,106 @@ interface CompiledPath {
   segments: PathSegment[];
   segmentCount: number;
   requiredQuery?: Record<string, string>;
+  /**
+   * Position among the templated paths in order of precedence (lower wins).
+   * Unused for paths without parameters.
+   */
+  rank: number;
+}
+
+/**
+ * Node of the trie over the segments of templated paths. A request path
+ * walks it segment by segment and reaches exactly the templates whose shape
+ * it fits.
+ */
+interface TrieNode {
+  /** Next segment is this literal. */
+  literals: Map<string, TrieNode>;
+  /** Next segment is `prefix{param}suffix`. */
+  mixed: { prefix: string; suffix: string; node: TrieNode }[];
+  /** Next segment is `{param}`, whatever its name. */
+  param: TrieNode | null;
+  /** Templates that end here. */
+  routes: CompiledPath[];
+}
+
+function newTrieNode(): TrieNode {
+  return { literals: new Map(), mixed: [], param: null, routes: [] };
+}
+
+function insertRoute(root: TrieNode, route: CompiledPath): void {
+  let node = root;
+  for (const segment of route.segments) {
+    let next: TrieNode | undefined;
+    if (segment.type === "literal") {
+      next = node.literals.get(segment.value);
+      if (!next) {
+        next = newTrieNode();
+        node.literals.set(segment.value, next);
+      }
+    } else if (segment.type === "param") {
+      next = node.param ?? newTrieNode();
+      node.param = next;
+    } else {
+      next = node.mixed.find((m) =>
+        m.prefix === segment.prefix && m.suffix === segment.suffix
+      )?.node;
+      if (!next) {
+        next = newTrieNode();
+        node.mixed.push({
+          prefix: segment.prefix,
+          suffix: segment.suffix,
+          node: next,
+        });
+      }
+    }
+    node = next;
+  }
+  node.routes.push(route);
+}
+
+/**
+ * Templates whose segments fit the request segments, in order of
+ * precedence. Parameter values are not decoded here; a template whose value
+ * fails to decode is rejected by `matchPathSegments`.
+ */
+function candidateRoutes(
+  root: TrieNode,
+  segments: readonly string[],
+): CompiledPath[] {
+  const found: CompiledPath[] = [];
+  // Explicit stack: the depth is the number of segments in the request.
+  const pending: { node: TrieNode; depth: number }[] = [{
+    node: root,
+    depth: 0,
+  }];
+  for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
+    const { node, depth } = item;
+    if (depth === segments.length) {
+      for (const route of node.routes) found.push(route);
+      continue;
+    }
+    const segment = segments[depth];
+    if (segment === undefined) continue;
+
+    const literal = node.literals.get(segment);
+    if (literal) pending.push({ node: literal, depth: depth + 1 });
+    for (const m of node.mixed) {
+      if (fitsMixedSegment(segment, m.prefix, m.suffix)) {
+        pending.push({ node: m.node, depth: depth + 1 });
+      }
+    }
+    if (node.param) pending.push({ node: node.param, depth: depth + 1 });
+  }
+  if (found.length > 1) found.sort((a, b) => a.rank - b.rank);
+  return found;
 }
 
 // ── Router ──────────────────────────────────────────────────────────
 
 export class Router {
   private readonly exactRoutes: Map<string, CompiledPath[]>;
-  private readonly patternRoutes: CompiledPath[];
+  private readonly patternRoutes: TrieNode;
   private readonly paths: PathsObject;
 
   constructor(paths: PathsObject) {
@@ -111,6 +208,7 @@ export class Router {
           segments: [],
           segmentCount: 0,
           requiredQuery,
+          rank: 0,
         };
         const existing = exactRoutes.get(basePath) ?? [];
         existing.push(entry);
@@ -122,6 +220,7 @@ export class Router {
           pattern,
           pathItem,
           requiredQuery,
+          rank: 0,
         });
       }
     }
@@ -139,26 +238,40 @@ export class Router {
     // 1. More literal segments first
     // 2. More mixed segments (have literal prefix/suffix constraints) before pure params
     // 3. Routes with requiredQuery before those without
-    patternRoutes.sort((a, b) => {
-      const aLiterals = a.segments.filter((s) => s.type === "literal").length;
-      const bLiterals = b.segments.filter((s) => s.type === "literal").length;
-      if (bLiterals !== aLiterals) return bLiterals - aLiterals;
-      const aMixed = a.segments.filter((s) => s.type === "mixed").length;
-      const bMixed = b.segments.filter((s) => s.type === "mixed").length;
-      if (bMixed !== aMixed) return bMixed - aMixed;
-      if (a.requiredQuery && !b.requiredQuery) return -1;
-      if (!a.requiredQuery && b.requiredQuery) return 1;
+    // 4. Order in the spec (the sort is stable)
+    const count = (route: CompiledPath, type: PathSegment["type"]) => {
+      let n = 0;
+      for (const s of route.segments) if (s.type === type) n++;
+      return n;
+    };
+    const keyed = patternRoutes.map((route) => ({
+      route,
+      literals: count(route, "literal"),
+      mixed: count(route, "mixed"),
+    }));
+    keyed.sort((a, b) => {
+      if (b.literals !== a.literals) return b.literals - a.literals;
+      if (b.mixed !== a.mixed) return b.mixed - a.mixed;
+      if (a.route.requiredQuery && !b.route.requiredQuery) return -1;
+      if (!a.route.requiredQuery && b.route.requiredQuery) return 1;
       return 0;
     });
 
+    const trie = newTrieNode();
+    keyed.forEach(({ route }, rank) => {
+      route.rank = rank;
+      insertRoute(trie, route);
+    });
+
     this.exactRoutes = exactRoutes;
-    this.patternRoutes = patternRoutes;
+    this.patternRoutes = trie;
   }
 
   /**
    * Match a request against the spec's path templates.
    *
-   * Tries exact paths first (O(1)), then parameterized paths (sorted by specificity).
+   * Tries paths without parameters first (a map lookup), then the templated
+   * paths that fit the request, most specific first.
    * Handles query disambiguation. On failure, returns E2001/E2002 diagnostics
    * with double-? enrichment.
    */
@@ -197,9 +310,12 @@ export class Router {
       }
     }
 
-    // Try pattern matching with pre-compiled routes
-    for (const compiled of this.patternRoutes) {
-      const params = matchCompiledPath(request.path, compiled);
+    // Try templated paths that fit the request path
+    const requestSegments = splitPath(request.path);
+    for (
+      const compiled of candidateRoutes(this.patternRoutes, requestSegments)
+    ) {
+      const params = matchPathSegments(requestSegments, compiled);
       if (params && matchesQueryRequirements(query, compiled.requiredQuery)) {
         const operation = getOperation(compiled.pathItem, method);
         if (operation) {
