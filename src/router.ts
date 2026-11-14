@@ -378,11 +378,12 @@ export class Router {
  * We only select numeric status codes; fallback to 200 if none found.
  */
 export function selectStatusCode(operation: OperationObject): string {
-  if (operation.responses["200"]) return "200";
-  if (operation.responses["201"]) return "201";
-  if (operation.responses["204"]) return "204";
+  const responses = operation.responses ?? {};
+  if (responses["200"]) return "200";
+  if (responses["201"]) return "201";
+  if (responses["204"]) return "204";
 
-  const numericCode = Object.keys(operation.responses).find(
+  const numericCode = Object.keys(responses).find(
     (code) => /^\d{3}$/.test(code),
   );
   return numericCode || "200";

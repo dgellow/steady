@@ -405,13 +405,21 @@ async function startServer(
 
   // Parse the OpenAPI spec
   timer.start("parse");
-  const { spec, defaultedFields } = await parseSpecFromFile(specPath, timer);
+  const { spec, defaultedFields, shapeProblems } = await parseSpecFromFile(
+    specPath,
+    timer,
+  );
   timer.stop("parse");
 
   // Run spec analysis
   timer.start("analyze");
   const baseUri = specPathToBaseUri(specPath);
-  const analysis = analyzeSpec(spec, { baseUri, defaultedFields, timer });
+  const analysis = analyzeSpec(spec, {
+    baseUri,
+    defaultedFields,
+    shapeProblems,
+    timer,
+  });
   timer.stop("analyze");
   if (analysis.fatal) {
     throw new FatalSpecError(analysis.diagnostics);
@@ -570,13 +578,21 @@ Examples:
 
     // Parse the spec - this will throw if invalid
     timer.start("parse");
-    const { spec, defaultedFields } = await parseSpecFromFile(specPath, timer);
+    const { spec, defaultedFields, shapeProblems } = await parseSpecFromFile(
+      specPath,
+      timer,
+    );
     timer.stop("parse");
 
     // Run spec analysis
     timer.start("analyze");
     const baseUri = specPathToBaseUri(specPath);
-    const analysis = analyzeSpec(spec, { baseUri, defaultedFields, timer });
+    const analysis = analyzeSpec(spec, {
+      baseUri,
+      defaultedFields,
+      shapeProblems,
+      timer,
+    });
     timer.stop("analyze");
 
     if (analysis.diagnostics.length === 0) {

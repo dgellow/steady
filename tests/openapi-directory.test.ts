@@ -68,8 +68,9 @@ Deno.test("OpenAPI Directory", async (t) => {
       name,
       ignore: SKIP.has(name),
       fn: async () => {
-        const { spec, defaultedFields } = await parseSpecFromFile(specPath);
-        const result = analyzeSpec(spec, { defaultedFields });
+        const { spec, defaultedFields, shapeProblems } =
+          await parseSpecFromFile(specPath);
+        const result = analyzeSpec(spec, { defaultedFields, shapeProblems });
         assert(!result.fatal, result.diagnostics.map((d) => d.code).join(", "));
       },
     });

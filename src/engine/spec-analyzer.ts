@@ -6,7 +6,11 @@
  * like unresolved $refs, circular references, duplicate paths, etc.
  */
 
-import type { ComponentsObject, OpenAPIRaw } from "@steady/openapi";
+import type {
+  ComponentsObject,
+  OpenAPIRaw,
+  ShapeProblem,
+} from "@steady/openapi";
 import { openapi31Metaschema } from "@steady/openapi";
 import {
   formatFragmentPointer,
@@ -38,6 +42,8 @@ export interface AnalyzeSpecOptions {
   baseUri?: string;
   /** Fields where the parser applied defaults (triggers E1003 diagnostics). */
   defaultedFields?: string[];
+  /** Values the parser removed because they had the wrong type (E1023). */
+  shapeProblems?: ShapeProblem[];
   /** Optional timer for startup instrumentation. */
   timer?: PipelineTimer;
 }
@@ -57,6 +63,9 @@ export function analyzeSpec(
   timer?.start("metadata");
   if (options?.defaultedFields && options.defaultedFields.length > 0) {
     diagnostics.push(...checkMissingMetadata(options.defaultedFields));
+  }
+  if (options?.shapeProblems) {
+    diagnostics.push(...checkShapeProblems(options.shapeProblems));
   }
   timer?.stop("metadata");
 
@@ -193,6 +202,24 @@ function checkMissingMetadata(defaultedFields: string[]): Diagnostic[] {
   }
 
   return diagnostics;
+}
+
+// ── E1023: Value of the wrong type ───────────────────────────────────
+
+function checkShapeProblems(problems: ShapeProblem[]): Diagnostic[] {
+  return problems.map((problem) =>
+    specDiagnostic(
+      "E1023",
+      formatFragmentPointer(problem.path),
+      problem.message ??
+        `Expected ${problem.expected}, found ${problem.actual}. Steady ignores this value`,
+      {
+        suggestion: `Change the value to ${problem.expected}, or remove it`,
+        expected: problem.expected,
+        actual: problem.actual,
+      },
+    )
+  );
 }
 
 // ── Metaschema validation (E1006 fatal / E1015 info) ────────────────
