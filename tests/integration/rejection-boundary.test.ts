@@ -44,12 +44,31 @@ const SPEC = {
                     properties: { a: { type: "string" } },
                     additionalProperties: false,
                   },
+                  // Optional, and its schema is a component.
+                  shipping: { $ref: "#/components/schemas/Address" },
                 },
               },
             },
           },
         },
         responses: { "200": { description: "ok" } },
+      },
+    },
+  },
+  components: {
+    schemas: {
+      Address: {
+        type: "object",
+        required: ["city"],
+        properties: {
+          city: { type: "string" },
+          // Required inside the optional `shipping`.
+          geo: {
+            type: "object",
+            required: ["lat"],
+            properties: { lat: { type: "number" } },
+          },
+        },
       },
     },
   },
@@ -151,6 +170,20 @@ Deno.test("not a finding: a property the schema neither declares nor forbids", a
     status: 200,
     valid: "true",
     codes: [],
+  });
+});
+
+Deno.test("ambiguous, not rejected: optional object sent without its required field (E3013)", async () => {
+  assertEquals(await send({ name: "abc", shipping: {} }), {
+    status: 200,
+    valid: "true",
+    codes: ["E3013"],
+  });
+  // `geo` is optional in the address as well.
+  assertEquals(await send({ name: "abc", shipping: { city: "x", geo: {} } }), {
+    status: 200,
+    valid: "true",
+    codes: ["E3013"],
   });
 });
 

@@ -11,11 +11,7 @@
  * data are resolved on-demand at composition and leaf nodes.
  */
 
-import {
-  type FragmentPointer,
-  isFragmentPointer,
-  isPlainObject,
-} from "@steady/json-pointer";
+import { isPlainObject } from "@steady/json-pointer";
 import type { DiagnosticLocation } from "../diagnostic.ts";
 import type {
   CompositionContext,
@@ -121,16 +117,17 @@ function interpretLeaf(
   let diagnostic = attributeLeaf(leafNode, schema, location);
   const structural = isStructural(node.keyword, schema);
 
-  // E3013: Required field in optional parent
-  if (diagnostic.code === "E3007" && location === "body") {
-    const reattributed = checkOptionalParent(
+  // E3013: the object with the missing field is the value of a property
+  // that the request did not have to send.
+  if (
+    diagnostic.code === "E3007" && location === "body" &&
+    node.optionalProperty !== undefined && node.field !== undefined
+  ) {
+    diagnostic = inOptionalParent(
       diagnostic,
-      node.schemaPath,
-      spec,
+      node.field,
+      node.optionalProperty,
     );
-    if (reattributed) {
-      diagnostic = reattributed;
-    }
   }
 
   return {
@@ -140,46 +137,15 @@ function interpretLeaf(
   };
 }
 
-const PROP_SUFFIX = /\/properties\/([^/]+)$/;
-
 /**
- * Check if a missing required field (E3007) occurs inside an optional parent.
- * If so, return a re-attributed E3013 diagnostic.
+ * Re-attribute a missing required field (E3007) to E3013: its object is
+ * the value of the optional property `parent`.
  */
-function checkOptionalParent(
+function inOptionalParent(
   diagnostic: Diagnostic,
-  schemaPath: FragmentPointer,
-  spec: SpecResolver,
-): Diagnostic | undefined {
-  // Step 1: Strip the missing field's /properties/<field> to get the object schema path
-  const objectPath = schemaPath.replace(PROP_SUFFIX, "");
-  if (objectPath === schemaPath) return undefined; // no match, can't navigate
-
-  // Step 2: Extract parent property name and grandparent path
-  const match = objectPath.match(PROP_SUFFIX);
-  if (!match) return undefined; // top-level object, no parent to check
-
-  const parentPropName = match[1] ?? "";
-  if (!parentPropName) return undefined;
-  const grandparentPath = objectPath.replace(PROP_SUFFIX, "");
-  if (!isFragmentPointer(grandparentPath)) return undefined;
-
-  // Step 3: Resolve grandparent schema and check if parent is required
-  let grandparent;
-  try {
-    grandparent = spec.resolve(grandparentPath);
-  } catch {
-    return undefined; // can't resolve, don't re-attribute
-  }
-
-  const requiredArray = grandparent.required;
-  if (
-    Array.isArray(requiredArray) && requiredArray.includes(parentPropName)
-  ) {
-    return undefined; // parent IS required, keep E3007
-  }
-
-  // Parent is optional: re-attribute to E3013
+  field: string,
+  parent: string,
+): Diagnostic {
   const e3013 = getCode("E3013");
   return {
     ...diagnostic,
@@ -189,10 +155,8 @@ function checkOptionalParent(
     attribution: {
       confidence: 0.6,
       reasoning: [
-        `Parent object '${parentPropName}' is optional in the schema`,
-        `Required field '${
-          diagnostic.requestPath.split(".").pop()
-        }' is inside optional parent '${parentPropName}'`,
+        `Parent object '${parent}' is optional in the schema`,
+        `Required field '${field}' is inside optional parent '${parent}'`,
         // Keep constraint and violation entries (skip stale classification at index 0)
         ...diagnostic.attribution.reasoning.slice(1),
       ],

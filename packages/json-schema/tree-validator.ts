@@ -45,6 +45,14 @@ export interface ValidationNode {
   /** True when this leaf represents a direct array item error. */
   arrayItem?: boolean;
 
+  /**
+   * On a `required` leaf: the name of the property whose value is the
+   * object with the missing field, when no schema applied to the enclosing
+   * object requires that property. Absent when the object is the root, an
+   * array item, or the value of a required property.
+   */
+  optionalProperty?: string;
+
   // Tree structure
   children?: ValidationNode[];
   variantIndex?: number;
@@ -108,6 +116,24 @@ export const CONDITIONAL_KEYWORDS = [
   "dependentSchemas",
 ] as const;
 
+/**
+ * Where a value sits in its parent. One per value: every schema applied to
+ * the value (through `$ref`, `allOf`, `oneOf`, `anyOf`) shares it.
+ */
+interface ValueContext {
+  /** The value is an array item. */
+  arrayItem?: boolean;
+  /** The value is the value of a property of `owner`'s value. */
+  property?: { name: string; owner: ValueContext };
+  /**
+   * Property names that the schemas applied to this value require. Filled
+   * while the value is validated, so it is complete only when validation
+   * has finished: `allOf: [{properties: ...}, {required: ...}]` descends
+   * into the properties before it sees what is required.
+   */
+  required?: Set<string>;
+}
+
 // ── Validator ──────────────────────────────────────────────────────
 
 export class TreeValidator {
@@ -127,6 +153,16 @@ export class TreeValidator {
   private rootDepth = 0;
   /** Whether the current `validate` call has reported the depth limit. */
   private depthReported = false;
+
+  /**
+   * `required` leaves of the current `validate` call that sit in the value
+   * of a property. Whether that property is optional is known only when
+   * validation has finished. See `ValueContext.required`.
+   */
+  private missingInProperty: {
+    leaf: ValidationNode;
+    property: { name: string; owner: ValueContext };
+  }[] = [];
 
   constructor(options?: TreeValidatorOptions) {
     this.registry = options?.registry;
@@ -153,12 +189,20 @@ export class TreeValidator {
 
     this.rootDepth = dataPath.length;
     this.depthReported = false;
+    this.missingInProperty = [];
     try {
-      this.validateSchema(data, schema, path, dataPath, errors, schema);
+      this.validateSchema(data, schema, path, dataPath, errors, schema, {});
     } finally {
       // Empty after a normal return. An exception can leave entries behind.
       this.activeRefs.clear();
     }
+
+    for (const { leaf, property } of this.missingInProperty) {
+      if (property.owner.required?.has(property.name) !== true) {
+        leaf.optionalProperty = property.name;
+      }
+    }
+    this.missingInProperty = [];
 
     if (errors.length === 0) {
       return { valid: true, path: dataPath, schemaPath };
@@ -189,7 +233,7 @@ export class TreeValidator {
     dataPath: string[],
     errors: ValidationNode[],
     rootSchema: Schema | boolean,
-    context?: { arrayItem?: boolean },
+    context: ValueContext,
   ): void {
     if (dataPath.length - this.rootDepth > MAX_VALIDATION_DEPTH) {
       if (!this.depthReported) {
@@ -358,12 +402,15 @@ export class TreeValidator {
           schema.properties,
         );
         if (required.length > 0) {
+          context.required ??= new Set();
+          for (const field of required) context.required.add(field);
           this.validateRequired(
             obj,
             required,
             schemaPath,
             dataPath,
             errors,
+            context,
           );
         }
       }
@@ -379,6 +426,7 @@ export class TreeValidator {
           errors,
           rootSchema,
           evaluatedProps,
+          context,
         );
       }
 
@@ -398,6 +446,7 @@ export class TreeValidator {
           errors,
           rootSchema,
           evaluatedProps,
+          context,
         );
       }
 
@@ -461,7 +510,7 @@ export class TreeValidator {
     schemaPath: PointerPath,
     dataPath: string[],
     errors: ValidationNode[],
-    context?: { arrayItem?: boolean },
+    context: ValueContext,
   ): void {
     const actualType = getJsonType(data);
     const types = Array.isArray(schema.type) ? schema.type : [schema.type];
@@ -524,17 +573,22 @@ export class TreeValidator {
     schemaPath: PointerPath,
     dataPath: string[],
     errors: ValidationNode[],
+    context: ValueContext,
   ): void {
     for (const field of required) {
       if (!Object.hasOwn(obj, field)) {
-        errors.push({
+        const leaf: ValidationNode = {
           valid: false,
           keyword: "required",
           path: dataPath,
           schemaPath: formatFragmentPointer(schemaPath),
           field,
           expected: field,
-        });
+        };
+        errors.push(leaf);
+        if (context.property !== undefined) {
+          this.missingInProperty.push({ leaf, property: context.property });
+        }
       }
     }
   }
@@ -549,6 +603,7 @@ export class TreeValidator {
     errors: ValidationNode[],
     rootSchema: Schema | boolean,
     evaluatedProps: Set<string>,
+    owner: ValueContext,
   ): void {
     for (const [propName, propSchema] of Object.entries(properties)) {
       evaluatedProps.add(propName);
@@ -560,6 +615,7 @@ export class TreeValidator {
           [...dataPath, propName],
           errors,
           rootSchema,
+          { property: { name: propName, owner } },
         );
       }
     }
@@ -575,6 +631,7 @@ export class TreeValidator {
     errors: ValidationNode[],
     rootSchema: Schema | boolean,
     evaluatedProps: Set<string>,
+    owner: ValueContext,
   ): void {
     for (const propName of Object.keys(obj)) {
       if (evaluatedProps.has(propName)) continue;
@@ -599,6 +656,7 @@ export class TreeValidator {
           [...dataPath, propName],
           errors,
           rootSchema,
+          { property: { name: propName, owner } },
         );
       }
     }
@@ -891,7 +949,7 @@ export class TreeValidator {
     dataPath: string[],
     errors: ValidationNode[],
     rootSchema: Schema | boolean,
-    context?: { arrayItem?: boolean },
+    context: ValueContext,
   ): void {
     const variantResults: ValidationNode[] = [];
 
@@ -946,7 +1004,7 @@ export class TreeValidator {
     dataPath: string[],
     errors: ValidationNode[],
     rootSchema: Schema | boolean,
-    context?: { arrayItem?: boolean },
+    context: ValueContext,
   ): void {
     const variantResults: ValidationNode[] = [];
 
@@ -998,7 +1056,7 @@ export class TreeValidator {
     dataPath: string[],
     errors: ValidationNode[],
     rootSchema: Schema | boolean,
-    context?: { arrayItem?: boolean },
+    context: ValueContext,
   ): void {
     const childResults: ValidationNode[] = [];
     let allValid = true;
