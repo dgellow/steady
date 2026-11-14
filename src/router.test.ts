@@ -183,6 +183,56 @@ Deno.test("Router", async (t) => {
     }
   });
 
+  await t.step("method not allowed reports the allowed methods", () => {
+    const router = new Router({
+      "/users": { post: POST_OP, get: GET_OP },
+    });
+    const result = router.match({ path: "/users", method: "delete" });
+
+    assertEquals(result.matched, false);
+    if (!result.matched) {
+      assertEquals(result.reason, "method-not-allowed");
+      if (result.reason === "method-not-allowed") {
+        // Canonical method order, independent of key order in the spec.
+        assertEquals(result.allowedMethods, ["get", "post"]);
+      }
+    }
+  });
+
+  await t.step(
+    "allowed methods are the union over every path template that matches",
+    () => {
+      // Two templates that match the same URLs (E1008). A request for a
+      // method neither defines is allowed nothing but DELETE and POST.
+      const router = new Router({
+        "/secrets/{secret_id}": { delete: GET_OP },
+        "/secrets/{secret_key}": { post: POST_OP },
+      });
+      const result = router.match({ path: "/secrets/abc", method: "put" });
+
+      assertEquals(result.matched, false);
+      if (!result.matched && result.reason === "method-not-allowed") {
+        assertEquals(result.allowedMethods, ["post", "delete"]);
+        assertEquals(
+          result.diagnostics[0]!.suggestion,
+          'Available methods for "/secrets/{secret_id}", "/secrets/{secret_key}": POST, DELETE',
+        );
+      } else {
+        throw new Error("expected method-not-allowed");
+      }
+    },
+  );
+
+  await t.step("path not found has reason path-not-found", () => {
+    const router = new Router({ "/users": { get: GET_OP } });
+    const result = router.match({ path: "/nope", method: "get" });
+
+    assertEquals(result.matched, false);
+    if (!result.matched) {
+      assertEquals(result.reason, "path-not-found");
+    }
+  });
+
   // ── Double-? enrichment ───────────────────────────────────────────
 
   await t.step("E2001 with double-? in query → confidence 0.95", () => {

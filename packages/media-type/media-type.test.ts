@@ -10,6 +10,8 @@ import {
   isSseMediaType,
   isStreamingMediaType,
   isWildcard,
+  negotiateMediaType,
+  parseAccept,
 } from "./media-type.ts";
 import type { MediaTypeEssence } from "./media-type.ts";
 
@@ -105,6 +107,152 @@ Deno.test("essenceMatches: wildcard candidate does not match non-wildcard patter
     essenceMatches(essence("*/*"), essence("application/json")),
     false,
   );
+});
+
+Deno.test("essenceMatches: subtype wildcard pattern matches same type only", () => {
+  // OpenAPI allows media type ranges such as image/* as content keys.
+  assertEquals(essenceMatches(essence("image/png"), essence("image/*")), true);
+  assertEquals(
+    essenceMatches(essence("text/plain"), essence("image/*")),
+    false,
+  );
+  assertEquals(essenceMatches(essence("image/*"), essence("image/*")), true);
+  assertEquals(essenceMatches(essence("image/*"), essence("image/png")), false);
+});
+
+// =============================================================================
+// parseAccept (RFC 9110 section 12.5.1)
+// =============================================================================
+
+Deno.test("parseAccept: missing weight defaults to 1", () => {
+  assertEquals(parseAccept("application/json"), [
+    { range: essence("application/json"), q: 1 },
+  ]);
+});
+
+Deno.test("parseAccept: keeps source order and reads weights", () => {
+  assertEquals(
+    parseAccept("text/plain;q=0.5, application/json, */*;q=0.1"),
+    [
+      { range: essence("text/plain"), q: 0.5 },
+      { range: essence("application/json"), q: 1 },
+      { range: essence("*/*"), q: 0.1 },
+    ],
+  );
+});
+
+Deno.test("parseAccept: q=0 and q=0.0 are kept as weight 0", () => {
+  assertEquals(parseAccept("application/json;q=0, text/plain;q=0.0"), [
+    { range: essence("application/json"), q: 0 },
+    { range: essence("text/plain"), q: 0 },
+  ]);
+});
+
+Deno.test("parseAccept: weight parameter name is case-insensitive", () => {
+  assertEquals(parseAccept("application/json;Q=0.25"), [
+    { range: essence("application/json"), q: 0.25 },
+  ]);
+});
+
+Deno.test("parseAccept: members with an invalid weight are dropped", () => {
+  // qvalue grammar: 0 with up to three decimals, or 1 with up to three zeros.
+  assertEquals(
+    parseAccept(
+      "a/b;q=abc, c/d;q=1.5, e/f;q=-1, g/h;q=0.1234, i/j;q=.5, text/plain",
+    ),
+    [{ range: essence("text/plain"), q: 1 }],
+  );
+});
+
+Deno.test("parseAccept: members that are not a media range are dropped", () => {
+  assertEquals(parseAccept(";;;"), []);
+  assertEquals(parseAccept(""), []);
+  assertEquals(parseAccept("*, json, , text/plain"), [
+    { range: essence("text/plain"), q: 1 },
+  ]);
+});
+
+Deno.test("parseAccept: a comma inside a quoted parameter does not split the member", () => {
+  assertEquals(parseAccept('foo/bar;x="a,b";q=0.2, text/plain'), [
+    { range: essence("foo/bar"), q: 0.2 },
+    { range: essence("text/plain"), q: 1 },
+  ]);
+});
+
+// =============================================================================
+// negotiateMediaType
+// =============================================================================
+
+function negotiate(accept: string, available: string[]) {
+  return negotiateMediaType(parseAccept(accept), available.map(essence));
+}
+
+Deno.test("negotiateMediaType: q=0 excludes a type", () => {
+  assertEquals(
+    negotiate("application/json;q=0, text/plain", [
+      "application/json",
+      "text/plain",
+    ]),
+    { index: 1, range: essence("text/plain") },
+  );
+});
+
+Deno.test("negotiateMediaType: highest weight wins regardless of header order", () => {
+  assertEquals(
+    negotiate("text/plain;q=0.5, application/json", [
+      "text/plain",
+      "application/json",
+    ]),
+    { index: 1, range: essence("application/json") },
+  );
+});
+
+Deno.test("negotiateMediaType: equal weights follow header order, then available order", () => {
+  assertEquals(
+    negotiate("text/plain, application/json", [
+      "application/json",
+      "text/plain",
+    ]),
+    { index: 1, range: essence("text/plain") },
+  );
+  assertEquals(
+    negotiate("*/*", ["application/json", "text/plain"]),
+    { index: 0, range: essence("*/*") },
+  );
+});
+
+Deno.test("negotiateMediaType: the most specific range decides a type's weight", () => {
+  // */* would allow JSON, but the exact entry forbids it.
+  assertEquals(
+    negotiate("*/*, application/json;q=0", ["application/json", "text/plain"]),
+    { index: 1, range: essence("*/*") },
+  );
+  // text/* outranks */* for text/plain.
+  assertEquals(
+    negotiate("*/*;q=0.9, text/*;q=0.1, application/json;q=0.5", [
+      "text/plain",
+      "application/json",
+    ]),
+    { index: 1, range: essence("application/json") },
+  );
+});
+
+Deno.test("negotiateMediaType: an available range reports the concrete accept range", () => {
+  assertEquals(
+    negotiate("application/json", ["*/*"]),
+    { index: 0, range: essence("application/json") },
+  );
+  assertEquals(
+    negotiate("image/png;q=0.5, image/webp", ["text/plain", "image/*"]),
+    { index: 1, range: essence("image/webp") },
+  );
+});
+
+Deno.test("negotiateMediaType: nothing acceptable returns null", () => {
+  assertEquals(negotiate("text/plain", ["application/json"]), null);
+  assertEquals(negotiate("application/json;q=0", ["application/json"]), null);
+  assertEquals(negotiate("", ["application/json"]), null);
+  assertEquals(negotiate("*/*", []), null);
 });
 
 // =============================================================================

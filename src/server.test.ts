@@ -221,8 +221,38 @@ Deno.test({
   await withServer({}, async (_server, baseUrl) => {
     const response = await fetch(`${baseUrl}/users/123`, { method: "DELETE" });
     assertEquals(response.status, 405);
+    // RFC 9110 section 15.5.6: a 405 response MUST carry an Allow header.
+    assertEquals(response.headers.get("Allow"), "GET");
     const data = await response.json();
     assertEquals(data.error, "Method DELETE not allowed for /users/{id}");
+  });
+});
+
+Deno.test({
+  name: "Server: returns 501 for a method OpenAPI cannot describe",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    // RFC 9110 section 9.1: an unrecognized method gets 501, not 405.
+    // 405 would require an Allow header and means "known, not for this path".
+    const response = await fetch(`${baseUrl}/users`, { method: "PROPFIND" });
+    assertEquals(response.status, 501);
+    assertEquals(
+      await response.text(),
+      "Method PROPFIND is not supported",
+    );
+  });
+});
+
+Deno.test({
+  name: "Server: 404 for an unknown path has no Allow header",
+  ...serverTestOpts,
+}, async () => {
+  await withServer({}, async (_server, baseUrl) => {
+    const response = await fetch(`${baseUrl}/unknown/path`);
+    assertEquals(response.status, 404);
+    assertEquals(response.headers.get("Allow"), null);
+    await response.body?.cancel();
   });
 });
 

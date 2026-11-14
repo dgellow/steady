@@ -47,10 +47,30 @@ export interface RouteMatch {
   consumedQueryParams?: string[];
 }
 
-/** Discriminated union: successful match or routing diagnostics. */
+/** No path template matches the request path (E2001, HTTP 404). */
+export interface PathNotFound {
+  matched: false;
+  reason: "path-not-found";
+  diagnostics: Diagnostic[];
+}
+
+/** A path template matches, but not for this method (E2002, HTTP 405). */
+export interface MethodNotAllowed {
+  matched: false;
+  reason: "method-not-allowed";
+  /**
+   * Methods defined by every path template that matches the request path, in
+   * canonical order. This is the content of the Allow header.
+   */
+  allowedMethods: HttpMethod[];
+  diagnostics: Diagnostic[];
+}
+
+/** Discriminated union: successful match or the reason routing failed. */
 export type RouteResult =
   | { matched: true } & RouteMatch
-  | { matched: false; diagnostics: Diagnostic[] };
+  | PathNotFound
+  | MethodNotAllowed;
 
 /** Pre-compiled path pattern with associated path item. */
 interface CompiledPath {
@@ -146,11 +166,9 @@ export class Router {
     const method = request.method.toLowerCase();
     const query = request.queryParams ?? new URLSearchParams();
 
-    // Track first path match for better error reporting when method not found
-    let firstPathMatch: {
-      pathItem: PathItemObject;
-      pattern: string;
-    } | null = null;
+    // Path templates that match the path but do not define the method.
+    // More than one is possible when the spec has conflicting templates.
+    const pathMatches: { pathItem: PathItemObject; pattern: string }[] = [];
 
     // Try exact match first (O(1) lookup)
     const exactMatches = this.exactRoutes.get(request.path);
@@ -171,12 +189,10 @@ export class Router {
                 : undefined,
             };
           }
-          if (!firstPathMatch) {
-            firstPathMatch = {
-              pathItem: entry.pathItem,
-              pattern: entry.pattern,
-            };
-          }
+          pathMatches.push({
+            pathItem: entry.pathItem,
+            pattern: entry.pattern,
+          });
         }
       }
     }
@@ -202,24 +218,28 @@ export class Router {
         // Path matches but method doesn't. Keep searching; another path
         // with the same pattern might have the method (e.g., /secrets/{secret_id}
         // DELETE vs /secrets/{secret_key} POST).
-        if (!firstPathMatch) {
-          firstPathMatch = {
-            pathItem: compiled.pathItem,
-            pattern: compiled.pattern,
-          };
-        }
+        pathMatches.push({
+          pathItem: compiled.pathItem,
+          pattern: compiled.pattern,
+        });
       }
     }
 
     // No match. Produce routing diagnostic.
-    if (firstPathMatch) {
+    if (pathMatches.length > 0) {
+      const defined = new Set(
+        pathMatches.flatMap((m) => getMethodsForPath(m.pathItem)),
+      );
+      const allowedMethods = HTTP_METHODS.filter((m) => defined.has(m));
       return {
         matched: false,
+        reason: "method-not-allowed",
+        allowedMethods,
         diagnostics: [
           createMethodNotAllowed(
             request,
-            firstPathMatch.pattern,
-            firstPathMatch.pathItem,
+            pathMatches.map((m) => m.pattern),
+            allowedMethods,
           ),
         ],
       };
@@ -227,6 +247,7 @@ export class Router {
 
     return {
       matched: false,
+      reason: "path-not-found",
       diagnostics: [createPathNotFound(request, this.paths)],
     };
   }
@@ -328,15 +349,16 @@ function createPathNotFound(
 
 function createMethodNotAllowed(
   request: RoutingRequest,
-  matchedPattern: string,
-  pathItem: PathItemObject,
+  matchedPatterns: string[],
+  allowedMethods: HttpMethod[],
 ): Diagnostic {
   const e2002 = getCode("E2002");
-  const available = getMethodsForPath(pathItem);
+  // The first match is the most specific template; it names the endpoint.
+  const matchedPattern = matchedPatterns[0] ?? request.path;
 
-  const suggestion = `Available methods for "${matchedPattern}": ${
-    available.map((m) => m.toUpperCase()).join(", ")
-  }`;
+  const suggestion = `Available methods for ${
+    matchedPatterns.map((p) => `"${p}"`).join(", ")
+  }: ${allowedMethods.map((m) => m.toUpperCase()).join(", ")}`;
 
   const { confidence, reasoning, display } = enrichWithDoubleQuestion(
     request,
