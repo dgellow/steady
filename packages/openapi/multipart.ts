@@ -31,6 +31,7 @@ import {
   isJsonMediaType,
   type MediaTypeEssence,
 } from "@steady/media-type";
+import { getOwn } from "@steady/json-pointer";
 import { isReference } from "./openapi.ts";
 import type {
   MediaTypeObject,
@@ -79,10 +80,15 @@ export function resolvePartContentTypes(
   }
 
   for (const name of names) {
-    const propSchema = rootSchema?.properties?.[name];
+    // `name` comes from either map, so each lookup may miss.
+    const propSchema = rootSchema?.properties
+      ? getOwn(rootSchema.properties, name)
+      : undefined;
     const implicit = implicitEssence(propSchema, registry);
 
-    const explicitRaw = mediaType.encoding?.[name]?.contentType;
+    const explicitRaw = mediaType.encoding
+      ? getOwn(mediaType.encoding, name)?.contentType
+      : undefined;
     if (explicitRaw !== undefined) {
       const explicit = getMediaType(explicitRaw);
       if (!explicit) continue;

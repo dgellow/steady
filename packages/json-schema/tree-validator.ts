@@ -18,6 +18,7 @@
 import {
   formatFragmentPointer,
   type FragmentPointer,
+  getOwn,
   isFragmentPointer,
   isPlainObject,
   parseFragmentPointer,
@@ -419,7 +420,7 @@ export class TreeValidator {
     if (!this.direction || !properties) return required;
 
     return required.filter((field) => {
-      const propSchema = properties[field];
+      const propSchema = getOwn(properties, field);
       if (!propSchema || typeof propSchema !== "object") return true;
 
       if (this.direction === "request" && propSchema.readOnly === true) {
@@ -440,7 +441,7 @@ export class TreeValidator {
     errors: ValidationNode[],
   ): void {
     for (const field of required) {
-      if (!(field in obj)) {
+      if (!Object.hasOwn(obj, field)) {
         errors.push({
           valid: false,
           keyword: "required",
@@ -466,7 +467,7 @@ export class TreeValidator {
   ): void {
     for (const [propName, propSchema] of Object.entries(properties)) {
       evaluatedProps.add(propName);
-      if (propName in obj) {
+      if (Object.hasOwn(obj, propName)) {
         this.validateSchema(
           obj[propName],
           propSchema,
@@ -602,26 +603,30 @@ export class TreeValidator {
     dataPath: string[],
     errors: ValidationNode[],
   ): void {
-    if (schema.minLength !== undefined && data.length < schema.minLength) {
-      errors.push({
-        valid: false,
-        keyword: "minLength",
-        path: dataPath,
-        schemaPath: formatFragmentPointer(schemaPath),
-        expected: schema.minLength,
-        actual: data.length,
-      });
-    }
+    if (schema.minLength !== undefined || schema.maxLength !== undefined) {
+      const length = characterCount(data);
 
-    if (schema.maxLength !== undefined && data.length > schema.maxLength) {
-      errors.push({
-        valid: false,
-        keyword: "maxLength",
-        path: dataPath,
-        schemaPath: formatFragmentPointer(schemaPath),
-        expected: schema.maxLength,
-        actual: data.length,
-      });
+      if (schema.minLength !== undefined && length < schema.minLength) {
+        errors.push({
+          valid: false,
+          keyword: "minLength",
+          path: dataPath,
+          schemaPath: formatFragmentPointer(schemaPath),
+          expected: schema.minLength,
+          actual: length,
+        });
+      }
+
+      if (schema.maxLength !== undefined && length > schema.maxLength) {
+        errors.push({
+          valid: false,
+          keyword: "maxLength",
+          path: dataPath,
+          schemaPath: formatFragmentPointer(schemaPath),
+          expected: schema.maxLength,
+          actual: length,
+        });
+      }
     }
 
     if (schema.pattern !== undefined) {
@@ -1056,6 +1061,18 @@ function getJsonType(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "array";
   return typeof value;
+}
+
+/**
+ * Length of a string for minLength / maxLength: the number of characters as
+ * defined by RFC 8259, i.e. Unicode code points (JSON Schema Validation
+ * section 6.3). `String.length` counts UTF-16 code units and reports 2 for
+ * every character outside the Basic Multilingual Plane.
+ */
+function characterCount(value: string): number {
+  let count = 0;
+  for (const _ of value) count++;
+  return count;
 }
 
 function deepEqual(a: unknown, b: unknown): boolean {

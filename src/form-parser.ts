@@ -12,7 +12,7 @@
 
 import { isReference } from "@steady/openapi";
 import type { ReferenceObject, SchemaObject } from "@steady/openapi";
-import { isPlainObject } from "@steady/json-pointer";
+import { getOwn, isPlainObject } from "@steady/json-pointer";
 import { isJsonMediaType, type MediaTypeEssence } from "@steady/media-type";
 import {
   type ConcreteArrayFormat,
@@ -87,7 +87,9 @@ export async function parseFormData(
   const jsonBuckets = new Map<string, unknown[]>();
 
   for (const [key, value] of formData.entries()) {
-    const essence = partContentTypes?.[key];
+    const essence = partContentTypes
+      ? getOwn(partContentTypes, key)
+      : undefined;
     if (essence && isJsonMediaType(essence)) {
       const text = value instanceof File ? await value.text() : value;
       try {

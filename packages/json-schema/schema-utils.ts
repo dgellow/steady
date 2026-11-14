@@ -10,6 +10,7 @@
  * before calling these functions).
  */
 
+import { getOwn } from "@steady/json-pointer";
 import type { Schema, SchemaType } from "./types.ts";
 
 /** Guard against pathological nesting in composition walks. */
@@ -366,7 +367,7 @@ export function coerceDeep(value: unknown, schema: Schema | boolean): unknown {
     if (!props) return value;
     const result: Record<string, unknown> = Object.create(null);
     for (const [k, v] of Object.entries(value)) {
-      const propSchema = props[k];
+      const propSchema = getOwn(props, k);
       if (propSchema && typeof v === "string") {
         result[k] = coerceScalar(v, propSchema);
       } else if (propSchema && typeof v === "object" && v !== null) {
