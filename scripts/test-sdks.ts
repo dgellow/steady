@@ -203,15 +203,41 @@ const SDKS: SDK[] = [
   },
 ];
 
-interface TestResult {
+/**
+ * The SDK's test suite could not be started against Steady: no clone, no
+ * spec, no mock server, no test script. This says nothing about Steady or the
+ * SDK, so it is never reported as a test failure.
+ */
+class HarnessError extends Error {
+  override name = "HarnessError";
+}
+
+interface TestResultBase {
   name: string;
-  passed: boolean;
-  error?: string;
   /** Number of tests passed (if available) */
   testsPassed?: number;
   /** Number of tests failed (if available) */
   testsFailed?: number;
 }
+
+/** The suite ran against Steady. `passed` is its outcome. */
+interface SuiteResult extends TestResultBase {
+  ran: true;
+  passed: boolean;
+}
+
+/** The suite did not run. `error` says why. */
+interface NotRunResult extends TestResultBase {
+  ran: false;
+  passed: false;
+  error: string;
+}
+
+type TestResult = SuiteResult | NotRunResult;
+
+/** Exit codes of this script. The CI workflow tells them apart. */
+const EXIT_SUITE_FAILED = 1;
+const EXIT_NOT_RUN = 2;
 
 interface TestReport {
   /** ISO timestamp of when tests were run */
@@ -225,6 +251,8 @@ interface TestReport {
     total: number;
     passed: number;
     failed: number;
+    /** SDKs whose suite could not be run. Not included in `failed`. */
+    notRun: number;
   };
   /** Individual SDK results */
   results: TestResult[];
@@ -276,8 +304,10 @@ async function cloneRepo(sdk: SDK): Promise<string> {
 
   const result = await cmd.output();
   if (!result.success) {
-    throw new Error(
-      `Failed to clone ${sdk.repo}: ${new TextDecoder().decode(result.stderr)}`,
+    throw new HarnessError(
+      `Failed to clone ${sdk.repo}: ${
+        new TextDecoder().decode(result.stderr).trim()
+      }`,
     );
   }
 
@@ -303,7 +333,9 @@ async function findSpec(sdkPath: string): Promise<string | null> {
       log(`  Downloading spec from ${url}...`);
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Failed to download spec: ${response.status}`);
+        throw new HarnessError(
+          `Failed to download spec from ${url}: HTTP ${response.status}`,
+        );
       }
       const specPath = path.join(sdkPath, "openapi-spec.yml");
       await Deno.writeTextFile(specPath, await response.text());
@@ -312,6 +344,46 @@ async function findSpec(sdkPath: string): Promise<string | null> {
   }
 
   return null;
+}
+
+/** Command that runs the Steady in this checkout. */
+const LOCAL_STEADY =
+  `deno run --config "${STEADY_DIR}/deno.json" --allow-read --allow-net --allow-env --allow-write "${STEADY_DIR}/cmd/steady.ts"`;
+
+/**
+ * The ways an SDK's own `scripts/mock` starts Steady. An SDK that uses Steady
+ * as its mock server ships everything the run needs in that script: the spec
+ * (embedded, or a file in the repository) and the validator flags its
+ * generator chose. Only the Steady it starts has to change.
+ */
+const SDK_STEADY_LAUNCHERS = [
+  // Released CLI from npm, pinned to a version.
+  /npm exec --package=@stdy\/cli@\S+ -- steady/g,
+  // Vendored launcher script.
+  /\.\/scripts\/run-steady/g,
+];
+
+/**
+ * Point the SDK's own `scripts/mock` at the Steady in this checkout.
+ *
+ * Returns false when the SDK has no `scripts/mock` or the script does not
+ * start Steady (older SDKs start a different mock server). The caller then
+ * has to provide a spec and a mock script itself.
+ */
+async function adoptSdkMockScript(sdkPath: string): Promise<boolean> {
+  const mockPath = path.join(sdkPath, "scripts", "mock");
+  if (!(await exists(mockPath))) return false;
+
+  const original = await Deno.readTextFile(mockPath);
+  let adopted = original;
+  for (const launcher of SDK_STEADY_LAUNCHERS) {
+    adopted = adopted.replace(launcher, LOCAL_STEADY);
+  }
+  // Already adopted on an earlier run of this checkout.
+  if (adopted === original) return original.includes(LOCAL_STEADY);
+
+  await Deno.writeTextFile(mockPath, adopted);
+  return true;
 }
 
 async function createMockScript(
@@ -373,8 +445,7 @@ async function runGoTests(sdkPath: string): Promise<boolean> {
 
   const mockResult = await mockCmd.output();
   if (!mockResult.success) {
-    fail("Failed to start mock server");
-    return false;
+    throw new HarnessError("Mock server did not start");
   }
 
   // Brief delay after mock script reports ready
@@ -486,16 +557,14 @@ async function runTypescriptTests(sdkPath: string): Promise<boolean> {
 
   const mockResult = await mockCmd.output();
   if (!mockResult.success) {
-    fail("Failed to start mock server");
-    return false;
+    throw new HarnessError("Mock server did not start");
   }
 
   // Check if test script exists
   const testScriptPath = path.join(sdkPath, "scripts", "test");
   if (!(await exists(testScriptPath))) {
-    warn("No ./scripts/test found");
     await killPort(PORT);
-    return false;
+    throw new HarnessError("The SDK has no ./scripts/test");
   }
 
   // Run tests
@@ -563,24 +632,21 @@ async function runPythonTests(sdkPath: string): Promise<boolean> {
 
   const mockResult = await mockCmd.output();
   if (!mockResult.success) {
-    fail("Failed to start mock server");
-    return false;
+    throw new HarnessError("Mock server did not start");
   }
 
   // Check if test script exists
   const testScriptPath = path.join(sdkPath, "scripts", "test");
   if (!(await exists(testScriptPath))) {
-    warn("No ./scripts/test found");
     await killPort(PORT);
-    return false;
+    throw new HarnessError("The SDK has no ./scripts/test");
   }
 
   // Check if tests directory exists
   const testsDir = path.join(sdkPath, "tests", "api_resources");
   if (!(await exists(testsDir))) {
-    warn("No tests/api_resources directory found");
     await killPort(PORT);
-    return false;
+    throw new HarnessError("The SDK has no tests/api_resources directory");
   }
 
   // Inject conftest.py to remove skip markers so all tests run
@@ -623,19 +689,26 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
 
   try {
     const sdkPath = await cloneRepo(sdk);
-    const specPath = await findSpec(sdkPath);
-
-    if (!specPath) {
-      fail("No OpenAPI spec found");
-      return { name: sdk.name, passed: false, error: "No spec found" };
-    }
-    success("Spec ready");
 
     // Kill any existing server
     await killPort(PORT);
 
-    // Create mock script
-    await createMockScript(sdkPath, specPath, sdk);
+    if (await adoptSdkMockScript(sdkPath)) {
+      success("Using the SDK's scripts/mock (its spec and validator flags)");
+    } else {
+      // The SDK does not start Steady itself. Find a spec and write a mock
+      // script with the flags from the SDK list above.
+      const specPath = await findSpec(sdkPath);
+      if (!specPath) {
+        throw new HarnessError(
+          "No OpenAPI spec found. The SDK's scripts/mock does not start " +
+            "Steady, the repository has no openapi-spec.yml, and its " +
+            ".stats.yml has no openapi_spec_url",
+        );
+      }
+      success("Spec ready");
+      await createMockScript(sdkPath, specPath, sdk);
+    }
 
     // Run tests based on language
     let passed = false;
@@ -646,8 +719,7 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
     } else if (sdk.language === "typescript") {
       passed = await runTypescriptTests(sdkPath);
     } else {
-      warn(`Language ${sdk.language} not yet supported`);
-      return { name: sdk.name, passed: false, error: "Language not supported" };
+      throw new HarnessError(`Language ${sdk.language} is not supported`);
     }
 
     // Cleanup
@@ -655,14 +727,16 @@ async function testSDK(sdk: SDK): Promise<TestResult> {
 
     if (passed) {
       success(`${sdk.name} passed`);
-      return { name: sdk.name, passed: true };
     } else {
       fail(`${sdk.name} failed`);
-      return { name: sdk.name, passed: false };
     }
+    return { name: sdk.name, ran: true, passed };
   } catch (error) {
-    fail(`${sdk.name} ERROR: ${error}`);
-    return { name: sdk.name, passed: false, error: String(error) };
+    await killPort(PORT);
+    // Anything thrown here happened outside the SDK's test suite.
+    const reason = error instanceof Error ? error.message : String(error);
+    fail(`${sdk.name} NOT RUN: ${reason}`);
+    return { name: sdk.name, ran: false, passed: false, error: reason };
   }
 }
 
@@ -783,7 +857,8 @@ Examples:
 
   // Calculate summary
   const passCount = results.filter((r) => r.passed).length;
-  const failCount = results.filter((r) => !r.passed).length;
+  const notRunCount = results.filter((r) => !r.ran).length;
+  const failCount = results.length - passCount - notRunCount;
 
   // Build report
   const gitInfo = await getGitInfo();
@@ -795,6 +870,7 @@ Examples:
       total: results.length,
       passed: passCount,
       failed: failCount,
+      notRun: notRunCount,
     },
     results,
   };
@@ -815,30 +891,40 @@ Examples:
     console.log("========");
 
     for (const result of results) {
-      if (result.passed) {
+      if (!result.ran) {
+        fail(`${result.name}: NOT RUN (${result.error})`);
+      } else if (result.passed) {
         success(`${result.name}: PASS`);
       } else {
-        fail(`${result.name}: FAIL${result.error ? ` (${result.error})` : ""}`);
+        fail(`${result.name}: FAIL`);
       }
     }
 
     console.log();
-    log(`Total: ${passCount} passed, ${failCount} failed`);
+    log(
+      `Total: ${passCount} passed, ${failCount} failed, ${notRunCount} not run`,
+    );
   }
 
-  Deno.exit(failCount > 0 ? 1 : 0);
+  // A suite that did not run outranks a suite that failed: it is the harness
+  // that needs attention, and CI fails the job on it.
+  if (notRunCount > 0) Deno.exit(EXIT_NOT_RUN);
+  Deno.exit(failCount > 0 ? EXIT_SUITE_FAILED : 0);
 }
 
 main();
 
 async function printLogs(sdkPath: string, testResult: Deno.CommandOutput) {
-  const logPath = path.join(sdkPath, ".steady.log");
-  if (await exists(logPath)) {
+  // ".steady.log" is written by the mock script this runner creates,
+  // ".stdy.log" by an SDK's own scripts/mock.
+  for (const name of [".steady.log", ".stdy.log"]) {
+    const logPath = path.join(sdkPath, name);
+    if (!(await exists(logPath))) continue;
     log(`  Steady server log file at ${logPath}`);
-  }
-  if (!testResult.success) {
-    log("  Log content:");
-    const logContent = await Deno.readTextFile(logPath);
-    console.log(dim(logContent.trimEnd()));
+    if (!testResult.success) {
+      log("  Log content:");
+      const logContent = await Deno.readTextFile(logPath);
+      console.log(dim(logContent.trimEnd()));
+    }
   }
 }
