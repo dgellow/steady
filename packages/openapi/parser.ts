@@ -1,5 +1,10 @@
 import { parse as parseYAML } from "@std/yaml";
-import { isPlainObject } from "@steady/json-pointer";
+import {
+  formatFragmentPointer,
+  inspectDocument,
+  isPlainObject,
+  type PointerPath,
+} from "@steady/json-pointer";
 import { OpenAPIRaw } from "./openapi.ts";
 import { ErrorContext, ParseError, SpecValidationError } from "./errors.ts";
 
@@ -75,11 +80,99 @@ export function parseSpec(
 
   timer?.stop("yaml");
 
+  timer?.start("shape");
+  try {
+    assertTreeShaped(spec);
+  } finally {
+    timer?.stop("shape");
+  }
+
   // Validate and return (wrapped in Promise for backwards compatibility)
   timer?.start("validate");
   const result = validateOpenAPIRaw(spec);
   timer?.stop("validate");
   return Promise.resolve(result);
+}
+
+/**
+ * Levels of nesting accepted in a document. Everything that reads the
+ * document recurses along its structure, so the limit has to stay well
+ * below the depth at which the call stack runs out (measured: between
+ * 3 000 and 5 000 levels). Real specs nest a few dozen levels.
+ */
+export const MAX_DOCUMENT_DEPTH = 1000;
+
+/**
+ * Limits on what YAML aliases may expand to. A document is rejected when,
+ * written out as a tree, it has more than `MAX_EXPANDED_NODES` objects and
+ * arrays AND more than `MAX_EXPANSION_FACTOR` times its distinct ones. The
+ * first number lets small documents reuse anchors freely, the second lets
+ * large documents be large.
+ */
+export const MAX_EXPANDED_NODES = 1_000_000;
+export const MAX_EXPANSION_FACTOR = 10;
+
+/** A pointer for an error message. Deep paths are cut after their start. */
+function pointerForMessage(path: PointerPath): string {
+  const shown = path.length > 12 ? path.slice(0, 12) : path;
+  const pointer = formatFragmentPointer(shown);
+  return path.length > shown.length
+    ? `${pointer}/... (${path.length} segments)`
+    : pointer;
+}
+
+/**
+ * Reject a document that cannot be read as a tree.
+ *
+ * JSON always parses to a tree. YAML does not: an alias makes two keys hold
+ * the same object, and an alias to an ancestor makes an object contain
+ * itself. All code below this boundary walks the document by its keys. On a
+ * cyclic document that never ends, and on nested aliases it repeats the
+ * shared part once per path, which is exponential ("billion laughs").
+ * Checking once here keeps every reader of the document simple and safe.
+ */
+function assertTreeShaped(document: unknown): void {
+  const shape = inspectDocument(document);
+
+  if (shape.cycle) {
+    throw new ParseError("Document contains itself", {
+      errorType: "parse",
+      reason: `The value at ${
+        pointerForMessage(shape.cycle.path)
+      } is a YAML alias to ${
+        pointerForMessage(shape.cycle.ancestor)
+      }, which contains it. An OpenAPI document must be representable as JSON, and a value that contains itself is not`,
+      suggestion:
+        "Use $ref for a recursive schema, for example $ref: '#/components/schemas/Node'. A $ref may be recursive, a YAML alias may not",
+    });
+  }
+
+  if (shape.depth > MAX_DOCUMENT_DEPTH) {
+    throw new ParseError("Document is nested too deeply", {
+      errorType: "parse",
+      reason: `Nesting reaches ${shape.depth} levels at ${
+        pointerForMessage(shape.deepestPath)
+      }. Steady reads documents up to ${MAX_DOCUMENT_DEPTH} levels deep`,
+      suggestion:
+        "Move nested schemas to components/schemas and refer to them with $ref",
+    });
+  }
+
+  if (
+    shape.expandedNodes > MAX_EXPANDED_NODES &&
+    shape.expandedNodes > shape.nodes * MAX_EXPANSION_FACTOR
+  ) {
+    const expanded = Number.isFinite(shape.expandedNodes)
+      ? String(shape.expandedNodes)
+      : "more than 1e308";
+    throw new ParseError("YAML aliases expand to too many values", {
+      errorType: "parse",
+      reason:
+        `The document defines ${shape.nodes} objects and arrays, but its YAML aliases repeat them: written out as JSON it has ${expanded}. Steady accepts up to ${MAX_EXPANDED_NODES}, or ${MAX_EXPANSION_FACTOR} times the number defined, whichever is larger`,
+      suggestion:
+        "Use $ref instead of YAML aliases for schemas that are reused inside each other",
+    });
+  }
 }
 
 /**
