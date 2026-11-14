@@ -21,7 +21,6 @@ import {
 } from "../types.ts";
 import { isReference } from "@steady/openapi";
 import type { OpenAPIRaw } from "@steady/openapi";
-import { GenerationError } from "../errors.ts";
 import { SchemaRegistry } from "@steady/json-schema";
 import type { DocIndex } from "@steady/json-schema";
 import type { Logger } from "../logging/logger.ts";
@@ -311,7 +310,6 @@ export class MockServer {
     }
 
     const {
-      operation,
       statusCode,
       pathPattern,
       pathParams,
@@ -469,22 +467,16 @@ export class MockServer {
       const streamingOptions = getEffectiveStreamingOptions(req, this.config);
       streamingOptions.generatorOptions = generatorOptions;
 
+      // When the operation defines no response for this status, its
+      // `responses` is empty or was unreadable. That is a spec issue,
+      // reported at startup (E1010, E1023). The request was still received
+      // and validated, so it gets the status without content, not a server
+      // error.
       const responseObj = this.specDoc.getResponseObject(
         pathPattern,
         method,
         statusCode,
-      );
-      if (!responseObj) {
-        throw new GenerationError("Response not defined", {
-          httpPath: path,
-          httpMethod: method.toUpperCase(),
-          errorType: "generate",
-          reason: `No response defined for status code ${statusCode}`,
-          suggestion: `Available response codes: ${
-            Object.keys(operation.responses).join(", ")
-          }`,
-        });
-      }
+      ) ?? { description: "" };
 
       const { response, body: responseBody, minimal, nullBodyStripped } =
         generateResponseFromObject(

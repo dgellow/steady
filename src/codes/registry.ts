@@ -51,6 +51,7 @@ export type ECode =
   | "E1020"
   | "E1021"
   | "E1022"
+  | "E1023"
   // E2xxx: Routing
   | "E2001"
   | "E2002"
@@ -223,6 +224,12 @@ const CODES: Record<ECode, ECodeDefinition> = {
   },
   E1022: {
     title: "Invalid content type key",
+    severity: "error",
+    category: "spec-issue",
+    context: "startup",
+  },
+  E1023: {
+    title: "Value of the wrong type ignored",
     severity: "error",
     category: "spec-issue",
     context: "startup",

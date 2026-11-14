@@ -52,3 +52,11 @@ export {
   isArraySchema,
   isObjectSchema,
 } from "./schema-utils.ts";
+
+// Shape of parsed schemas: the boundary between parsed JSON and `Schema`
+export {
+  describeJsonType,
+  normalizeSchemaShape,
+  type ReportShapeProblem,
+  type ShapeProblem,
+} from "./schema-shape.ts";

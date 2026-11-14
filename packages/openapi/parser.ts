@@ -1,6 +1,7 @@
 import { parse as parseYAML } from "@std/yaml";
 import { isPlainObject } from "@steady/json-pointer";
 import { OpenAPIRaw } from "./openapi.ts";
+import { normalizeSpecShape, type ShapeProblem } from "./shape.ts";
 import { ErrorContext, ParseError, SpecValidationError } from "./errors.ts";
 
 /** Minimal timer interface for startup instrumentation. */
@@ -24,6 +25,11 @@ export interface ParseResult {
   spec: OpenAPIRaw;
   /** Fields where the parser applied defaults (e.g., "openapi", "info.title"). */
   defaultedFields: string[];
+  /**
+   * Values that did not have the type their position requires. Each was
+   * removed from `spec`, so `spec` has the shape its type declares.
+   */
+  shapeProblems: ShapeProblem[];
 }
 
 /**
@@ -340,7 +346,10 @@ function validateOpenAPIRaw(
       },
     );
   }
-  return { spec: s, defaultedFields };
+  // The top-level fields are in place. Check everything below them.
+  const shapeProblems = normalizeSpecShape(s);
+
+  return { spec: s, defaultedFields, shapeProblems };
 }
 
 /** Type guard for the validation boundary: checks the 3 required OpenAPIRaw fields. */

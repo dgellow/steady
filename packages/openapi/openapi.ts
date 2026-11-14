@@ -95,7 +95,11 @@ export interface OperationObject {
   operationId?: string;
   parameters?: (ParameterObject | ReferenceObject)[];
   requestBody?: RequestBodyObject | ReferenceObject;
-  responses: ResponsesObject;
+  /**
+   * Optional: OpenAPI 3.1 does not require it, and 3.0 specs omit it too.
+   * The analyzer reports an operation without responses (E1010).
+   */
+  responses?: ResponsesObject;
   callbacks?: { [callback: string]: CallbackObject | ReferenceObject };
   deprecated?: boolean;
   security?: SecurityRequirement[];

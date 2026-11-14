@@ -495,6 +495,34 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     seeAlso: ["E3020"],
   },
 
+  E1023: {
+    description:
+      "A value in the spec does not have the type its position requires:\n" +
+      "for example a path item that is null, parameters that are a\n" +
+      "number, or allOf that is not an array. Steady cannot read such a\n" +
+      "value, removes it and continues as if it were not there.",
+    reasoning:
+      "This is a spec issue. The OpenAPI and JSON Schema specifications\n" +
+      "define the type of every field. A value of another type states\n" +
+      "nothing Steady could check or generate from. Steady reports it\n" +
+      "and keeps serving the rest of the spec, so one bad value does not\n" +
+      "stop every other endpoint from being tested.",
+    example: "  /users:\n" +
+      "    get:\n" +
+      "      parameters: 5                  # must be an array\n" +
+      "      responses:\n" +
+      "        '200':\n" +
+      "          content:\n" +
+      "            application/json:\n" +
+      "              schema:\n" +
+      "                allOf: User            # must be an array of schemas",
+    fix: "Give the value the type named in the message. Until fixed, the\n" +
+      "value is ignored: a removed parameter is not validated, a removed\n" +
+      "schema keyword constrains nothing, a removed operation answers\n" +
+      "with 404 or 405.",
+    seeAlso: ["E1006", "E1015"],
+  },
+
   // ── E2xxx: Routing ──────────────────────────────────────────────────
 
   E2001: {
