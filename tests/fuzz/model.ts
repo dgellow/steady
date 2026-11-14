@@ -20,31 +20,110 @@
 
 import fc from "fast-check";
 
-export type Model =
+/** What a value has to be. */
+type Shape =
   | { kind: "boolean" }
-  | { kind: "integer"; minimum?: number; maximum?: number }
+  | {
+    kind: "integer";
+    minimum?: number;
+    maximum?: number;
+    /** Only without bounds. */
+    multipleOf?: number;
+  }
   | { kind: "number"; minimum?: number; maximum?: number }
   | { kind: "string"; minLength?: number; maxLength?: number }
   | { kind: "enum"; values: string[] }
   | { kind: "const"; value: string | number | boolean }
-  | { kind: "array"; items: Model; minItems?: number; maxItems?: number }
+  | {
+    kind: "array";
+    items: Model;
+    minItems?: number;
+    maxItems?: number;
+    /** Only for items that are unbounded integers. */
+    uniqueItems?: boolean;
+  }
   | {
     kind: "object";
     properties: { name: string; model: Model; required: boolean }[];
     /** `additionalProperties: false` */
     closed: boolean;
-  };
+  }
+  /** An object with any keys, `additionalProperties: <values>`. */
+  | { kind: "map"; values: Model };
+
+/**
+ * How the schema is written. The same shape can be written in several
+ * ways, and none of them may change a finding.
+ */
+interface Presentation {
+  /**
+   * Whether null is also accepted, and how the schema says so:
+   * `type: [T, "null"]`, `anyOf: [T, {type: "null"}]`, or the same with
+   * `oneOf`.
+   */
+  nullable?: "type" | "anyOf" | "oneOf";
+  /**
+   * `ref`: the schema is a component and the place of use is a `$ref`.
+   * `allOf`: the schema is the only member of an `allOf`.
+   */
+  via?: "ref" | "allOf";
+}
+
+export type Model = Shape & Presentation;
 
 // ── Model to schema ─────────────────────────────────────────────────
 
-export function toSchema(model: Model): Record<string, unknown> {
+/** A schema, and the components it refers to. */
+export interface SchemaParts {
+  schema: Record<string, unknown>;
+  /** `components.schemas` of the spec. */
+  components: Record<string, Record<string, unknown>>;
+}
+
+export function toSchema(model: Model): SchemaParts {
+  const components: Record<string, Record<string, unknown>> = {};
+  return { schema: build(model, components), components };
+}
+
+function build(
+  model: Model,
+  components: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  let schema = shapeSchema(model, components);
+  if (model.nullable === "type") {
+    schema = { ...schema, type: [schema.type, "null"] };
+  } else if (model.nullable !== undefined) {
+    schema = { [model.nullable]: [schema, { type: "null" }] };
+  }
+  if (model.via === "ref") {
+    // The schemas nested in this one are already in `components`.
+    const name = `S${Object.keys(components).length}`;
+    components[name] = schema;
+    return { $ref: `#/components/schemas/${name}` };
+  }
+  if (model.via === "allOf") return { allOf: [schema] };
+  return schema;
+}
+
+function shapeSchema(
+  model: Model,
+  components: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
   switch (model.kind) {
     case "boolean":
       return { type: "boolean" };
     case "integer":
+      return {
+        type: "integer",
+        ...(model.minimum !== undefined ? { minimum: model.minimum } : {}),
+        ...(model.maximum !== undefined ? { maximum: model.maximum } : {}),
+        ...(model.multipleOf !== undefined
+          ? { multipleOf: model.multipleOf }
+          : {}),
+      };
     case "number":
       return {
-        type: model.kind,
+        type: "number",
         ...(model.minimum !== undefined ? { minimum: model.minimum } : {}),
         ...(model.maximum !== undefined ? { maximum: model.maximum } : {}),
       };
@@ -67,9 +146,10 @@ export function toSchema(model: Model): Record<string, unknown> {
     case "array":
       return {
         type: "array",
-        items: toSchema(model.items),
+        items: build(model.items, components),
         ...(model.minItems !== undefined ? { minItems: model.minItems } : {}),
         ...(model.maxItems !== undefined ? { maxItems: model.maxItems } : {}),
+        ...(model.uniqueItems === true ? { uniqueItems: true } : {}),
       };
     case "object": {
       const required = model.properties.filter((p) => p.required).map((p) =>
@@ -78,12 +158,17 @@ export function toSchema(model: Model): Record<string, unknown> {
       return {
         type: "object",
         properties: Object.fromEntries(
-          model.properties.map((p) => [p.name, toSchema(p.model)]),
+          model.properties.map((p) => [p.name, build(p.model, components)]),
         ),
         ...(required.length > 0 ? { required } : {}),
         ...(model.closed ? { additionalProperties: false } : {}),
       };
     }
+    case "map":
+      return {
+        type: "object",
+        additionalProperties: build(model.values, components),
+      };
   }
 }
 
@@ -100,10 +185,24 @@ const stringOfLength = (length: number): fc.Arbitrary<string> =>
   }).map((chars) => chars.join(""));
 
 export function validValue(model: Model): fc.Arbitrary<unknown> {
+  const value = shapeValue(model);
+  return model.nullable === undefined
+    ? value
+    : fc.oneof({ weight: 4, arbitrary: value }, {
+      weight: 1,
+      arbitrary: fc.constant(null),
+    });
+}
+
+function shapeValue(model: Model): fc.Arbitrary<unknown> {
   switch (model.kind) {
     case "boolean":
       return fc.boolean();
     case "integer":
+      if (model.multipleOf !== undefined) {
+        const step = model.multipleOf;
+        return fc.integer({ min: -100, max: 100 }).map((n) => n * step);
+      }
       return fc.integer({
         min: model.minimum ?? -1000,
         max: model.maximum ?? 1000,
@@ -130,11 +229,15 @@ export function validValue(model: Model): fc.Arbitrary<unknown> {
       return fc.constantFrom(...model.values);
     case "const":
       return fc.constant(model.value);
-    case "array":
-      return fc.array(validValue(model.items), {
+    case "array": {
+      const size = {
         minLength: model.minItems ?? 0,
         maxLength: model.maxItems ?? (model.minItems ?? 0) + 3,
-      });
+      };
+      return model.uniqueItems === true
+        ? fc.uniqueArray(validValue(model.items), size)
+        : fc.array(validValue(model.items), size);
+    }
     case "object": {
       // Required properties are always present, optional ones sometimes.
       const entry = (name: string, v: unknown): [string, unknown][] => [[
@@ -152,6 +255,14 @@ export function validValue(model: Model): fc.Arbitrary<unknown> {
         Object.fromEntries(parts.flat())
       );
     }
+    case "map":
+      return fc.uniqueArray(fc.constantFrom(...PROPERTY_NAMES), {
+        maxLength: 3,
+      }).chain((keys) =>
+        fc.tuple(...keys.map(() => validValue(model.values))).map((values) =>
+          Object.fromEntries(keys.map((key, index) => [key, values[index]]))
+        )
+      );
   }
 }
 
@@ -188,6 +299,7 @@ function valueOfOtherType(model: Model): unknown {
     case "number":
     case "array":
     case "object":
+    case "map":
       return "a string";
     case "enum":
     case "const":
@@ -261,6 +373,18 @@ export function faults(model: Model, value: unknown): Fault[] {
       });
     }
 
+    // Null where the schema does not accept it. Steady cannot tell an SDK
+    // that sends null for "absent" from a spec that forgot to allow null:
+    // ambiguous, served. `enum` and `const` have no type; null is then a
+    // value outside the enum, or not the constant.
+    if (node.nullable === undefined && other !== undefined) {
+      add("null where null is not accepted", null, {
+        code: "E5001",
+        path,
+        rejects: false,
+      });
+    }
+
     const numberBounds = (
       minimum: number | undefined,
       maximum: number | undefined,
@@ -295,7 +419,7 @@ export function faults(model: Model, value: unknown): Fault[] {
             : node.minimum === undefined || down >= node.minimum
             ? down
             : undefined;
-          if (fraction !== undefined) {
+          if (fraction !== undefined && node.multipleOf === undefined) {
             add("a fraction where an integer is required", fraction, {
               code: typeCode,
               path,
@@ -304,6 +428,16 @@ export function faults(model: Model, value: unknown): Fault[] {
           }
         }
         numberBounds(node.minimum, node.maximum);
+        if (
+          node.multipleOf !== undefined && node.multipleOf > 1 &&
+          typeof current === "number"
+        ) {
+          add("integer that is not a multiple", current + 1, {
+            code: "E4007",
+            path,
+            rejects: false,
+          });
+        }
         break;
       }
       case "number":
@@ -356,9 +490,25 @@ export function faults(model: Model, value: unknown): Fault[] {
         }
         if (node.maxItems !== undefined && current.length > 0) {
           const longer = [...current];
-          while (longer.length <= node.maxItems) longer.push(current[0]);
+          // Unique items are unbounded integers: count up from the largest
+          // so that the length is the only thing wrong.
+          let next = Math.max(
+            ...current.map((item) => typeof item === "number" ? item : 0),
+          );
+          while (longer.length <= node.maxItems) {
+            longer.push(node.uniqueItems === true ? ++next : current[0]);
+          }
           add("array longer than maxItems", longer, {
             code: "E4005",
+            path,
+            rejects: false,
+          });
+        }
+        if (node.uniqueItems === true && current.length >= 2) {
+          const repeated = [...current];
+          repeated[1] = repeated[0];
+          add("array with a repeated item", repeated, {
+            code: "E4002",
             path,
             rejects: false,
           });
@@ -366,6 +516,17 @@ export function faults(model: Model, value: unknown): Fault[] {
         current.forEach((item, index) =>
           visit(node.items, item, [...path, String(index)], true, false)
         );
+        break;
+      }
+      case "map": {
+        if (
+          typeof current !== "object" || current === null ||
+          Array.isArray(current)
+        ) break;
+        // No key of a map is required.
+        for (const [key, item] of Object.entries(current)) {
+          visit(node.values, item, [...path, key], false, true);
+        }
         break;
       }
       case "object": {
@@ -446,22 +607,49 @@ const bounds = (
     ...(span !== undefined ? { max: (min ?? 0) + span } : {}),
   }));
 
-const leaf: fc.Arbitrary<Model> = fc.oneof(
-  fc.constant<Model>({ kind: "boolean" }),
+/** Presents a shape in one of the ways a schema can be written. */
+const presented = (shape: fc.Arbitrary<Shape>): fc.Arbitrary<Model> =>
+  fc.record({
+    shape,
+    nullable: fc.oneof(
+      { weight: 5, arbitrary: fc.constant(undefined) },
+      { weight: 3, arbitrary: fc.constantFrom("type", "anyOf", "oneOf") },
+    ),
+    via: fc.oneof(
+      { weight: 5, arbitrary: fc.constant(undefined) },
+      { weight: 3, arbitrary: fc.constantFrom("ref", "allOf") },
+    ),
+  }).map(({ shape, nullable, via }): Model => {
+    // `enum` and `const` have no `type` to add "null" to.
+    const typeless = shape.kind === "enum" || shape.kind === "const";
+    const how = nullable === "type" && typeless ? "anyOf" : nullable;
+    return {
+      ...shape,
+      ...(how !== undefined ? { nullable: how } : {}),
+      ...(via !== undefined ? { via } : {}),
+    };
+  });
+
+const leaf: fc.Arbitrary<Shape> = fc.oneof(
+  fc.constant<Shape>({ kind: "boolean" }),
+  fc.integer({ min: 1, max: 7 }).map((multipleOf): Shape => ({
+    kind: "integer",
+    multipleOf,
+  })),
   bounds(fc.integer({ min: -50, max: 50 }), fc.integer({ min: 0, max: 50 }))
-    .map(({ min, max }): Model => ({
+    .map(({ min, max }): Shape => ({
       kind: "integer",
       ...(min !== undefined ? { minimum: min } : {}),
       ...(max !== undefined ? { maximum: max } : {}),
     })),
   bounds(fc.integer({ min: -50, max: 50 }), fc.integer({ min: 1, max: 50 }))
-    .map(({ min, max }): Model => ({
+    .map(({ min, max }): Shape => ({
       kind: "number",
       ...(min !== undefined ? { minimum: min } : {}),
       ...(max !== undefined ? { maximum: max } : {}),
     })),
   bounds(fc.integer({ min: 0, max: 4 }), fc.integer({ min: 0, max: 5 }))
-    .map(({ min, max }): Model => ({
+    .map(({ min, max }): Shape => ({
       kind: "string",
       ...(min !== undefined ? { minLength: min } : {}),
       ...(max !== undefined ? { maxLength: max } : {}),
@@ -469,14 +657,19 @@ const leaf: fc.Arbitrary<Model> = fc.oneof(
   fc.uniqueArray(fc.constantFrom("red", "green", "blue", "", "a b", "é"), {
     minLength: 1,
     maxLength: 4,
-  }).map((values): Model => ({ kind: "enum", values })),
+  }).map((values): Shape => ({ kind: "enum", values })),
   fc.oneof(fc.constantFrom("fixed", ""), fc.integer(), fc.boolean()).map((
     value,
-  ): Model => ({ kind: "const", value })),
+  ): Shape => ({ kind: "const", value })),
 );
 
+const isPlainInteger = (m: Model): boolean =>
+  m.kind === "integer" && m.minimum === undefined &&
+  m.maximum === undefined && m.multipleOf === undefined &&
+  m.nullable === undefined;
+
 export const model: fc.Arbitrary<Model> = fc.letrec<{ node: Model }>((tie) => ({
-  node: fc.oneof(
+  node: presented(fc.oneof<fc.Arbitrary<Shape>[]>(
     { maxDepth: 3, depthIdentifier: "model" },
     leaf,
     fc.record({
@@ -485,11 +678,14 @@ export const model: fc.Arbitrary<Model> = fc.letrec<{ node: Model }>((tie) => ({
         fc.integer({ min: 0, max: 2 }),
         fc.integer({ min: 0, max: 3 }),
       ),
-    }).map(({ items, limits }): Model => ({
+      unique: fc.boolean(),
+    }).map(({ items, limits, unique }): Shape => ({
       kind: "array",
       items,
       ...(limits.min !== undefined ? { minItems: limits.min } : {}),
       ...(limits.max !== undefined ? { maxItems: limits.max } : {}),
+      // Only where enough distinct items exist for any size.
+      ...(unique && isPlainInteger(items) ? { uniqueItems: true } : {}),
     })),
     fc.record({
       names: fc.uniqueArray(fc.constantFrom(...PROPERTY_NAMES), {
@@ -505,9 +701,10 @@ export const model: fc.Arbitrary<Model> = fc.letrec<{ node: Model }>((tie) => ({
             required: fc.boolean(),
           })
         ),
-      ).map((properties): Model => ({ kind: "object", properties, closed }))
+      ).map((properties): Shape => ({ kind: "object", properties, closed }))
     ),
-  ),
+    tie("node").map((values): Shape => ({ kind: "map", values })),
+  )),
 })).node;
 
 /** A model together with one valid value of it. */
