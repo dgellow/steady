@@ -214,14 +214,6 @@ Deno.test("TreeValidator", async (t) => {
 
   // ── String validation ────────────────────────────────────────────
 
-  await t.step("pattern mismatch → leaf", () => {
-    const tree = validate({ type: "string", pattern: "^\\d+$" }, "abc");
-
-    assertEquals(tree.valid, false);
-    const leaves = tree.children?.filter((c) => c.keyword === "pattern") ?? [];
-    assertEquals(leaves.length, 1);
-  });
-
   await t.step("minLength violation → leaf", () => {
     const tree = validate({ type: "string", minLength: 5 }, "hi");
 
@@ -994,5 +986,118 @@ Deno.test("TreeValidator: depth of the value", async (t) => {
   await t.step("the next validation starts from a clean state", () => {
     validate(nested(50_000, {}));
     assertEquals(validate(nested(3, {})).valid, true);
+  });
+});
+
+// ── Regular expressions and conditionals from the spec are not evaluated ──
+//
+// `pattern` and `patternProperties` let the spec decide how long a request
+// takes: a regular expression with nested quantifiers needs exponential
+// time on a short string. `if`/`then`/`else` and `dependentSchemas` make
+// the applicable schema depend on the value. Steady validates neither. The
+// analyzer says so once at startup (E1024).
+
+Deno.test("TreeValidator: regular expressions from the spec are not evaluated", async (t) => {
+  const validator = new TreeValidator();
+  const validate = (data: unknown, schema: Schema) =>
+    validator.validate(data, schema, "#", ["body"]);
+
+  await t.step("a string that does not match `pattern` is accepted", () => {
+    assertEquals(
+      validate("ABC", { type: "string", pattern: "^[a-z]+$" }).valid,
+      true,
+    );
+  });
+
+  await t.step(
+    "the other string keywords still apply next to `pattern`",
+    () => {
+      const node = validate("ABC", {
+        type: "string",
+        pattern: "^[a-z]+$",
+        maxLength: 2,
+      });
+      assertEquals(node.valid, false);
+      assertEquals(node.children?.map((c) => c.keyword), ["maxLength"]);
+    },
+  );
+
+  await t.step("a pattern with nested quantifiers costs nothing", () => {
+    const start = performance.now();
+    const node = validate("a".repeat(40) + "!", {
+      type: "string",
+      pattern: "^(a+)+$",
+    });
+    assertEquals(node.valid, true);
+    assertEquals(performance.now() - start < 50, true);
+  });
+
+  await t.step(
+    "a pattern that is not a valid regular expression is ignored",
+    () => {
+      assertEquals(validate("x", { type: "string", pattern: "(" }).valid, true);
+    },
+  );
+
+  await t.step(
+    "with `patternProperties`, any property name may be covered",
+    () => {
+      const schema: Schema = {
+        type: "object",
+        properties: { id: { type: "string" } },
+        patternProperties: { "^x-": { type: "integer" } },
+        additionalProperties: false,
+      };
+      // Whether "x-a" or "other" match a pattern is not evaluated, so neither
+      // is reported as additional and their values are not checked.
+      assertEquals(
+        validate({ id: "1", "x-a": "s", other: true }, schema).valid,
+        true,
+      );
+      // Named properties are validated as before.
+      assertEquals(validate({ id: 5 }, schema).valid, false);
+    },
+  );
+
+  await t.step(
+    "without `patternProperties`, additional properties are reported",
+    () => {
+      const node = validate({ id: "1", other: true }, {
+        type: "object",
+        properties: { id: { type: "string" } },
+        additionalProperties: false,
+      });
+      assertEquals(node.valid, false);
+      assertEquals(node.children?.map((c) => c.keyword), [
+        "additionalProperties",
+      ]);
+    },
+  );
+});
+
+Deno.test("TreeValidator: conditional keywords are not evaluated", async (t) => {
+  const validator = new TreeValidator();
+  const validate = (data: unknown, schema: Schema) =>
+    validator.validate(data, schema, "#", ["body"]);
+
+  await t.step("if / then / else", () => {
+    const schema: Schema = {
+      type: "object",
+      if: { properties: { kind: { const: "a" } } },
+      then: { required: ["a"] },
+      else: { required: ["b"] },
+    };
+    assertEquals(validate({ kind: "a" }, schema).valid, true);
+    assertEquals(validate({ kind: "z" }, schema).valid, true);
+    // Keywords next to the conditional still apply.
+    assertEquals(validate("not an object", schema).valid, false);
+  });
+
+  await t.step("dependentSchemas", () => {
+    const schema: Schema = {
+      type: "object",
+      dependentSchemas: { card: { required: ["cvv"] } },
+    };
+    assertEquals(validate({ card: "4111" }, schema).valid, true);
   });
 });

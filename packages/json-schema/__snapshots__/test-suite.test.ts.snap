@@ -2,8 +2,12 @@ export const snapshot = {};
 
 snapshot[`JSON Schema Test Suite: draft 2020-12 compliance 1`] = `
 {
-  failed: 203,
+  failed: 219,
   failing: {
+    "additionalProperties.json": [
+      "additionalProperties being false does not allow other properties / an additional property is invalid (should be invalid)",
+      "non-ASCII pattern with additionalProperties / not matching the pattern is invalid (should be invalid)",
+    ],
     "anchor.json": [
       "Location-independent identifier / mismatch (should be invalid)",
       "Location-independent identifier with absolute URI / mismatch (should be invalid)",
@@ -121,8 +125,28 @@ snapshot[`JSON Schema Test Suite: draft 2020-12 compliance 1`] = `
     "not.json": [
       "collect annotations inside a 'not', even if collection is disabled / unevaluated property (should be valid)",
     ],
+    "pattern.json": [
+      "pattern validation / a non-matching pattern is invalid (should be invalid)",
+    ],
+    "patternProperties.json": [
+      "patternProperties validates properties matching a regex / a single invalid match is invalid (should be invalid)",
+      "patternProperties validates properties matching a regex / multiple invalid matches is invalid (should be invalid)",
+      "multiple simultaneous patternProperties are validated / an invalid due to one is invalid (should be invalid)",
+      "multiple simultaneous patternProperties are validated / an invalid due to the other is invalid (should be invalid)",
+      "multiple simultaneous patternProperties are validated / an invalid due to both is invalid (should be invalid)",
+      "regexes are not anchored by default and are case sensitive / recognized members are accounted for (should be invalid)",
+      "regexes are not anchored by default and are case sensitive / regexes are case sensitive, 2 (should be invalid)",
+      "patternProperties with boolean schemas / object with property matching schema false is invalid (should be invalid)",
+      "patternProperties with boolean schemas / object with both properties is invalid (should be invalid)",
+      "patternProperties with boolean schemas / object with a property matching both true and false is invalid (should be invalid)",
+    ],
     "prefixItems.json": [
       "prefixItems with boolean schemas / array with two items is invalid (should be invalid)",
+    ],
+    "properties.json": [
+      "properties, patternProperties, additionalProperties interaction / patternProperty invalidates property (should be invalid)",
+      "properties, patternProperties, additionalProperties interaction / patternProperty invalidates nonproperty (should be invalid)",
+      "properties, patternProperties, additionalProperties interaction / additionalProperty invalidates others (should be invalid)",
     ],
     "propertyNames.json": [
       "propertyNames validation / some property names invalid (should be invalid)",
@@ -248,7 +272,7 @@ snapshot[`JSON Schema Test Suite: draft 2020-12 compliance 1`] = `
       "schema that uses custom metaschema with with no validation vocabulary / no validation: invalid number, but it still validates (should be valid)",
     ],
   },
-  passed: 1072,
+  passed: 1056,
   total: 1275,
 }
 `;

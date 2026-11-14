@@ -479,7 +479,11 @@ Deno.test({
 });
 
 Deno.test({
-  name: "GET /session - invalid cookie pattern → mock with diagnostics",
+  // The cookie's schema has a `pattern` this value does not match. Steady
+  // does not evaluate regular expressions from the spec (E1024 at startup),
+  // so the request has no diagnostics.
+  name:
+    "GET /session - cookie that does not match its pattern → no diagnostics",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async (t) => {

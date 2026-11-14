@@ -560,16 +560,16 @@ Deno.test("reasoning chains", async (t) => {
     await assertSnapshot(t, diag.attribution.reasoning);
   });
 
-  await t.step("E4002 pattern mismatch", async (t) => {
+  await t.step("E4002 content constraint (uniqueItems)", async (t) => {
     const node = makeNode({
-      keyword: "pattern",
-      path: ["body", "email"],
-      expected: "^.+@.+$",
-      actual: "notanemail",
+      keyword: "uniqueItems",
+      path: ["body", "tags"],
+      expected: true,
+      actual: ["a", "a"],
     });
     const diag = attributeLeaf(
       node,
-      { pattern: "^.+@.+$" },
+      { type: "array", uniqueItems: true },
       "body",
     );
     assertEquals(diag.code, "E4002");

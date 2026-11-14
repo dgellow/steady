@@ -66,8 +66,11 @@ search the whole repo with glob, not just `test-fixtures/`.
 **JSON Schema**: Compliance with the official JSON Schema Test Suite is measured
 by `packages/json-schema/test-suite.test.ts`, part of `./scripts/test`. The pass
 count and every failing case are recorded in its snapshot. Do not quote a number
-here; read the snapshot. Not validated: `if`/`then`/`else`, `dependentRequired`,
-`dependentSchemas`, `contains`, `minContains`, `maxContains`, `propertyNames`,
+here; read the snapshot. Not evaluated by design, and never to be added: regular
+expressions from the spec (`pattern`, `patternProperties`) and conditional
+schemas (`if`/`then`/`else`, `dependentSchemas`). The validator must not call
+`new RegExp` on anything a spec provides. Not validated yet:
+`dependentRequired`, `contains`, `minContains`, `maxContains`, `propertyNames`,
 `unevaluatedProperties`, `unevaluatedItems`, `$dynamicRef`, `$dynamicAnchor`. A
 validator change that alters the outcome of any suite case fails the test;
 update the snapshot with

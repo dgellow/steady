@@ -17,7 +17,11 @@ import {
   type PointerPath,
   resolve,
 } from "@steady/json-pointer";
-import { JsonSchemaProcessor } from "@steady/json-schema";
+import {
+  CONDITIONAL_KEYWORDS,
+  JsonSchemaProcessor,
+  REGEX_KEYWORDS,
+} from "@steady/json-schema";
 import type { Diagnostic, DiagnosticDisplay } from "../diagnostic.ts";
 import { type ECode, getCode, hasCode } from "../codes/registry.ts";
 import { getMediaType } from "../media-type.ts";
@@ -114,6 +118,7 @@ export function analyzeSpec(
   diagnostics.push(
     ...checkNonStandardUsage(walkResult.schemas, spec.openapi),
   );
+  diagnostics.push(...checkKeywordsNotEvaluated(walkResult.schemas));
   timer?.stop("constraints");
 
   const fatal = diagnostics.some((d) => {
@@ -201,6 +206,64 @@ function checkMissingMetadata(defaultedFields: string[]): Diagnostic[] {
     );
   }
 
+  return diagnostics;
+}
+
+// ── E1024: Keywords the validator does not evaluate ─────────────────
+
+/**
+ * One note per kind of keyword, with how often the spec uses it and where
+ * it first does. A note per occurrence would bury everything else: some
+ * published specs use `pattern` thousands of times.
+ */
+function checkKeywordsNotEvaluated(
+  schemas: Array<{ schema: Record<string, unknown>; pointer: FragmentPointer }>,
+): Diagnostic[] {
+  const kinds = [
+    {
+      keywords: REGEX_KEYWORDS,
+      what: "regular expressions",
+      effect:
+        "Strings are not checked against pattern, and an object with patternProperties gets no additional-property errors",
+    },
+    {
+      keywords: CONDITIONAL_KEYWORDS,
+      what: "conditional schemas",
+      effect: "The schemas under these keywords are not applied to requests",
+    },
+  ];
+
+  const diagnostics: Diagnostic[] = [];
+  for (const kind of kinds) {
+    let count = 0;
+    let first: FragmentPointer | undefined;
+    const used = new Set<string>();
+    for (const { schema, pointer } of schemas) {
+      for (const keyword of kind.keywords) {
+        if (!Object.hasOwn(schema, keyword)) continue;
+        count++;
+        used.add(keyword);
+        first ??= pointer;
+      }
+    }
+    if (count === 0 || first === undefined) continue;
+
+    const names = kind.keywords.filter((k) => used.has(k)).join(", ");
+    diagnostics.push(
+      specDiagnostic(
+        "E1024",
+        first,
+        `The spec uses ${names} in ${count} ${
+          count === 1 ? "place" : "places"
+        }. Steady does not evaluate ${kind.what}`,
+        {
+          suggestion: `No action needed. ${kind.effect}`,
+          expected: names,
+          actual: count,
+        },
+      ),
+    );
+  }
   return diagnostics;
 }
 
