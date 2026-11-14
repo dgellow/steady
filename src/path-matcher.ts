@@ -61,6 +61,28 @@ export function compilePathPattern(pattern: string): CompiledPathPattern {
 }
 
 /**
+ * Split a path into its non-empty segments. Patterns and request paths are
+ * split the same way, so "/users/" and "/users" have the same segments.
+ */
+export function splitPath(path: string): string[] {
+  return path.split("/").filter((s) => s.length > 0);
+}
+
+/**
+ * Whether a request segment fits a `prefix{param}suffix` pattern segment
+ * with a non-empty value between prefix and suffix.
+ */
+export function fitsMixedSegment(
+  requestSegment: string,
+  prefix: string,
+  suffix: string,
+): boolean {
+  return requestSegment.startsWith(prefix) &&
+    requestSegment.endsWith(suffix) &&
+    prefix.length < requestSegment.length - suffix.length;
+}
+
+/**
  * Match a request path against a compiled path pattern.
  *
  * @returns Extracted path parameters if matched, null if no match
@@ -75,8 +97,19 @@ export function matchCompiledPath(
   path: string,
   compiled: CompiledPathPattern,
 ): Record<string, string> | null {
-  const requestSegments = path.split("/").filter((s) => s.length > 0);
+  return matchPathSegments(splitPath(path), compiled);
+}
 
+/**
+ * Match the segments of a request path (see `splitPath`) against a compiled
+ * path pattern. For matching one path against many patterns: split once.
+ *
+ * @returns Extracted path parameters if matched, null if no match
+ */
+export function matchPathSegments(
+  requestSegments: readonly string[],
+  compiled: CompiledPathPattern,
+): Record<string, string> | null {
   // Quick check: segment count must match
   if (requestSegments.length !== compiled.segmentCount) {
     return null;
@@ -104,28 +137,14 @@ export function matchCompiledPath(
     } else if (compiledSeg.type === "mixed") {
       // Mixed segment: prefix{param}suffix
       const { prefix, paramName, suffix } = compiledSeg;
-
-      // Check prefix matches
-      if (!requestSeg.startsWith(prefix)) {
+      if (!fitsMixedSegment(requestSeg, prefix, suffix)) {
         return null;
       }
 
-      // Check suffix matches
-      if (!requestSeg.endsWith(suffix)) {
-        return null;
-      }
-
-      // Extract the parameter value (between prefix and suffix)
-      const prefixLen = prefix.length;
-      const suffixLen = suffix.length;
-      const valueEnd = requestSeg.length - suffixLen;
-
-      // Ensure there's actually a value between prefix and suffix
-      if (prefixLen >= valueEnd) {
-        return null;
-      }
-
-      const rawValue = requestSeg.slice(prefixLen, valueEnd);
+      const rawValue = requestSeg.slice(
+        prefix.length,
+        requestSeg.length - suffix.length,
+      );
 
       try {
         params[paramName] = decodeURIComponent(rawValue);
