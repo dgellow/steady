@@ -79,6 +79,35 @@ interface TreeValidatorOptions {
  */
 export const MAX_VALIDATION_DEPTH = 500;
 
+/**
+ * Keywords whose value is a regular expression written by the spec author.
+ * The validator never compiles or runs them.
+ *
+ * A regular expression decides how long matching takes: `^(a+)+$` needs
+ * exponential time on a string of a few dozen characters, and a mock server
+ * must not be stoppable by its spec. The dialect is also not the one many
+ * specs are written for, so a mismatch found by the JavaScript engine is
+ * not reliable evidence either.
+ *
+ * - `pattern`: strings are not checked against it.
+ * - `patternProperties`: which properties it covers is unknown, so an
+ *   object that has it gets no additional-property errors, and the values
+ *   of properties not named in `properties` are not validated.
+ */
+export const REGEX_KEYWORDS = ["pattern", "patternProperties"] as const;
+
+/**
+ * Keywords that make the applicable schema depend on the value. The
+ * validator does not evaluate them: the schemas inside are parsed and
+ * checked for shape, and never applied.
+ */
+export const CONDITIONAL_KEYWORDS = [
+  "if",
+  "then",
+  "else",
+  "dependentSchemas",
+] as const;
+
 // ── Validator ──────────────────────────────────────────────────────
 
 export class TreeValidator {
@@ -353,21 +382,14 @@ export class TreeValidator {
         );
       }
 
-      // patternProperties
-      if (schema.patternProperties) {
-        this.validatePatternProperties(
-          obj,
-          schema.patternProperties,
-          schemaPath,
-          dataPath,
-          errors,
-          rootSchema,
-          evaluatedProps,
-        );
-      }
+      // patternProperties is not evaluated: see `REGEX_KEYWORDS`. Any
+      // property name may match one of its patterns, so no property of
+      // this object can be called additional.
+      const anyNameMayBeCovered = schema.patternProperties !== undefined &&
+        Object.keys(schema.patternProperties).length > 0;
 
       // additionalProperties
-      if (schema.additionalProperties !== undefined) {
+      if (schema.additionalProperties !== undefined && !anyNameMayBeCovered) {
         this.validateAdditionalProperties(
           obj,
           schema,
@@ -543,41 +565,6 @@ export class TreeValidator {
     }
   }
 
-  // ── Pattern Properties ───────────────────────────────────────────
-
-  private validatePatternProperties(
-    obj: Record<string, unknown>,
-    patternProperties: Record<string, Schema>,
-    schemaPath: PointerPath,
-    dataPath: string[],
-    errors: ValidationNode[],
-    rootSchema: Schema | boolean,
-    evaluatedProps: Set<string>,
-  ): void {
-    for (const [pattern, propSchema] of Object.entries(patternProperties)) {
-      let regex: RegExp;
-      try {
-        regex = new RegExp(pattern);
-      } catch {
-        continue;
-      }
-
-      for (const propName of Object.keys(obj)) {
-        if (regex.test(propName)) {
-          evaluatedProps.add(propName);
-          this.validateSchema(
-            obj[propName],
-            propSchema,
-            [...schemaPath, "patternProperties", pattern],
-            [...dataPath, propName],
-            errors,
-            rootSchema,
-          );
-        }
-      }
-    }
-  }
-
   // ── Additional Properties ────────────────────────────────────────
 
   private validateAdditionalProperties(
@@ -692,23 +679,7 @@ export class TreeValidator {
       }
     }
 
-    if (schema.pattern !== undefined) {
-      try {
-        const regex = new RegExp(schema.pattern);
-        if (!regex.test(data)) {
-          errors.push({
-            valid: false,
-            keyword: "pattern",
-            path: dataPath,
-            schemaPath: formatFragmentPointer(schemaPath),
-            expected: schema.pattern,
-            actual: data,
-          });
-        }
-      } catch {
-        // Invalid regex, skip validation
-      }
-    }
+    // `pattern` is not evaluated: see `REGEX_KEYWORDS`.
 
     if (schema.format !== undefined) {
       if (!validateFormat(data, schema.format)) {

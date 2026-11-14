@@ -1848,3 +1848,72 @@ Deno.test("E1022 - resolves $ref'd requestBody", () => {
   const result = analyzeSpec(spec);
   filterCode(result.diagnostics, "E1022", 1);
 });
+
+// ── E1024: Keywords the validator does not evaluate ─────────────────
+
+Deno.test("E1024 - one note for regular expressions, with the count and the first location", () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Code: { type: "string", pattern: "^[A-Z]{3}$" },
+        Labels: {
+          type: "object",
+          patternProperties: { "^x-": { type: "string" } },
+          properties: { name: { type: "string", pattern: "^[a-z]+$" } },
+        },
+      },
+    },
+  });
+  const d = singleDiag(analyzeSpec(spec).diagnostics, "E1024");
+  assertEquals(d.severity, "info");
+  assertEquals(d.specPointer, "#/components/schemas/Code");
+  assertEquals(
+    d.message,
+    "The spec uses pattern, patternProperties in 3 places. Steady does not evaluate regular expressions",
+  );
+});
+
+Deno.test("E1024 - one note for conditional schemas", () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Payment: {
+          type: "object",
+          if: { properties: { kind: { const: "card" } } },
+          then: { required: ["number"] },
+          dependentSchemas: { number: { required: ["cvv"] } },
+        },
+      },
+    },
+  });
+  const d = singleDiag(analyzeSpec(spec).diagnostics, "E1024");
+  assertEquals(
+    d.message,
+    "The spec uses if, then, dependentSchemas in 3 places. Steady does not evaluate conditional schemas",
+  );
+});
+
+Deno.test("E1024 - a property that is named like a keyword is not a use of it", () => {
+  const spec = minimalSpec({
+    components: {
+      schemas: {
+        Rule: {
+          type: "object",
+          properties: {
+            pattern: { type: "string" },
+            if: { type: "string" },
+          },
+        },
+      },
+    },
+  });
+  filterCode(analyzeSpec(spec).diagnostics, "E1024", 0);
+});
+
+Deno.test("E1024 - is not fatal and does not appear without these keywords", () => {
+  const spec = minimalSpec({
+    components: { schemas: { A: { type: "string", pattern: "x" } } },
+  });
+  assertEquals(analyzeSpec(spec).fatal, false);
+  filterCode(analyzeSpec(minimalSpec()).diagnostics, "E1024", 0);
+});

@@ -13,7 +13,11 @@ export type {
 export type { FragmentPointer } from "@steady/json-pointer";
 
 // Tree validation
-export { TreeValidator } from "./tree-validator.ts";
+export {
+  CONDITIONAL_KEYWORDS,
+  REGEX_KEYWORDS,
+  TreeValidator,
+} from "./tree-validator.ts";
 export type { ValidationNode } from "./tree-validator.ts";
 
 // Types

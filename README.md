@@ -387,20 +387,29 @@ failing case are recorded in
 **Validated:**
 
 - Types: `string`, `number`, `integer`, `boolean`, `null`, `array`, `object`
-- String: `minLength`, `maxLength`, `pattern`, `format`
+- String: `minLength`, `maxLength`, `format`
 - Number: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,
   `multipleOf`
 - Array: `items`, `prefixItems`, `minItems`, `maxItems`, `uniqueItems`
-- Object: `properties`, `required`, `additionalProperties`, `patternProperties`,
-  `minProperties`, `maxProperties`
+- Object: `properties`, `required`, `additionalProperties`, `minProperties`,
+  `maxProperties`
 - Composition: `allOf`, `anyOf`, `oneOf`, `not`
 - References: `$ref`, `$defs`, `$anchor`
 - `const`, `enum`, `default`
 
-**Not validated.** Data that violates these keywords is accepted:
+**Not evaluated, by design.** Steady reads these keywords and never applies
+them. A spec that uses them gets one note at startup (E1024):
 
-- Conditional: `if`/`then`/`else`
-- `dependentRequired`, `dependentSchemas`
+- Regular expressions: `pattern`, `patternProperties`. A regular expression
+  decides how long matching takes, and some need exponential time on a short
+  string. A mock server must not be stoppable by its spec. Strings are not
+  checked against `pattern`. An object with `patternProperties` gets no
+  additional-property errors.
+- Conditional schemas: `if`/`then`/`else`, `dependentSchemas`.
+
+**Not validated yet.** Data that violates these keywords is accepted:
+
+- `dependentRequired`
 - `contains`, `minContains`, `maxContains`
 - `propertyNames`
 - `unevaluatedProperties`, `unevaluatedItems`
