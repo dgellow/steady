@@ -34,6 +34,9 @@ jobs:
     name: "SDK: ${{ matrix.sdk.name }}"
     needs: matrix
     runs-on: ubuntu-latest
+    # The largest suite takes about 4 minutes. A suite that hangs must not
+    # hold the report back for the 6 hours a job may run by default.
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
