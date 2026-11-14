@@ -18,6 +18,7 @@
 import {
   formatFragmentPointer,
   type FragmentPointer,
+  getOwn,
   isFragmentPointer,
   isPlainObject,
   parseFragmentPointer,
@@ -68,11 +69,64 @@ interface TreeValidatorOptions {
   direction?: "request" | "response";
 }
 
+/**
+ * Levels of nesting in a value that are validated. Validation recurses
+ * along the value, so the limit has to stay well below the depth at which
+ * the call stack runs out, also for schemas that add several calls per
+ * level (a $ref into an allOf into properties). Content nested deeper is
+ * not validated; one `depth` node says so. Real payloads nest a few dozen
+ * levels.
+ */
+export const MAX_VALIDATION_DEPTH = 500;
+
+/**
+ * Keywords whose value is a regular expression written by the spec author.
+ * The validator never compiles or runs them.
+ *
+ * A regular expression decides how long matching takes: `^(a+)+$` needs
+ * exponential time on a string of a few dozen characters, and a mock server
+ * must not be stoppable by its spec. The dialect is also not the one many
+ * specs are written for, so a mismatch found by the JavaScript engine is
+ * not reliable evidence either.
+ *
+ * - `pattern`: strings are not checked against it.
+ * - `patternProperties`: which properties it covers is unknown, so an
+ *   object that has it gets no additional-property errors, and the values
+ *   of properties not named in `properties` are not validated.
+ */
+export const REGEX_KEYWORDS = ["pattern", "patternProperties"] as const;
+
+/**
+ * Keywords that make the applicable schema depend on the value. The
+ * validator does not evaluate them: the schemas inside are parsed and
+ * checked for shape, and never applied.
+ */
+export const CONDITIONAL_KEYWORDS = [
+  "if",
+  "then",
+  "else",
+  "dependentSchemas",
+] as const;
+
 // ── Validator ──────────────────────────────────────────────────────
 
 export class TreeValidator {
   private readonly registry?: SchemaRegistry;
   private readonly direction?: "request" | "response";
+
+  /**
+   * Referenced schemas that are being validated right now, each with the
+   * values it is being applied to. See `enterRef`.
+   */
+  private readonly activeRefs = new Map<
+    Schema,
+    { data: unknown; depth: number }[]
+  >();
+
+  /** Length of the data path at the root of the current `validate` call. */
+  private rootDepth = 0;
+  /** Whether the current `validate` call has reported the depth limit. */
+  private depthReported = false;
 
   constructor(options?: TreeValidatorOptions) {
     this.registry = options?.registry;
@@ -97,7 +151,14 @@ export class TreeValidator {
     const errors: ValidationNode[] = [];
     const path = parseFragmentPointer(schemaPath);
 
-    this.validateSchema(data, schema, path, dataPath, errors, schema);
+    this.rootDepth = dataPath.length;
+    this.depthReported = false;
+    try {
+      this.validateSchema(data, schema, path, dataPath, errors, schema);
+    } finally {
+      // Empty after a normal return. An exception can leave entries behind.
+      this.activeRefs.clear();
+    }
 
     if (errors.length === 0) {
       return { valid: true, path: dataPath, schemaPath };
@@ -130,6 +191,22 @@ export class TreeValidator {
     rootSchema: Schema | boolean,
     context?: { arrayItem?: boolean },
   ): void {
+    if (dataPath.length - this.rootDepth > MAX_VALIDATION_DEPTH) {
+      if (!this.depthReported) {
+        this.depthReported = true;
+        errors.push({
+          valid: false,
+          keyword: "depth",
+          path: dataPath,
+          schemaPath: formatFragmentPointer(schemaPath),
+          message:
+            `Value is nested deeper than ${MAX_VALIDATION_DEPTH} levels. Content below this point was not validated`,
+          expected: MAX_VALIDATION_DEPTH,
+        });
+      }
+      return;
+    }
+
     // Boolean schema (JSON Schema 2020-12: false rejects all, true accepts all)
     if (typeof schema === "boolean") {
       if (!schema) {
@@ -147,20 +224,36 @@ export class TreeValidator {
     // $ref: resolve and validate. In JSON Schema 2020-12, sibling keywords
     // alongside $ref are valid and must be applied.
     if (schema.$ref) {
-      const resolved = this.resolveRef(schema.$ref, rootSchema);
-      if (resolved !== undefined) {
-        const refPath: PointerPath = isFragmentPointer(schema.$ref)
-          ? parseFragmentPointer(schema.$ref)
+      const target = this.followRef(schema.$ref, rootSchema);
+      if (target !== undefined) {
+        const refPath: PointerPath = isFragmentPointer(target.ref)
+          ? parseFragmentPointer(target.ref)
           : schemaPath;
-        this.validateSchema(
-          data,
-          resolved,
-          refPath,
-          dataPath,
-          errors,
-          rootSchema,
-          context,
-        );
+        if (typeof target.schema === "boolean") {
+          this.validateSchema(
+            data,
+            target.schema,
+            refPath,
+            dataPath,
+            errors,
+            rootSchema,
+            context,
+          );
+        } else if (this.enterRef(target.schema, data, dataPath.length)) {
+          try {
+            this.validateSchema(
+              data,
+              target.schema,
+              refPath,
+              dataPath,
+              errors,
+              rootSchema,
+              context,
+            );
+          } finally {
+            this.leaveRef(target.schema);
+          }
+        }
       }
 
       // Apply sibling keywords from the $ref-bearing schema.
@@ -289,21 +382,14 @@ export class TreeValidator {
         );
       }
 
-      // patternProperties
-      if (schema.patternProperties) {
-        this.validatePatternProperties(
-          obj,
-          schema.patternProperties,
-          schemaPath,
-          dataPath,
-          errors,
-          rootSchema,
-          evaluatedProps,
-        );
-      }
+      // patternProperties is not evaluated: see `REGEX_KEYWORDS`. Any
+      // property name may match one of its patterns, so no property of
+      // this object can be called additional.
+      const anyNameMayBeCovered = schema.patternProperties !== undefined &&
+        Object.keys(schema.patternProperties).length > 0;
 
       // additionalProperties
-      if (schema.additionalProperties !== undefined) {
+      if (schema.additionalProperties !== undefined && !anyNameMayBeCovered) {
         this.validateAdditionalProperties(
           obj,
           schema,
@@ -419,7 +505,7 @@ export class TreeValidator {
     if (!this.direction || !properties) return required;
 
     return required.filter((field) => {
-      const propSchema = properties[field];
+      const propSchema = getOwn(properties, field);
       if (!propSchema || typeof propSchema !== "object") return true;
 
       if (this.direction === "request" && propSchema.readOnly === true) {
@@ -440,7 +526,7 @@ export class TreeValidator {
     errors: ValidationNode[],
   ): void {
     for (const field of required) {
-      if (!(field in obj)) {
+      if (!Object.hasOwn(obj, field)) {
         errors.push({
           valid: false,
           keyword: "required",
@@ -466,7 +552,7 @@ export class TreeValidator {
   ): void {
     for (const [propName, propSchema] of Object.entries(properties)) {
       evaluatedProps.add(propName);
-      if (propName in obj) {
+      if (Object.hasOwn(obj, propName)) {
         this.validateSchema(
           obj[propName],
           propSchema,
@@ -475,41 +561,6 @@ export class TreeValidator {
           errors,
           rootSchema,
         );
-      }
-    }
-  }
-
-  // ── Pattern Properties ───────────────────────────────────────────
-
-  private validatePatternProperties(
-    obj: Record<string, unknown>,
-    patternProperties: Record<string, Schema>,
-    schemaPath: PointerPath,
-    dataPath: string[],
-    errors: ValidationNode[],
-    rootSchema: Schema | boolean,
-    evaluatedProps: Set<string>,
-  ): void {
-    for (const [pattern, propSchema] of Object.entries(patternProperties)) {
-      let regex: RegExp;
-      try {
-        regex = new RegExp(pattern);
-      } catch {
-        continue;
-      }
-
-      for (const propName of Object.keys(obj)) {
-        if (regex.test(propName)) {
-          evaluatedProps.add(propName);
-          this.validateSchema(
-            obj[propName],
-            propSchema,
-            [...schemaPath, "patternProperties", pattern],
-            [...dataPath, propName],
-            errors,
-            rootSchema,
-          );
-        }
       }
     }
   }
@@ -602,45 +653,33 @@ export class TreeValidator {
     dataPath: string[],
     errors: ValidationNode[],
   ): void {
-    if (schema.minLength !== undefined && data.length < schema.minLength) {
-      errors.push({
-        valid: false,
-        keyword: "minLength",
-        path: dataPath,
-        schemaPath: formatFragmentPointer(schemaPath),
-        expected: schema.minLength,
-        actual: data.length,
-      });
-    }
+    if (schema.minLength !== undefined || schema.maxLength !== undefined) {
+      const length = characterCount(data);
 
-    if (schema.maxLength !== undefined && data.length > schema.maxLength) {
-      errors.push({
-        valid: false,
-        keyword: "maxLength",
-        path: dataPath,
-        schemaPath: formatFragmentPointer(schemaPath),
-        expected: schema.maxLength,
-        actual: data.length,
-      });
-    }
+      if (schema.minLength !== undefined && length < schema.minLength) {
+        errors.push({
+          valid: false,
+          keyword: "minLength",
+          path: dataPath,
+          schemaPath: formatFragmentPointer(schemaPath),
+          expected: schema.minLength,
+          actual: length,
+        });
+      }
 
-    if (schema.pattern !== undefined) {
-      try {
-        const regex = new RegExp(schema.pattern);
-        if (!regex.test(data)) {
-          errors.push({
-            valid: false,
-            keyword: "pattern",
-            path: dataPath,
-            schemaPath: formatFragmentPointer(schemaPath),
-            expected: schema.pattern,
-            actual: data,
-          });
-        }
-      } catch {
-        // Invalid regex, skip validation
+      if (schema.maxLength !== undefined && length > schema.maxLength) {
+        errors.push({
+          valid: false,
+          keyword: "maxLength",
+          path: dataPath,
+          schemaPath: formatFragmentPointer(schemaPath),
+          expected: schema.maxLength,
+          actual: length,
+        });
       }
     }
+
+    // `pattern` is not evaluated: see `REGEX_KEYWORDS`.
 
     if (schema.format !== undefined) {
       if (!validateFormat(data, schema.format)) {
@@ -1006,6 +1045,72 @@ export class TreeValidator {
 
   // ── $ref resolution ──────────────────────────────────────────────
 
+  /**
+   * Resolve a $ref, and keep resolving while the result is nothing but
+   * another $ref. Returns the first schema that says something, with the
+   * reference that names it.
+   *
+   * A loop instead of recursion: the length of such a chain is up to the
+   * spec. `undefined` when a reference does not resolve, or when the chain
+   * leads back to itself. A chain that only refers to itself states no
+   * constraint, so the caller treats it like an unresolved reference: it
+   * accepts.
+   */
+  private followRef(
+    ref: string,
+    rootSchema: Schema | boolean,
+  ): { schema: Schema | boolean; ref: string } | undefined {
+    let current = ref;
+    let seen: Set<string> | undefined;
+    for (;;) {
+      const resolved = this.resolveRef(current, rootSchema);
+      if (resolved === undefined) return undefined;
+      if (
+        typeof resolved === "boolean" || typeof resolved.$ref !== "string" ||
+        Object.keys(resolved).length !== 1
+      ) {
+        return { schema: resolved, ref: current };
+      }
+      seen ??= new Set([ref]);
+      if (seen.has(resolved.$ref)) return undefined;
+      seen.add(resolved.$ref);
+      current = resolved.$ref;
+    }
+  }
+
+  /**
+   * Note that `schema` is about to be applied to `data` through a $ref.
+   * Returns false when that same application is already in progress, which
+   * means references lead back to the schema without having moved to a
+   * child of the value: `A: {allOf: [{$ref: A}]}`. Validating again would
+   * never end, and repeating a check that is already running adds nothing,
+   * so the caller skips it. Everything else the schema says is checked by
+   * the application that is in progress.
+   *
+   * `depth` is the length of the data path. A recursive schema that moves
+   * into the value (a tree of nodes) reaches the schema again at a greater
+   * depth and is validated normally.
+   */
+  private enterRef(schema: Schema, data: unknown, depth: number): boolean {
+    const active = this.activeRefs.get(schema);
+    if (active === undefined) {
+      this.activeRefs.set(schema, [{ data, depth }]);
+      return true;
+    }
+    for (const entry of active) {
+      if (entry.depth === depth && entry.data === data) return false;
+    }
+    active.push({ data, depth });
+    return true;
+  }
+
+  private leaveRef(schema: Schema): void {
+    const active = this.activeRefs.get(schema);
+    if (active === undefined) return;
+    active.pop();
+    if (active.length === 0) this.activeRefs.delete(schema);
+  }
+
   private resolveRef(
     ref: string,
     rootSchema: Schema | boolean,
@@ -1056,6 +1161,18 @@ function getJsonType(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "array";
   return typeof value;
+}
+
+/**
+ * Length of a string for minLength / maxLength: the number of characters as
+ * defined by RFC 8259, i.e. Unicode code points (JSON Schema Validation
+ * section 6.3). `String.length` counts UTF-16 code units and reports 2 for
+ * every character outside the Basic Multilingual Plane.
+ */
+function characterCount(value: string): number {
+  let count = 0;
+  for (const _ of value) count++;
+  return count;
 }
 
 function deepEqual(a: unknown, b: unknown): boolean {

@@ -299,7 +299,7 @@ export class OpenAPISpec {
     const operation = this.getOperation(pathItem, method);
     if (!operation) return false;
 
-    return Object.keys(operation.responses).length > 0;
+    return Object.keys(operation.responses ?? {}).length > 0;
   }
 
   /**
@@ -350,10 +350,12 @@ export class OpenAPISpec {
     if (!operation) return null;
 
     // Try exact code, then wildcard (e.g. "2XX"), then "default"
+    const { responses } = operation;
+    if (!responses) return null;
     const wildcard = statusCode.slice(0, 1) + "XX";
-    const responseObjOrRef = operation.responses[statusCode] ??
-      operation.responses[wildcard] ??
-      operation.responses["default"];
+    const responseObjOrRef = responses[statusCode] ??
+      responses[wildcard] ??
+      responses["default"];
     if (!responseObjOrRef) return null;
 
     // Resolve $ref if needed

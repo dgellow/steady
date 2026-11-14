@@ -14,6 +14,7 @@
 import {
   formatFragmentPointer,
   type FragmentPointer,
+  getOwn,
   isFragmentPointer,
   isPlainObject,
   parseFragmentPointer,
@@ -379,33 +380,50 @@ export class RegistryResponseGenerator {
       // the only universally schema-valid value; a synthetic
       // `$comment` object matches no schema and pollutes SDK
       // responses.
-      if (this.visited.has(ref)) {
-        return null;
-      }
-
-      // Resolve via registry. Reaching this branch means a $ref
-      // survived to generation time without being caught at startup
-      // (E1004), which indicates a loader bug rather than a spec
-      // author error. Return `null` for the same reason as cycles;
-      // the synthetic `$comment` was worse than silence.
       //
-      // FIXME: the generator has no logger injected. When a logger
-      // is threaded through, emit a warning here naming the bad ref
-      // so the loader bug surfaces instead of being silently swallowed.
-      const resolved = this.registry.resolveRef(ref);
-      if (!resolved) {
-        return null;
+      // A reference whose target is another reference is followed in
+      // this loop, not by recursion: the length of such a chain is up to
+      // the spec.
+      const hops: string[] = [];
+      let target: Schema | boolean = schema;
+      let targetPath = path;
+      let next: string | undefined = ref;
+      let dead = false;
+      while (next !== undefined) {
+        if (this.visited.has(next)) {
+          dead = true;
+          break;
+        }
+
+        // Resolve via registry. A reference that does not resolve here
+        // survived to generation time without being caught at startup
+        // (E1004), which indicates a loader bug rather than a spec
+        // author error. Return `null` for the same reason as cycles;
+        // the synthetic `$comment` was worse than silence.
+        //
+        // FIXME: the generator has no logger injected. When a logger
+        // is threaded through, emit a warning here naming the bad ref
+        // so the loader bug surfaces instead of being silently swallowed.
+        const resolved = this.registry.resolveRef(next);
+        if (!resolved) {
+          dead = true;
+          break;
+        }
+
+        // After a $ref hop, the path resets to the target schema's
+        // canonical location in the spec. The registry already knows it.
+        this.visited.add(next);
+        hops.push(next);
+        target = resolved.raw;
+        targetPath = parseFragmentPointer(resolved.pointer);
+        next = typeof target === "boolean" ? undefined : target.$ref;
       }
 
-      // After a $ref hop, the path resets to the target schema's
-      // canonical location in the spec. The registry already knows it.
-      this.visited.add(ref);
-      const result = this.generateFromPath(
-        resolved.raw,
-        parseFragmentPointer(resolved.pointer),
-      );
-      this.visited.delete(ref);
-      return result;
+      try {
+        return dead ? null : this.generateFromPath(target, targetPath);
+      } finally {
+        for (const hop of hops) this.visited.delete(hop);
+      }
     }
 
     // Priority 1: Use explicit example (skip if type doesn't match schema)
@@ -760,7 +778,7 @@ export class RegistryResponseGenerator {
     const props = effectiveProperties(schema) ?? {};
 
     for (const name of effectiveRequired(schema)) {
-      const propSchema = props[name];
+      const propSchema = getOwn(props, name);
       if (!propSchema) continue;
       obj[name] = this.generateFromPath(
         propSchema,

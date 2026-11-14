@@ -111,12 +111,9 @@ snapshot[`GET /session - missing required cookie → mock with diagnostics 1`] =
 }
 `;
 
-snapshot[`GET /session - invalid cookie pattern → mock with diagnostics 1`] = `
+snapshot[`GET /session - cookie that does not match its pattern → no diagnostics 1`] = `
 {
-  "x-steady-error-1-code": "E4002",
-  "x-steady-error-1-message": "Pattern mismatch",
-  "x-steady-error-1-path": "cookie.session_id",
-  "x-steady-error-count": "1",
+  "x-steady-error-count": "0",
   "x-steady-example-source": "generated",
   "x-steady-matched-path": "/session",
   "x-steady-request-valid": "true",

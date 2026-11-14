@@ -1,5 +1,5 @@
-import { assertEquals, assertRejects } from "@std/assert";
-import { parseSpec, parseSpecFromFile } from "./parser.ts";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
+import { MAX_DOCUMENT_DEPTH, parseSpec, parseSpecFromFile } from "./parser.ts";
 import { ParseError, SpecValidationError } from "./errors.ts";
 
 // Helper to convert object to JSON string
@@ -614,4 +614,99 @@ paths: {}`;
   });
 
   await cleanup();
+});
+
+// =============================================================================
+// Documents that are not trees (YAML aliases) or are nested too deeply
+// =============================================================================
+
+const YAML_HEAD = `openapi: 3.1.0\ninfo: {title: t, version: "1"}\npaths: {}\n`;
+
+async function parseError(content: string, format: "yaml" | "json") {
+  return await assertRejects(
+    async () => await parseSpec(content, { format }),
+    ParseError,
+  );
+}
+
+Deno.test("parseSpec - document shape", async (t) => {
+  await t.step(
+    "a YAML alias to an ancestor is rejected with both locations",
+    async () => {
+      const error = await parseError(
+        YAML_HEAD + "x-loop: &l\n  inner:\n    self: *l\n",
+        "yaml",
+      );
+      assertEquals(error.message, "Document contains itself");
+      assertStringIncludes(error.context.reason, "#/x-loop/inner/self");
+      assertStringIncludes(error.context.reason, "alias to #/x-loop,");
+      assertStringIncludes(error.context.suggestion ?? "", "$ref");
+    },
+  );
+
+  await t.step(
+    "nested YAML aliases that expand exponentially are rejected quickly",
+    async () => {
+      let text = YAML_HEAD + "x-a0: &a0 {type: string}\n";
+      for (let i = 1; i <= 40; i++) {
+        text += `x-a${i}: &a${i} {p: *a${i - 1}, q: *a${i - 1}}\n`;
+      }
+      const start = performance.now();
+      const error = await parseError(text, "yaml");
+      assertEquals(performance.now() - start < 1000, true);
+      assertEquals(error.message, "YAML aliases expand to too many values");
+      assertStringIncludes(error.context.reason, "written out as JSON it has");
+    },
+  );
+
+  await t.step(
+    "an anchor reused many times in a small document is accepted",
+    async () => {
+      // 2 000 uses of one anchor: 2 000 times the distinct size, far below the
+      // absolute limit.
+      let text = YAML_HEAD +
+        "x-common: &common {type: object, properties: {id: {type: string}}}\n";
+      text += "components:\n  schemas:\n";
+      for (let i = 0; i < 2000; i++) text += `    S${i}: *common\n`;
+      const result = await parseSpec(text, { format: "yaml" });
+      assertEquals(
+        Object.keys(result.spec.components?.schemas ?? {}).length,
+        2000,
+      );
+    },
+  );
+
+  await t.step(
+    "nesting beyond the limit is rejected, not a stack overflow",
+    async () => {
+      // Built as text: JSON.stringify itself overflows the stack at this
+      // depth.
+      const levels = 20_000;
+      const text = '{"openapi":"3.1.0","info":{"title":"t","version":"1"},' +
+        '"paths":{},"components":{"schemas":{"Deep":' +
+        '{"type":"object","properties":{"a":'.repeat(levels) +
+        '{"type":"string"}' + "}}".repeat(levels) + "}}}";
+      const error = await parseError(text, "json");
+      assertEquals(error.message, "Document is nested too deeply");
+      assertStringIncludes(error.context.reason, "40003 levels");
+      assertStringIncludes(
+        error.context.reason,
+        "#/components/schemas/Deep/properties/a/",
+      );
+      assertStringIncludes(error.context.reason, `up to ${MAX_DOCUMENT_DEPTH}`);
+    },
+  );
+
+  await t.step("nesting at the limit is accepted", async () => {
+    // components/schemas/Deep is at depth 3; each level adds 2.
+    let schema: unknown = {};
+    for (let i = 0; i < (MAX_DOCUMENT_DEPTH - 3) / 2 - 1; i++) {
+      schema = { type: "object", properties: { a: schema } };
+    }
+    const result = await parseSpec(
+      json({ ...validSpec(), components: { schemas: { Deep: schema } } }),
+      { format: "json" },
+    );
+    assertEquals(typeof result.spec.components?.schemas?.Deep, "object");
+  });
 });

@@ -12,7 +12,7 @@
  * 4. Multiple structural matches → ambiguous (E3012)
  */
 
-import { isPlainObject } from "@steady/json-pointer";
+import { getOwn, isPlainObject } from "@steady/json-pointer";
 import type { Diagnostic } from "../../diagnostic.ts";
 import type { CompositionContext, InterpretResult } from "../types.ts";
 import { getCode } from "../../codes/registry.ts";
@@ -159,7 +159,9 @@ function resolveVariantIndex(
   for (let i = 0; i < oneOfSchemas.length; i++) {
     const variant = oneOfSchemas[i];
     if (variant === undefined || typeof variant === "boolean") continue;
-    const propSchema = variant.properties?.[propName];
+    const propSchema = variant.properties
+      ? getOwn(variant.properties, propName)
+      : undefined;
     if (!propSchema || typeof propSchema === "boolean") continue;
 
     if (propSchema.const !== undefined) {

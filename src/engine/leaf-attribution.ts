@@ -74,8 +74,6 @@ export function attributeLeafCode(
     }
 
     // ── Content keywords ─────────────────────────────────────────────
-    case "pattern":
-      return "E4002";
     case "minLength":
     case "maxLength":
       return "E4003";
@@ -397,8 +395,10 @@ function classifyE4002(node: LeafNode): string {
       return `Object property count violation at ${pathStr}`;
     case "uniqueItems":
       return `Unique items constraint violation at ${pathStr}`;
+    case "depth":
+      return `Value nested too deeply to validate at ${pathStr}`;
     default:
-      return `Pattern mismatch at ${pathStr}`;
+      return `Content constraint violation at ${pathStr}`;
   }
 }
 

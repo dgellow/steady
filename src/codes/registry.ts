@@ -51,6 +51,8 @@ export type ECode =
   | "E1020"
   | "E1021"
   | "E1022"
+  | "E1023"
+  | "E1024"
   // E2xxx: Routing
   | "E2001"
   | "E2002"
@@ -227,6 +229,18 @@ const CODES: Record<ECode, ECodeDefinition> = {
     category: "spec-issue",
     context: "startup",
   },
+  E1023: {
+    title: "Value of the wrong type ignored",
+    severity: "error",
+    category: "spec-issue",
+    context: "startup",
+  },
+  E1024: {
+    title: "Keyword not evaluated",
+    severity: "info",
+    category: "spec-issue",
+    context: "startup",
+  },
 
   // ── E2xxx: Routing ──────────────────────────────────────────────────
   E2001: {
@@ -374,7 +388,7 @@ const CODES: Record<ECode, ECodeDefinition> = {
     category: "content-note",
   },
   E4002: {
-    title: "Pattern mismatch",
+    title: "Content constraint violation",
     severity: "info",
     category: "content-note",
   },

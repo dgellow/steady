@@ -446,7 +446,7 @@ high because encoding is unambiguously the SDK's responsibility.
 | Code  | Title                            |
 | ----- | -------------------------------- |
 | E4001 | Value-validation format mismatch |
-| E4002 | Pattern mismatch                 |
+| E4002 | Content constraint violation     |
 | E4003 | String length violation          |
 | E4004 | Numeric range violation          |
 | E4005 | Array size violation             |

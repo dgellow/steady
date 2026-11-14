@@ -34,9 +34,9 @@ steady/
 │   │   └── resolver.ts        # Document reference resolver
 │   ├── json-schema/           # JSON Schema 2020-12
 │   │   ├── processor.ts       # Schema analysis
-│   │   ├── runtime-validator.ts # Data validation
-│   │   ├── schema-registry.ts # Document-centric schema resolution
-│   │   └── ref-resolver.ts    # $ref resolution
+│   │   ├── tree-validator.ts  # Data validation
+│   │   ├── schema-registry.ts # Document-centric schema and $ref resolution
+│   │   └── test-suite.test.ts # JSON Schema Test Suite compliance (snapshot)
 │   └── openapi/               # OpenAPI 3.x parser
 │       └── parser.ts          # YAML/JSON parsing
 ├── sdk-tests/                 # SDK test suites with their OpenAPI specs
@@ -59,11 +59,23 @@ search the whole repo with glob, not just `test-fixtures/`.
 **JSON Pointer (RFC 6901)**:
 
 - Only `~0` (tilde) and `~1` (slash) escaping - NO percent encoding
-- Percent-decoding happens at URI fragment layer (ref-resolver.ts:171)
+- Percent-decoding happens at the URI fragment layer (`toBarePointer` in
+  json-pointer.ts)
 - Array indices must be exact: "0", "1", "10" - reject "01", "1.5", "-1"
 
-**JSON Schema**: 91.6% compliance (1151/1257 tests). Missing: `$dynamicRef`,
-`$dynamicAnchor`. Full support for `unevaluatedProperties`/`unevaluatedItems`.
+**JSON Schema**: Compliance with the official JSON Schema Test Suite is measured
+by `packages/json-schema/test-suite.test.ts`, part of `./scripts/test`. The pass
+count and every failing case are recorded in its snapshot. Do not quote a number
+here; read the snapshot. Not evaluated by design, and never to be added: regular
+expressions from the spec (`pattern`, `patternProperties`) and conditional
+schemas (`if`/`then`/`else`, `dependentSchemas`). The validator must not call
+`new RegExp` on anything a spec provides. Not validated yet:
+`dependentRequired`, `contains`, `minContains`, `maxContains`, `propertyNames`,
+`unevaluatedProperties`, `unevaluatedItems`, `$dynamicRef`, `$dynamicAnchor`. A
+validator change that alters the outcome of any suite case fails the test;
+update the snapshot with
+`./scripts/test packages/json-schema/test-suite.test.ts -- --update` only when
+the change is an improvement.
 
 **$ref Resolution**: Handles URI fragment encoding. `#/$defs/User%20Name`resolves
 to key`"User
@@ -251,7 +263,7 @@ refactor: Code restructuring
 Working:
 
 - HTTP server with path matching
-- JSON Schema validation (runtime-validator.ts)
+- JSON Schema validation (tree-validator.ts)
 - Response generation from schemas/examples
 - RFC 6901 JSON Pointer operations
 - OpenAPI 3.x parsing

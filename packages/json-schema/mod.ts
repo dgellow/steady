@@ -13,7 +13,11 @@ export type {
 export type { FragmentPointer } from "@steady/json-pointer";
 
 // Tree validation
-export { TreeValidator } from "./tree-validator.ts";
+export {
+  CONDITIONAL_KEYWORDS,
+  REGEX_KEYWORDS,
+  TreeValidator,
+} from "./tree-validator.ts";
 export type { ValidationNode } from "./tree-validator.ts";
 
 // Types
@@ -52,3 +56,11 @@ export {
   isArraySchema,
   isObjectSchema,
 } from "./schema-utils.ts";
+
+// Shape of parsed schemas: the boundary between parsed JSON and `Schema`
+export {
+  describeJsonType,
+  normalizeSchemaShape,
+  type ReportShapeProblem,
+  type ShapeProblem,
+} from "./schema-shape.ts";

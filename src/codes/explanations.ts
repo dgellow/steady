@@ -495,6 +495,61 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
     seeAlso: ["E3020"],
   },
 
+  E1023: {
+    description:
+      "A value in the spec does not have the type its position requires:\n" +
+      "for example a path item that is null, parameters that are a\n" +
+      "number, or allOf that is not an array. Steady cannot read such a\n" +
+      "value, removes it and continues as if it were not there.",
+    reasoning:
+      "This is a spec issue. The OpenAPI and JSON Schema specifications\n" +
+      "define the type of every field. A value of another type states\n" +
+      "nothing Steady could check or generate from. Steady reports it\n" +
+      "and keeps serving the rest of the spec, so one bad value does not\n" +
+      "stop every other endpoint from being tested.",
+    example: "  /users:\n" +
+      "    get:\n" +
+      "      parameters: 5                  # must be an array\n" +
+      "      responses:\n" +
+      "        '200':\n" +
+      "          content:\n" +
+      "            application/json:\n" +
+      "              schema:\n" +
+      "                allOf: User            # must be an array of schemas",
+    fix: "Give the value the type named in the message. Until fixed, the\n" +
+      "value is ignored: a removed parameter is not validated, a removed\n" +
+      "schema keyword constrains nothing, a removed operation answers\n" +
+      "with 404 or 405.",
+    seeAlso: ["E1006", "E1015"],
+  },
+
+  E1024: {
+    description:
+      "The spec uses a JSON Schema keyword that Steady reads but does\n" +
+      "not evaluate when it validates requests:\n" +
+      "  pattern, patternProperties    regular expressions\n" +
+      "  if / then / else, dependentSchemas    conditional schemas",
+    reasoning:
+      "This is a note about Steady, not a defect of the spec. A regular\n" +
+      "expression decides how long matching takes: some need exponential\n" +
+      "time on a short string, and a mock server must not be stoppable\n" +
+      "by its spec. Conditional keywords make the applicable schema\n" +
+      "depend on the value, which Steady does not follow. Neither kind\n" +
+      "can cause a request to be rejected.",
+    example: "  code:\n" +
+      "    type: string\n" +
+      '    pattern: "^[A-Z]{3}$"            # not checked\n' +
+      "  labels:\n" +
+      "    type: object\n" +
+      "    patternProperties:              # any property name is accepted\n" +
+      '      "^x-": { type: string }\n' +
+      "    additionalProperties: false",
+    fix: "No action needed. Strings are not checked against pattern. An\n" +
+      "object with patternProperties gets no additional-property errors.\n" +
+      "Schemas under if, then, else and dependentSchemas are not applied.",
+    seeAlso: ["E1015"],
+  },
+
   // ── E2xxx: Routing ──────────────────────────────────────────────────
 
   E2001: {
@@ -915,9 +970,8 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
   E3022: {
     description:
       "The Accept header could not be parsed. None of the entries are\n" +
-      "usable: each one is either not a type/subtype media range or\n" +
-      "carries a weight outside the q=0 to q=1 grammar. The server\n" +
-      "cannot determine what response format the client expects.",
+      "valid media types. The server cannot determine what response\n" +
+      "format the client expects.",
     reasoning:
       "This is an SDK issue. The SDK (or its HTTP client library) sets\n" +
       "the Accept header to indicate which response formats it can\n" +
@@ -926,7 +980,6 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
       "default response format.",
     example: "  # SDK sends: Accept: ;;;\n" +
       "  # SDK sends: Accept: (empty)\n" +
-      "  # SDK sends: Accept: application/json;q=5\n" +
       "  # Should be: Accept: application/json",
     fix: "Check the SDK's Accept header construction. Most HTTP client\n" +
       "libraries set a sensible default. If the SDK overrides Accept,\n" +
@@ -996,18 +1049,21 @@ const EXPLANATIONS: Record<ECode, Explanation> = {
   },
 
   E4002: {
-    description: "A string value doesn't match the schema's regex pattern\n" +
-      "constraint.",
+    description:
+      "A value violates a content constraint that has no code of its\n" +
+      "own: the number of properties of an object (minProperties,\n" +
+      "maxProperties), uniqueItems, or a value nested deeper than Steady\n" +
+      "validates.",
     reasoning:
-      "This is a content note. Pattern constraints validate the content\n" +
-      "of a value, not how it's transported. The SDK correctly sent a\n" +
-      "string. It just doesn't match the pattern the spec requires.",
-    example: '  # Spec: code matches pattern "^[A-Z]{3}$"\n' +
-      '  # SDK sends: {"code": "abc"}   (lowercase, doesn\'t match)\n' +
-      "  # The SDK sent a string. The pattern is a content concern",
+      "This is a content note. These constraints are about what the\n" +
+      "value contains, not about how the SDK transported it. The SDK\n" +
+      "sent a value of the right type in the right place.",
+    example: "  # Spec: tags has uniqueItems: true\n" +
+      '  # SDK sends: {"tags": ["a", "a"]}\n' +
+      "  # The SDK sent an array of strings. Uniqueness is a content concern",
     fix: "Informational. If your tests need valid data, use values that\n" +
-      "match the pattern.",
-    seeAlso: ["E4001", "E4003"],
+      "satisfy the constraint.",
+    seeAlso: ["E4001", "E4003", "E1024"],
   },
 
   E4003: {

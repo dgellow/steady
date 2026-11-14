@@ -1,7 +1,12 @@
 import { assertEquals } from "@std/assert";
 import type { FragmentPointer } from "@steady/json-pointer";
 import type { Schema } from "./types.ts";
-import { TreeValidator } from "./tree-validator.ts";
+import { SchemaRegistry } from "./schema-registry.ts";
+import {
+  MAX_VALIDATION_DEPTH,
+  TreeValidator,
+  type ValidationNode,
+} from "./tree-validator.ts";
 
 /**
  * Helper: validate data against a schema and return the tree.
@@ -209,14 +214,6 @@ Deno.test("TreeValidator", async (t) => {
 
   // ── String validation ────────────────────────────────────────────
 
-  await t.step("pattern mismatch → leaf", () => {
-    const tree = validate({ type: "string", pattern: "^\\d+$" }, "abc");
-
-    assertEquals(tree.valid, false);
-    const leaves = tree.children?.filter((c) => c.keyword === "pattern") ?? [];
-    assertEquals(leaves.length, 1);
-  });
-
   await t.step("minLength violation → leaf", () => {
     const tree = validate({ type: "string", minLength: 5 }, "hi");
 
@@ -232,6 +229,67 @@ Deno.test("TreeValidator", async (t) => {
     const leaf = tree.children?.find((c) => c.keyword === "maxLength");
     assertEquals(leaf?.valid, false);
   });
+
+  await t.step("string length counts code points, not UTF-16 units", () => {
+    // JSON Schema Validation section 6.3: length is the number of characters
+    // as defined by RFC 8259. U+1F600 is one character and two UTF-16 units.
+    const face = "\u{1F600}";
+    assertEquals(validate({ type: "string", maxLength: 1 }, face).valid, true);
+    assertEquals(validate({ type: "string", minLength: 2 }, face).valid, false);
+
+    const tree = validate({ type: "string", maxLength: 1 }, face + face);
+    const leaf = tree.children?.find((c) => c.keyword === "maxLength");
+    assertEquals(leaf?.actual, 2);
+  });
+
+  // ── Names that exist on Object.prototype ─────────────────────────
+
+  await t.step("required: an inherited member does not satisfy it", () => {
+    for (const name of ["toString", "constructor", "hasOwnProperty"]) {
+      const tree = validate({ type: "object", required: [name] }, {});
+      assertEquals(tree.valid, false, name);
+      assertEquals(tree.children?.[0]?.keyword, "required", name);
+      assertEquals(tree.children?.[0]?.field, name, name);
+
+      const present = validate({ type: "object", required: [name] }, {
+        [name]: 1,
+      });
+      assertEquals(present.valid, true, name);
+    }
+  });
+
+  await t.step("properties: an inherited member is not validated", () => {
+    // {} has no member "toString", so the property schema does not apply.
+    const stringSchema: Schema = { type: "string" };
+    const properties: Record<string, Schema> = {};
+    properties["toString"] = stringSchema;
+    properties["valueOf"] = stringSchema;
+
+    const tree = validate({ type: "object", properties }, {});
+    assertEquals(tree.valid, true);
+  });
+
+  await t.step(
+    "required with direction: a property schema is only read from the schema",
+    () => {
+      // "constructor" is required but not declared in properties. The
+      // readOnly filter must not mistake Object.prototype.constructor for
+      // its property schema.
+      const validator = new TreeValidator({ direction: "request" });
+      const tree = validator.validate(
+        {},
+        {
+          type: "object",
+          required: ["constructor"],
+          properties: { id: { type: "string" } },
+        },
+        "#/schema",
+        ["body"],
+      );
+      assertEquals(tree.valid, false);
+      assertEquals(tree.children?.[0]?.field, "constructor");
+    },
+  );
 
   // ── Numeric validation ───────────────────────────────────────────
 
@@ -749,5 +807,297 @@ Deno.test("TreeValidator", async (t) => {
     };
     const tree = validate(schema, { disabled: "wrong_string" });
     assertEquals(tree.valid, false);
+  });
+});
+
+// ── Reference cycles and long reference chains ──────────────────────
+//
+// A cycle of references that consumes no input has no defined result in
+// JSON Schema. It adds no constraint the validator could check, so the
+// reference is treated as accepting. The spec analyzer reports the cycle at
+// startup; at runtime the request must not fail because of it.
+
+Deno.test("TreeValidator: reference cycles", async (t) => {
+  const validateIn = (
+    schemas: Record<string, unknown>,
+    name: string,
+    data: unknown,
+  ) => {
+    const document = { components: { schemas } };
+    const registry = SchemaRegistry.fromSpec(document);
+    return new TreeValidator({ registry }).validate(
+      data,
+      { $ref: `#/components/schemas/${name}` },
+      "#",
+      ["body"],
+    );
+  };
+
+  await t.step("a schema that is only a reference to itself", () => {
+    const node = validateIn(
+      { Self: { $ref: "#/components/schemas/Self" } },
+      "Self",
+      { a: 1 },
+    );
+    assertEquals(node.valid, true);
+  });
+
+  await t.step(
+    "two schemas that refer to each other through allOf and anyOf",
+    () => {
+      const node = validateIn(
+        {
+          A: { allOf: [{ $ref: "#/components/schemas/B" }] },
+          B: { anyOf: [{ $ref: "#/components/schemas/A" }] },
+        },
+        "A",
+        "x",
+      );
+      assertEquals(node.valid, true);
+    },
+  );
+
+  await t.step("constraints next to a cyclic reference still apply", () => {
+    const schemas = {
+      A: { type: "object", allOf: [{ $ref: "#/components/schemas/A" }] },
+    };
+    assertEquals(validateIn(schemas, "A", {}).valid, true);
+    assertEquals(validateIn(schemas, "A", "not an object").valid, false);
+  });
+
+  await t.step(
+    "a recursive schema that consumes input is validated at every level",
+    () => {
+      const schemas = {
+        Tree: {
+          type: "object",
+          required: ["kids"],
+          properties: {
+            kids: {
+              type: "array",
+              items: { $ref: "#/components/schemas/Tree" },
+            },
+          },
+        },
+      };
+      assertEquals(
+        validateIn(schemas, "Tree", { kids: [{ kids: [{ kids: [] }] }] }).valid,
+        true,
+      );
+      // The innermost node misses `kids`.
+      assertEquals(
+        validateIn(schemas, "Tree", { kids: [{ kids: [{}] }] }).valid,
+        false,
+      );
+    },
+  );
+
+  await t.step(
+    "the same schema at two places of one value is not a cycle",
+    () => {
+      const schemas = {
+        Pair: {
+          type: "object",
+          properties: {
+            left: { $ref: "#/components/schemas/Leaf" },
+            right: { $ref: "#/components/schemas/Leaf" },
+          },
+        },
+        Leaf: { type: "integer" },
+      };
+      assertEquals(
+        validateIn(schemas, "Pair", { left: 1, right: 1 }).valid,
+        true,
+      );
+      assertEquals(
+        validateIn(schemas, "Pair", { left: 1, right: "x" }).valid,
+        false,
+      );
+    },
+  );
+
+  await t.step(
+    "a chain of 100 000 references is followed without recursion",
+    () => {
+      const hops = 100_000;
+      const schemas: Record<string, unknown> = { A0: { type: "string" } };
+      for (let i = 1; i <= hops; i++) {
+        schemas[`A${i}`] = { $ref: `#/components/schemas/A${i - 1}` };
+      }
+      assertEquals(validateIn(schemas, `A${hops}`, "x").valid, true);
+      assertEquals(validateIn(schemas, `A${hops}`, 5).valid, false);
+    },
+  );
+});
+
+// ── Depth of the value ───────────────────────────────────────────────
+
+Deno.test("TreeValidator: depth of the value", async (t) => {
+  // Several calls per level of the value: $ref, allOf, properties.
+  const document = {
+    components: {
+      schemas: {
+        Node: {
+          allOf: [{
+            type: "object",
+            properties: { k: { $ref: "#/components/schemas/Node" } },
+          }],
+        },
+      },
+    },
+  };
+  const validator = new TreeValidator({
+    registry: SchemaRegistry.fromSpec(document),
+  });
+  const nested = (levels: number, leaf: unknown) => {
+    let value = leaf;
+    for (let i = 0; i < levels; i++) value = { k: value };
+    return value;
+  };
+  const validate = (value: unknown) =>
+    validator.validate(value, { $ref: "#/components/schemas/Node" }, "#", [
+      "body",
+    ]);
+
+  await t.step("a value nested to the limit is validated to the bottom", () => {
+    assertEquals(validate(nested(MAX_VALIDATION_DEPTH, {})).valid, true);
+    // The innermost value has the wrong type, and that is found.
+    const node = validate(nested(MAX_VALIDATION_DEPTH, "not an object"));
+    assertEquals(node.valid, false);
+    assertEquals(node.children?.[0]?.keyword, "allOf");
+  });
+
+  await t.step(
+    "a value nested 50 000 levels is reported once, without a stack overflow",
+    () => {
+      const node = validate(nested(50_000, "not an object"));
+      assertEquals(node.valid, false);
+      const leaves: ValidationNode[] = [];
+      const pending = [node];
+      for (let n = pending.pop(); n !== undefined; n = pending.pop()) {
+        if (n.children && n.children.length > 0) pending.push(...n.children);
+        else leaves.push(n);
+      }
+      assertEquals(leaves.map((l) => l.keyword), ["depth"]);
+      assertEquals(leaves[0]?.path.length, MAX_VALIDATION_DEPTH + 2);
+    },
+  );
+
+  await t.step("the next validation starts from a clean state", () => {
+    validate(nested(50_000, {}));
+    assertEquals(validate(nested(3, {})).valid, true);
+  });
+});
+
+// ── Regular expressions and conditionals from the spec are not evaluated ──
+//
+// `pattern` and `patternProperties` let the spec decide how long a request
+// takes: a regular expression with nested quantifiers needs exponential
+// time on a short string. `if`/`then`/`else` and `dependentSchemas` make
+// the applicable schema depend on the value. Steady validates neither. The
+// analyzer says so once at startup (E1024).
+
+Deno.test("TreeValidator: regular expressions from the spec are not evaluated", async (t) => {
+  const validator = new TreeValidator();
+  const validate = (data: unknown, schema: Schema) =>
+    validator.validate(data, schema, "#", ["body"]);
+
+  await t.step("a string that does not match `pattern` is accepted", () => {
+    assertEquals(
+      validate("ABC", { type: "string", pattern: "^[a-z]+$" }).valid,
+      true,
+    );
+  });
+
+  await t.step(
+    "the other string keywords still apply next to `pattern`",
+    () => {
+      const node = validate("ABC", {
+        type: "string",
+        pattern: "^[a-z]+$",
+        maxLength: 2,
+      });
+      assertEquals(node.valid, false);
+      assertEquals(node.children?.map((c) => c.keyword), ["maxLength"]);
+    },
+  );
+
+  await t.step("a pattern with nested quantifiers costs nothing", () => {
+    const start = performance.now();
+    const node = validate("a".repeat(40) + "!", {
+      type: "string",
+      pattern: "^(a+)+$",
+    });
+    assertEquals(node.valid, true);
+    assertEquals(performance.now() - start < 50, true);
+  });
+
+  await t.step(
+    "a pattern that is not a valid regular expression is ignored",
+    () => {
+      assertEquals(validate("x", { type: "string", pattern: "(" }).valid, true);
+    },
+  );
+
+  await t.step(
+    "with `patternProperties`, any property name may be covered",
+    () => {
+      const schema: Schema = {
+        type: "object",
+        properties: { id: { type: "string" } },
+        patternProperties: { "^x-": { type: "integer" } },
+        additionalProperties: false,
+      };
+      // Whether "x-a" or "other" match a pattern is not evaluated, so neither
+      // is reported as additional and their values are not checked.
+      assertEquals(
+        validate({ id: "1", "x-a": "s", other: true }, schema).valid,
+        true,
+      );
+      // Named properties are validated as before.
+      assertEquals(validate({ id: 5 }, schema).valid, false);
+    },
+  );
+
+  await t.step(
+    "without `patternProperties`, additional properties are reported",
+    () => {
+      const node = validate({ id: "1", other: true }, {
+        type: "object",
+        properties: { id: { type: "string" } },
+        additionalProperties: false,
+      });
+      assertEquals(node.valid, false);
+      assertEquals(node.children?.map((c) => c.keyword), [
+        "additionalProperties",
+      ]);
+    },
+  );
+});
+
+Deno.test("TreeValidator: conditional keywords are not evaluated", async (t) => {
+  const validator = new TreeValidator();
+  const validate = (data: unknown, schema: Schema) =>
+    validator.validate(data, schema, "#", ["body"]);
+
+  await t.step("if / then / else", () => {
+    const schema: Schema = {
+      type: "object",
+      if: { properties: { kind: { const: "a" } } },
+      then: { required: ["a"] },
+      else: { required: ["b"] },
+    };
+    assertEquals(validate({ kind: "a" }, schema).valid, true);
+    assertEquals(validate({ kind: "z" }, schema).valid, true);
+    // Keywords next to the conditional still apply.
+    assertEquals(validate("not an object", schema).valid, false);
+  });
+
+  await t.step("dependentSchemas", () => {
+    const schema: Schema = {
+      type: "object",
+      dependentSchemas: { card: { required: ["cvv"] } },
+    };
+    assertEquals(validate({ card: "4111" }, schema).valid, true);
   });
 });

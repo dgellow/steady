@@ -1,5 +1,6 @@
 export { OpenAPISpec } from "./spec.ts";
 export { parseSpec, parseSpecFromFile } from "./parser.ts";
+export { normalizeSpecShape, type ShapeProblem } from "./shape.ts";
 export type { ParseOptions, ParseResult } from "./parser.ts";
 export { ParseError, SpecValidationError, SteadyError } from "./errors.ts";
 // Backwards compatibility alias (deprecated)

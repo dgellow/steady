@@ -173,3 +173,32 @@ Deno.test("computeCyclicRefs - root ref to $defs with back-ref to root", () => {
   assertEquals(cyclic.has("#"), true);
   assertEquals(cyclic.has("#/$defs/A"), true);
 });
+
+// --- depth: the search must not use the call stack ---
+
+Deno.test("computeCyclicRefs - a chain of 200 000 refs without a cycle", () => {
+  const edges = new Map<string, Set<string>>();
+  for (let i = 1; i <= 200_000; i++) {
+    edges.set(
+      `#/components/schemas/A${i}`,
+      new Set([
+        `#/components/schemas/A${i - 1}`,
+      ]),
+    );
+  }
+  assertEquals(computeCyclicRefs(edges).size, 0);
+});
+
+Deno.test("computeCyclicRefs - a chain of 200 000 refs that closes into a cycle", () => {
+  const n = 200_000;
+  const edges = new Map<string, Set<string>>();
+  for (let i = 0; i < n; i++) {
+    edges.set(
+      `#/components/schemas/A${i}`,
+      new Set([
+        `#/components/schemas/A${(i + 1) % n}`,
+      ]),
+    );
+  }
+  assertEquals(computeCyclicRefs(edges).size, n);
+});

@@ -13,7 +13,6 @@ import type { ServerConfig } from "../types.ts";
 import type { PipelineTimer } from "../timing.ts";
 import {
   HEADERS,
-  isHttpMethod,
   isValidArrayFormat,
   isValidFormArrayFormat,
   isValidFormObjectFormat,
@@ -22,7 +21,6 @@ import {
 } from "../types.ts";
 import { isReference } from "@steady/openapi";
 import type { OpenAPIRaw } from "@steady/openapi";
-import { GenerationError } from "../errors.ts";
 import { SchemaRegistry } from "@steady/json-schema";
 import type { DocIndex } from "@steady/json-schema";
 import type { Logger } from "../logging/logger.ts";
@@ -137,6 +135,9 @@ export class MockServer {
   }
   private _port = 0;
 
+  /** Signal listeners added by start(), removed again by stop(). */
+  private signalListeners: { signal: Deno.Signal; handler: () => void }[] = [];
+
   start(): Promise<number> {
     this.startTime = new Date();
 
@@ -196,7 +197,9 @@ export class MockServer {
         Deno.addSignalListener(signal, handleShutdownSignal);
       } catch {
         // Signal not supported on this platform
+        continue;
       }
+      this.signalListeners.push({ signal, handler: handleShutdownSignal });
     }
 
     return listening;
@@ -207,6 +210,14 @@ export class MockServer {
    * Returns a Promise that resolves when the server has stopped.
    */
   async stop(): Promise<void> {
+    // A stopped server must not react to signals any more. With
+    // --auto-reload the process outlives many servers; a listener left
+    // behind keeps its server alive and reports its shutdown again.
+    for (const { signal, handler } of this.signalListeners) {
+      Deno.removeSignalListener(signal, handler);
+    }
+    this.signalListeners = [];
+
     this.abortController.abort();
     // Wait for the server to fully stop
     if (this.serverFinished) {
@@ -241,15 +252,9 @@ export class MockServer {
       return handleSessionRequest(sessionId, this.sessionStore);
     }
 
-    // Validate HTTP method before any processing. A method OpenAPI cannot
-    // describe is "not recognized" (501, RFC 9110 section 9.1), not "known
-    // but not allowed for this path" (405, which needs an Allow header).
-    if (!isHttpMethod(rawMethod)) {
-      return new Response(`Method ${req.method} is not supported`, {
-        status: 501,
-        headers: { "Content-Type": "text/plain" },
-      });
-    }
+    // The method is not checked here. A method OpenAPI cannot describe (e.g.
+    // PROPFIND) is one the spec does not define for the path, so the router
+    // reports it as E2002 like any other undefined method.
     const method = rawMethod;
 
     // Check if request should reject on SDK errors
@@ -318,7 +323,6 @@ export class MockServer {
     }
 
     const {
-      operation,
       statusCode,
       pathPattern,
       pathParams,
@@ -476,22 +480,16 @@ export class MockServer {
       const streamingOptions = getEffectiveStreamingOptions(req, this.config);
       streamingOptions.generatorOptions = generatorOptions;
 
+      // When the operation defines no response for this status, its
+      // `responses` is empty or was unreadable. That is a spec issue,
+      // reported at startup (E1010, E1023). The request was still received
+      // and validated, so it gets the status without content, not a server
+      // error.
       const responseObj = this.specDoc.getResponseObject(
         pathPattern,
         method,
         statusCode,
-      );
-      if (!responseObj) {
-        throw new GenerationError("Response not defined", {
-          httpPath: path,
-          httpMethod: method.toUpperCase(),
-          errorType: "generate",
-          reason: `No response defined for status code ${statusCode}`,
-          suggestion: `Available response codes: ${
-            Object.keys(operation.responses).join(", ")
-          }`,
-        });
-      }
+      ) ?? { description: "" };
 
       const { response, body: responseBody, minimal, nullBodyStripped } =
         generateResponseFromObject(

@@ -99,6 +99,9 @@ function errorToDiagnostics(
       ],
     },
     suggestion: error.context.suggestion,
+    // The reason says where and why (the syntax error and its line, the
+    // HTTP status of a failed download, the location of a bad alias).
+    display: { context: [{ text: error.context.reason }] },
   }];
 }
 
@@ -402,13 +405,21 @@ async function startServer(
 
   // Parse the OpenAPI spec
   timer.start("parse");
-  const { spec, defaultedFields } = await parseSpecFromFile(specPath, timer);
+  const { spec, defaultedFields, shapeProblems } = await parseSpecFromFile(
+    specPath,
+    timer,
+  );
   timer.stop("parse");
 
   // Run spec analysis
   timer.start("analyze");
   const baseUri = specPathToBaseUri(specPath);
-  const analysis = analyzeSpec(spec, { baseUri, defaultedFields, timer });
+  const analysis = analyzeSpec(spec, {
+    baseUri,
+    defaultedFields,
+    shapeProblems,
+    timer,
+  });
   timer.stop("analyze");
   if (analysis.fatal) {
     throw new FatalSpecError(analysis.diagnostics);
@@ -567,13 +578,21 @@ Examples:
 
     // Parse the spec - this will throw if invalid
     timer.start("parse");
-    const { spec, defaultedFields } = await parseSpecFromFile(specPath, timer);
+    const { spec, defaultedFields, shapeProblems } = await parseSpecFromFile(
+      specPath,
+      timer,
+    );
     timer.stop("parse");
 
     // Run spec analysis
     timer.start("analyze");
     const baseUri = specPathToBaseUri(specPath);
-    const analysis = analyzeSpec(spec, { baseUri, defaultedFields, timer });
+    const analysis = analyzeSpec(spec, {
+      baseUri,
+      defaultedFields,
+      shapeProblems,
+      timer,
+    });
     timer.stop("analyze");
 
     if (analysis.diagnostics.length === 0) {
@@ -720,6 +739,8 @@ Response Headers (informational):
   X-Steady-Matched-Path            Spec path pattern matched (e.g., /users/{id})
   X-Steady-Example-Source          "generated" if response was generated from schema,
                                    "none" if no response body
+  Path, Message and Matched-Path percent-encode "%" and anything outside visible
+  ASCII as UTF-8. Decode with a percent-decoder (e.g. decodeURIComponent).
 
 Examples:
   steady api.yaml                          # Start with default settings

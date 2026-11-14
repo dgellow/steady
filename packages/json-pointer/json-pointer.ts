@@ -224,7 +224,7 @@ export function resolve(document: unknown, pointer: string): unknown {
       current = current[index];
     } else if (isRecord(current)) {
       // Object property
-      if (!(segment in current)) {
+      if (!Object.hasOwn(current, segment)) {
         throw new JsonPointerError(
           `Property '${segment}' not found in object`,
           formatPointer(segments.slice(0, i + 1)),
@@ -327,7 +327,7 @@ export function set(
       }
       current = current[index];
     } else if (isRecord(current)) {
-      if (!(segment in current)) {
+      if (!Object.hasOwn(current, segment)) {
         throw new JsonPointerError(
           `Property '${segment}' not found in object`,
           formatPointer(segments.slice(0, i + 1)),

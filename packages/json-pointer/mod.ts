@@ -39,6 +39,10 @@ export {
   unescapeSegment,
 } from "./json-pointer.ts";
 
+export { getOwn } from "./object.ts";
+
+export { type DocumentShape, inspectDocument } from "./document-shape.ts";
+
 /** Type guard: narrows unknown to Record<string, unknown> for plain objects. */
 export function isPlainObject(
   value: unknown,

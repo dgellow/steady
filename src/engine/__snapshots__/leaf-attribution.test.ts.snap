@@ -80,11 +80,11 @@ snapshot[`reasoning chains > E3017 const mismatch 1`] = `
 ]
 `;
 
-snapshot[`reasoning chains > E4002 pattern mismatch 1`] = `
+snapshot[`reasoning chains > E4002 content constraint (uniqueItems) 1`] = `
 [
-  "Pattern mismatch at body.email",
-  "Schema requires pattern /^.+@.+\$/",
-  'Request sent "notanemail"',
+  "Unique items constraint violation at body.tags",
+  "Schema requires uniqueItems: true",
+  "Request array contains duplicate items",
 ]
 `;
 
