@@ -1,7 +1,12 @@
 import { assertEquals } from "@std/assert";
 import type { FragmentPointer } from "@steady/json-pointer";
 import type { Schema } from "./types.ts";
-import { TreeValidator } from "./tree-validator.ts";
+import { SchemaRegistry } from "./schema-registry.ts";
+import {
+  MAX_VALIDATION_DEPTH,
+  TreeValidator,
+  type ValidationNode,
+} from "./tree-validator.ts";
 
 /**
  * Helper: validate data against a schema and return the tree.
@@ -810,5 +815,184 @@ Deno.test("TreeValidator", async (t) => {
     };
     const tree = validate(schema, { disabled: "wrong_string" });
     assertEquals(tree.valid, false);
+  });
+});
+
+// ── Reference cycles and long reference chains ──────────────────────
+//
+// A cycle of references that consumes no input has no defined result in
+// JSON Schema. It adds no constraint the validator could check, so the
+// reference is treated as accepting. The spec analyzer reports the cycle at
+// startup; at runtime the request must not fail because of it.
+
+Deno.test("TreeValidator: reference cycles", async (t) => {
+  const validateIn = (
+    schemas: Record<string, unknown>,
+    name: string,
+    data: unknown,
+  ) => {
+    const document = { components: { schemas } };
+    const registry = SchemaRegistry.fromSpec(document);
+    return new TreeValidator({ registry }).validate(
+      data,
+      { $ref: `#/components/schemas/${name}` },
+      "#",
+      ["body"],
+    );
+  };
+
+  await t.step("a schema that is only a reference to itself", () => {
+    const node = validateIn(
+      { Self: { $ref: "#/components/schemas/Self" } },
+      "Self",
+      { a: 1 },
+    );
+    assertEquals(node.valid, true);
+  });
+
+  await t.step(
+    "two schemas that refer to each other through allOf and anyOf",
+    () => {
+      const node = validateIn(
+        {
+          A: { allOf: [{ $ref: "#/components/schemas/B" }] },
+          B: { anyOf: [{ $ref: "#/components/schemas/A" }] },
+        },
+        "A",
+        "x",
+      );
+      assertEquals(node.valid, true);
+    },
+  );
+
+  await t.step("constraints next to a cyclic reference still apply", () => {
+    const schemas = {
+      A: { type: "object", allOf: [{ $ref: "#/components/schemas/A" }] },
+    };
+    assertEquals(validateIn(schemas, "A", {}).valid, true);
+    assertEquals(validateIn(schemas, "A", "not an object").valid, false);
+  });
+
+  await t.step(
+    "a recursive schema that consumes input is validated at every level",
+    () => {
+      const schemas = {
+        Tree: {
+          type: "object",
+          required: ["kids"],
+          properties: {
+            kids: {
+              type: "array",
+              items: { $ref: "#/components/schemas/Tree" },
+            },
+          },
+        },
+      };
+      assertEquals(
+        validateIn(schemas, "Tree", { kids: [{ kids: [{ kids: [] }] }] }).valid,
+        true,
+      );
+      // The innermost node misses `kids`.
+      assertEquals(
+        validateIn(schemas, "Tree", { kids: [{ kids: [{}] }] }).valid,
+        false,
+      );
+    },
+  );
+
+  await t.step(
+    "the same schema at two places of one value is not a cycle",
+    () => {
+      const schemas = {
+        Pair: {
+          type: "object",
+          properties: {
+            left: { $ref: "#/components/schemas/Leaf" },
+            right: { $ref: "#/components/schemas/Leaf" },
+          },
+        },
+        Leaf: { type: "integer" },
+      };
+      assertEquals(
+        validateIn(schemas, "Pair", { left: 1, right: 1 }).valid,
+        true,
+      );
+      assertEquals(
+        validateIn(schemas, "Pair", { left: 1, right: "x" }).valid,
+        false,
+      );
+    },
+  );
+
+  await t.step(
+    "a chain of 100 000 references is followed without recursion",
+    () => {
+      const hops = 100_000;
+      const schemas: Record<string, unknown> = { A0: { type: "string" } };
+      for (let i = 1; i <= hops; i++) {
+        schemas[`A${i}`] = { $ref: `#/components/schemas/A${i - 1}` };
+      }
+      assertEquals(validateIn(schemas, `A${hops}`, "x").valid, true);
+      assertEquals(validateIn(schemas, `A${hops}`, 5).valid, false);
+    },
+  );
+});
+
+// ── Depth of the value ───────────────────────────────────────────────
+
+Deno.test("TreeValidator: depth of the value", async (t) => {
+  // Several calls per level of the value: $ref, allOf, properties.
+  const document = {
+    components: {
+      schemas: {
+        Node: {
+          allOf: [{
+            type: "object",
+            properties: { k: { $ref: "#/components/schemas/Node" } },
+          }],
+        },
+      },
+    },
+  };
+  const validator = new TreeValidator({
+    registry: SchemaRegistry.fromSpec(document),
+  });
+  const nested = (levels: number, leaf: unknown) => {
+    let value = leaf;
+    for (let i = 0; i < levels; i++) value = { k: value };
+    return value;
+  };
+  const validate = (value: unknown) =>
+    validator.validate(value, { $ref: "#/components/schemas/Node" }, "#", [
+      "body",
+    ]);
+
+  await t.step("a value nested to the limit is validated to the bottom", () => {
+    assertEquals(validate(nested(MAX_VALIDATION_DEPTH, {})).valid, true);
+    // The innermost value has the wrong type, and that is found.
+    const node = validate(nested(MAX_VALIDATION_DEPTH, "not an object"));
+    assertEquals(node.valid, false);
+    assertEquals(node.children?.[0]?.keyword, "allOf");
+  });
+
+  await t.step(
+    "a value nested 50 000 levels is reported once, without a stack overflow",
+    () => {
+      const node = validate(nested(50_000, "not an object"));
+      assertEquals(node.valid, false);
+      const leaves: ValidationNode[] = [];
+      const pending = [node];
+      for (let n = pending.pop(); n !== undefined; n = pending.pop()) {
+        if (n.children && n.children.length > 0) pending.push(...n.children);
+        else leaves.push(n);
+      }
+      assertEquals(leaves.map((l) => l.keyword), ["depth"]);
+      assertEquals(leaves[0]?.path.length, MAX_VALIDATION_DEPTH + 2);
+    },
+  );
+
+  await t.step("the next validation starts from a clean state", () => {
+    validate(nested(50_000, {}));
+    assertEquals(validate(nested(3, {})).valid, true);
   });
 });
