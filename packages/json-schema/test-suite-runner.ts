@@ -1,9 +1,29 @@
 /**
- * Runner for the official JSON Schema test suite using TreeValidator
+ * Runs the official JSON Schema Test Suite (the `test-suite` submodule)
+ * against the validator the server uses.
+ *
+ * As a module: `runSuite()` returns the outcome of every case. The
+ * compliance test (`test-suite.test.ts`) compares that with the recorded
+ * snapshot.
+ *
+ * As a script: prints the totals and every failing case.
+ *
+ *   deno task test:suite                 # draft 2020-12, required tests
+ *   deno task test:suite path/to/file    # one file or one directory
  */
 
+import * as path from "@std/path";
+import { SchemaRegistry } from "./schema-registry.ts";
 import { TreeValidator } from "./tree-validator.ts";
 import type { Schema } from "./types.ts";
+
+/** Required draft 2020-12 tests of the pinned suite. */
+export const DRAFT_2020_12_DIR = path.join(
+  path.dirname(path.fromFileUrl(import.meta.url)),
+  "test-suite",
+  "tests",
+  "draft2020-12",
+);
 
 interface TestCase {
   description: string;
@@ -17,118 +37,107 @@ interface TestGroup {
   tests: TestCase[];
 }
 
-interface TestResults {
+export interface FailedCase {
+  /** Suite file name, e.g. "required.json" */
+  file: string;
+  group: string;
+  test: string;
+  expected: boolean;
+  actual: boolean;
+  /** Validator message, or the exception text if the validator threw */
+  detail?: string;
+}
+
+export interface SuiteResults {
   total: number;
   passed: number;
-  failed: number;
-  failedTests: Array<{
-    group: string;
-    test: string;
-    expected: boolean;
-    actual: boolean;
-    schema: Schema | boolean;
-    data: unknown;
-    error?: string;
-  }>;
+  failures: FailedCase[];
 }
 
-export class TestSuiteRunner {
-  private validator = new TreeValidator();
-
-  async runTestFile(filePath: string): Promise<TestResults> {
-    const content = await Deno.readTextFile(filePath);
-    const testGroups: TestGroup[] = JSON.parse(content);
-
-    const results: TestResults = {
-      total: 0,
-      passed: 0,
-      failed: 0,
-      failedTests: [],
-    };
-
-    for (const group of testGroups) {
-      for (const test of group.tests) {
-        results.total++;
-
-        try {
-          const node = this.validator.validate(
-            test.data,
-            group.schema,
-            "#",
-            ["root"],
-          );
-          const actual = node.valid;
-
-          if (actual === test.valid) {
-            results.passed++;
-          } else {
-            results.failed++;
-            results.failedTests.push({
-              group: group.description,
-              test: test.description,
-              expected: test.valid,
-              actual,
-              schema: group.schema,
-              data: test.data,
-              error: node.message,
-            });
-          }
-        } catch (error) {
-          results.failed++;
-          results.failedTests.push({
-            group: group.description,
-            test: test.description,
-            expected: test.valid,
-            actual: false,
-            schema: group.schema,
-            data: test.data,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-    }
-
-    return results;
-  }
-
-  async runAllTests(directory: string): Promise<TestResults> {
-    const totals: TestResults = {
-      total: 0,
-      passed: 0,
-      failed: 0,
-      failedTests: [],
-    };
-
-    for await (const entry of Deno.readDir(directory)) {
-      if (entry.isFile && entry.name.endsWith(".json")) {
-        const filePath = `${directory}/${entry.name}`;
-        const results = await this.runTestFile(filePath);
-
-        totals.total += results.total;
-        totals.passed += results.passed;
-        totals.failed += results.failed;
-        totals.failedTests.push(...results.failedTests);
-      }
-    }
-
-    return totals;
-  }
+/**
+ * Validate the way the server does: a registry over the document that
+ * contains the schema, so `$ref`, `$anchor` and `$id` resolve through it.
+ */
+function validatorFor(schema: Schema | boolean): TreeValidator {
+  if (typeof schema === "boolean") return new TreeValidator();
+  return new TreeValidator({ registry: SchemaRegistry.fromSpec(schema) });
 }
 
-// Run tests if this file is executed directly
-if (import.meta.main) {
-  const runner = new TestSuiteRunner();
-  const target = Deno.args[0] || "./test-suite/tests/draft2020-12";
+async function runFile(filePath: string): Promise<SuiteResults> {
+  const groups: TestGroup[] = JSON.parse(await Deno.readTextFile(filePath));
+  const file = path.basename(filePath);
+  const results: SuiteResults = { total: 0, passed: 0, failures: [] };
 
+  for (const group of groups) {
+    for (const test of group.tests) {
+      results.total++;
+
+      let actual: boolean;
+      let detail: string | undefined;
+      try {
+        const node = validatorFor(group.schema).validate(
+          test.data,
+          group.schema,
+          "#",
+          ["root"],
+        );
+        actual = node.valid;
+        detail = node.message;
+      } catch (error) {
+        // A validator that throws has not accepted the instance.
+        actual = false;
+        detail = `threw: ${
+          error instanceof Error ? error.message : String(error)
+        }`;
+      }
+
+      if (actual === test.valid) {
+        results.passed++;
+      } else {
+        results.failures.push({
+          file,
+          group: group.description,
+          test: test.description,
+          expected: test.valid,
+          actual,
+          detail,
+        });
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Run one suite file, or every `.json` file directly inside a directory.
+ * Files are run in name order so the result is stable.
+ */
+export async function runSuite(target: string): Promise<SuiteResults> {
   const stat = await Deno.stat(target);
-  let results: TestResults;
-  if (stat.isFile) {
-    console.log(`Running JSON Schema test file: ${target}`);
-    results = await runner.runTestFile(target);
-  } else {
-    console.log(`Running JSON Schema test suite from: ${target}`);
-    results = await runner.runAllTests(target);
+  if (stat.isFile) return await runFile(target);
+
+  const files: string[] = [];
+  for await (const entry of Deno.readDir(target)) {
+    if (entry.isFile && entry.name.endsWith(".json")) files.push(entry.name);
   }
+  files.sort();
+
+  const totals: SuiteResults = { total: 0, passed: 0, failures: [] };
+  for (const name of files) {
+    const results = await runFile(path.join(target, name));
+    totals.total += results.total;
+    totals.passed += results.passed;
+    totals.failures.push(...results.failures);
+  }
+  return totals;
+}
+
+if (import.meta.main) {
+  const target = Deno.args[0] ?? DRAFT_2020_12_DIR;
+  console.log(`Running JSON Schema test suite: ${target}`);
+  const results = await runSuite(target);
+  const failed = results.failures.length;
 
   console.log("\n=== Test Results ===");
   console.log(`Total: ${results.total}`);
@@ -137,13 +146,13 @@ if (import.meta.main) {
       (results.passed / results.total * 100).toFixed(2)
     }%)`,
   );
-  console.log(`Failed: ${results.failed}`);
+  console.log(`Failed: ${failed}`);
 
-  if (results.failed > 0) {
-    // Group failures by test group for readability
+  if (failed > 0) {
     const byGroup = new Map<string, number>();
-    for (const f of results.failedTests) {
-      byGroup.set(f.group, (byGroup.get(f.group) ?? 0) + 1);
+    for (const f of results.failures) {
+      const key = `${f.file}: ${f.group}`;
+      byGroup.set(key, (byGroup.get(key) ?? 0) + 1);
     }
     const sorted = [...byGroup.entries()].sort((a, b) => b[1] - a[1]);
 
@@ -153,12 +162,10 @@ if (import.meta.main) {
     }
 
     console.log("\n=== All Failed Tests ===");
-    for (const failed of results.failedTests) {
-      console.log(`\n${failed.group} - ${failed.test}`);
-      console.log(`Expected: ${failed.expected}, Actual: ${failed.actual}`);
-      if (failed.error) {
-        console.log(`Error: ${failed.error}`);
-      }
+    for (const f of results.failures) {
+      console.log(`\n${f.file}: ${f.group} - ${f.test}`);
+      console.log(`Expected: ${f.expected}, Actual: ${f.actual}`);
+      if (f.detail) console.log(`Detail: ${f.detail}`);
     }
   }
 }
