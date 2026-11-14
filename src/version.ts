@@ -1,2 +1,2 @@
 // @pls-version
-export const VERSION = "0.22.2";
+export const VERSION = "0.23.0";

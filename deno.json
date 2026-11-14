@@ -1,6 +1,6 @@
 {
   "name": "@steady/cli",
-  "version": "0.22.2",
+  "version": "0.23.0",
   "license": "MIT",
   "exports": {
     ".": "./mod.ts",

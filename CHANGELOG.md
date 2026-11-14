@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.23.0
+
+### Features
+
+- do not evaluate regular expressions or conditional schemas from the spec (#139)
+
+### Bug Fixes
+
+- identify the oneOf/anyOf variant by the JSON type of the value (#143)
+- run SDK suites with the SDK's own mock script, report suites that did not run (#131)
+- generate responses through long reference chains without recursion (#138)
+- check the shape of the spec at the parser, report wrong-typed values and serve the rest (#137)
+- validate through reference cycles, long reference chains and deep values without a 500 (#135)
+- reject documents that are not trees at the parser, survive long $ref chains (#133)
+- remove the server's signal listeners when it stops (#136)
+- encode text written to response headers so any diagnostic can be reported (#125)
+- look up request and spec names as own properties; count string length in code points (#127)
+- diagnose a method OpenAPI cannot describe instead of answering 501 (#130)
+- accept the Accept headers real servers accept (#129)
+- send Allow on 405 and answer unrecognized methods with 501 (#126)
+- negotiate Accept per RFC 9110 with one parser in @steady/media-type (#124)
+
+### Performance Improvements
+
+- match templated paths through a segment trie (#134)
+
+### Tests
+
+- fuzz nullable values, references, allOf, maps, multipleOf, uniqueItems (#142)
+- generated-spec fuzzer for request bodies, and the E3013 bug it found (#141)
+- pin which diagnostics reject a request, and the exit code (#140)
+- measure JSON Schema Test Suite compliance in the test run (#132)
+
 ## 0.22.2
 
 ### Chores
