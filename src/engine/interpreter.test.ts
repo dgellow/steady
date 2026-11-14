@@ -426,21 +426,20 @@ Deno.test("interpret", async (t) => {
     "E3013: required field in optional parent → ambiguous",
     () => {
       // Schema: { properties: { address: { properties: { city: ... }, required: ["city"] } } }
-      // "address" is NOT in the parent's required array → optional parent
+      // The validator reports the missing field on the object that lacks
+      // it, and says that this object is the value of the optional
+      // property "address".
       const node: ValidationNode = {
         valid: false,
         keyword: "required",
-        path: ["body", "address", "city"],
-        schemaPath: "#/schema/properties/address/properties/city",
+        path: ["body", "address"],
+        schemaPath: "#/schema/properties/address",
         field: "city",
+        optionalProperty: "address",
       };
 
       const resolver = makeResolver({
-        "#/schema/properties/address/properties/city": {},
-        "#/schema": {
-          properties: { address: {} },
-          // address NOT in required → optional
-        },
+        "#/schema/properties/address": { required: ["city"] },
       });
 
       const result = interpret(node, resolver, "body", {});
@@ -469,20 +468,17 @@ Deno.test("interpret", async (t) => {
   await t.step(
     "E3007: required field in required parent stays sdk-issue",
     () => {
+      // No `optionalProperty`: the validator found "address" required.
       const node: ValidationNode = {
         valid: false,
         keyword: "required",
-        path: ["body", "address", "city"],
-        schemaPath: "#/schema/properties/address/properties/city",
+        path: ["body", "address"],
+        schemaPath: "#/schema/properties/address",
         field: "city",
       };
 
       const resolver = makeResolver({
-        "#/schema/properties/address/properties/city": {},
-        "#/schema": {
-          properties: { address: {} },
-          required: ["address"], // address IS required
-        },
+        "#/schema/properties/address": { required: ["city"] },
       });
 
       const result = interpret(node, resolver, "body", {});

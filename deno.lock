@@ -27,6 +27,7 @@
     "jsr:@ts-morph/common@0.27": "0.27.0",
     "npm:@hyperjump/json-schema@*": "1.17.2_@hyperjump+browser@1.3.1",
     "npm:@types/node@*": "22.15.15",
+    "npm:fast-check@^4.10.2": "4.10.2",
     "npm:fullscreen-ink@*": "0.0.2_react@19.1.0",
     "npm:ink-table@*": "3.1.0_ink@5.2.1__react@18.3.1_react@18.3.1",
     "npm:ink-text-input@*": "6.0.0_ink@5.2.1__react@18.3.1_react@18.3.1",
@@ -250,6 +251,12 @@
     "escape-string-regexp@2.0.0": {
       "integrity": "sha512-UpzcLCXolUWcNu5HtVMHYdXJjArjsF9C0aNnquZYY4uW/Vu0miy5YoWvbV345HauVvcAUnpRuhMMcqTcGOY2+w=="
     },
+    "fast-check@4.10.2": {
+      "integrity": "sha512-iK2f+YrcmoeGqk6fA0ea2bptcu/itMIm4NfEozq6N25+aG6h7s5HZbB/k1aV7b5w5sFLMCbbtRUsTVR+BgC3xw==",
+      "dependencies": [
+        "pure-rand"
+      ]
+    },
     "fullscreen-ink@0.0.2_react@19.1.0": {
       "integrity": "sha512-5AiV01q8EfOvG2BrYlmNQtUxDSEBf4p8EN+3R0GRvdDKSh2sphUE+7UKTMMq4qMWq1XuhcJB7TGR8O+UD5VyQw==",
       "dependencies": [
@@ -392,6 +399,9 @@
     },
     "punycode@2.3.1": {
       "integrity": "sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg=="
+    },
+    "pure-rand@8.4.2": {
+      "integrity": "sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng=="
     },
     "react-reconciler@0.29.2_react@18.3.1": {
       "integrity": "sha512-zZQqIiYgDCTP/f1N/mAR10nJGrPD2ZR+jDSEsKWJHYC7Cm2wodlwbR3upZRdC3cjIjSlTLNVyO7Iu0Yy7t2AYg==",
@@ -603,7 +613,8 @@
       "jsr:@std/media-types@^1.1.0",
       "jsr:@std/path@^1.1.3",
       "jsr:@std/testing@^1.0.17",
-      "jsr:@std/yaml@^1.0.10"
+      "jsr:@std/yaml@^1.0.10",
+      "npm:fast-check@^4.10.2"
     ]
   }
 }

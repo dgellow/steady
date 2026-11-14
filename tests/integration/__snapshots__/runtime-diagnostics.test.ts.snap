@@ -153,15 +153,16 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
   {
     actual: undefined,
     attribution: {
-      confidence: 1,
+      confidence: 0.6,
       reasoning: [
-        "Missing required field in body at body.address",
+        "Parent object 'address' is optional in the schema",
+        "Required field 'address1' is inside optional parent 'address'",
         "Field 'address1' is in the schema's required array",
         "Request body did not include 'address1'",
       ],
     },
-    category: "sdk-issue",
-    code: "E3007",
+    category: "ambiguous",
+    code: "E3013",
     display: {
       context: [
         {
@@ -177,21 +178,22 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
     expected: "address1",
     message: "Missing required property: address1",
     requestPath: "body.address",
-    severity: "error",
+    severity: "warning",
     specPointer: "#/components/schemas/Address",
   },
   {
     actual: undefined,
     attribution: {
-      confidence: 1,
+      confidence: 0.6,
       reasoning: [
-        "Missing required field in body at body.address",
+        "Parent object 'address' is optional in the schema",
+        "Required field 'country' is inside optional parent 'address'",
         "Field 'country' is in the schema's required array",
         "Request body did not include 'country'",
       ],
     },
-    category: "sdk-issue",
-    code: "E3007",
+    category: "ambiguous",
+    code: "E3013",
     display: {
       context: [
         {
@@ -207,21 +209,22 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
     expected: "country",
     message: "Missing required property: country",
     requestPath: "body.address",
-    severity: "error",
+    severity: "warning",
     specPointer: "#/components/schemas/Address",
   },
   {
     actual: undefined,
     attribution: {
-      confidence: 1,
+      confidence: 0.6,
       reasoning: [
-        "Missing required field in body at body.address",
+        "Parent object 'address' is optional in the schema",
+        "Required field 'postal_code' is inside optional parent 'address'",
         "Field 'postal_code' is in the schema's required array",
         "Request body did not include 'postal_code'",
       ],
     },
-    category: "sdk-issue",
-    code: "E3007",
+    category: "ambiguous",
+    code: "E3013",
     display: {
       context: [
         {
@@ -237,21 +240,22 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
     expected: "postal_code",
     message: "Missing required property: postal_code",
     requestPath: "body.address",
-    severity: "error",
+    severity: "warning",
     specPointer: "#/components/schemas/Address",
   },
   {
     actual: undefined,
     attribution: {
-      confidence: 1,
+      confidence: 0.6,
       reasoning: [
-        "Missing required field in body at body.address",
+        "Parent object 'address' is optional in the schema",
+        "Required field 'state' is inside optional parent 'address'",
         "Field 'state' is in the schema's required array",
         "Request body did not include 'state'",
       ],
     },
-    category: "sdk-issue",
-    code: "E3007",
+    category: "ambiguous",
+    code: "E3013",
     display: {
       context: [
         {
@@ -267,7 +271,7 @@ snapshot[`POST /accounts with invalid nested address → errors at nested path 1
     expected: "state",
     message: "Missing required property: state",
     requestPath: "body.address",
-    severity: "error",
+    severity: "warning",
     specPointer: "#/components/schemas/Address",
   },
   {

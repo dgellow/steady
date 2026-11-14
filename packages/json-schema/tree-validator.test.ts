@@ -1101,3 +1101,143 @@ Deno.test("TreeValidator: conditional keywords are not evaluated", async (t) => 
     assertEquals(validate({ card: "4111" }, schema).valid, true);
   });
 });
+
+Deno.test("TreeValidator: a missing field says whether its object was optional", async (t) => {
+  const validator = new TreeValidator();
+  const requiredLeaves = (node: ValidationNode): ValidationNode[] =>
+    node.keyword === "required"
+      ? [node]
+      : (node.children ?? []).flatMap(requiredLeaves);
+  /** `field in optionalProperty` for every missing field, in tree order. */
+  const missing = (data: unknown, schema: Schema) =>
+    requiredLeaves(validator.validate(data, schema, "#", ["body"])).map((
+      leaf,
+    ) => `${leaf.field} in ${leaf.optionalProperty ?? "(not optional)"}`);
+
+  const address: Schema = {
+    type: "object",
+    required: ["city"],
+    properties: { city: { type: "string" } },
+  };
+
+  await t.step("object at the root", () => {
+    assertEquals(missing({}, address), ["city in (not optional)"]);
+  });
+
+  await t.step("value of an optional property", () => {
+    assertEquals(
+      missing({ address: {} }, { properties: { address } }),
+      ["city in address"],
+    );
+  });
+
+  await t.step("value of a required property", () => {
+    assertEquals(
+      missing({ address: {} }, {
+        required: ["address"],
+        properties: { address },
+      }),
+      ["city in (not optional)"],
+    );
+  });
+
+  await t.step("optional property whose schema is a reference", () => {
+    assertEquals(
+      missing({ address: {} }, {
+        $defs: { Address: address },
+        properties: { address: { $ref: "#/$defs/Address" } },
+      }),
+      ["city in address"],
+    );
+  });
+
+  await t.step("optional property whose schema is a composition", () => {
+    assertEquals(
+      missing({ address: {} }, {
+        properties: { address: { allOf: [address] } },
+      }),
+      ["city in address"],
+    );
+  });
+
+  await t.step("property required by another allOf branch", () => {
+    assertEquals(
+      missing({ address: {} }, {
+        allOf: [
+          { properties: { address } },
+          { required: ["address"] },
+        ],
+      }),
+      ["city in (not optional)"],
+    );
+    // The order of the branches does not matter.
+    assertEquals(
+      missing({ address: {} }, {
+        allOf: [
+          { required: ["address"] },
+          { properties: { address } },
+        ],
+      }),
+      ["city in (not optional)"],
+    );
+  });
+
+  await t.step("only the nearest property decides", () => {
+    // `outer` is optional, `address` inside it is required.
+    assertEquals(
+      missing({ outer: { address: {} } }, {
+        properties: {
+          outer: { required: ["address"], properties: { address } },
+        },
+      }),
+      ["city in (not optional)"],
+    );
+    // `outer` is required, `address` inside it is optional.
+    assertEquals(
+      missing({ outer: { address: {} } }, {
+        required: ["outer"],
+        properties: { outer: { properties: { address } } },
+      }),
+      ["city in address"],
+    );
+  });
+
+  await t.step("array item of an optional property", () => {
+    assertEquals(
+      missing({ addresses: [{}] }, {
+        properties: { addresses: { type: "array", items: address } },
+      }),
+      ["city in (not optional)"],
+    );
+  });
+
+  await t.step("value covered by additionalProperties", () => {
+    assertEquals(
+      missing({ home: {} }, { additionalProperties: address }),
+      ["city in home"],
+    );
+    assertEquals(
+      missing({ home: {} }, {
+        required: ["home"],
+        additionalProperties: address,
+      }),
+      ["city in (not optional)"],
+    );
+  });
+
+  await t.step("a request does not have to send a readOnly property", () => {
+    const requests = new TreeValidator({ direction: "request" });
+    const leaves = requiredLeaves(
+      requests.validate(
+        { address: {} },
+        {
+          required: ["address"],
+          properties: { address: { ...address, readOnly: true } },
+        },
+        "#",
+        ["body"],
+      ),
+    );
+    assertEquals(leaves.map((leaf) => leaf.optionalProperty), ["address"]);
+  });
+});

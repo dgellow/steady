@@ -31,7 +31,8 @@
     "@std/media-types": "jsr:@std/media-types@^1.1.0",
     "@std/path": "jsr:@std/path@^1.1.3",
     "@std/testing": "jsr:@std/testing@^1.0.17",
-    "@std/yaml": "jsr:@std/yaml@^1.0.10"
+    "@std/yaml": "jsr:@std/yaml@^1.0.10",
+    "fast-check": "npm:fast-check@^4.10.2"
   },
   "tasks": {
     "dev": "deno run --watch --allow-read --allow-net --allow-env --allow-write cmd/steady.ts --auto-reload",
