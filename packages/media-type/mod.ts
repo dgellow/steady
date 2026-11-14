@@ -1,22 +1,28 @@
 export {
+  APPLICATION_JSON,
   essenceMatches,
   getMediaType,
   getStreamingFormat,
   isBinaryMediaType,
   isFormMediaType,
   isJsonMediaType,
+  isMediaRange,
   isMultipartFormData,
   isNdjsonMediaType,
   isSseMediaType,
   isStreamingMediaType,
   isUrlEncoded,
   isWildcard,
+  negotiateMediaType,
+  parseAccept,
 } from "./media-type.ts";
 
 export type {
+  AcceptEntry,
   MediaTypeEssence,
   MultipartFormData,
   NdjsonMediaType,
+  NegotiatedMediaType,
   SseMediaType,
   StreamingMediaType,
   UrlEncoded,

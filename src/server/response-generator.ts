@@ -24,66 +24,27 @@ import {
   type StreamingOptions,
 } from "../streaming.ts";
 import {
-  essenceMatches,
+  APPLICATION_JSON,
   getMediaType,
   isJsonMediaType,
-  isWildcard,
+  isMediaRange,
+  negotiateMediaType,
+  parseAccept,
 } from "../media-type.ts";
-import type { MediaTypeEssence } from "../media-type.ts";
+import type { AcceptEntry, MediaTypeEssence } from "../media-type.ts";
 import { encodeHeaderText, encodeUriReference } from "../http-header.ts";
 
 /** Status codes that MUST NOT have a response body (101, 204, 205, 304). */
 const NULL_BODY_STATUS_STRINGS = new Set(["101", "204", "205", "304"]);
 
 /**
- * Parse Accept header into array of media types, sorted by quality value (q).
- * Returns types in preference order (highest q first).
+ * Whether the client accepts a JSON body: application/json is acceptable
+ * under the Accept header, or the header names another JSON type with a
+ * non-zero weight (e.g. application/vnd.api+json).
  */
-export function parseAcceptHeader(
-  header: string | null,
-): MediaTypeEssence[] {
-  if (!header) return [];
-
-  const entries: { type: MediaTypeEssence; q: number }[] = [];
-  for (const part of header.split(",")) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-
-    // Extract q parameter before parsing
-    const segments = trimmed.split(";");
-    let q = 1.0;
-    for (let i = 1; i < segments.length; i++) {
-      const param = segments[i]?.trim();
-      if (param?.startsWith("q=")) {
-        q = parseFloat(param.slice(2)) || 1.0;
-        break;
-      }
-    }
-
-    const essence = getMediaType(trimmed);
-    if (!essence) continue;
-    entries.push({ type: essence, q });
-  }
-
-  entries.sort((a, b) => b.q - a.q);
-
-  const result: MediaTypeEssence[] = [];
-  for (const entry of entries) {
-    result.push(entry.type);
-  }
-  return result;
-}
-
-/**
- * Check if Accept header types include JSON or wildcard.
- */
-export function acceptsJson(acceptTypes: MediaTypeEssence[]): boolean {
-  for (const t of acceptTypes) {
-    if (isWildcard(t) || isJsonMediaType(t)) {
-      return true;
-    }
-  }
-  return false;
+function acceptsJson(accept: readonly AcceptEntry[]): boolean {
+  if (negotiateMediaType(accept, [APPLICATION_JSON]) !== null) return true;
+  return accept.some((entry) => entry.q > 0 && isJsonMediaType(entry.range));
 }
 
 /**
@@ -113,7 +74,7 @@ export function generateResponseFromObject(
   let minimal = false;
   let nullBodyStripped = false;
 
-  const acceptTypes = parseAcceptHeader(requestAcceptHeader);
+  const accept = requestAcceptHeader ? parseAccept(requestAcceptHeader) : [];
 
   if (responseObj.content) {
     // Build parallel arrays of raw keys and parsed essences, skipping
@@ -134,31 +95,25 @@ export function generateResponseFromObject(
       );
     }
 
-    // Select content type based on Accept header.
-    // Priority: exact Accept match > wildcard match > first content type in spec.
-    // When no parseable keys exist, selectedContentType stays undefined and we
-    // default to application/json below (mock server must always return something).
+    // Select content type by negotiating the Accept header against the
+    // spec's content keys (RFC 9110 section 12.5.1). When nothing is
+    // acceptable the first content type in the spec is used: a mock server
+    // must always return something. When no parseable keys exist,
+    // selectedContentType stays undefined and we default to application/json
+    // below.
     let selectedContentType: string | undefined = contentKeys[0];
     let responseContentType: string | undefined;
-    for (const acceptType of acceptTypes) {
-      // Prefer exact match over wildcard
-      let matchIndex = contentEssences.indexOf(acceptType);
-      if (matchIndex === -1) {
-        matchIndex = contentEssences.findIndex((e) =>
-          essenceMatches(acceptType, e)
-        );
-      }
-      if (matchIndex !== -1) {
-        selectedContentType = contentKeys[matchIndex]!;
-        // When the spec key is */* but the client asked for a specific type,
-        // respond with the client's preferred type, not */*.
-        if (isWildcard(contentEssences[matchIndex]!)) {
-          responseContentType = acceptType;
-        }
-        break;
-      }
-      if (isWildcard(acceptType)) {
-        break;
+    const negotiated = negotiateMediaType(accept, contentEssences);
+    if (negotiated) {
+      selectedContentType = contentKeys[negotiated.index];
+      const selectedEssence = contentEssences[negotiated.index];
+      // When the spec key is a range (e.g. */*) but the client asked for a
+      // specific type, respond with the client's type, not the range.
+      if (
+        selectedEssence !== undefined && isMediaRange(selectedEssence) &&
+        !isMediaRange(negotiated.range)
+      ) {
+        responseContentType = negotiated.range;
       }
     }
 
@@ -253,7 +208,7 @@ export function generateResponseFromObject(
       }
     }
   } else if (
-    acceptsJson(acceptTypes) && !NULL_BODY_STATUS_STRINGS.has(statusCode)
+    acceptsJson(accept) && !NULL_BODY_STATUS_STRINGS.has(statusCode)
   ) {
     // No content defined in spec, but client accepts JSON - return empty object
     // (except for null-body statuses which must not have a body)
