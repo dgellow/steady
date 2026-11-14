@@ -82,7 +82,8 @@ jobs:
         if: matrix.sdk.language == 'typescript'
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # The pnpm that openai-node's bootstrap installs needs Node 22.13+.
+          node-version: "22"
 
       - name: Setup pnpm
         if: matrix.sdk.language == 'typescript'

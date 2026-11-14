@@ -12,12 +12,11 @@
 import { parseArgs } from "@std/cli/parse-args";
 import * as path from "@std/path";
 import { ensureDir, exists } from "@std/fs";
-import { blue, dim, green, red, yellow } from "@std/fmt/colors";
+import { blue, dim, green, red } from "@std/fmt/colors";
 
 const log = (msg: string) => console.log(`${blue("==>")} ${msg}`);
 const success = (msg: string) => console.log(`${green("✓")}   ${msg}`);
 const fail = (msg: string) => console.log(`${red("✗")}   ${msg}`);
-const warn = (msg: string) => console.log(`${yellow("!!")}  ${msg}`);
 
 const STEADY_DIR = path.dirname(
   path.dirname(path.fromFileUrl(import.meta.url)),
@@ -550,7 +549,11 @@ async function runTypescriptTests(sdkPath: string): Promise<boolean> {
     console.log(output.trimEnd());
 
     if (!bootstrapResult.success) {
-      warn("Bootstrap had issues, continuing anyway...");
+      // Without its dependencies the suite fails before it sends a request,
+      // which would be reported as an SDK test failure.
+      throw new HarnessError(
+        `The SDK's scripts/bootstrap failed with exit code ${bootstrapResult.code}`,
+      );
     }
   }
 
@@ -625,7 +628,11 @@ async function runPythonTests(sdkPath: string): Promise<boolean> {
     console.log(output.trimEnd());
 
     if (!bootstrapResult.success) {
-      warn("Bootstrap had issues, continuing anyway...");
+      // Without its dependencies the suite fails before it sends a request,
+      // which would be reported as an SDK test failure.
+      throw new HarnessError(
+        `The SDK's scripts/bootstrap failed with exit code ${bootstrapResult.code}`,
+      );
     }
   }
 
