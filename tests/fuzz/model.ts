@@ -49,7 +49,12 @@ type Shape =
     closed: boolean;
   }
   /** An object with any keys, `additionalProperties: <values>`. */
-  | { kind: "map"; values: Model };
+  | { kind: "map"; values: Model }
+  /**
+   * One of several schemas. The variants accept different JSON types, so
+   * a value belongs to at most one of them, whatever the keyword.
+   */
+  | { kind: "union"; keyword: "oneOf" | "anyOf"; variants: Model[] };
 
 /**
  * How the schema is written. The same shape can be written in several
@@ -169,7 +174,43 @@ function shapeSchema(
         type: "object",
         additionalProperties: build(model.values, components),
       };
+    case "union":
+      return {
+        [model.keyword]: model.variants.map((v) => build(v, components)),
+      };
   }
+}
+
+/** The JSON type a value has, or a shape accepts. */
+type JsonType = "boolean" | "number" | "string" | "array" | "object";
+
+/** `undefined` for shapes that do not accept exactly one JSON type. */
+function jsonTypeOf(model: Model): JsonType | undefined {
+  switch (model.kind) {
+    case "boolean":
+    case "string":
+    case "array":
+      return model.kind;
+    case "integer":
+    case "number":
+      return "number";
+    case "object":
+    case "map":
+      return "object";
+    case "enum":
+    case "const":
+    case "union":
+      return undefined;
+  }
+}
+
+function jsonTypeOfValue(value: unknown): JsonType | undefined {
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "boolean") return "boolean";
+  if (typeof value === "number") return "number";
+  if (typeof value === "string") return "string";
+  if (typeof value === "object" && value !== null) return "object";
+  return undefined;
 }
 
 // ── Model to valid values ───────────────────────────────────────────
@@ -255,6 +296,8 @@ function shapeValue(model: Model): fc.Arbitrary<unknown> {
         Object.fromEntries(parts.flat())
       );
     }
+    case "union":
+      return fc.oneof(...model.variants.map(validValue));
     case "map":
       return fc.uniqueArray(fc.constantFrom(...PROPERTY_NAMES), {
         maxLength: 3,
@@ -303,6 +346,7 @@ function valueOfOtherType(model: Model): unknown {
       return "a string";
     case "enum":
     case "const":
+    case "union":
       return undefined;
   }
 }
@@ -345,6 +389,9 @@ export function faults(model: Model, value: unknown): Fault[] {
   /**
    * `isArrayItem`: the value is a direct item of an array.
    * `inOptionalProperty`: the value is the value of an optional property.
+   * `isVariant`: the schema is one variant of a union. A value of another
+   * type may then be a valid value of another variant, so faults that
+   * change the JSON type are left out.
    */
   const visit = (
     node: Model,
@@ -352,6 +399,7 @@ export function faults(model: Model, value: unknown): Fault[] {
     path: string[],
     isArrayItem: boolean,
     inOptionalProperty: boolean,
+    isVariant = false,
   ): void => {
     const at = path.length === 0 ? "the body" : path.join(".");
     const add = (label: string, replacement: unknown, expected: Expected) => {
@@ -364,7 +412,7 @@ export function faults(model: Model, value: unknown): Fault[] {
 
     // A value of another JSON type. An item of an array has its own code.
     const typeCode = isArrayItem ? "E3010" : "E3008";
-    const other = valueOfOtherType(node);
+    const other = isVariant ? undefined : valueOfOtherType(node);
     if (other !== undefined) {
       add("value of another type", other, {
         code: typeCode,
@@ -419,7 +467,10 @@ export function faults(model: Model, value: unknown): Fault[] {
             : node.minimum === undefined || down >= node.minimum
             ? down
             : undefined;
-          if (fraction !== undefined && node.multipleOf === undefined) {
+          if (
+            fraction !== undefined && node.multipleOf === undefined &&
+            !isVariant
+          ) {
             add("a fraction where an integer is required", fraction, {
               code: typeCode,
               path,
@@ -516,6 +567,17 @@ export function faults(model: Model, value: unknown): Fault[] {
         current.forEach((item, index) =>
           visit(node.items, item, [...path, String(index)], true, false)
         );
+        break;
+      }
+      case "union": {
+        // The variant this value belongs to is the one that accepts its
+        // JSON type. A fault inside it must be reported exactly as if the
+        // schema were that variant alone.
+        const type = jsonTypeOfValue(current);
+        const variant = node.variants.find((v) => jsonTypeOf(v) === type);
+        if (variant !== undefined) {
+          visit(variant, current, path, isArrayItem, inOptionalProperty, true);
+        }
         break;
       }
       case "map": {
@@ -620,8 +682,9 @@ const presented = (shape: fc.Arbitrary<Shape>): fc.Arbitrary<Model> =>
       { weight: 3, arbitrary: fc.constantFrom("ref", "allOf") },
     ),
   }).map(({ shape, nullable, via }): Model => {
-    // `enum` and `const` have no `type` to add "null" to.
-    const typeless = shape.kind === "enum" || shape.kind === "const";
+    // `enum`, `const` and unions have no `type` to add "null" to.
+    const typeless = shape.kind === "enum" || shape.kind === "const" ||
+      shape.kind === "union";
     const how = nullable === "type" && typeless ? "anyOf" : nullable;
     return {
       ...shape,
@@ -704,6 +767,26 @@ export const model: fc.Arbitrary<Model> = fc.letrec<{ node: Model }>((tie) => ({
       ).map((properties): Shape => ({ kind: "object", properties, closed }))
     ),
     tie("node").map((values): Shape => ({ kind: "map", values })),
+    fc.record({
+      keyword: fc.constantFrom<"oneOf" | "anyOf">("oneOf", "anyOf"),
+      candidates: fc.array(tie("node"), { minLength: 2, maxLength: 4 }),
+    }).map(({ keyword, candidates }): Shape => {
+      // Keep one variant per JSON type. A variant does not accept null:
+      // null would belong to every variant that does.
+      const variants: Model[] = [];
+      for (const candidate of candidates) {
+        const type = jsonTypeOf(candidate);
+        if (type === undefined) continue;
+        if (variants.some((v) => jsonTypeOf(v) === type)) continue;
+        const { nullable: _, ...notNullable } = candidate;
+        variants.push(notNullable);
+      }
+      const only = variants[0];
+      if (only === undefined) return { kind: "boolean" };
+      return variants.length === 1
+        ? only
+        : { kind: "union", keyword, variants };
+    }),
   )),
 })).node;
 

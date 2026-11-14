@@ -44,6 +44,14 @@ const SPEC = {
                     properties: { a: { type: "string" } },
                     additionalProperties: false,
                   },
+                  // Variants that accept different JSON types.
+                  either: {
+                    oneOf: [
+                      { type: "array", items: { type: "integer" } },
+                      { $ref: "#/components/schemas/Address" },
+                      { type: "boolean" },
+                    ],
+                  },
                   // Optional, and its schema is a component.
                   shipping: { $ref: "#/components/schemas/Address" },
                 },
@@ -210,6 +218,33 @@ for (const [title, body, code] of SDK_ISSUES) {
     });
   });
 }
+
+// A value belongs to the variant that accepts its JSON type. What is wrong
+// inside that value is reported as if the schema were that variant alone.
+// The other variants fail too, on the type, and that says nothing.
+const IN_VARIANT: [string, unknown, string][] = [
+  ["array item of the wrong type", ["x"], "E3010"],
+  ["object with a property of the wrong type", { city: 1 }, "E3008"],
+];
+for (const [title, either, code] of IN_VARIANT) {
+  Deno.test(`SDK issue inside a oneOf variant, rejected: ${title} (${code})`, async () => {
+    assertEquals(await send({ name: "abc", either }), {
+      status: 400,
+      valid: "false",
+      codes: [code],
+    });
+  });
+}
+
+Deno.test("ambiguous, not rejected: optional oneOf value without its variant's required field (E3013)", async () => {
+  // `either` is optional, so this is the optional-parent case. The point
+  // here is that the object variant is identified at all.
+  assertEquals(await send({ name: "abc", either: {} }), {
+    status: 200,
+    valid: "true",
+    codes: ["E3013"],
+  });
+});
 
 Deno.test("a content note next to an SDK issue does not hide it", async () => {
   const outcome = await send({ name: "ab", color: "blue" });

@@ -28,6 +28,13 @@ export interface InterpretResult {
    * Used by variant identification to pick the closest variant when none match.
    */
   structuralFailureCount: number;
+  /**
+   * The value itself has a JSON type the schema does not accept: a string
+   * where the schema wants an object. Not set when the type is wrong
+   * somewhere inside the value. A variant with this set was not what the
+   * request was aiming at, as long as another variant accepts the type.
+   */
+  wrongType?: true;
 }
 
 /**

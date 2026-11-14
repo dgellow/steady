@@ -1,5 +1,6 @@
+import { assertEquals } from "@std/assert";
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
-import type { CompositionContext } from "../types.ts";
+import type { CompositionContext, InterpretResult } from "../types.ts";
 import type { Diagnostic } from "../../diagnostic.ts";
 import { analyzeAllFailed } from "./variant-analysis.ts";
 
@@ -775,5 +776,72 @@ Deno.test("analyzeAllFailed", async (t) => {
   structurallyValid: false,
 }`,
     );
+  });
+});
+
+Deno.test("analyzeAllFailed: variants that do not accept the type of the value", async (t) => {
+  // oneOf [array of integers, integer, object], sent ["x"].
+  const insideArray: InterpretResult = {
+    diagnostics: [makeDiag({ code: "E3010", requestPath: "body.0" })],
+    structurallyValid: false,
+    structuralFailureCount: 1,
+  };
+  const notAnInteger: InterpretResult = {
+    diagnostics: [makeDiag({ code: "E3008", message: "expected integer" })],
+    structurallyValid: false,
+    structuralFailureCount: 1,
+    wrongType: true,
+  };
+  const notAnObject: InterpretResult = {
+    diagnostics: [makeDiag({ code: "E3008", message: "expected object" })],
+    structurallyValid: false,
+    structuralFailureCount: 1,
+    wrongType: true,
+  };
+
+  await t.step("one variant accepts the type: it is the intended one", () => {
+    const result = analyzeAllFailed(
+      [notAnInteger, insideArray, notAnObject],
+      makeContext({ data: ["x"] }),
+    );
+    assertEquals(result.diagnostics.map((d) => d.code), ["E3010"]);
+    assertEquals(result.diagnostics[0]?.requestPath, "body.0");
+    assertEquals(result.diagnostics[0]?.attribution.confidence, 1.0);
+    assertEquals(
+      result.diagnostics[0]?.attribution.reasoning[0],
+      "Likely variant 1 (only variant that accepts the type of the value)",
+    );
+    assertEquals(result.structurallyValid, false);
+  });
+
+  await t.step("several accept the type: only those are compared", () => {
+    // A second array variant with more failures inside. The integer
+    // variant has the fewest failures of all and must not win.
+    const worseArray: InterpretResult = {
+      diagnostics: [
+        makeDiag({ code: "E3010", requestPath: "body.0" }),
+        makeDiag({ code: "E4005", requestPath: "body" }),
+        makeDiag({ code: "E3010", requestPath: "body.1" }),
+      ],
+      structurallyValid: false,
+      structuralFailureCount: 2,
+    };
+    const result = analyzeAllFailed(
+      [notAnInteger, worseArray, insideArray],
+      makeContext({ data: ["x", "y"] }),
+    );
+    assertEquals(result.diagnostics.map((d) => d.code), ["E3010"]);
+    assertEquals(
+      result.diagnostics[0]?.attribution.reasoning[0],
+      "Likely variant 2 (fewest structural failures)",
+    );
+  });
+
+  await t.step("no variant accepts the type: nothing is dropped", () => {
+    const result = analyzeAllFailed(
+      [notAnInteger, notAnObject],
+      makeContext({ data: "text" }),
+    );
+    assertEquals(result.diagnostics.map((d) => d.code), ["E3012"]);
   });
 });
