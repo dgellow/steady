@@ -7,6 +7,7 @@
 import { parseSpec } from "../../packages/openapi/parser.ts";
 import { analyzeSpec } from "../../src/engine/spec-analyzer.ts";
 import { MockServer } from "../../src/server/mod.ts";
+import type { SchemaParts } from "./model.ts";
 
 /** One finding as the response headers report it. */
 export interface Finding {
@@ -89,9 +90,12 @@ export async function withSteady<T>(
   }
 }
 
-/** A spec with one operation, `POST /x`, whose JSON body has `schema`. */
+/**
+ * A spec with one operation, `POST /x`, whose JSON body has `schema`.
+ * `components` are the schemas it refers to.
+ */
 export function specWithBody(
-  schema: Record<string, unknown>,
+  { schema, components }: SchemaParts,
 ): Record<string, unknown> {
   return {
     openapi: "3.1.0",
@@ -107,5 +111,8 @@ export function specWithBody(
         },
       },
     },
+    ...(Object.keys(components).length > 0
+      ? { components: { schemas: components } }
+      : {}),
   };
 }
