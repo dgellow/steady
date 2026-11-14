@@ -5,16 +5,12 @@
  * is a map from arbitrary names to values. In JavaScript such an object also
  * inherits the members of `Object.prototype`, so `"toString" in map` is true
  * and `map["constructor"]` is a function for every map. Whenever the key
- * comes from a request or a spec, use these instead of `in` and `map[key]`.
+ * comes from a request or a spec, test membership with `Object.hasOwn` and
+ * read with `getOwn`, not with `in` and `map[key]`.
  *
  * Writing needs no counterpart: Deno removes the `__proto__` accessor from
  * `Object.prototype`, so `map[key] = value` creates a member for every key.
  */
-
-/** True when `key` is a member of the map itself, not an inherited one. */
-export function hasOwn(map: object, key: string): boolean {
-  return Object.hasOwn(map, key);
-}
 
 /**
  * The value stored under `key` in the map itself, or `undefined` when the

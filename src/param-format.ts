@@ -6,7 +6,7 @@
  */
 
 import type { QueryArrayFormat, QueryObjectFormat } from "./types.ts";
-import { getOwn, hasOwn, isPlainObject } from "@steady/json-pointer";
+import { getOwn, isPlainObject } from "@steady/json-pointer";
 import {
   coerceFormValue,
   effectiveItems,
@@ -397,7 +397,7 @@ export function setNestedValue(
 
     if (isPlainObject(current)) {
       // Ensure container exists at this segment
-      if (!hasOwn(current, segment)) {
+      if (!Object.hasOwn(current, segment)) {
         current[segment] = isNumericString(nextSegment)
           ? []
           : Object.create(null);

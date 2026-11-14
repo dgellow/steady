@@ -1,5 +1,5 @@
 import { assertEquals, assertStrictEquals, assertThrows } from "@std/assert";
-import { getOwn, hasOwn } from "./object.ts";
+import { getOwn } from "./object.ts";
 import { exists, JsonPointerError, resolve, set } from "./json-pointer.ts";
 
 const INHERITED_NAMES = [
@@ -10,17 +10,17 @@ const INHERITED_NAMES = [
   "__proto__",
 ];
 
-Deno.test("hasOwn / getOwn - inherited members are not members of the map", () => {
+Deno.test("getOwn - inherited members are not members of the map", () => {
   const map: Record<string, number> = { a: 1 };
-  assertEquals(hasOwn(map, "a"), true);
+  assertEquals(Object.hasOwn(map, "a"), true);
   assertEquals(getOwn(map, "a"), 1);
   for (const name of INHERITED_NAMES) {
-    assertEquals(hasOwn(map, name), false, name);
+    assertEquals(Object.hasOwn(map, name), false, name);
     assertEquals(getOwn(map, name), undefined, name);
   }
 });
 
-Deno.test("hasOwn / getOwn - a member with an inherited name is found", () => {
+Deno.test("getOwn - a member with an inherited name is found", () => {
   // JSON.parse stores "__proto__" as an ordinary member.
   const map: Record<string, unknown> = JSON.parse(
     '{"toString":1,"constructor":2,"__proto__":3}',
@@ -30,10 +30,10 @@ Deno.test("hasOwn / getOwn - a member with an inherited name is found", () => {
   assertEquals(getOwn(map, "__proto__"), 3);
 });
 
-Deno.test("hasOwn / getOwn - maps without a prototype", () => {
+Deno.test("getOwn - maps without a prototype", () => {
   const map: Record<string, number> = Object.create(null);
   map.a = 1;
-  assertEquals(hasOwn(map, "a"), true);
+  assertEquals(Object.hasOwn(map, "a"), true);
   assertEquals(getOwn(map, "toString"), undefined);
 });
 
@@ -69,6 +69,6 @@ Deno.test("set - cannot walk into or replace a prototype", () => {
   set(doc, "/a/__proto__", { injected: true });
   const a = doc.a;
   assertStrictEquals(Object.getPrototypeOf(a), Object.prototype);
-  assertEquals(hasOwn(Object(a), "__proto__"), true);
+  assertEquals(Object.hasOwn(Object(a), "__proto__"), true);
   assertEquals(resolve(doc, "/a/__proto__"), { injected: true });
 });

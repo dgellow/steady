@@ -19,7 +19,6 @@ import {
   formatFragmentPointer,
   type FragmentPointer,
   getOwn,
-  hasOwn,
   isFragmentPointer,
   isPlainObject,
   parseFragmentPointer,
@@ -442,7 +441,7 @@ export class TreeValidator {
     errors: ValidationNode[],
   ): void {
     for (const field of required) {
-      if (!hasOwn(obj, field)) {
+      if (!Object.hasOwn(obj, field)) {
         errors.push({
           valid: false,
           keyword: "required",
@@ -468,7 +467,7 @@ export class TreeValidator {
   ): void {
     for (const [propName, propSchema] of Object.entries(properties)) {
       evaluatedProps.add(propName);
-      if (hasOwn(obj, propName)) {
+      if (Object.hasOwn(obj, propName)) {
         this.validateSchema(
           obj[propName],
           propSchema,
