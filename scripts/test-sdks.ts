@@ -81,11 +81,6 @@ const SDKS: SDK[] = [
     ],
   },
   {
-    repo: "meta-llama/llama-stack-client-python",
-    name: "llama-stack-client-python",
-    language: "python",
-  },
-  {
     repo: "cloudflare/cloudflare-python",
     name: "cloudflare-python",
     language: "python",
