@@ -241,10 +241,12 @@ export class MockServer {
       return handleSessionRequest(sessionId, this.sessionStore);
     }
 
-    // Validate HTTP method before any processing
+    // Validate HTTP method before any processing. A method OpenAPI cannot
+    // describe is "not recognized" (501, RFC 9110 section 9.1), not "known
+    // but not allowed for this path" (405, which needs an Allow header).
     if (!isHttpMethod(rawMethod)) {
       return new Response(`Method ${req.method} is not supported`, {
-        status: 405,
+        status: 501,
         headers: { "Content-Type": "text/plain" },
       });
     }
@@ -277,12 +279,21 @@ export class MockServer {
         this.sessionStore.addRequest(sessionId, method, path, routeDiags);
       }
 
-      // E2002 (method not allowed) -> 405, E2001 (path not found) -> 404
-      const isMethodNotAllowed = routeDiags.some((d) => d.code === "E2002");
+      // Method not allowed (E2002) -> 405, path not found (E2001) -> 404
+      const isMethodNotAllowed = routeResult.reason === "method-not-allowed";
       const status = isMethodNotAllowed ? 405 : 404;
       const statusText = isMethodNotAllowed
         ? "Method Not Allowed"
         : "Not Found";
+
+      const errorHeaders = new Headers({ "Content-Type": "application/json" });
+      if (routeResult.reason === "method-not-allowed") {
+        // RFC 9110 section 15.5.6: a 405 response MUST carry Allow.
+        errorHeaders.set(
+          "Allow",
+          routeResult.allowedMethods.map((m) => m.toUpperCase()).join(", "),
+        );
+      }
 
       logRequestEvent(this.config, this.logger, {
         req,
@@ -301,10 +312,7 @@ export class MockServer {
           error: firstDiag?.message ?? "Route not found",
           suggestion: firstDiag?.suggestion,
         }),
-        {
-          status,
-          headers: { "Content-Type": "application/json" },
-        },
+        { status, headers: errorHeaders },
       );
       return addDiagnosticHeaders(errorResponse, routeDiags);
     }
