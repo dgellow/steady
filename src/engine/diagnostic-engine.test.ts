@@ -1071,6 +1071,25 @@ Deno.test("DiagnosticEngine", async (t) => {
     assertEquals(e3022?.severity, "warning");
   });
 
+  await t.step("Accept without any usable media range → E3022", () => {
+    const spec = new StubSpec({ "/users": { get: OP } });
+    const engine = createEngine(spec);
+
+    // Not a type/subtype pair, and a weight outside the qvalue grammar.
+    for (const accept of ["json", "application/json;q=5"]) {
+      const result = engine.analyze({
+        path: "/users",
+        method: "get",
+        headers: { "accept": accept },
+      });
+      assertEquals(
+        result.filter((d) => d.code === "E3022").length,
+        1,
+        `Accept: ${accept}`,
+      );
+    }
+  });
+
   await t.step("Accept with one valid entry → no E3022", () => {
     const spec = new StubSpec({ "/users": { get: OP } });
     const engine = createEngine(spec);

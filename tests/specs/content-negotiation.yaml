@@ -1,0 +1,28 @@
+openapi: 3.1.0
+info:
+  title: Content negotiation
+  version: 1.0.0
+paths:
+  /multi:
+    get:
+      responses:
+        "200":
+          description: Two representations, text first
+          content:
+            text/plain:
+              example: hello
+            application/json:
+              example:
+                greeting: hello
+  /upload:
+    post:
+      requestBody:
+        required: true
+        content:
+          image/*:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "204":
+          description: Stored
