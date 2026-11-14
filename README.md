@@ -241,6 +241,12 @@ Informational headers returned by the server:
 | `X-Steady-Example-Source` | How the response was generated: `generated` or `none` |
 | `X-Steady-Streaming`      | Set to `true` for streaming responses                 |
 
+Each diagnostic also adds `X-Steady-Error-N-Code`, `X-Steady-Error-N-Path` and
+`X-Steady-Error-N-Message`. Path, message and `X-Steady-Matched-Path` can quote
+the request or the spec, so characters outside visible ASCII, and `%` itself,
+are percent-encoded as UTF-8. Read them back with a percent-decoder, for example
+`decodeURIComponent` in JavaScript or `urllib.parse.unquote` in Python.
+
 ## Streaming Responses
 
 Steady supports streaming responses for NDJSON and Server-Sent Events (SSE):
@@ -373,25 +379,31 @@ data: [DONE]
 
 ## JSON Schema Support
 
-Supports JSON Schema draft 2020-12 with ~91% compliance.
+Validates against JSON Schema draft 2020-12. Compliance is measured with the
+official JSON Schema Test Suite on every test run. The pass count and every
+failing case are recorded in
+`packages/json-schema/__snapshots__/test-suite.test.ts.snap`.
 
-**Supported:**
+**Validated:**
 
 - Types: `string`, `number`, `integer`, `boolean`, `null`, `array`, `object`
 - String: `minLength`, `maxLength`, `pattern`, `format`
 - Number: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,
   `multipleOf`
-- Array: `items`, `prefixItems`, `minItems`, `maxItems`, `uniqueItems`,
-  `contains`, `unevaluatedItems`
+- Array: `items`, `prefixItems`, `minItems`, `maxItems`, `uniqueItems`
 - Object: `properties`, `required`, `additionalProperties`, `patternProperties`,
-  `propertyNames`, `minProperties`, `maxProperties`, `unevaluatedProperties`
+  `minProperties`, `maxProperties`
 - Composition: `allOf`, `anyOf`, `oneOf`, `not`
-- Conditional: `if`/`then`/`else`
 - References: `$ref`, `$defs`, `$anchor`
 - `const`, `enum`, `default`
 
-**Not supported:**
+**Not validated.** Data that violates these keywords is accepted:
 
+- Conditional: `if`/`then`/`else`
+- `dependentRequired`, `dependentSchemas`
+- `contains`, `minContains`, `maxContains`
+- `propertyNames`
+- `unevaluatedProperties`, `unevaluatedItems`
 - `$dynamicRef` / `$dynamicAnchor`
 - External `$ref` (http://, file://)
 
