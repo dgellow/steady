@@ -463,7 +463,7 @@ export class DiagnosticEngine {
     // 4b. Accept header validation
     const acceptHeader = getHeaderValue(request.headers, "accept");
     if (acceptHeader) {
-      if (parseAccept(acceptHeader).length === 0) {
+      if (parseAccept(acceptHeader).malformed) {
         diagnostics.push(
           createMalformedAcceptDiagnostic(acceptHeader),
         );

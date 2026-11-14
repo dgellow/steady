@@ -125,14 +125,14 @@ Deno.test("essenceMatches: subtype wildcard pattern matches same type only", () 
 // =============================================================================
 
 Deno.test("parseAccept: missing weight defaults to 1", () => {
-  assertEquals(parseAccept("application/json"), [
+  assertEquals(parseAccept("application/json").entries, [
     { range: essence("application/json"), q: 1 },
   ]);
 });
 
 Deno.test("parseAccept: keeps source order and reads weights", () => {
   assertEquals(
-    parseAccept("text/plain;q=0.5, application/json, */*;q=0.1"),
+    parseAccept("text/plain;q=0.5, application/json, */*;q=0.1").entries,
     [
       { range: essence("text/plain"), q: 0.5 },
       { range: essence("application/json"), q: 1 },
@@ -142,38 +142,56 @@ Deno.test("parseAccept: keeps source order and reads weights", () => {
 });
 
 Deno.test("parseAccept: q=0 and q=0.0 are kept as weight 0", () => {
-  assertEquals(parseAccept("application/json;q=0, text/plain;q=0.0"), [
+  assertEquals(parseAccept("application/json;q=0, text/plain;q=0.0").entries, [
     { range: essence("application/json"), q: 0 },
     { range: essence("text/plain"), q: 0 },
   ]);
 });
 
 Deno.test("parseAccept: weight parameter name is case-insensitive", () => {
-  assertEquals(parseAccept("application/json;Q=0.25"), [
+  assertEquals(parseAccept("application/json;Q=0.25").entries, [
     { range: essence("application/json"), q: 0.25 },
   ]);
 });
 
-Deno.test("parseAccept: members with an invalid weight are dropped", () => {
-  // qvalue grammar: 0 with up to three decimals, or 1 with up to three zeros.
+Deno.test("parseAccept: weights outside the qvalue grammar are read leniently", () => {
+  // The grammar is 0 with up to three decimals or 1 with up to three zeros.
+  // Clients do not all follow it: Java's HttpURLConnection sends "q=.2".
   assertEquals(
-    parseAccept(
-      "a/b;q=abc, c/d;q=1.5, e/f;q=-1, g/h;q=0.1234, i/j;q=.5, text/plain",
-    ),
-    [{ range: essence("text/plain"), q: 1 }],
+    parseAccept("a/b;q=.5, c/d;q=0.1234, e/f;q=1.5, g/h;q=5").entries,
+    [
+      { range: essence("a/b"), q: 0.5 },
+      { range: essence("c/d"), q: 0.1234 },
+      { range: essence("e/f"), q: 1 },
+      { range: essence("g/h"), q: 1 },
+    ],
   );
 });
 
-Deno.test("parseAccept: members that are not a media range are dropped", () => {
-  assertEquals(parseAccept(";;;"), []);
-  assertEquals(parseAccept(""), []);
-  assertEquals(parseAccept("*, json, , text/plain"), [
-    { range: essence("text/plain"), q: 1 },
+Deno.test("parseAccept: a weight that is not a number is ignored", () => {
+  assertEquals(parseAccept("a/b;q=abc, c/d;q=-1").entries, [
+    { range: essence("a/b"), q: 1 },
+    { range: essence("c/d"), q: 1 },
   ]);
 });
 
+Deno.test("parseAccept: members that are not a media range are skipped", () => {
+  assertEquals(parseAccept("*, json, , text/plain"), {
+    entries: [{ range: essence("text/plain"), q: 1 }],
+    malformed: false,
+  });
+});
+
+Deno.test("parseAccept: malformed only when no member can be read at all", () => {
+  assertEquals(parseAccept(";;;"), { entries: [], malformed: true });
+  assertEquals(parseAccept(""), { entries: [], malformed: true });
+  // Readable, though not type/subtype ranges: lenient servers ignore them.
+  assertEquals(parseAccept("*"), { entries: [], malformed: false });
+  assertEquals(parseAccept("json"), { entries: [], malformed: false });
+});
+
 Deno.test("parseAccept: a comma inside a quoted parameter does not split the member", () => {
-  assertEquals(parseAccept('foo/bar;x="a,b";q=0.2, text/plain'), [
+  assertEquals(parseAccept('foo/bar;x="a,b";q=0.2, text/plain').entries, [
     { range: essence("foo/bar"), q: 0.2 },
     { range: essence("text/plain"), q: 1 },
   ]);
@@ -184,7 +202,10 @@ Deno.test("parseAccept: a comma inside a quoted parameter does not split the mem
 // =============================================================================
 
 function negotiate(accept: string, available: string[]) {
-  return negotiateMediaType(parseAccept(accept), available.map(essence));
+  return negotiateMediaType(
+    parseAccept(accept).entries,
+    available.map(essence),
+  );
 }
 
 Deno.test("negotiateMediaType: q=0 excludes a type", () => {
