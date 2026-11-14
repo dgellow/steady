@@ -99,6 +99,9 @@ function errorToDiagnostics(
       ],
     },
     suggestion: error.context.suggestion,
+    // The reason says where and why (the syntax error and its line, the
+    // HTTP status of a failed download, the location of a bad alias).
+    display: { context: [{ text: error.context.reason }] },
   }];
 }
 
