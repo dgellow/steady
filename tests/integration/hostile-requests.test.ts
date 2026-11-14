@@ -109,3 +109,65 @@ Deno.test("a request body nested 5 000 levels is answered, with a note about the
     },
   );
 });
+
+Deno.test("a chain of 100 000 $refs is followed for validation and for the generated response", async () => {
+  const hops = 100_000;
+  const schemas: Record<string, unknown> = {
+    A0: { type: "object", required: ["id"], properties: { id: { const: 7 } } },
+  };
+  for (let i = 1; i <= hops; i++) {
+    schemas[`A${i}`] = { $ref: `#/components/schemas/A${i - 1}` };
+  }
+  const schema = { $ref: `#/components/schemas/A${hops}` };
+  const document = JSON.stringify({
+    openapi: "3.1.0",
+    info: { title: "hostile", version: "1" },
+    paths: {
+      "/x": {
+        post: {
+          requestBody: { content: { "application/json": { schema } } },
+          responses: {
+            "200": {
+              description: "ok",
+              content: { "application/json": { schema } },
+            },
+          },
+        },
+      },
+    },
+    components: { schemas },
+  });
+  const { spec, defaultedFields } = await parseSpec(document, {
+    format: "json",
+  });
+  const analysis = analyzeSpec(spec, {
+    baseUri: "file:///hostile.json",
+    defaultedFields,
+  });
+  const server = new MockServer(spec, {
+    port: 0,
+    host: "127.0.0.1",
+    quiet: true,
+    logLevel: "summary",
+    startupDiagnostics: analysis.diagnostics,
+    specPath: "hostile.json",
+  }, analysis.docIndex);
+  const port = await server.start();
+  try {
+    const url = `http://127.0.0.1:${port}/x`;
+    const init = {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+    };
+    // The schema at the end of the chain is applied to the request...
+    const rejected = await fetch(url, { ...init, body: "{}" });
+    await rejected.body?.cancel();
+    assertEquals(rejected.status, 400);
+    // ...and the response is generated from it.
+    const accepted = await fetch(url, { ...init, body: '{"id":7}' });
+    assertEquals(accepted.status, 200);
+    assertEquals(await accepted.json(), { id: 7 });
+  } finally {
+    await server.stop();
+  }
+});
