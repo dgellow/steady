@@ -28,29 +28,23 @@ interface SDK {
   repo: string;
   name: string;
   language: "go" | "python" | "typescript";
-  /** Additional CLI flags for the validator */
+  /**
+   * Validator flags for the mock script this runner writes. Not used when
+   * the SDK's own `scripts/mock` starts Steady: that script has its flags.
+   */
   validatorFlags?: string[];
   /** Skip in CI (too slow, etc.) */
   ciSkip?: boolean;
 }
 
-// List of SDKs to test
+// List of SDKs to test.
+//
+// An SDK belongs here when its repository carries what a run needs: a
+// `scripts/mock` that starts Steady with the SDK's own spec, or an
+// `openapi-spec.yml`. An SDK whose spec cannot be obtained, or whose
+// repository cannot be cloned, is a red "not run" job on every pull request
+// and says nothing about Steady.
 const SDKS: SDK[] = [
-  {
-    repo: "DefinitelyATestOrg/test-api-go",
-    name: "test-api-go",
-    language: "go",
-  },
-  {
-    repo: "DefinitelyATestOrg/test-api-python",
-    name: "test-api-python",
-    language: "python",
-  },
-  {
-    repo: "DefinitelyATestOrg/test-api-typescript",
-    name: "test-api-typescript",
-    language: "typescript",
-  },
   {
     repo: "openai/openai-python",
     name: "openai-python",
@@ -87,23 +81,8 @@ const SDKS: SDK[] = [
     ],
   },
   {
-    repo: "Cerebras/cerebras-cloud-sdk-python",
-    name: "cerebras-cloud-sdk-python",
-    language: "python",
-  },
-  {
     repo: "meta-llama/llama-stack-client-python",
     name: "llama-stack-client-python",
-    language: "python",
-  },
-  {
-    repo: "perplexityai/perplexity-py",
-    name: "perplexity-py",
-    language: "python",
-  },
-  {
-    repo: "ArcadeAI/arcade-py",
-    name: "arcade-py",
     language: "python",
   },
   {
@@ -118,16 +97,6 @@ const SDKS: SDK[] = [
   {
     repo: "browserbase/sdk-python",
     name: "browserbase-python",
-    language: "python",
-  },
-  {
-    repo: "lithic-com/lithic-python",
-    name: "lithic-python",
-    language: "python",
-  },
-  {
-    repo: "Modern-Treasury/modern-treasury-python",
-    name: "modern-treasury-python",
     language: "python",
   },
   {
@@ -147,58 +116,9 @@ const SDKS: SDK[] = [
     ],
   },
   {
-    repo: "writer/writer-python",
-    name: "writer-python",
-    language: "python",
-  },
-  {
     repo: "knocklabs/knock-python",
     name: "knock-python",
     language: "python",
-  },
-  {
-    repo: "stainless-commons/stripe-python",
-    name: "stripe-python",
-    language: "python",
-    validatorFlags: [
-      "--validator-query-array-format=brackets",
-      "--validator-query-object-format=brackets",
-      "--validator-form-array-format=brackets",
-      "--validator-form-object-format=brackets",
-    ],
-  },
-  {
-    repo: "stainless-commons/stripe-node",
-    name: "stripe-typescript",
-    language: "typescript",
-    validatorFlags: [
-      "--validator-query-array-format=brackets",
-      "--validator-query-object-format=brackets",
-      "--validator-form-array-format=brackets",
-      "--validator-form-object-format=brackets",
-    ],
-  },
-  {
-    repo: "stainless-sdks/sink-python-public",
-    name: "sink-python",
-    language: "python",
-    validatorFlags: [
-      "--validator-query-array-format=brackets",
-      "--validator-query-object-format=brackets",
-      "--validator-form-array-format=brackets",
-      "--validator-form-object-format=brackets",
-    ],
-  },
-  {
-    repo: "stainless-sdks/sink-typescript-public",
-    name: "sink-typescript",
-    language: "typescript",
-    validatorFlags: [
-      "--validator-query-array-format=brackets",
-      "--validator-query-object-format=brackets",
-      "--validator-form-array-format=brackets",
-      "--validator-form-object-format=brackets",
-    ],
   },
 ];
 
