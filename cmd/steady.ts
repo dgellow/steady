@@ -720,6 +720,8 @@ Response Headers (informational):
   X-Steady-Matched-Path            Spec path pattern matched (e.g., /users/{id})
   X-Steady-Example-Source          "generated" if response was generated from schema,
                                    "none" if no response body
+  Path, Message and Matched-Path percent-encode "%" and anything outside visible
+  ASCII as UTF-8. Decode with a percent-decoder (e.g. decodeURIComponent).
 
 Examples:
   steady api.yaml                          # Start with default settings

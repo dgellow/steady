@@ -241,6 +241,12 @@ Informational headers returned by the server:
 | `X-Steady-Example-Source` | How the response was generated: `generated` or `none` |
 | `X-Steady-Streaming`      | Set to `true` for streaming responses                 |
 
+Each diagnostic also adds `X-Steady-Error-N-Code`, `X-Steady-Error-N-Path` and
+`X-Steady-Error-N-Message`. Path, message and `X-Steady-Matched-Path` can quote
+the request or the spec, so characters outside visible ASCII, and `%` itself,
+are percent-encoded as UTF-8. Read them back with a percent-decoder, for example
+`decodeURIComponent` in JavaScript or `urllib.parse.unquote` in Python.
+
 ## Streaming Responses
 
 Steady supports streaming responses for NDJSON and Server-Sent Events (SSE):

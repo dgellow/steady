@@ -1,0 +1,31 @@
+openapi: 3.1.0
+info:
+  title: Header encoding
+  version: 1.0.0
+paths:
+  /users:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Created
+  /moved:
+    get:
+      responses:
+        "302":
+          description: Redirect to a location with non-ASCII characters
+          headers:
+            Location:
+              schema:
+                type: string
+              example: /caf%C3%A9/名前?q=a b

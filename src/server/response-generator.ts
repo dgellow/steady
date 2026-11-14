@@ -30,6 +30,7 @@ import {
   isWildcard,
 } from "../media-type.ts";
 import type { MediaTypeEssence } from "../media-type.ts";
+import { encodeHeaderText, encodeUriReference } from "../http-header.ts";
 
 /** Status codes that MUST NOT have a response body (101, 204, 205, 304). */
 const NULL_BODY_STATUS_STRINGS = new Set(["101", "204", "205", "304"]);
@@ -261,7 +262,7 @@ export function generateResponseFromObject(
   }
 
   const headers = new Headers({
-    [HEADERS.MATCHED_PATH]: pathPattern,
+    [HEADERS.MATCHED_PATH]: encodeHeaderText(pathPattern),
     [HEADERS.EXAMPLE_SOURCE]: body !== null ? "generated" : "none",
   });
   if (contentType) {
@@ -273,7 +274,7 @@ export function generateResponseFromObject(
   const numericStatus = parseInt(statusCode, 10);
   if (numericStatus >= 300 && numericStatus < 400) {
     const location = resolveLocationHeader(specDoc, responseObj);
-    headers.set("Location", location);
+    headers.set("Location", encodeUriReference(location));
   }
 
   // Null-body status codes must not have a body per HTTP semantics.
@@ -382,7 +383,7 @@ function generateStreamingResponse(
 
   const headers = new Headers({
     "Content-Type": contentType,
-    [HEADERS.MATCHED_PATH]: pathPattern,
+    [HEADERS.MATCHED_PATH]: encodeHeaderText(pathPattern),
     [HEADERS.EXAMPLE_SOURCE]: "generated",
     [HEADERS.STREAMING]: "true",
     "Cache-Control": "no-cache",
@@ -492,6 +493,9 @@ function resolveLocationHeader(
 /**
  * Add X-Steady-* diagnostic headers to a response.
  * X-Steady-Request-Valid is false when any sdk-issue diagnostic is present.
+ *
+ * Path and message can quote the request, so they go through
+ * encodeHeaderText. Clients read them back with a percent-decoder.
  */
 export function addDiagnosticHeaders(
   response: Response,
@@ -506,8 +510,14 @@ export function addDiagnosticHeaders(
   diagnostics.forEach((d, i) => {
     const n = i + 1;
     newHeaders.set(`X-Steady-Error-${n}-Code`, d.code);
-    newHeaders.set(`X-Steady-Error-${n}-Path`, d.requestPath);
-    newHeaders.set(`X-Steady-Error-${n}-Message`, d.message);
+    newHeaders.set(
+      `X-Steady-Error-${n}-Path`,
+      encodeHeaderText(d.requestPath),
+    );
+    newHeaders.set(
+      `X-Steady-Error-${n}-Message`,
+      encodeHeaderText(d.message),
+    );
   });
 
   return new Response(response.body, {
