@@ -938,6 +938,79 @@ Deno.test("DiagnosticEngine", async (t) => {
   });
 
   await t.step(
+    "body bytes without Content-Type → E3006 naming the header, not E3005",
+    () => {
+      const spec = new StubSpec({ "/users": { post: OP } });
+      spec.bodySchema = {
+        schema: { type: "object" },
+        schemaPath:
+          "#/paths/~1users/post/requestBody/content/application~1json/schema",
+        required: true,
+      };
+      spec.acceptedContentTypes = ["application/json", "text/plain"];
+      const engine = createEngine(spec);
+
+      const result = engine.analyze({
+        path: "/users",
+        method: "post",
+        unreadableBody: { reason: "no-content-type", byteLength: 14 },
+      });
+
+      assertEquals(result.map((d) => d.code), ["E3006"]);
+      const e3006 = result[0];
+      assertEquals(e3006?.category, "sdk-issue");
+      assertEquals(e3006?.requestPath, "header.content-type");
+      assertEquals(
+        e3006?.message,
+        "Request has a 14-byte body but no Content-Type header. Expected: application/json, text/plain",
+      );
+      assertEquals(e3006?.expected, ["application/json", "text/plain"]);
+    },
+  );
+
+  await t.step(
+    "body bytes without Content-Type on an operation without requestBody → nothing",
+    () => {
+      const spec = new StubSpec({ "/users": { post: OP } });
+      const engine = createEngine(spec);
+
+      const result = engine.analyze({
+        path: "/users",
+        method: "post",
+        unreadableBody: { reason: "no-content-type", byteLength: 14 },
+      });
+
+      assertEquals(result, []);
+    },
+  );
+
+  await t.step(
+    "malformed body on an operation that requires one → no E3005",
+    () => {
+      // The body parser has reported the malformed body (E3021). The request
+      // did send a body, so "missing body" would be a second, wrong cause.
+      const spec = new StubSpec({ "/users": { post: OP } });
+      spec.bodySchema = {
+        schema: { type: "object" },
+        schemaPath:
+          "#/paths/~1users/post/requestBody/content/application~1json/schema",
+        required: true,
+      };
+      spec.acceptedContentTypes = ["application/json"];
+      const engine = createEngine(spec);
+
+      const result = engine.analyze({
+        path: "/users",
+        method: "post",
+        headers: { "content-type": "application/json" },
+        unreadableBody: { reason: "malformed" },
+      });
+
+      assertEquals(result, []);
+    },
+  );
+
+  await t.step(
     "wildcard */* in spec accepts any Content-Type → no E3006",
     () => {
       const spec = new StubSpec({ "/kv": { put: OP } });

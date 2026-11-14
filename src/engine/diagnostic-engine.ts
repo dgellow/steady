@@ -129,13 +129,27 @@ export interface SchemaValidator {
 }
 
 /** Input to the engine's analyze method. */
+/** Why a body that was sent has no parsed value. */
+export type UnreadableBody =
+  /** No Content-Type header, so nothing says how to read the bytes. */
+  | { reason: "no-content-type"; byteLength: number }
+  /** The body parser rejected it and has reported why (E3019, E3021). */
+  | { reason: "malformed" };
+
 export interface AnalyzeRequest {
   path: string;
   method: string;
   queryParams?: URLSearchParams;
   headers?: Record<string, string>;
   pathParams?: Record<string, string>;
+  /** The parsed body. Undefined when the request carried no body bytes. */
   body?: unknown;
+  /**
+   * Set when a body was sent but could not be turned into a value, so `body`
+   * is undefined although the request had one. Such a request never gets
+   * E3005 (missing body).
+   */
+  unreadableBody?: UnreadableBody;
   /** Effective query array format (already merged by caller). Defaults to "auto". */
   queryArrayFormat?: QueryArrayFormat;
   /** Effective query object format (already merged by caller). Defaults to "auto". */
@@ -429,7 +443,25 @@ export class DiagnosticEngine {
     // 4. Content-Type validation
     const contentType = getHeaderValue(request.headers, "content-type");
     const essence = contentType ? getMediaType(contentType) : null;
-    if (contentType) {
+    const unreadableBody = request.unreadableBody;
+    if (unreadableBody?.reason === "no-content-type") {
+      // A body was sent, but nothing says what it is. That is a different
+      // fault from sending no body (E3005) and gets the Content-Type code.
+      const acceptedTypes = this.spec.getAcceptedContentTypes(
+        pathPattern,
+        method,
+      );
+      if (acceptedTypes) {
+        diagnostics.push(
+          createMissingContentTypeDiagnostic(
+            pathPattern,
+            method,
+            unreadableBody.byteLength,
+            acceptedTypes,
+          ),
+        );
+      }
+    } else if (contentType) {
       if (!essence) {
         diagnostics.push(
           createMalformedContentTypeDiagnostic(contentType),
@@ -477,7 +509,11 @@ export class DiagnosticEngine {
       essence ?? "application/json",
     );
     if (bodyInfo) {
-      if (request.body === undefined) {
+      if (unreadableBody) {
+        // A body was sent, so it is not E3005, and there is no value to
+        // validate. The reason is already reported: a missing Content-Type
+        // above, or a malformed body by the body parser.
+      } else if (request.body === undefined) {
         // Body not provided. E3005 if required, skip validation otherwise
         if (bodyInfo.required) {
           diagnostics.push(
@@ -692,6 +728,50 @@ function createWrongContentTypeDiagnostic(
         `Request sent Content-Type "${actualType}"`,
       ],
     },
+  };
+}
+
+/**
+ * Create an E3006 diagnostic for a body sent without a Content-Type header.
+ */
+function createMissingContentTypeDiagnostic(
+  pathPattern: string,
+  method: string,
+  byteLength: number,
+  acceptedTypes: string[],
+): Diagnostic {
+  const e3006 = getCode("E3006");
+
+  return {
+    code: "E3006",
+    severity: e3006.severity,
+    category: e3006.category,
+    requestPath: "header.content-type",
+    specPointer: formatFragmentPointer([
+      "paths",
+      pathPattern,
+      method,
+      "requestBody",
+      "content",
+    ]),
+    message:
+      `Request has a ${byteLength}-byte body but no Content-Type header. Expected: ${
+        acceptedTypes.join(", ")
+      }`,
+    expected: acceptedTypes,
+    attribution: {
+      confidence: 1.0,
+      reasoning: [
+        `Spec accepts: ${acceptedTypes.join(", ")}`,
+        `Request sent ${byteLength} bytes of body without a Content-Type header`,
+        "Without a Content-Type the server cannot tell how to read the body",
+      ],
+    },
+    suggestion: `Set the Content-Type header to ${
+      acceptedTypes.length === 1
+        ? acceptedTypes[0]
+        : "one of the accepted types"
+    }`,
   };
 }
 

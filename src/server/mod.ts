@@ -30,7 +30,7 @@ import { TextLogger } from "../logging/text-logger.ts";
 import { JsonLogger } from "../logging/json-logger.ts";
 import { CILogger } from "../logging/ci-logger.ts";
 import { getStatusText } from "../logging/colors.ts";
-import { isParseError, parseRequestBody } from "../body-parser.ts";
+import { parseRequestBody } from "../body-parser.ts";
 import type { FormParserOptions } from "../form-parser.ts";
 import { OpenAPISpec } from "@steady/openapi";
 import { isSchema, TreeValidator } from "@steady/json-schema";
@@ -38,6 +38,7 @@ import { getMediaType, isFormMediaType } from "../media-type.ts";
 import {
   type AnalyzeRequest,
   DiagnosticEngine,
+  type UnreadableBody,
 } from "../engine/diagnostic-engine.ts";
 import type { Diagnostic } from "../diagnostic.ts";
 import { SessionStore } from "../session/store.ts";
@@ -375,16 +376,28 @@ export class MockServer {
       }
 
       // Parse request body
-      const parseResult = await parseRequestBody(req, null, formOptions);
+      const requestBody = await parseRequestBody(req, formOptions);
       let parseDiags: Diagnostic[] = [];
       let body: unknown;
       let rawFormKeys: string[] | undefined;
-      if (isParseError(parseResult)) {
-        parseDiags = parseResult.diagnostics;
-        body = undefined;
-      } else {
-        body = parseResult.body;
-        rawFormKeys = parseResult.rawFormKeys;
+      let unreadableBody: UnreadableBody | undefined;
+      switch (requestBody.kind) {
+        case "absent":
+          break;
+        case "parsed":
+          body = requestBody.value;
+          rawFormKeys = requestBody.rawFormKeys;
+          break;
+        case "unlabelled":
+          unreadableBody = {
+            reason: "no-content-type",
+            byteLength: requestBody.byteLength,
+          };
+          break;
+        case "invalid":
+          parseDiags = requestBody.diagnostics;
+          unreadableBody = { reason: "malformed" };
+          break;
       }
 
       // Track request count and endpoint coverage
@@ -398,6 +411,7 @@ export class MockServer {
         url.searchParams,
         req.headers,
         body,
+        unreadableBody,
         pathParams,
         consumedQueryParams,
         rawFormKeys,
@@ -621,6 +635,7 @@ export class MockServer {
     queryParams: URLSearchParams,
     reqHeaders: Headers,
     body: unknown,
+    unreadableBody: UnreadableBody | undefined,
     pathParams?: Record<string, string>,
     consumedQueryParams?: string[],
     rawFormKeys?: string[],
@@ -649,6 +664,7 @@ export class MockServer {
       headers,
       pathParams,
       body,
+      unreadableBody,
       queryArrayFormat,
       queryObjectFormat,
       consumedQueryParams,

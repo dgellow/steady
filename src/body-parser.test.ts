@@ -1,5 +1,6 @@
 import { assertEquals, assertExists } from "@std/assert";
-import { isParseError, parseRequestBody } from "./body-parser.ts";
+import { parseRequestBody } from "./body-parser.ts";
+import { getMediaType } from "./media-type.ts";
 
 /** Helper to create a Request with a JSON body. */
 function jsonRequest(
@@ -31,195 +32,170 @@ function formRequest(
   });
 }
 
-/** Extract the first diagnostic from a parse error result. */
-function firstDiag(result: { diagnostics: { code: string }[] }) {
-  const d = result.diagnostics[0];
-  assertExists(d, "Expected at least one diagnostic");
-  return d;
-}
-
-Deno.test("parseRequestBody - successful JSON parse", async () => {
-  const req = jsonRequest('{"name":"sam","age":30}');
-  const result = await parseRequestBody(req, ["application/json"]);
-
-  assertEquals(isParseError(result), false);
-  if (!isParseError(result)) {
-    assertEquals(result.body, { name: "sam", age: 30 });
-    assertEquals(result.contentType, "application/json");
-  }
-});
-
-Deno.test("parseRequestBody - successful form parse", async () => {
-  const req = formRequest("name=sam&age=30");
-  const result = await parseRequestBody(req, [
-    "application/x-www-form-urlencoded",
-  ]);
-
-  assertEquals(isParseError(result), false);
-  if (!isParseError(result)) {
-    assertEquals(result.contentType, "application/x-www-form-urlencoded");
-  }
-});
-
-Deno.test("parseRequestBody - invalid Content-Length (NaN)", async () => {
-  const req = jsonRequest('{"a":1}', { "Content-Length": "abc" });
-  const result = await parseRequestBody(req, ["application/json"]);
-
-  assertEquals(isParseError(result), true);
-  if (isParseError(result)) {
-    assertEquals(result.diagnostics.length, 1);
-    const d = firstDiag(result);
-    assertEquals(d.code, "E3019");
-  }
-});
-
-Deno.test("parseRequestBody - invalid Content-Length (negative)", async () => {
-  const req = jsonRequest('{"a":1}', { "Content-Length": "-5" });
-  const result = await parseRequestBody(req, ["application/json"]);
-
-  assertEquals(isParseError(result), true);
-  if (isParseError(result)) {
-    const d = firstDiag(result);
-    assertEquals(d.code, "E3019");
-  }
-});
-
-Deno.test("parseRequestBody - empty JSON body returns undefined", async () => {
-  const req = jsonRequest("");
-  const result = await parseRequestBody(req, ["application/json"]);
-
-  assertEquals(isParseError(result), false, "Empty body is not a parse error");
-  if (!isParseError(result)) {
-    assertEquals(result.body, undefined);
-  }
-});
-
-Deno.test("parseRequestBody - malformed JSON", async () => {
-  const req = jsonRequest("{invalid json}");
-  const result = await parseRequestBody(req, ["application/json"]);
-
-  assertEquals(isParseError(result), true);
-  if (isParseError(result)) {
-    const d = firstDiag(result);
-    assertEquals(d.code, "E3021");
-  }
-});
-
-Deno.test("parseRequestBody - no body on GET request", async () => {
-  const req = new Request("http://localhost/test", { method: "GET" });
-  const result = await parseRequestBody(req, null);
-
-  assertEquals(isParseError(result), false);
-  if (!isParseError(result)) {
-    assertEquals(result.body, undefined);
-  }
-});
-
-Deno.test("parseRequestBody - QUERY request body is parsed", async () => {
-  const req = new Request("http://localhost/search", {
-    method: "QUERY",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ q: "test" }),
-  });
-  const result = await parseRequestBody(req, ["application/json"]);
-
-  assertEquals(isParseError(result), false);
-  if (!isParseError(result)) {
-    assertEquals(result.body, { q: "test" });
-    assertEquals(result.contentType, "application/json");
-  }
-});
-
-Deno.test("parseRequestBody - null acceptedContentTypes allows any", async () => {
-  const req = jsonRequest('{"ok":true}');
-  const result = await parseRequestBody(req, null);
-
-  assertEquals(isParseError(result), false);
-  if (!isParseError(result)) {
-    assertEquals(result.body, { ok: true });
-  }
-});
-
-Deno.test("parseRequestBody - DELETE with JSON body is parsed", async () => {
-  const req = new Request("http://localhost/test", {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: '{"ids":["a","b"]}',
-  });
-  const result = await parseRequestBody(req, null);
-
-  assertEquals(isParseError(result), false);
-  if (!isParseError(result)) {
-    assertEquals(result.body, { ids: ["a", "b"] });
-  }
-});
-
-Deno.test("parseRequestBody - DELETE without body returns undefined", async () => {
-  const req = new Request("http://localhost/test", { method: "DELETE" });
-  const result = await parseRequestBody(req, null);
-
-  assertEquals(isParseError(result), false);
-  if (!isParseError(result)) {
-    assertEquals(result.body, undefined);
-  }
-});
-
-Deno.test("parseRequestBody - empty JSON body returns undefined (not E3005)", async () => {
-  // SDKs commonly send Content-Type: application/json on all requests,
-  // including DELETE/cancel endpoints that have no body. The body parser
-  // should treat this as "no body" and let the diagnostic engine decide
-  // whether the spec requires one.
-  const req = new Request("http://localhost/test", {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: "",
-  });
-  const result = await parseRequestBody(req, null);
-
-  assertEquals(isParseError(result), false, "Should not be a parse error");
-  if (!isParseError(result)) {
-    assertEquals(result.body, undefined);
-  }
-});
-
-Deno.test("parseRequestBody - POST with empty JSON body returns undefined (not E3005)", async () => {
-  // Same principle for POST: the body parser shouldn't decide if an empty
-  // body is an error. That depends on the spec (required: true or not).
-  const req = jsonRequest("");
-  const result = await parseRequestBody(req, ["application/json"]);
-
-  assertEquals(isParseError(result), false, "Should not be a parse error");
-  if (!isParseError(result)) {
-    assertEquals(result.body, undefined);
-  }
-});
-
-Deno.test("parseRequestBody - DELETE with empty ReadableStream body and no content-type returns undefined", async () => {
-  // Deno's HTTP server sets req.body to a ReadableStream even for bodyless
-  // requests (unlike new Request() which sets it to null). The body parser
-  // must not treat this as a JSON request with an empty body.
-  const stream = new ReadableStream({
+/**
+ * A request whose body is a stream and that has no Content-Type header.
+ * `new Request(url, { body: "text" })` would add one on its own.
+ */
+function unlabelledRequest(method: string, chunks: string[]): Request {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
       controller.close();
     },
   });
-  const req = new Request("http://localhost/test", {
-    method: "DELETE",
-    body: stream,
-  });
-  // Remove Content-Type that Request constructor may add
-  const headers = new Headers(req.headers);
-  headers.delete("content-type");
-  const cleanReq = new Request(req.url, {
-    method: req.method,
-    headers,
-    body: stream,
-  });
+  const req = new Request("http://localhost/test", { method, body: stream });
+  assertEquals(req.headers.get("content-type"), null);
+  return req;
+}
 
-  const result = await parseRequestBody(cleanReq, null);
+Deno.test("parseRequestBody - successful JSON parse", async () => {
+  const result = await parseRequestBody(jsonRequest('{"name":"sam","age":30}'));
 
-  assertEquals(isParseError(result), false, "Should not be a parse error");
-  if (!isParseError(result)) {
-    assertEquals(result.body, undefined);
+  assertEquals(result, {
+    kind: "parsed",
+    value: { name: "sam", age: 30 },
+    mediaType: getMediaType("application/json"),
+  });
+});
+
+Deno.test("parseRequestBody - successful form parse", async () => {
+  const result = await parseRequestBody(formRequest("name=sam&age=30"));
+
+  assertEquals(result.kind, "parsed");
+  if (result.kind === "parsed") {
+    assertEquals(result.mediaType, "application/x-www-form-urlencoded");
+    assertEquals(result.rawFormKeys, ["name", "age"]);
   }
+});
+
+Deno.test("parseRequestBody - multipart form parse", async () => {
+  const form = new FormData();
+  form.set("name", "sam");
+  const req = new Request("http://localhost/test", {
+    method: "POST",
+    body: form,
+  });
+  const result = await parseRequestBody(req);
+
+  assertEquals(result.kind, "parsed");
+  if (result.kind === "parsed") {
+    assertEquals(result.mediaType, "multipart/form-data");
+    assertEquals(result.rawFormKeys, ["name"]);
+  }
+});
+
+Deno.test("parseRequestBody - other content types are read as text", async () => {
+  const req = new Request("http://localhost/test", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+    body: "hello",
+  });
+
+  assertEquals(await parseRequestBody(req), {
+    kind: "parsed",
+    value: "hello",
+    mediaType: getMediaType("text/plain"),
+  });
+});
+
+Deno.test("parseRequestBody - unparseable Content-Type keeps the text, media type unknown", async () => {
+  const req = new Request("http://localhost/test", {
+    method: "POST",
+    headers: { "Content-Type": ";;;" },
+    body: "hello",
+  });
+
+  assertEquals(await parseRequestBody(req), {
+    kind: "parsed",
+    value: "hello",
+    mediaType: null,
+  });
+});
+
+for (const length of ["abc", "-5"]) {
+  Deno.test(`parseRequestBody - invalid Content-Length "${length}"`, async () => {
+    const req = jsonRequest('{"a":1}', { "Content-Length": length });
+    const result = await parseRequestBody(req);
+
+    assertEquals(result.kind, "invalid");
+    if (result.kind === "invalid") {
+      assertEquals(result.diagnostics.length, 1);
+      assertEquals(result.diagnostics[0]?.code, "E3019");
+    }
+  });
+}
+
+Deno.test("parseRequestBody - malformed JSON", async () => {
+  const result = await parseRequestBody(jsonRequest("{invalid json}"));
+
+  assertEquals(result.kind, "invalid");
+  if (result.kind === "invalid") {
+    const first = result.diagnostics[0];
+    assertExists(first);
+    assertEquals(first.code, "E3021");
+  }
+});
+
+Deno.test("parseRequestBody - QUERY and DELETE bodies are parsed", async () => {
+  for (const method of ["QUERY", "DELETE"]) {
+    const req = new Request("http://localhost/search", {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: "test" }),
+    });
+    const result = await parseRequestBody(req);
+
+    assertEquals(result.kind, "parsed", method);
+    if (result.kind === "parsed") assertEquals(result.value, { q: "test" });
+  }
+});
+
+// ── No body ────────────────────────────────────────────────────────
+//
+// "Absent" means zero bytes. Whether that is a problem depends on the spec
+// (requestBody.required), so the diagnostic engine decides, not the parser.
+
+Deno.test("parseRequestBody - request without a body is absent", async () => {
+  for (const method of ["GET", "DELETE"]) {
+    const req = new Request("http://localhost/test", { method });
+    assertEquals(await parseRequestBody(req), { kind: "absent" }, method);
+  }
+});
+
+Deno.test("parseRequestBody - zero bytes are absent whatever the Content-Type", async () => {
+  // SDKs commonly send Content-Type: application/json on every request,
+  // including DELETE and cancel endpoints that have no body.
+  for (
+    const contentType of [
+      "application/json",
+      "application/x-www-form-urlencoded",
+      "text/plain",
+      "application/octet-stream",
+    ]
+  ) {
+    const req = new Request("http://localhost/test", {
+      method: "POST",
+      headers: { "Content-Type": contentType },
+      body: "",
+    });
+    assertEquals(await parseRequestBody(req), { kind: "absent" }, contentType);
+  }
+});
+
+Deno.test("parseRequestBody - empty stream without Content-Type is absent", async () => {
+  // Deno's HTTP server gives every request a body stream, also bodyless ones.
+  const req = unlabelledRequest("DELETE", []);
+  assertEquals(await parseRequestBody(req), { kind: "absent" });
+});
+
+// ── Body without Content-Type ──────────────────────────────────────
+
+Deno.test("parseRequestBody - bytes without Content-Type are unlabelled, not absent", async () => {
+  const req = unlabelledRequest("POST", ['{"name":', '"sam"}']);
+
+  assertEquals(await parseRequestBody(req), {
+    kind: "unlabelled",
+    byteLength: 14,
+  });
 });

@@ -22,44 +22,47 @@ import {
   isJsonMediaType,
   isMultipartFormData,
 } from "./media-type.ts";
-import type { MultipartFormData, UrlEncoded } from "./media-type.ts";
-
-export interface BodyParseResult {
-  body: unknown;
-  contentType: string;
-  /** Raw form entry key names (with duplicates) for format mismatch detection. */
-  rawFormKeys?: string[];
-}
-
-export interface BodyParseError {
-  diagnostics: Diagnostic[];
-}
-
-export type ParseResult = BodyParseResult | BodyParseError;
-
-export function isParseError(r: ParseResult): r is BodyParseError {
-  return "diagnostics" in r;
-}
+import type {
+  MediaTypeEssence,
+  MultipartFormData,
+  UrlEncoded,
+} from "./media-type.ts";
 
 /**
- * Parse the request body, returning either the parsed body or diagnostics.
+ * What a request carried as its body. Each state is distinct for the
+ * diagnostic engine: an absent body may violate `requestBody.required`, an
+ * unlabelled one is missing its Content-Type, a parsed one is validated.
+ */
+export type RequestBody =
+  /** Zero bytes. */
+  | { kind: "absent" }
+  /** Bytes were sent without a Content-Type, so they cannot be interpreted. */
+  | { kind: "unlabelled"; byteLength: number }
+  | {
+    kind: "parsed";
+    value: unknown;
+    /** Essence of the Content-Type header, or null when it does not parse. */
+    mediaType: MediaTypeEssence | null;
+    /** Raw form entry key names (with duplicates) for format mismatch detection. */
+    rawFormKeys?: string[];
+  }
+  /** The body or its framing is malformed at the HTTP level. */
+  | { kind: "invalid"; diagnostics: Diagnostic[] };
+
+/**
+ * Read and parse the request body.
+ *
+ * The bytes are read once, here. Deno's HTTP server gives every request a
+ * body stream, also bodyless ones, so the only reliable sign of a body is
+ * that it has bytes.
  *
  * @param req - The incoming Request
- * @param _acceptedContentTypes - Content types the operation accepts, or null to skip content-type checking
  * @param formOptions - Options for form data parsing (format, schema for coercion)
  */
 export async function parseRequestBody(
   req: Request,
-  _acceptedContentTypes: string[] | null,
   formOptions?: FormParserOptions,
-): Promise<ParseResult> {
-  // No Content-Type means no body to parse. Deno's HTTP server may set
-  // req.body to an empty ReadableStream even for bodyless requests, so we
-  // cannot rely on !req.body alone.
-  if (!req.headers.get("content-type")) {
-    return { body: undefined, contentType: "" };
-  }
-
+): Promise<RequestBody> {
   // Check Content-Length header validity
   const contentLength = req.headers.get("content-length");
   if (contentLength) {
@@ -67,6 +70,7 @@ export async function parseRequestBody(
     if (isNaN(size) || size < 0) {
       const def = getCode("E3019");
       return {
+        kind: "invalid",
         diagnostics: [{
           code: "E3019",
           severity: def.severity,
@@ -96,38 +100,51 @@ export async function parseRequestBody(
     : null;
 
   try {
-    let parsedBody: unknown;
+    const bytes = new Uint8Array(await req.arrayBuffer());
 
-    let rawFormKeys: string[] | undefined;
+    // Zero bytes is "no body", whatever the headers say. SDKs commonly set
+    // Content-Type: application/json on all requests, including DELETE and
+    // cancel endpoints that have no body. The diagnostic engine emits E3005
+    // if the spec requires a body.
+    if (bytes.length === 0) {
+      return { kind: "absent" };
+    }
+
+    if (!contentTypeHeader) {
+      return { kind: "unlabelled", byteLength: bytes.length };
+    }
 
     if (maybeMediaType && isFormMediaType(maybeMediaType)) {
       const formResult = await parseFormBody(
-        req.clone(),
+        bytes,
+        contentTypeHeader,
         maybeMediaType,
         formOptions,
       );
-      parsedBody = formResult.body;
-      rawFormKeys = formResult.rawFormKeys;
-    } else if (maybeMediaType && isJsonMediaType(maybeMediaType)) {
-      const body = await readBody(req.clone());
-      if (body === "") {
-        // Empty body with JSON content-type: treat as "no body provided."
-        // SDKs commonly set Content-Type: application/json on all requests,
-        // including DELETE/cancel endpoints that have no body.
-        // The diagnostic engine will emit E3005 if the spec requires a body.
-        return { body: undefined, contentType: "" };
-      }
-      parsedBody = JSON.parse(body);
-    } else {
-      // No content-type or non-JSON/non-form: read as raw string
-      parsedBody = await readBody(req.clone());
+      return {
+        kind: "parsed",
+        value: formResult.body,
+        mediaType: maybeMediaType,
+        rawFormKeys: formResult.rawFormKeys,
+      };
     }
 
-    return { body: parsedBody, contentType: maybeMediaType ?? "", rawFormKeys };
+    const text = new TextDecoder().decode(bytes);
+    if (maybeMediaType && isJsonMediaType(maybeMediaType)) {
+      return {
+        kind: "parsed",
+        value: JSON.parse(text),
+        mediaType: maybeMediaType,
+      };
+    }
+
+    // Any other media type, or one that does not parse: keep the text.
+    return { kind: "parsed", value: text, mediaType: maybeMediaType };
   } catch (error) {
     if (error instanceof SyntaxError) {
       const def = getCode("E3021");
       return {
+        kind: "invalid",
         diagnostics: [{
           code: "E3021",
           severity: def.severity,
@@ -150,6 +167,7 @@ export async function parseRequestBody(
 
     const def = getCode("E3021");
     return {
+      kind: "invalid",
       diagnostics: [{
         code: "E3021",
         severity: def.severity,
@@ -172,13 +190,6 @@ export async function parseRequestBody(
   }
 }
 
-/**
- * Read request body as a string.
- */
-async function readBody(req: Request): Promise<string> {
-  return await req.text();
-}
-
 interface FormBodyResult {
   body: unknown;
   rawFormKeys: string[];
@@ -186,9 +197,12 @@ interface FormBodyResult {
 
 /**
  * Parse form data body (multipart/form-data or application/x-www-form-urlencoded).
+ *
+ * @param contentTypeHeader - The raw header; multipart needs its boundary parameter.
  */
 async function parseFormBody(
-  req: Request,
+  bytes: Uint8Array<ArrayBuffer>,
+  contentTypeHeader: string,
   mediaType: MultipartFormData | UrlEncoded,
   options?: FormParserOptions,
 ): Promise<FormBodyResult> {
@@ -201,14 +215,17 @@ async function parseFormBody(
   };
 
   if (isMultipartFormData(mediaType)) {
-    const formData = await req.formData();
+    // The platform's multipart decoder is reached through a body carrier.
+    const formData = await new Response(bytes, {
+      headers: { "Content-Type": contentTypeHeader },
+    }).formData();
     const rawFormKeys = [...formData.keys()];
     const parsed = await parseFormData(formData, parserOptions);
     return { body: parsed.data, rawFormKeys };
   }
 
   // application/x-www-form-urlencoded
-  const body = await readBody(req);
+  const body = new TextDecoder().decode(bytes);
   const params = new URLSearchParams(body);
   const rawFormKeys = [...params.keys()];
   const parsed = parseUrlEncoded(body, parserOptions);
