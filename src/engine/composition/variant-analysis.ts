@@ -32,6 +32,8 @@ interface VariantDetail {
  * 0. Nullable wrapper pattern: when the composition is `[X, null]` and the
  *    request data is non-null, the SDK clearly didn't intend null. Drop the
  *    null branch before running heuristics.
+ * 0b. JSON type: when some variants accept the type of the value and
+ *    others do not, drop the ones that do not.
  * 1. Property overlap (request keys vs variant schema properties)
  * 2. Structural failure count
  * Returns the identified variant's diagnostics with adjusted confidence,
@@ -88,16 +90,35 @@ export function analyzeAllFailed(
     }
   }
 
+  // Step 0b: JSON type. An array sent where the variants are "array of
+  // integers" and "integer" was meant as the array. The integer variant
+  // fails as well, but on the type of the value itself, and that failure
+  // carries no information about what is wrong inside the array. Counting
+  // it as one failure against the one failure inside the array would make
+  // the two variants look equally close.
+  const accepting = variantDetails.filter((v) => v.result.wrongType !== true);
+  const candidates = accepting.length > 0 ? accepting : variantDetails;
+  if (candidates.length === 1 && variantDetails.length > 1) {
+    const detail = candidates[0];
+    if (detail) {
+      return identifiedVariant(
+        detail,
+        1.0,
+        "only variant that accepts the type of the value",
+      );
+    }
+  }
+
   // Step 1: Property overlap. Compare request keys against variant properties
-  const overlapResult = identifyByPropertyOverlap(variantDetails, context);
+  const overlapResult = identifyByPropertyOverlap(candidates, context);
   if (overlapResult) return overlapResult;
 
   // Step 2: Structural failure count. Fewer failures = more likely intended
-  const failureCountResult = identifyByFailureCount(variantDetails);
+  const failureCountResult = identifyByFailureCount(candidates);
   if (failureCountResult) return failureCountResult;
 
   // Step 3: No clear variant. Report E3012
-  return reportAmbiguous(variantDetails, context);
+  return reportAmbiguous(candidates, context);
 }
 
 /**

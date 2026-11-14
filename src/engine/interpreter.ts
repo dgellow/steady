@@ -69,29 +69,57 @@ export function interpret(
         data: nodeData,
       };
 
+      // The variants of a composition apply to the same value as the
+      // composition. No variant of a oneOf or anyOf accepts the value's
+      // type: neither does the composition. One member of an allOf does
+      // not: neither does the allOf.
       switch (node.keyword) {
         case "oneOf":
-          return attributeOneOf(childResults, context);
+          return withWrongType(
+            attributeOneOf(childResults, context),
+            childResults.every((c) => c.wrongType === true),
+          );
         case "anyOf":
-          return attributeAnyOf(childResults, context);
+          return withWrongType(
+            attributeAnyOf(childResults, context),
+            childResults.every((c) => c.wrongType === true),
+          );
         case "allOf":
-          return attributeAllOf(childResults, context);
+          return withWrongType(
+            attributeAllOf(childResults, context),
+            childResults.some((c) => c.wrongType === true),
+          );
       }
     }
 
-    // Container node (root, variant wrapper). Merge children
-    return {
-      diagnostics: childResults.flatMap((c) => c.diagnostics),
-      structurallyValid: childResults.every((c) => c.structurallyValid),
-      structuralFailureCount: childResults.reduce(
-        (sum, c) => sum + c.structuralFailureCount,
-        0,
+    // Container node (root, variant wrapper). Merge children. A child
+    // speaks about the container's own value when it has the same path.
+    const depth = node.path.length;
+    return withWrongType(
+      {
+        diagnostics: childResults.flatMap((c) => c.diagnostics),
+        structurallyValid: childResults.every((c) => c.structurallyValid),
+        structuralFailureCount: childResults.reduce(
+          (sum, c) => sum + c.structuralFailureCount,
+          0,
+        ),
+      },
+      node.children.some((child, index) =>
+        child.path.length === depth && childResults[index]?.wrongType === true
       ),
-    };
+    );
   }
 
   // Leaf error, attribute and classify
   return interpretLeaf(node, spec, location);
+}
+
+function withWrongType(
+  result: InterpretResult,
+  wrongType: boolean,
+): InterpretResult {
+  if (!wrongType) return result;
+  return { ...result, wrongType: true };
 }
 
 /**
@@ -130,11 +158,14 @@ function interpretLeaf(
     );
   }
 
-  return {
-    diagnostics: [diagnostic],
-    structurallyValid: !structural,
-    structuralFailureCount: structural ? 1 : 0,
-  };
+  return withWrongType(
+    {
+      diagnostics: [diagnostic],
+      structurallyValid: !structural,
+      structuralFailureCount: structural ? 1 : 0,
+    },
+    node.keyword === "type",
+  );
 }
 
 /**
